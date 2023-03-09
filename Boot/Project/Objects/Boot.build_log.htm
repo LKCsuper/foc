@@ -1,0 +1,171 @@
+<html>
+<body>
+<pre>
+<h1>µVision Build Log</h1>
+<h2>Tool Versions:</h2>
+IDE-Version: ¦ÌVision V5.38.0.0
+Copyright (C) 2022 ARM Ltd and ARM Germany GmbH. All rights reserved.
+License Information: 111 1540300148@qq.com, 1, LIC=KRMW3-A1XXI-30ENC-7NGQ2-9SM48-E4YFX
+ 
+Tool Versions:
+Toolchain:       MDK-ARM Plus  Version: 5.38.0.0
+Toolchain Path:  E:\software_qrs\keil_core\ARM\ARMCC\Bin
+C Compiler:      Armcc.exe V5.05 update 1 (build 106)
+Assembler:       Armasm.exe V5.05 update 1 (build 106)
+Linker/Locator:  ArmLink.exe V5.05 update 1 (build 106)
+Library Manager: ArmAr.exe V5.05 update 1 (build 106)
+Hex Converter:   FromElf.exe V5.05 update 1 (build 106)
+CPU DLL:         SARMCM3.DLL V5.38.0.0
+Dialog DLL:      DCM.DLL V1.17.5.0
+Target DLL:      UL2CM3.DLL V1.164.8.0
+Dialog DLL:      TCM.DLL V1.56.4.0
+ 
+<h2>Project:</h2>
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Boot\Project\Boot.uvprojx
+Project File Date:  02/28/2023
+
+<h2>Output:</h2>
+*** Using Compiler 'V5.05 update 1 (build 106)', folder: 'E:\software_qrs\keil_core\ARM\ARMCC\Bin'
+Build Project 'Boot' - Target 'Boot'
+compiling menu.c...
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Boot\User\menu.c(34): error:  #5: cannot open source input file "flash_if.h": No such file or directory
+  #include "flash_if.h"
+..\User\menu.c: 0 warnings, 1 error
+compiling stm32f4xx_it.c...
+compiling stm32f4xx_dac.c...
+compiling stm32f4xx_cryp_des.c...
+compiling stm32f4xx_adc.c...
+compiling main.c...
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Boot\User\includes.h(28): error:  #5: cannot open source input file "bsp_flash.h": No such file or directory
+  #include "bsp_flash.h"
+..\User\main.c: 0 warnings, 1 error
+compiling stm32f4xx_can.c...
+compiling stm32f4xx_cec.c...
+compiling stm32f4xx_cryp_tdes.c...
+compiling stm32f4xx_crc.c...
+compiling misc.c...
+compiling stm32f4xx_dbgmcu.c...
+compiling stm32f4xx_cryp.c...
+compiling stm32f4xx_dcmi.c...
+compiling stm32f4xx_dfsdm.c...
+compiling stm32f4xx_cryp_aes.c...
+compiling stm32f4xx_dma.c...
+compiling stm32f4xx_fmc.c...
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(137): error:  #20: identifier "FMC_Bank1" is undefined
+      FMC_Bank1->BTCR[FMC_Bank] = 0x000030DB;    
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(142): error:  #20: identifier "FMC_Bank1" is undefined
+      FMC_Bank1->BTCR[FMC_Bank] = 0x000030D2; 
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(144): error:  #20: identifier "FMC_Bank1" is undefined
+    FMC_Bank1->BTCR[FMC_Bank + 1] = 0x0FFFFFFF;
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(145): error:  #20: identifier "FMC_Bank1E" is undefined
+    FMC_Bank1E->BWTR[FMC_Bank] = 0x0FFFFFFF;  
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(184): error:  #20: identifier "FMC_Bank1" is undefined
+    tmpbcr = FMC_Bank1->BTCR[FMC_NORSRAMInitStruct->FMC_Bank];
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(188): error:  #20: identifier "FMC_BCR1_MBKEN" is undefined
+    tmpbcr &= ((uint32_t)~(FMC_BCR1_MBKEN   | FMC_BCR1_MUXEN    | FMC_BCR1_MTYP     | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(188): error:  #20: identifier "FMC_BCR1_MUXEN" is undefined
+    tmpbcr &= ((uint32_t)~(FMC_BCR1_MBKEN   | FMC_BCR1_MUXEN    | FMC_BCR1_MTYP     | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(188): error:  #20: identifier "FMC_BCR1_MTYP" is undefined
+    tmpbcr &= ((uint32_t)~(FMC_BCR1_MBKEN   | FMC_BCR1_MUXEN    | FMC_BCR1_MTYP     | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(189): error:  #20: identifier "FMC_BCR1_MWID" is undefined
+                           FMC_BCR1_MWID     | FMC_BCR1_FACCEN   | FMC_BCR1_BURSTEN  | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(189): error:  #20: identifier "FMC_BCR1_FACCEN" is undefined
+                           FMC_BCR1_MWID     | FMC_BCR1_FACCEN   | FMC_BCR1_BURSTEN  | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(189): error:  #20: identifier "FMC_BCR1_BURSTEN" is undefined
+                           FMC_BCR1_MWID     | FMC_BCR1_FACCEN   | FMC_BCR1_BURSTEN  | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(190): error:  #20: identifier "FMC_BCR1_WAITPOL" is undefined
+                           FMC_BCR1_WAITPOL  | FMC_BCR1_WRAPMOD  | FMC_BCR1_WAITCFG  | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(190): error:  #20: identifier "FMC_BCR1_WRAPMOD" is undefined
+                           FMC_BCR1_WAITPOL  | FMC_BCR1_WRAPMOD  | FMC_BCR1_WAITCFG  | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(190): error:  #20: identifier "FMC_BCR1_WAITCFG" is undefined
+                           FMC_BCR1_WAITPOL  | FMC_BCR1_WRAPMOD  | FMC_BCR1_WAITCFG  | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(191): error:  #20: identifier "FMC_BCR1_WREN" is undefined
+                           FMC_BCR1_WREN     | FMC_BCR1_WAITEN   | FMC_BCR1_EXTMOD   | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(191): error:  #20: identifier "FMC_BCR1_WAITEN" is undefined
+                           FMC_BCR1_WREN     | FMC_BCR1_WAITEN   | FMC_BCR1_EXTMOD   | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(191): error:  #20: identifier "FMC_BCR1_EXTMOD" is undefined
+                           FMC_BCR1_WREN     | FMC_BCR1_WAITEN   | FMC_BCR1_EXTMOD   | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(192): error:  #20: identifier "FMC_BCR1_ASYNCWAIT" is undefined
+                           FMC_BCR1_ASYNCWAIT| FMC_BCR1_CBURSTRW | FMC_BCR1_CCLKEN));
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(192): error:  #20: identifier "FMC_BCR1_CBURSTRW" is undefined
+                           FMC_BCR1_ASYNCWAIT| FMC_BCR1_CBURSTRW | FMC_BCR1_CCLKEN));
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(192): error:  #20: identifier "FMC_BCR1_CCLKEN" is undefined
+                           FMC_BCR1_ASYNCWAIT| FMC_BCR1_CBURSTRW | FMC_BCR1_CCLKEN));
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(246): error:  #20: identifier "FMC_Bank1E" is undefined
+      tmpbwr = FMC_Bank1E->BWTR[FMC_NORSRAMInitStruct->FMC_Bank];
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(249): error:  #20: identifier "FMC_BWTR1_ADDSET" is undefined
+      tmpbwr &= ((uint32_t)~(FMC_BWTR1_ADDSET  | FMC_BWTR1_ADDHLD | FMC_BWTR1_DATAST | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(249): error:  #20: identifier "FMC_BWTR1_ADDHLD" is undefined
+      tmpbwr &= ((uint32_t)~(FMC_BWTR1_ADDSET  | FMC_BWTR1_ADDHLD | FMC_BWTR1_DATAST | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(249): error:  #20: identifier "FMC_BWTR1_DATAST" is undefined
+      tmpbwr &= ((uint32_t)~(FMC_BWTR1_ADDSET  | FMC_BWTR1_ADDHLD | FMC_BWTR1_DATAST | \
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(250): error:  #20: identifier "FMC_BWTR1_BUSTURN" is undefined
+                             FMC_BWTR1_BUSTURN | FMC_BWTR1_ACCMOD));
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(250): error:  #20: identifier "FMC_BWTR1_ACCMOD" is undefined
+                             FMC_BWTR1_BUSTURN | FMC_BWTR1_ACCMOD));
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(262): error:  #20: identifier "FMC_Bank1E" is undefined
+      FMC_Bank1E->BWTR[FMC_NORSRAMInitStruct->FMC_Bank] = 0x0FFFFFFF;
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(314): error:  #20: identifier "FMC_Bank1" is undefined
+      FMC_Bank1->BTCR[FMC_Bank] |= BCR_MBKEN_SET;
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(319): error:  #20: identifier "FMC_Bank1" is undefined
+      FMC_Bank1->BTCR[FMC_Bank] &= BCR_MBKEN_RESET;
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c(387): error:  #20: identifier "FMC_Bank2" is undefined
+      FMC_Bank2->PCR2 = 0x00000018;
+..\..\Library\STM32F4xx_StdPeriph_Driver\src\stm32f4xx_fmc.c: 0 warnings, 30 errors
+compiling stm32f4xx_dsi.c...
+compiling stm32f4xx_exti.c...
+compiling stm32f4xx_dma2d.c...
+compiling stm32f4xx_fmpi2c.c...
+compiling stm32f4xx_hash_sha1.c...
+compiling stm32f4xx_gpio.c...
+compiling stm32f4xx_hash_md5.c...
+compiling stm32f4xx_iwdg.c...
+compiling stm32f4xx_lptim.c...
+compiling stm32f4xx_hash.c...
+compiling stm32f4xx_fsmc.c...
+compiling stm32f4xx_i2c.c...
+compiling stm32f4xx_ltdc.c...
+compiling stm32f4xx_pwr.c...
+compiling ymodem.c...
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Boot\User\includes.h(28): error:  #5: cannot open source input file "bsp_flash.h": No such file or directory
+  #include "bsp_flash.h"
+..\..\ThirtyLibrary\ymodem\ymodem.c: 0 warnings, 1 error
+compiling stm32f4xx_qspi.c...
+compiling stm32f4xx_spdifrx.c...
+compiling stm32f4xx_spi.c...
+compiling stm32f4xx_rng.c...
+compiling stm32f4xx_sdio.c...
+compiling stm32f4xx_sai.c...
+compiling stm32f4xx_syscfg.c...
+compiling stm32f4xx_rcc.c...
+compiling ymodem_common.c...
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Boot\User\includes.h(28): error:  #5: cannot open source input file "bsp_flash.h": No such file or directory
+  #include "bsp_flash.h"
+..\..\ThirtyLibrary\ymodem\ymodem_common.c: 0 warnings, 1 error
+compiling stm32f4xx_wwdg.c...
+compiling stm32f4xx_usart.c...
+compiling system_stm32f4xx.c...
+compiling stm32f4xx_rtc.c...
+compiling stm32f4xx_tim.c...
+compiling ymodem_config.c...
+D:\BaiduSyncdisk\MCU\motor\code\my_foc_405RG\Boot\User\includes.h(28): error:  #5: cannot open source input file "bsp_flash.h": No such file or directory
+  #include "bsp_flash.h"
+..\..\ThirtyLibrary\ymodem\ymodem_config.c: 0 warnings, 1 error
+".\Objects\Boot.axf" - 35 Error(s), 0 Warning(s).
+
+<h2>Software Packages used:</h2>
+
+Package Vendor: Keil
+                http://www.keil.com/pack/Keil.STM32F4xx_DFP.2.16.0.pack
+                Keil.STM32F4xx_DFP.2.16.0
+                STMicroelectronics STM32F4 Series Device Support, Drivers and Examples
+
+<h2>Collection of Component include folders:</h2>
+  E:/software_qrs/keil_pack/Keil/STM32F4xx_DFP/2.16.0/Drivers/CMSIS/Device/ST/STM32F4xx/Include
+
+<h2>Collection of Component Files used:</h2>
+Target not created.
+Build Time Elapsed:  00:00:01
+</pre>
+</body>
+</html>

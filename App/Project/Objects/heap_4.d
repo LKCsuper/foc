@@ -1,0 +1,13 @@
+.\objects\heap_4.o: ..\..\ThirtyLibrary\FreeRTOS\portable\MemMang\heap_4.c
+.\objects\heap_4.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\stdlib.h
+.\objects\heap_4.o: ..\..\ThirtyLibrary\FreeRTOS\include\FreeRTOS.h
+.\objects\heap_4.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\heap_4.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\heap_4.o: ..\User\FreeRTOSConfig.h
+.\objects\heap_4.o: ..\..\ThirtyLibrary\FreeRTOS\include\projdefs.h
+.\objects\heap_4.o: ..\..\ThirtyLibrary\FreeRTOS\include\portable.h
+.\objects\heap_4.o: ..\..\ThirtyLibrary\FreeRTOS\include\deprecated_definitions.h
+.\objects\heap_4.o: ..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F\portmacro.h
+.\objects\heap_4.o: ..\..\ThirtyLibrary\FreeRTOS\include\mpu_wrappers.h
+.\objects\heap_4.o: ..\..\ThirtyLibrary\FreeRTOS\include\task.h
+.\objects\heap_4.o: ..\..\ThirtyLibrary\FreeRTOS\include\list.h

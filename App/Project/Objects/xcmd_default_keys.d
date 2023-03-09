@@ -1,0 +1,13 @@
+.\objects\xcmd_default_keys.o: ..\..\ThirtyLibrary\XCmd\src\xcmd_default_keys.c
+.\objects\xcmd_default_keys.o: ..\..\ThirtyLibrary\XCmd\inc\xcmd_default_confg.h
+.\objects\xcmd_default_keys.o: ..\User\xcmd_confg.h
+.\objects\xcmd_default_keys.o: ..\..\ThirtyLibrary\XCmd\inc\xcmd_define.h
+.\objects\xcmd_default_keys.o: ..\..\ThirtyLibrary\XCmd\inc\xcmd.h
+.\objects\xcmd_default_keys.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\string.h
+.\objects\xcmd_default_keys.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\ctype.h
+.\objects\xcmd_default_keys.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\xcmd_default_keys.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\xcmd_default_keys.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\xcmd_default_keys.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\math.h
+.\objects\xcmd_default_keys.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\stdarg.h
+.\objects\xcmd_default_keys.o: ..\..\ThirtyLibrary\XCmd\inc\xcmd_default_keys.h
