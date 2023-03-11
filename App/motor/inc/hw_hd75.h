@@ -33,7 +33,7 @@
 										drv8323s_write_reg(4,0x7af);
 
 // Macros
-#define ENABLE_GATE()			palSetPad(GPIOB, 5)
+#define ENABLE_GATE()			palSetPad(GPIOB, GPIO_Pin_5)
 #define DISABLE_GATE()			palClearPad(GPIOB, 5)
 
 #define IS_DRV_FAULT()			(!palReadPad(GPIOB, 7))
@@ -55,7 +55,7 @@
 								HW_SHUTDOWN_HOLD_ON();
 
 #define PHASE_FILTER_GPIO		GPIOC
-#define PHASE_FILTER_PIN		13
+#define PHASE_FILTER_PIN		GPIO_Pin_13
 #define PHASE_FILTER_ON()		palSetPad(PHASE_FILTER_GPIO, PHASE_FILTER_PIN)
 #define PHASE_FILTER_OFF()		palClearPad(PHASE_FILTER_GPIO, PHASE_FILTER_PIN)
 

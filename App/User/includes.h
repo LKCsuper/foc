@@ -23,6 +23,7 @@ extern "C" {
 #define USE_STDPERIPH_DRIVER    1
 #endif
 
+#include "arm_math.h"
 #include "stm32f4xx.h"
 
 /* freertos */

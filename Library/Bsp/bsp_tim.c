@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-11 00:06:49
+ * @LastEditTime: 2023-03-11 22:04:02
  */
 #ifdef __cplusplus
 extern "C" {
@@ -20,6 +20,146 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+/**
+ * @Description: 停止pwm
+ * @author: lkc
+ * @Date: 2023-02-19 10:21:06
+ * @param {bool} is_second
+ * @return {*}
+ */
+void Bsp_Tim_StopPwm(bool is_second)
+{
+    /* dq 为0 */
+    if (!is_second)
+    {
+		TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_ForcedAction_InActive);
+		TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM1, TIM_Channel_1, TIM_CCxN_Disable);
+
+		TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_ForcedAction_InActive);
+		TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM1, TIM_Channel_2, TIM_CCxN_Disable);
+
+		TIM_SelectOCxM(TIM1, TIM_Channel_3, TIM_ForcedAction_InActive);
+		TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);
+
+		TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+
+#ifdef HW_HAS_DUAL_PARALLEL
+		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_ForcedAction_InActive);
+		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, TIM_Channel_1, TIM_CCxN_Disable);
+
+		TIM_SelectOCxM(TIM8, TIM_Channel_2, TIM_ForcedAction_InActive);
+		TIM_CCxCmd(TIM8, TIM_Channel_2, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, TIM_Channel_2, TIM_CCxN_Disable);
+
+		TIM_SelectOCxM(TIM8, TIM_Channel_3, TIM_ForcedAction_InActive);
+		TIM_CCxCmd(TIM8, TIM_Channel_3, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, TIM_Channel_3, TIM_CCxN_Disable);
+
+		TIM_GenerateEvent(TIM8, TIM_EventSource_COM);
+#endif
+
+#ifdef HW_HAS_DRV8313
+		DISABLE_BR();
+#endif
+		PHASE_FILTER_OFF();
+    }
+    else
+    {
+		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_ForcedAction_InActive);
+		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, TIM_Channel_1, TIM_CCxN_Disable);
+
+		TIM_SelectOCxM(TIM8, TIM_Channel_2, TIM_ForcedAction_InActive);
+		TIM_CCxCmd(TIM8, TIM_Channel_2, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, TIM_Channel_2, TIM_CCxN_Disable);
+
+		TIM_SelectOCxM(TIM8, TIM_Channel_3, TIM_ForcedAction_InActive);
+		TIM_CCxCmd(TIM8, TIM_Channel_3, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, TIM_Channel_3, TIM_CCxN_Disable);
+
+		TIM_GenerateEvent(TIM8, TIM_EventSource_COM);
+
+#ifdef HW_HAS_DRV8313_2
+		DISABLE_BR_2();
+#endif
+
+		PHASE_FILTER_OFF_M2();
+    }
+
+    return;
+}
+
+/**
+ * @Description: 开始pwm
+ * @author: lkc
+ * @Date: 2023-02-19 10:21:06
+ * @param {bool} is_second
+ * @return {*}
+ */
+void Bsp_Tim_StartPwm(bool is_second)
+{
+	if (!is_second) {
+		TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_OCMode_PWM1);
+		TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM1, TIM_Channel_1, TIM_CCxN_Enable);
+
+		TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_OCMode_PWM1);
+		TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM1, TIM_Channel_2, TIM_CCxN_Enable);
+
+		TIM_SelectOCxM(TIM1, TIM_Channel_3, TIM_OCMode_PWM1);
+		TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
+
+#ifdef HW_HAS_DUAL_PARALLEL
+		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_OCMode_PWM1);
+		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, TIM_Channel_1, TIM_CCxN_Enable);
+
+		TIM_SelectOCxM(TIM8, TIM_Channel_2, TIM_OCMode_PWM1);
+		TIM_CCxCmd(TIM8, TIM_Channel_2, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, TIM_Channel_2, TIM_CCxN_Enable);
+
+		TIM_SelectOCxM(TIM8, TIM_Channel_3, TIM_OCMode_PWM1);
+		TIM_CCxCmd(TIM8, TIM_Channel_3, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, TIM_Channel_3, TIM_CCxN_Enable);
+
+		PHASE_FILTER_ON_M2();
+#endif
+
+		// Generate COM event in ADC interrupt to get better synchronization
+		//	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+
+#ifdef HW_HAS_DRV8313
+		ENABLE_BR();
+#endif
+		PHASE_FILTER_ON();
+	} else {
+		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_OCMode_PWM1);
+		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, TIM_Channel_1, TIM_CCxN_Enable);
+
+		TIM_SelectOCxM(TIM8, TIM_Channel_2, TIM_OCMode_PWM1);
+		TIM_CCxCmd(TIM8, TIM_Channel_2, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, TIM_Channel_2, TIM_CCxN_Enable);
+
+		TIM_SelectOCxM(TIM8, TIM_Channel_3, TIM_OCMode_PWM1);
+		TIM_CCxCmd(TIM8, TIM_Channel_3, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, TIM_Channel_3, TIM_CCxN_Enable);
+
+#ifdef HW_HAS_DRV8313_2
+		ENABLE_BR_2();
+#endif
+
+		PHASE_FILTER_ON_M2();
+	}
+
+    return;
+}
 
 /**
  * @Description: 电机1pwm输出
@@ -33,30 +173,34 @@ void Bsp_Tim_Pwm1(int f_zv)
 	TIM_OCInitTypeDef TIM_OCInitStructure;
 	TIM_BDTRInitTypeDef TIM_BDTRInitStructure;
 
+	/* 初始化定时器时钟 */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1, ENABLE);
 
 	/* 恢复默认 */
 	TIM_DeInit(TIM1);
+	TIM1->CNT = 0;
     
     /* 定时器基本初始化 */
 	TIM_TimeBaseStructure.TIM_Prescaler = 0;
 	/* 中央对齐模式1,交替上下 */
 	TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_CenterAligned1;
+	/* 168000000 / 168 * f_zv */
 	TIM_TimeBaseStructure.TIM_Period = (SYSTEM_CORE_CLOCK / f_zv);
-	TIM_TimeBaseStructure.TIM_ClockDivision = 0;
+	TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
 	TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
 
     TIM_TimeBaseInit(TIM1, &TIM_TimeBaseStructure);
     
 	TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
-	// * 上桥臂和下桥臂导通,需要上下输出pwm
+	/* 上桥臂和下桥臂导通,需要输出互补pwm */
 	/* 比较输出使能 */
 	TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
 	/* 互补输出使能 */
 	TIM_OCInitStructure.TIM_OutputNState = TIM_OutputNState_Enable;
+	/* 占空比 */
 	TIM_OCInitStructure.TIM_Pulse = TIM1->ARR / 2;
 
-// * 意味着上下桥臂有没有接反
+	/* 意味着上下桥臂有没有接反 */
 #ifndef INVERTED_TOP_DRIVER_INPUT
 	/* gpio high = top fets on */
 	TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
@@ -66,7 +210,7 @@ void Bsp_Tim_Pwm1(int f_zv)
 
     TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Set;
 
-// * 互补通道输出极性
+	/*  互补通道输出极性 */
 #ifndef INVERTED_BOTTOM_DRIVER_INPUT
 	/* gpio high = bottom fets on */
 	TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_High;
@@ -81,22 +225,22 @@ void Bsp_Tim_Pwm1(int f_zv)
 	TIM_OC3Init(TIM1, &TIM_OCInitStructure);
 	TIM_OC4Init(TIM1, &TIM_OCInitStructure);
 
-	// * 都是预装载开启 影子寄存器
+	/* 都是预装载开启 影子寄存器 也就是暂时不生效 */
 	TIM_OC1PreloadConfig(TIM1, TIM_OCPreload_Enable);
 	TIM_OC2PreloadConfig(TIM1, TIM_OCPreload_Enable);
 	TIM_OC3PreloadConfig(TIM1, TIM_OCPreload_Enable);
 	TIM_OC4PreloadConfig(TIM1, TIM_OCPreload_Enable);
 
 	// Automatic Output enable, Break, dead time and lock configuration
-	// * 运行模式下的关闭状态选择 
+	/* 运行模式下的关闭状态选择 */ 
 	TIM_BDTRInitStructure.TIM_OSSRState = TIM_OSSRState_Enable;
-	// * 空闲模式下的关闭状态选择
+	/* 空闲模式下的关闭状态选择 */
 	TIM_BDTRInitStructure.TIM_OSSIState = TIM_OSSIState_Enable;
-	// *
+	/* 锁定 */
 	TIM_BDTRInitStructure.TIM_LOCKLevel = TIM_LOCKLevel_OFF;
-	// * 死区时间 避免上下桥臂同时导通现象
+	/* 死区时间 避免上下桥臂同时导通现象 */
 	TIM_BDTRInitStructure.TIM_DeadTime  =  calculate_deadtime(HW_DEAD_TIME_NSEC, SYSTEM_CORE_CLOCK);
-	// * 自动输出使能
+	/* 自动输出使能 */
 	TIM_BDTRInitStructure.TIM_AutomaticOutput = TIM_AutomaticOutput_Disable;
 
 // 故障检测功能
@@ -120,6 +264,9 @@ void Bsp_Tim_Pwm1(int f_zv)
 
 	TIM1->CNT = 0;
     TIM_Cmd(TIM1, ENABLE);
+
+	Bsp_Tim_StopPwm(MOTOR1);
+
     TIM_CtrlPWMOutputs(TIM1, ENABLE);
 
     return;
@@ -289,147 +436,6 @@ void Bsp_Tim_Trig(void)
 }
 
 /**
- * @Description: 停止pwm
- * @author: lkc
- * @Date: 2023-02-19 10:21:06
- * @param {bool} is_second
- * @return {*}
- */
-void Bsp_Tim_StopPwm(bool is_second)
-{
-    /* dq 为0 */
-    if (!is_second)
-    {
-		TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM1, TIM_Channel_1, TIM_CCxN_Disable);
-
-		TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM1, TIM_Channel_2, TIM_CCxN_Disable);
-
-		TIM_SelectOCxM(TIM1, TIM_Channel_3, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);
-
-		TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-
-#ifdef HW_HAS_DUAL_PARALLEL
-		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_1, TIM_CCxN_Disable);
-
-		TIM_SelectOCxM(TIM8, TIM_Channel_2, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM8, TIM_Channel_2, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_2, TIM_CCxN_Disable);
-
-		TIM_SelectOCxM(TIM8, TIM_Channel_3, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM8, TIM_Channel_3, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_3, TIM_CCxN_Disable);
-
-		TIM_GenerateEvent(TIM8, TIM_EventSource_COM);
-#endif
-
-#ifdef HW_HAS_DRV8313
-		DISABLE_BR();
-#endif
-		PHASE_FILTER_OFF();
-    }
-    else
-    {
-		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_1, TIM_CCxN_Disable);
-
-		TIM_SelectOCxM(TIM8, TIM_Channel_2, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM8, TIM_Channel_2, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_2, TIM_CCxN_Disable);
-
-		TIM_SelectOCxM(TIM8, TIM_Channel_3, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM8, TIM_Channel_3, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_3, TIM_CCxN_Disable);
-
-		TIM_GenerateEvent(TIM8, TIM_EventSource_COM);
-
-#ifdef HW_HAS_DRV8313_2
-		DISABLE_BR_2();
-#endif
-
-		PHASE_FILTER_OFF_M2();
-    }
-
-    return;
-}
-
-/**
- * @Description: 开始pwm
- * @author: lkc
- * @Date: 2023-02-19 10:21:06
- * @param {bool} is_second
- * @return {*}
- */
-void Bsp_Tim_StartPwm(bool is_second)
-{
-	if (!is_second) {
-		TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM1, TIM_Channel_1, TIM_CCxN_Enable);
-
-		TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM1, TIM_Channel_2, TIM_CCxN_Enable);
-
-		TIM_SelectOCxM(TIM1, TIM_Channel_3, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
-
-#ifdef HW_HAS_DUAL_PARALLEL
-		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_1, TIM_CCxN_Enable);
-
-		TIM_SelectOCxM(TIM8, TIM_Channel_2, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM8, TIM_Channel_2, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_2, TIM_CCxN_Enable);
-
-		TIM_SelectOCxM(TIM8, TIM_Channel_3, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM8, TIM_Channel_3, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_3, TIM_CCxN_Enable);
-
-		PHASE_FILTER_ON_M2();
-#endif
-
-		// Generate COM event in ADC interrupt to get better synchronization
-		//	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-
-#ifdef HW_HAS_DRV8313
-		ENABLE_BR();
-#endif
-		PHASE_FILTER_ON();
-	} else {
-		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_1, TIM_CCxN_Enable);
-
-		TIM_SelectOCxM(TIM8, TIM_Channel_2, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM8, TIM_Channel_2, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_2, TIM_CCxN_Enable);
-
-		TIM_SelectOCxM(TIM8, TIM_Channel_3, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM8, TIM_Channel_3, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_3, TIM_CCxN_Enable);
-
-#ifdef HW_HAS_DRV8313_2
-		ENABLE_BR_2();
-#endif
-
-		PHASE_FILTER_ON_M2();
-	}
-
-    return;
-}
-
-/**
  * @description: 定时器统计cpu运行时间
  * @detail: 
  * @return {*}
@@ -471,6 +477,7 @@ void Bsp_Tim3_RunCount(void)
  */
 void Bsp_Tim_Init(void)
 {
+	/* 多少hz 30000 30hz  */
     Bsp_Tim_Pwm1(MCCONF_FOC_F_ZV);
     Bsp_Tim_TrigAdc();
 	Bsp_Tim_Trig();

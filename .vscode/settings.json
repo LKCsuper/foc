@@ -24,6 +24,7 @@
         "freertosconfig.h": "c",
         "event_groups.h": "c",
         "serial.h": "c",
-        "nr_micro_shell_config.h": "c"
+        "nr_micro_shell_config.h": "c",
+        "arm_common_tables.h": "c"
     }
 }

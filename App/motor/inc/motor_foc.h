@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-02-19 21:44:40
+ * @LastEditTime: 2023-03-11 14:39:14
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_FOC_H
@@ -51,6 +51,8 @@ extern inline void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha,
 extern inline void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq);
 extern inline void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float *mod_beta);
 extern inline int svm(float alpha, float beta, float* tA, float* tB, float* tC);
+void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
+				uint32_t* tAout, uint32_t* tBout, uint32_t* tCout, uint32_t *svm_sector);
 
 float sin_f32(float x);
 float cos_f32(float x);

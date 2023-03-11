@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-11 15:16:40
+ * @LastEditTime: 2023-03-11 15:29:47
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -37,18 +37,11 @@ STATIC TaskHandle_t taskPlotHandle;
 STATIC StackType_t taskPlotStack[128];
 STATIC StaticTask_t taskPlotTcb; //CreateAppTask任务控制块 
 */
-const osThreadAttr_t taskPlotAttr = 
+STATIC const osThreadAttr_t taskDutyAttr = 
 {
     .name = "Task Plot",
     /* 注意如果超出这个中断最大,任务将创建失败 */
     .priority = PRI_INIT,
-/* 当前任务为动态创建 */
-/*
-    .cb_mem = &taskPlotTcb,
-    .cb_size = sizeof(taskPlotTcb),
-    .stack_mem = &taskPlotStack,
-    .stack_size = sizeof(taskPlotStack),
-*/
 };
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
@@ -59,14 +52,18 @@ const osThreadAttr_t taskPlotAttr =
  * @return {*}
  * @author: lkc
  */
-VOID Serial_PlotCurentTask(VOID *argument)
+VOID Duty_ControlTask(VOID *argument)
 {
     PRINTF("\n");
     while (1)
     {
-        osDelay(1000);
-        // 绘图
-        TEXT_PLOT(current, "%f, %f, %f, %f", motor.ia, motor.ib, motor.ic, motor.v_bus);
+        Bsp_Tim_StartPwm(false);
+        TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, 0, 0);
+        osDelay(100);
+        TIMER_UPDATE_DUTY_M1(0, TIM1->ARR / 2, 0);
+        osDelay(100);
+        TIMER_UPDATE_DUTY_M1(0, 0, TIM1->ARR / 2);
+        osDelay(100);
     }
 }
 
@@ -76,7 +73,7 @@ VOID Serial_PlotCurentTask(VOID *argument)
  * @return {*}
  * @author: lkc
  */
-VOID Cmd_Serial_Plot(char argc, char *argv)
+VOID Cmd_Motor_Duty(char argc, char *argv)
 {
     if (argc < 2)
     {
@@ -93,19 +90,13 @@ VOID Cmd_Serial_Plot(char argc, char *argv)
     switch (atoi(&argv[argv[1]]))
     {
         case PLOT_CREATE:
+            PRINTF("占空比 创建 任务 ");
             /* 打印不同格式的任务 */
-            switch (atoi(&argv[argv[2]]))
-            {
-                case PLOT_CURRENT:
-                    PRINTF("电流 显示 任务\n");
-                    taskPlotHandle = osThreadNew(Serial_PlotCurentTask, NULL, &taskPlotAttr);
-                    break;
-                default:
-                    break;
-                }
+            taskPlotHandle = osThreadNew(Duty_ControlTask, NULL, &taskDutyAttr);
             break;
         case PLOT_DESTORY:
-            PRINTF("电流 销毁 任务 ");
+            PRINTF("占空比 销毁 任务 ");
+            Bsp_Tim_StopPwm(false);
             if (osOK == osThreadTerminate(taskPlotHandle))
             {
                 PRINTF("success \n");
@@ -122,7 +113,7 @@ VOID Cmd_Serial_Plot(char argc, char *argv)
     return;
 }
 
-NR_SHELL_CMD_EXPORT(plot,  Cmd_Serial_Plot);
+NR_SHELL_CMD_EXPORT(duty,  Cmd_Motor_Duty);
 
 #ifdef __cplusplus
 }

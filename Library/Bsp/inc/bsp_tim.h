@@ -63,6 +63,12 @@ extern "C" {
 		TIM2->CCR2 = samp / 2; \
 		TIM8->CR1 &= ~TIM_CR1_UDIS; \
 		TIM2->CR1 &= ~TIM_CR1_UDIS;
+
+typedef enum{
+	MOTOR1 = 0,
+	MOTOR2,
+}IS_MOTOR;
+
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/

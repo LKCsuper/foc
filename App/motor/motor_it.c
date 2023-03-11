@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-11 11:17:04
+ * @LastEditTime: 2023-03-11 15:22:43
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -33,13 +33,39 @@ void Motor_DmaInt(void *p, uint32_t flags)
 	float ia = GET_CURRENT1() * FAC_CURRENT;
 	float ib = GET_CURRENT2() * FAC_CURRENT;
 	float ic = GET_CURRENT3() * FAC_CURRENT;
+	float Ialpha = 0;
+	float Ibeta = 0;
 
 	/* 总线电压,根据电流计算 */
 	UTILS_LP_FAST(stMotorNow->v_bus, GET_INPUT_VOLTAGE(), 0.1);
 
+	/* 三相电流 */
 	stMotorNow->ia = ia;
 	stMotorNow->ib = ib;
 	stMotorNow->ic = ic;
+
+	/* clarke 变换 */
+	clarke_transform(ia, ib, ic, &Ialpha, &Ibeta);
+
+	// motor_now->m_motor_state.i_alpha = ia;
+	// motor_now->m_motor_state.i_beta = ONE_BY_SQRT3 * ia + TWO_BY_SQRT3 * ib;
+
+	// float vd_tmp = c * motor_now->m_motor_state.v_alpha + s * motor_now->m_motor_state.v_beta;
+	// float vq_tmp = c * motor_now->m_motor_state.v_beta  - s * motor_now->m_motor_state.v_alpha;
+		
+	stMotorNow->Ialpha = Ialpha;
+	stMotorNow->Ibeta = Ibeta;
+
+	/* park变换,这里很显然不是开环 */
+//	park_transform();
+	// svm();
+	// uint32_t duty1, duty2, duty3, top;
+	// top = TIM1->ARR;
+
+	// foc_svm();
+
+	// /* 设置占空比 */
+	// TIMER_UPDATE_DUTY_M1();
 
 	return;
 }
