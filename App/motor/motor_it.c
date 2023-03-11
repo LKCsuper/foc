@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-04 17:50:50
+ * @LastEditTime: 2023-03-11 11:17:04
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -33,6 +33,9 @@ void Motor_DmaInt(void *p, uint32_t flags)
 	float ia = GET_CURRENT1() * FAC_CURRENT;
 	float ib = GET_CURRENT2() * FAC_CURRENT;
 	float ic = GET_CURRENT3() * FAC_CURRENT;
+
+	/* 总线电压,根据电流计算 */
+	UTILS_LP_FAST(stMotorNow->v_bus, GET_INPUT_VOLTAGE(), 0.1);
 
 	stMotorNow->ia = ia;
 	stMotorNow->ib = ib;

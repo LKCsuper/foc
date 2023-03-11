@@ -33,8 +33,10 @@ typedef enum
 /* Private variables ---------------------------------------------------------*/
 /* 任务栈 */
 STATIC TaskHandle_t taskPlotHandle;
+/*
 STATIC StackType_t taskPlotStack[128];
 STATIC StaticTask_t taskPlotTcb; //CreateAppTask任务控制块 
+*/
 const osThreadAttr_t taskPlotAttr = 
 {
     .name = "Task Plot",
@@ -64,7 +66,7 @@ VOID Serial_PlotCurentTask(VOID *argument)
     {
         osDelay(1000);
         // 绘图
-        TEXT_PLOT(current, "%f, %f, %f", motor.ia, motor.ib, motor.ic);
+        TEXT_PLOT(current, "%f, %f, %f, %f", motor.ia, motor.ib, motor.ic, motor.v_bus);
     }
 }
 

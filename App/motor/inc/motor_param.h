@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-04 17:45:55
+ * @LastEditTime: 2023-03-11 10:23:19
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_PARAM_H
@@ -198,6 +198,8 @@ typedef struct motor_param
 	float ia;
 	float ib;
 	float ic;
+
+	float v_bus;
     
 }MOTOR_PARAM_S;
 
