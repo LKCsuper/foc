@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-09 23:53:13
+ * @LastEditTime: 2023-03-10 22:57:04
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -20,7 +20,7 @@ const osThreadAttr_t taskCmdAttr =
 {
     .name = "Task Init",
     /* 注意如果超出这个中断最大,任务将创建失败 */
-    .priority = (osPriority_t)(osPriorityLow - 1),
+    .priority = PRI_CMD,
     .cb_mem = &taskCmdTcb,
     .cb_size = sizeof(taskCmdTcb),
     .stack_mem = &taskCmdStack,
@@ -70,6 +70,8 @@ int cmd_put_char(uint8_t ch)
 void Cmd_Task(void *argument)
 {
     PRINTF("Cmd Task Init\r\n");
+    shell_init();
+    
     STATIC ULONG ulRxDataLen;
     ULONG i = 0;
     /* 创建队列用于接收DMA */
@@ -95,7 +97,6 @@ void Cmd_Task(void *argument)
  */
 void Command_Init(void)
 {
-    shell_init();
     osThreadNew(Cmd_Task, NULL, &taskCmdAttr);
     
     return;

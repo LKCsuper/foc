@@ -43,7 +43,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-uint32_t freeRTOSRunTimeTicks = 0;
+//uint32_t ulFreeRTOSRunTimeTicks = 0;
 /* USER CODE END Variables */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -64,13 +64,14 @@ void vApplicationDaemonTaskStartupHook(void);
 /* Functions needed when configGENERATE_RUN_TIME_STATS is on */
 __weak void configureTimerForRunTimeStats(void)
 {
-	freeRTOSRunTimeTicks = 0;
-	Bsp_Tim3_RunCount();
+	// ulFreeRTOSRunTimeTicks = 0;
+	// Bsp_Tim3_RunCount();
 }
 
 __weak unsigned long getRunTimeCounterValue(void)
 {
-	return freeRTOSRunTimeTicks;
+//	return ulFreeRTOSRunTimeTicks;
+	return 0;
 }
 /* USER CODE END 1 */
 

@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-09 23:34:59
+ * @LastEditTime: 2023-03-11 07:48:42
  */
 #ifdef __cplusplus
 extern "C" {
@@ -23,7 +23,7 @@ const osThreadAttr_t taskInitAttr =
 {
     .name = "Task Init",
     /* 注意如果超出这个中断最大,任务将创建失败 */
-    .priority = (osPriority_t)(osPriorityISR - 1),
+    .priority = PRI_INIT,
     .cb_mem = &taskInitTcb,
     .cb_size = sizeof(taskInitTcb),
     .stack_mem = &taskInitStack,
@@ -55,7 +55,7 @@ void Task_Init(void *argument)
  * @detail: 
  * @return {*}
  */
-int main(void)
+LONG main(VOID)
 {   
     Bsp_Init();
 
@@ -66,8 +66,7 @@ int main(void)
         PRINTF("Task Start err.\r\n");
     }  
 
-    while(1){
-    }
+    while(1){}
 }
 
 #ifdef __cplusplus

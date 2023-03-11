@@ -1,9 +1,0 @@
-.\objects\nr_micro_shell.o: ..\..\ThirtyLibrary\nr_micro_shell-master\src\nr_micro_shell.c
-.\objects\nr_micro_shell.o: ..\..\ThirtyLibrary\nr_micro_shell-master\inc\nr_micro_shell.h
-.\objects\nr_micro_shell.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\stdio.h
-.\objects\nr_micro_shell.o: ..\..\ThirtyLibrary\nr_micro_shell-master\inc\nr_micro_shell_config.h
-.\objects\nr_micro_shell.o: ..\..\ThirtyLibrary\nr_micro_shell-master\inc\ansi.h
-.\objects\nr_micro_shell.o: ..\..\ThirtyLibrary\nr_micro_shell-master\inc\ansi_port.h
-.\objects\nr_micro_shell.o: ..\..\ThirtyLibrary\nr_micro_shell-master\inc\ansi_def.h
-.\objects\nr_micro_shell.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\string.h
-.\objects\nr_micro_shell.o: E:\software_qrs\keil_core\ARM\ARMCC\Bin\..\include\ctype.h

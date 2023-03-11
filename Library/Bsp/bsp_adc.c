@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-02-23 22:53:05
+ * @LastEditTime: 2023-03-10 23:39:25
  * @FilePath: \foc\Library\Bsp\bsp_adc.c
  */
 #ifdef __cplusplus
@@ -15,10 +15,8 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 volatile uint16_t ADC_Value[HW_ADC_CHANNELS + HW_ADC_CHANNELS_EXTRA];
 volatile float ADC_curr_norm_value[6];
-
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-
 /**
  * @Description: adc采样
  * @author: lkc
@@ -27,37 +25,35 @@ volatile float ADC_curr_norm_value[6];
  */
 void Bsp_Adc_Sample(void)
 {
-	// ADC 结构体
 	ADC_CommonInitTypeDef ADC_CommonInitStructure;
 	ADC_InitTypeDef ADC_InitStructure;
-//	NVIC_InitTypeDef NVIC_InitStre;
 
-	// 初始化时钟
+	/* 时钟初始化 */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA2 | RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOC, ENABLE);
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1 | RCC_APB2Periph_ADC2 | RCC_APB2Periph_ADC3, ENABLE);
     
-	// 目前adc运行42mhz 但是数据手册是36,但是可行
-	// *三重同步模式 3个连续的DMA请求
+	/* 目前adc运行42mhz 但是数据手册是36,但是可行 */
+	/* *三重同步模式 3个连续的DMA请求 */
 	ADC_CommonInitStructure.ADC_Mode = ADC_TripleMode_RegSimult;
-	// 2分频
+	/* 2分频 */ 
 	ADC_CommonInitStructure.ADC_Prescaler = ADC_Prescaler_Div2;
-	// ! 用于三重规则同时模式 
+	/* 用于三重规则同时模式 */
 	ADC_CommonInitStructure.ADC_DMAAccessMode = ADC_DMAAccessMode_1;
-	// * 采样周期 5
+	/* 采样周期 5 */
 	ADC_CommonInitStructure.ADC_TwoSamplingDelay = ADC_TwoSamplingDelay_5Cycles;
 	ADC_CommonInit(&ADC_CommonInitStructure);
 
-	// 分辨率 12 位
+	/* 分辨率 12 位 */
 	ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b;
-	// * 扫描模式 用于多通道
+	/* 扫描模式 用于多通道 */
 	ADC_InitStructure.ADC_ScanConvMode = ENABLE;
-	// *单次进行还是连续进行
+	/* 单次进行还是连续进行 */
 	ADC_InitStructure.ADC_ContinuousConvMode = DISABLE;
-	// *外部触发 下降沿
+	/* 外部触发 下降沿 */
 	ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_Falling;
-	//  * 触发源 定时器2 通道2
+	/* 触发源 定时器2 通道2 */
 	ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_T2_CC2;
-	// * 右对齐方式 从低位数据开始处理
+	/* 右对齐方式 从低位数据开始处理 */
 	ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
 	/* adc 一次性转换个数 */
 	ADC_InitStructure.ADC_NbrOfConversion = HW_ADC_NBR_CONV;
@@ -71,42 +67,10 @@ void Bsp_Adc_Sample(void)
 
 	// 使能内部温度传感器
 	ADC_TempSensorVrefintCmd(ENABLE);
-	// * 主从模式adc1 带动adc2
+	/* 主从模式adc1 带动adc2 */
 	ADC_MultiModeDMARequestAfterLastTransferCmd(ENABLE);
 
-// 	// 注入通道定时1 通道4 定时器8 通道2
-// 	// *定时1 通道4 下降沿触发
-// 	// Injected channels for current measurement at end of cycle
-// 	ADC_ExternalTrigInjectedConvConfig(ADC1, ADC_ExternalTrigInjecConv_T1_CC4);
-// 	ADC_ExternalTrigInjectedConvConfig(ADC2, ADC_ExternalTrigInjecConv_T8_CC2);
-// #ifdef HW_HAS_3_SHUNTS
-// 	ADC_ExternalTrigInjectedConvConfig(ADC3, ADC_ExternalTrigInjecConv_T8_CC3);
-// #endif
-// 	ADC_ExternalTrigInjectedConvEdgeConfig(ADC1, ADC_ExternalTrigInjecConvEdge_Falling);
-// 	ADC_ExternalTrigInjectedConvEdgeConfig(ADC2, ADC_ExternalTrigInjecConvEdge_Falling);
-// #ifdef HW_HAS_3_SHUNTS
-// 	ADC_ExternalTrigInjectedConvEdgeConfig(ADC3, ADC_ExternalTrigInjecConvEdge_Falling);
-// #endif
-
-// 	// * 每个注入通道长度
-// 	ADC_InjectedSequencerLengthConfig(ADC1, HW_ADC_INJ_CHANNELS);
-// 	ADC_InjectedSequencerLengthConfig(ADC2, HW_ADC_INJ_CHANNELS);
-// #ifdef HW_HAS_3_SHUNTS
-// 	ADC_InjectedSequencerLengthConfig(ADC3, HW_ADC_INJ_CHANNELS);
-// #endif
-
  	Bsp_Adc_SetChannels();
-
-// 	// Interrupt
-// 	// * 转换结束中断 这个中断跟foc没有关系
-
-// 	NVIC_InitStre.NVIC_IRQChannel=ADC_IRQn;
-//     NVIC_InitStre.NVIC_IRQChannelPreemptionPriority=6;
-//     NVIC_InitStre.NVIC_IRQChannelSubPriority=0x0;
-//     NVIC_InitStre.NVIC_IRQChannelCmd=ENABLE;
-//     NVIC_Init(&NVIC_InitStre);//初始化
-// 	ADC_ITConfig(ADC1, ADC_IT_JEOC, ENABLE);
-// 	ADC_ClearITPendingBit(ADC1, ADC_IT_JEOC);
 
 	ADC_Cmd(ADC1, ENABLE);
 	ADC_Cmd(ADC2, ENABLE);

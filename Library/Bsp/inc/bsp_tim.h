@@ -5,7 +5,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 10:03:36
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-08 20:47:36
+ * @LastEditTime: 2023-03-10 22:27:33
  */
 #ifndef _BSP_TIM_H
 #define _BSP_TIM_H
@@ -76,6 +76,8 @@ void Bsp_Tim_Pwm2(int f_zv);
 void Bsp_Tim_Init(void);
 void Bsp_Tim3_RunCount(void);
 VOID Bsp_Tim3_IRQ(VOID);
+void Bsp_Tim3_RunCount(void);
+
 #ifdef __cplusplus
 }
 #endif

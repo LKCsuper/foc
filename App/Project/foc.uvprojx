@@ -49,14 +49,14 @@
             <NotGenerated>0</NotGenerated>
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
-          <OutputDirectory>.\Objects\</OutputDirectory>
+          <OutputDirectory>..\..\..\build\</OutputDirectory>
           <OutputName>foc</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>0</CreateHexFile>
-          <DebugInformation>1</DebugInformation>
-          <BrowseInformation>1</BrowseInformation>
-          <ListingPath>.\Listings\</ListingPath>
+          <DebugInformation>0</DebugInformation>
+          <BrowseInformation>0</BrowseInformation>
+          <ListingPath>..\..\..\build\</ListingPath>
           <HexFormatSelection>1</HexFormatSelection>
           <Merge32K>0</Merge32K>
           <CreateBatchFile>0</CreateBatchFile>
@@ -160,7 +160,7 @@
             <ldmm>1</ldmm>
             <ldXref>1</ldXref>
             <BigEnd>0</BigEnd>
-            <AdsALst>1</AdsALst>
+            <AdsALst>0</AdsALst>
             <AdsACrf>1</AdsACrf>
             <AdsANop>0</AdsANop>
             <AdsANot>0</AdsANot>
@@ -338,7 +338,7 @@
             <v6WtE>0</v6WtE>
             <v6Rtti>0</v6Rtti>
             <VariousControls>
-              <MiscControls></MiscControls>
+              <MiscControls>--locale=english</MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F40_41xxx</Define>
               <Undefine></Undefine>
               <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include;..\..\Library\CMSIS\Include;..\User;..\..\Library\Bsp\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc</IncludePath>
@@ -710,6 +710,16 @@
               <FileType>1</FileType>
               <FilePath>..\cmd\command.c</FilePath>
             </File>
+            <File>
+              <FileName>cmd_task.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_task.c</FilePath>
+            </File>
+            <File>
+              <FileName>cmd_serial_plot.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_serial_plot.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -785,25 +795,10 @@
               <FileType>1</FileType>
               <FilePath>..\User\freertos.c</FilePath>
             </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>XCmd</GroupName>
-          <Files>
             <File>
-              <FileName>xcmd.c</FileName>
+              <FileName>freertos_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\ThirtyLibrary\XCmd\src\xcmd.c</FilePath>
-            </File>
-            <File>
-              <FileName>xcmd_default_cmds.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\ThirtyLibrary\XCmd\src\xcmd_default_cmds.c</FilePath>
-            </File>
-            <File>
-              <FileName>xcmd_default_keys.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\ThirtyLibrary\XCmd\src\xcmd_default_keys.c</FilePath>
+              <FilePath>..\User\freertos_port.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -814,31 +809,6 @@
               <FileName>cmsis_os2.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2\cmsis_os2.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Cil</GroupName>
-          <Files>
-            <File>
-              <FileName>FreeRTOS_CLI.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI\FreeRTOS_CLI.c</FilePath>
-            </File>
-            <File>
-              <FileName>Sample-CLI-commands.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI\Sample-CLI-commands.c</FilePath>
-            </File>
-            <File>
-              <FileName>serial.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI\serial.c</FilePath>
-            </File>
-            <File>
-              <FileName>UARTCommandConsole.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI\UARTCommandConsole.c</FilePath>
             </File>
           </Files>
         </Group>

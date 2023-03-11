@@ -1,31 +1,29 @@
-
 /*
  * @Description: 
- * @Version: 2.0
- * @Author: lkc
- * @Date: 2022-11-19 10:03:36
- * @LastEditors: lkc
- * @LastEditTime: 2023-03-11 00:04:35
+ * @Date: 2023-02-17 22:55:09
+ * @LastEditTime: 2023-03-11 07:46:11
+ * @FilePath: \my_foc\App\User\includes.h
  */
-#ifndef _BSP_MISC_H
-#define _BSP_MISC_H
+#ifndef _FREERTOS_PORT_H
+#define _FREERTOS_PORT_H
 #ifdef __cplusplus
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+/* 不同任务的优先级 */
+#define PRI_CMD             ((osPriority_t)(osPriorityLow1 - 1))
+#define PRI_INIT            ((osPriority_t)(osPriorityISR - 1))
+
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-VOID Bsp_Rcu_Init(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq);
-VOID Bsp_Sys_Init(ULONG fzv);
-VOID HSI_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq);
-VOID HSE_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif
+

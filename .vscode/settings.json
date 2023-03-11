@@ -1,0 +1,29 @@
+{
+    "files.associations": {
+        "includes.h": "c",
+        "rthw.h": "c",
+        "stm32f4xx.h": "c",
+        "bsp_adc.h": "c",
+        "utils.h": "c",
+        "bsp_usart.h": "c",
+        "rtthread.h": "c",
+        "motor_param.h": "c",
+        "motor_task.h": "c",
+        "hw_hd75.h": "c",
+        "motor_common.h": "c",
+        "bsp.h": "c",
+        "stm32f4xx_it.h": "c",
+        "bsp_gpio.h": "c",
+        "core_cm4.h": "c",
+        "common.h": "c",
+        "ymodem_config.h": "c",
+        "ymodem_includes.h": "c",
+        "cmsis_os2.h": "c",
+        "cmsis_compiler.h": "c",
+        "freertos.h": "c",
+        "freertosconfig.h": "c",
+        "event_groups.h": "c",
+        "serial.h": "c",
+        "nr_micro_shell_config.h": "c"
+    }
+}

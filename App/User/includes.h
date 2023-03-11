@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-17 22:55:09
- * @LastEditTime: 2023-03-06 23:03:49
+ * @LastEditTime: 2023-03-11 07:47:36
  * @FilePath: \my_foc\App\User\includes.h
  */
 #ifndef _INCLUDES_H
@@ -22,10 +22,10 @@ extern "C" {
 #ifndef USE_STDPERIPH_DRIVER
 #define USE_STDPERIPH_DRIVER    1
 #endif
+
 #include "stm32f4xx.h"
 
 /* freertos */
-//#include "FreeRTOSConfig.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "serial.h"
@@ -37,20 +37,11 @@ extern "C" {
 #include "timers.h"
 #include "mpu_prototypes.h"
 #include "cmsis_os2.h"
+#include "freertos_port.h"
 
 /* commn */
 #include "printf_color.h"
 #include "common.h"
-
-/* rt */
-// #include "rthw.h"
-// #include "rtthread.h"
-// #include "cmsis_rtthread.h"
-// #include "cmsis_os2.h"
-
-/* cmd */
-#include "xcmd_confg.h"
-#include "xcmd.h"
 
 /* common */
 #include "motor_utils.h"
@@ -65,6 +56,7 @@ extern "C" {
 #include "bsp_flash.h"
 #include "bsp.h"
 
+/* it */
 #include "stm32f4xx_it.h"
 
 /* motor */
@@ -79,12 +71,13 @@ extern "C" {
 #include "motor_pid.h"
 #include "motor_tim.h"
 
+/* nr */
+#include "nr_micro_shell_config.h"
+#include "nr_micro_shell.h"
+
 /* cmd */
 #include "command.h"
 #include "cmd_serial_plot.h"
-
-#include "nr_micro_shell_config.h"
-#include "nr_micro_shell.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/

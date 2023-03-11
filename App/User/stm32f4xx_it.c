@@ -103,17 +103,6 @@ void UsageFault_Handler(void)
     }
 }
 
-// todo 与freertos冲突
-/**
-  * @brief  This function handles SVCall exception.
-  * @param  None
-  * @retval None
-  */
-// void SVC_Handler(void)
-// {
-//     vPortSVCHandler();
-// }
-
 /**
   * @brief  This function handles Debug Monitor exception.
   * @param  None
@@ -123,31 +112,13 @@ void DebugMon_Handler(void)
 {
 }
 
-// /**
-//   * @brief  This function handles PendSVC exception.
-//   * @param  None
-//   * @retval None
-//   */
-// void PendSV_Handler(void)
-// {
-//     xPortPendSVHandler();
-// }
-
-// /**
-//   * @brief  This function handles SysTick Handler.
-//   * @param  None
-//   * @retval None
-//   */
-// void SysTick_Handler(void)
-// {
-// 	  rt_interrupt_enter();
-
-//     rt_tick_increase();
-
-//     rt_interrupt_leave();
-// }
+/**
+ * @description: sysTick ,freertos任务
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
 extern void xPortSysTickHandler(void);
-//systick中断服务函数
 void SysTick_Handler(void)
 {	
     #if (INCLUDE_xTaskGetSchedulerState  == 1 )
@@ -160,22 +131,12 @@ void SysTick_Handler(void)
     #endif  /* INCLUDE_xTaskGetSchedulerState */
 }
 
-/******************************************************************************/
-/*                 STM32F4xx Peripherals Interrupt Handlers                   */
-/*  Add here the Interrupt Handler for the used peripheral(s) (PPP), for the  */
-/*  available peripheral interrupt handler's name please refer to the startup */
-/*  file (startup_stm32f40xx.s/startup_stm32f427x.s/startup_stm32f429x.s).    */
-/******************************************************************************/
-
 /**
-  * @brief  This function handles PPP interrupt request.
-  * @param  None
-  * @retval None
-  */
-/*void PPP_IRQHandler(void)
-{
-}*/
-
+ * @description: DMA 采集完成adc
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
 void DMA2_Stream4_IRQHandler(void)
 {
     Motor_DmaInt(NULL, NULL);
@@ -217,11 +178,31 @@ void USART3_IRQHandler( void )
  */
 void TIM3_IRQHandler(void)
 {
-	Bsp_Tim3_IRQ();
-	return;
+    Bsp_Tim3_IRQ();
+    
+    return;
 }
-
-
+#if 0
+/**
+  * @brief  This function handles PendSVC exception.
+  * @param  None
+  * @retval None
+  */
+void PendSV_Handler(void)
+{
+    xPortPendSVHandler();
+}
+// todo 与freertos冲突
+/**
+  * @brief  This function handles SVCall exception.
+  * @param  None
+  * @retval None
+  */
+void SVC_Handler(void)
+{
+    vPortSVCHandler();
+}
+#endif
 /**
   * @}
   */ 

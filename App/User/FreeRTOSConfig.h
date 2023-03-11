@@ -57,6 +57,7 @@
   extern unsigned long getRunTimeCounterValue(void);
 /* USER CODE END 0 */
 #endif
+
 #ifndef CMSIS_device_header
 #define CMSIS_device_header "stm32f4xx.h"
 #endif /* CMSIS_device_header */

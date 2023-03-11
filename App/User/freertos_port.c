@@ -1,31 +1,46 @@
-
 /*
  * @Description: 
  * @Version: 2.0
  * @Author: lkc
- * @Date: 2022-11-19 10:03:36
+ * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-11 00:04:35
+ * @LastEditTime: 2023-03-11 00:07:31
  */
-#ifndef _BSP_MISC_H
-#define _BSP_MISC_H
 #ifdef __cplusplus
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#include "includes.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+ULONG ulFreeRTOSRunTimeTicks = 0;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-VOID Bsp_Rcu_Init(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq);
-VOID Bsp_Sys_Init(ULONG fzv);
-VOID HSI_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq);
-VOID HSE_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq);
+/**
+ * @description: 配置运行统计
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+void configureTimerForRunTimeStats(void)
+{
+	ulFreeRTOSRunTimeTicks = 0;
+	Bsp_Tim3_RunCount();
+}
+
+/**
+ * @description: 获取freertos运行count
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+unsigned long getRunTimeCounterValue(void)
+{
+	return ulFreeRTOSRunTimeTicks;
+}
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-08 20:49:30
+ * @LastEditTime: 2023-03-11 00:06:49
  */
 #ifdef __cplusplus
 extern "C" {
@@ -58,7 +58,8 @@ void Bsp_Tim_Pwm1(int f_zv)
 
 // * 意味着上下桥臂有没有接反
 #ifndef INVERTED_TOP_DRIVER_INPUT
-	TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High; // gpio high = top fets on
+	/* gpio high = top fets on */
+	TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
 #else
 	TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_Low;
 #endif
@@ -67,13 +68,14 @@ void Bsp_Tim_Pwm1(int f_zv)
 
 // * 互补通道输出极性
 #ifndef INVERTED_BOTTOM_DRIVER_INPUT
-	TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_High;  // gpio high = bottom fets on
+	/* gpio high = bottom fets on */
+	TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_High;
 #else
 	TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_Low;
 #endif
 	TIM_OCInitStructure.TIM_OCNIdleState = TIM_OCNIdleState_Set;
 
-	// ! 这里为什么初始化的是四个通道
+	// TODO 这里为什么初始化的是四个通道
     TIM_OC1Init(TIM1, &TIM_OCInitStructure);
 	TIM_OC2Init(TIM1, &TIM_OCInitStructure);
 	TIM_OC3Init(TIM1, &TIM_OCInitStructure);
@@ -150,7 +152,8 @@ void Bsp_Tim_Pwm2(int f_zv)
     TIM_TimeBaseInit(TIM8, &TIM_TimeBaseStructure);
     
     #ifndef INVERTED_TOP_DRIVER_INPUT
-	TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High; // gpio high = top fets on
+	/* gpio high = top fets on */
+	TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
 #else
 	TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_Low;
 #endif
@@ -158,7 +161,8 @@ void Bsp_Tim_Pwm2(int f_zv)
     TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Set;
 
 #ifndef INVERTED_BOTTOM_DRIVER_INPUT
-	TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_High;  // gpio high = bottom fets on
+	/* gpio high = bottom fets on */
+	TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_High; 
 #else
 	TIM_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_Low;
 #endif
@@ -437,18 +441,20 @@ void Bsp_Tim3_RunCount(void)
 
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
 
-	TIM_TimeBaseStructure.TIM_Period = 4999;
-	TIM_TimeBaseStructure.TIM_Prescaler = 7199; 
-	TIM_TimeBaseStructure.TIM_ClockDivision =TIM_CKD_DIV1; 
-	TIM_TimeBaseStructure.TIM_CounterMode =TIM_CounterMode_Up; 
+	/* 42000000 / 4200 = 10000 这里大约20khz */
+	TIM_TimeBaseStructure.TIM_Period = (4200 / 2) - 1;
+	TIM_TimeBaseStructure.TIM_Prescaler = 0; 
+	TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1; 
+	TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up; 
 	TIM_TimeBaseInit(TIM3, &TIM_TimeBaseStructure); 
-
+	TIM_Cmd(TIM3, ENABLE);
+	
 	NVIC_InitTypeDef NVIC_InitStre;
 	NVIC_InitStre.NVIC_IRQChannel = TIM3_IRQn;
-    NVIC_InitStre.NVIC_IRQChannelPreemptionPriority = 1;
+    NVIC_InitStre.NVIC_IRQChannelPreemptionPriority = IRQ_TIM3;
     NVIC_InitStre.NVIC_IRQChannelSubPriority = 0x0;
     NVIC_InitStre.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStre);//初始化
+    NVIC_Init(&NVIC_InitStre);
 
 	TIM_ITConfig(TIM3, TIM_IT_Update, ENABLE);
 	TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
@@ -456,22 +462,6 @@ void Bsp_Tim3_RunCount(void)
 	return;
 }
 
-/**
- * @description: 定时器3中断
- * @detail: 
- * @return {*}
- * @author: lkc
- */
-extern uint32_t freeRTOSRunTimeTicks;
-void Bsp_Tim3_Irq()
-{
-	if(TIM_GetITStatus(TIM3,TIM_IT_Update)==SET) //溢出中断
-	{
-		freeRTOSRunTimeTicks++;
-	}
-	TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
-	return;
-}
 
 /**
  * @description: 定时器初始化
@@ -496,10 +486,13 @@ void Bsp_Tim_Init(void)
  * @return {*}
  * @author: lkc
  */
-extern uint32_t freeRTOSRunTimeTicks;
+extern ULONG ulFreeRTOSRunTimeTicks;
 VOID Bsp_Tim3_IRQ(VOID)
 {
-	freeRTOSRunTimeTicks++;
+	if(SET == TIM_GetITStatus(TIM3, TIM_IT_Update)) //溢出中断
+	{
+		ulFreeRTOSRunTimeTicks++;
+	}
 	TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
 	return;
 }
