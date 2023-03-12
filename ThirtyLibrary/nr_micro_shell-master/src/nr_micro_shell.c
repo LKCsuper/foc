@@ -97,12 +97,18 @@ void _shell_init(shell_st *shell)
 {
 
 #ifdef NR_SHELL_SHOW_LOG
+#if 0
 	shell_printf(" _   _ ____    __  __ _                  ____  _          _ _ \r\n");
 	shell_printf("| \\ | |  _ \\  |  \\/  (_) ___ _ __ ___   / ___|| |__   ___| | |\r\n");
 	shell_printf("|  \\| | |_) | | |\\/| | |/ __| '__/ _ \\  \\___ \\| '_ \\ / _ \\ | |\r\n");
 	shell_printf("| |\\  |  _ <  | |  | | | (__| | | (_) |  ___) | | | |  __/ | |\r\n");
 	shell_printf("|_| \\_|_| \\_\\ |_|  |_|_|\\___|_|  \\___/  |____/|_| |_|\\___|_|_|\r\n");
 	shell_printf("                                                              \r\n");
+#endif
+
+ 	shell_printf("  _  _   _         _ ___ _   _  \r\n");
+	shell_printf(" |_ / \\ /    |\\/| / \\ | / \\ |_) \r\n");
+	shell_printf(" |  \\_/ \\_   |  | \\_/ | \\_/ | \\ \r\n");
 #endif
 
 	shell_printf("%s",shell->user_name);
