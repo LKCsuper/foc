@@ -17,7 +17,7 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* 这里存储中断优先级,方便安排 */
 #define IRQ_TIM3             (6)
-#define IRQ_USART3_IDE       (5)
+#define IRQ_DEBUG_IDE       (5)
 #define IRQ_DMA2_STREAM2     (1)
 
 /* Private macro -------------------------------------------------------------*/

@@ -158,6 +158,7 @@ void ADC_IRQHandler(void)
     return;
 }
 
+#if (3 == USART_NUM)
 /**
  * @description: 串口3中断,用于命令行
  * @detail: 
@@ -166,9 +167,22 @@ void ADC_IRQHandler(void)
  */
 void USART3_IRQHandler( void )
 {
-    Bsp_Usart_U3Handler();
+    Bsp_Usart_Handler();
     return;
 }
+#elif (4 == USART_NUM)
+/**
+ * @description: 串口3中断,用于命令行
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+void UART4_IRQHandler( void )
+{
+    Bsp_Usart_Handler();
+    return;
+}
+#endif
 
 /**
  * @description: 定时器中断,用于统计freertos

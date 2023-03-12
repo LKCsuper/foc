@@ -132,7 +132,7 @@ void Bsp_Dma_Usart3Rx(void)
 	DMA_Init(DMA1_Stream1, &DMA_InitStructure); 
 	
 	/* DMA Stream enable */
-	DMA_SetCurrDataCounter(DMA1_Stream1, USART3_RX_BUF_SIZE);
+	DMA_SetCurrDataCounter(DMA1_Stream1, USART_RX_BUF_SIZE);
 	DMA_Cmd(DMA1_Stream1, ENABLE);
 
 	// todo 注意 如果是使能dma一定要加这个

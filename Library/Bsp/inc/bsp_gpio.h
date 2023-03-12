@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:51:32
- * @LastEditTime: 2023-03-11 22:40:26
+ * @LastEditTime: 2023-03-12 15:32:00
  * @FilePath: \foc\Library\Bsp\inc\bsp_dma.h
  */
 #ifndef _BSP_GPIO_H
@@ -36,16 +36,51 @@ extern "C" {
 #define DCCAL_PIN               GPIO_Pin_2
 
 /* TIM1 CHANNEL */
-#define T_MOTOR1_RCC            RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOB
 #define T_CHANNEL_PORT          GPIOA
-#define T_CHANNEL1_PIN          GPIO_Pin_8
-#define T_CHANNEL2_PIN          GPIO_Pin_9
-#define T_CHANNEL3_PIN          GPIO_Pin_10
+#define T_CHANNEL_PIN           GPIO_Pin_8 | GPIO_Pin_9 | GPIO_Pin_10    
+#define T_CHANNEL_SOURCE        GPIO_PinSource8 | GPIO_PinSource9 | GPIO_PinSource10    
+
+#define T_CHANNEL_SOURCE1       GPIO_PinSource8
+#define T_CHANNEL_SOURCE2       GPIO_PinSource9
+#define T_CHANNEL_SOURCE3       GPIO_PinSource10
 
 #define T_CHANNEL_N_PORT        GPIOB
-#define T_CHANNEL1_N_PIN        GPIO_Pin_13
-#define T_CHANNEL2_N_PIN        GPIO_Pin_14
-#define T_CHANNEL3_N_PIN        GPIO_Pin_15
+#define T_CHANNEL_N_PIN         GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15    
+#define T_CHANNEL_N_SOURCE      GPIO_PinSource13 | GPIO_PinSource14 | GPIO_PinSource15      
+
+#define T_CHANNEL_N_SOURCE1     GPIO_PinSource13
+#define T_CHANNEL_N_SOURCE2     GPIO_PinSource14
+#define T_CHANNEL_N_SOURCE3     GPIO_PinSource15
+
+/* USART */
+#define USART_NUM						   (3)
+
+#if (1 == USART_NUM)
+#define DEBUG_USART_TX_PIN                 GPIO_Pin_9
+#define DEBUG_USART_TX_GPIO_PORT           GPIOA
+#define DEBUG_USART_TX_SOURCE              GPIO_PinSource9
+#define DEBUG_USART_RX_PIN                 GPIO_Pin_10
+#define DEBUG_USART_RX_GPIO_PORT           GPIOA
+#define DEBUG_USART_RX_SOURCE              GPIO_PinSource10
+#elif (3 == USART_NUM)
+#define DEBUG_USART_TX_PIN                 GPIO_Pin_10
+#define DEBUG_USART_TX_SOURCE              GPIO_PinSource10
+#define DEBUG_USART_TX_GPIO_PORT           GPIOB
+#define DEBUG_USART_RX_PIN                 GPIO_Pin_11
+#define DEBUG_USART_RX_SOURCE              GPIO_PinSource11
+#define DEBUG_USART_RX_GPIO_PORT           GPIOB
+#elif (4 == USART_NUM)
+#define DEBUG_USART_TX_PIN                 GPIO_Pin_10
+#define DEBUG_USART_TX_SOURCE              GPIO_PinSource10
+#define DEBUG_USART_TX_GPIO_PORT           GPIOC
+#define DEBUG_USART_RX_PIN                 GPIO_Pin_11
+#define DEBUG_USART_RX_SOURCE              GPIO_PinSource11
+#define DEBUG_USART_RX_GPIO_PORT           GPIOC
+#endif
+
+#define DEBUG_PORT              DEBUG_USART_TX_GPIO_PORT
+#define DEBUG_PIN               DEBUG_USART_TX_PIN | DEBUG_USART_RX_PIN  
+#define DEBUG_SOURCE            DEBUG_USART_TX_SOURCE | DEBUG_USART_RX_SOURCE
 
 /* 霍尔 */
 #define HW_HALL_A_PORT		    GPIOC
@@ -86,16 +121,16 @@ extern "C" {
 #define ADC_6_PORT              GPIOA
 #define ADC_6_PIN               GPIO_Pin_6
 
-#define ADC_00_PORT              GPIOC
-#define ADC_00_PIN               GPIO_Pin_0
-#define ADC_11_PORT              GPIOC
-#define ADC_11_PIN               GPIO_Pin_1
-#define ADC_22_PORT              GPIOC
-#define ADC_22_PIN               GPIO_Pin_2
-#define ADC_33_PORT              GPIOC
-#define ADC_33_PIN               GPIO_Pin_3
-#define ADC_44_PORT              GPIOC
-#define ADC_44_PIN               GPIO_Pin_4
+#define ADC_00_PORT             GPIOC
+#define ADC_00_PIN              GPIO_Pin_0
+#define ADC_11_PORT             GPIOC
+#define ADC_11_PIN              GPIO_Pin_1
+#define ADC_22_PORT             GPIOC
+#define ADC_22_PIN              GPIO_Pin_2
+#define ADC_33_PORT             GPIOC
+#define ADC_33_PIN              GPIO_Pin_3
+#define ADC_44_PORT             GPIOC
+#define ADC_44_PIN              GPIO_Pin_4
 
 #define palSetPad(x, y)		    GPIO_SetBits(x, y);
 #define palClearPad(x, y)	    GPIO_ResetBits(x, y);

@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-10 23:27:35
+ * @LastEditTime: 2023-03-12 15:10:36
  */
 #ifdef __cplusplus
 extern "C" {
@@ -30,9 +30,6 @@ VOID Bsp_Usart_DebugInit(ULONG ulBound)
 	DEBUG_USART_TX_CLK_EN();
 	DEBUG_USART_RX_CLK_EN();
 
-	GPIO_PinAFConfig(DEBUG_USART_TX_GPIO_PORT, DEBUG_USART_TX_SOURCE, DEBUG_USART_TX_AF);
-	GPIO_PinAFConfig(DEBUG_USART_RX_GPIO_PORT, DEBUG_USART_RX_SOURCE, DEBUG_USART_RX_AF);
-
 	USART_InitTypeDef USART_InitStructure;
 
 	USART_InitStructure.USART_BaudRate = ulBound;
@@ -53,26 +50,26 @@ VOID Bsp_Usart_DebugInit(ULONG ulBound)
 		USART_ReceiveData(DEBUG_USART);
 	}
 
-	GPIO_InitTypeDef GPIO_InitStructure;
+	// GPIO_InitTypeDef GPIO_InitStructure;
 
-	GPIO_InitStructure.GPIO_Pin = DEBUG_USART_TX_PIN | DEBUG_USART_RX_PIN;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-	GPIO_Init(DEBUG_USART_TX_GPIO_PORT, &GPIO_InitStructure);
+	// GPIO_InitStructure.GPIO_Pin = DEBUG_USART_TX_PIN | DEBUG_USART_RX_PIN;
+	// GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+	// GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	// GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+	// GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
+	// GPIO_Init(DEBUG_USART_TX_GPIO_PORT, &GPIO_InitStructure);
 
 	/* 空闲中断使用命令行 */
 	NVIC_InitTypeDef NVIC_InitStre;
-	NVIC_InitStre.NVIC_IRQChannel = USART3_IRQn;
-    NVIC_InitStre.NVIC_IRQChannelPreemptionPriority = IRQ_USART3_IDE;
+	NVIC_InitStre.NVIC_IRQChannel = DEBUG_USART_IRQn;
+    NVIC_InitStre.NVIC_IRQChannelPreemptionPriority = IRQ_DEBUG_IDE;
     NVIC_InitStre.NVIC_IRQChannelSubPriority = 0x0;
     NVIC_InitStre.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStre);
 
 	/* 空闲中断,接收到一连串数据触发一次 */
-	USART_ITConfig(USART3, USART_IT_IDLE, ENABLE);
-	USART_ClearITPendingBit(USART3, USART_IT_IDLE);
+	USART_ITConfig(DEBUG_USART, USART_IT_IDLE, ENABLE);
+	USART_ClearITPendingBit(DEBUG_USART, USART_IT_IDLE);
 
     return;
 }
@@ -170,27 +167,27 @@ int fputc(int ch, FILE *f)
  */
 extern QueueHandle_t queueCmdHandle;
 ULONG ulRxLen = 0;
-VOID Bsp_Usart_U3Handler(VOID)
+VOID Bsp_Usart_Handler(VOID)
 {
-    if (RESET != USART_GetITStatus(USART3, USART_IT_IDLE))
+    if (RESET != USART_GetITStatus(DEBUG_USART, USART_IT_IDLE))
     {
 		/* 个人认为是清空缓冲,取出数据 */
-		USART3->SR;
-		USART3->DR;
+		DEBUG_USART->SR;
+		DEBUG_USART->DR;
 
 		/* 清空空闲中断 */
-		USART_ClearITPendingBit(USART3, USART_IT_IDLE);
+		USART_ClearITPendingBit(DEBUG_USART, USART_IT_IDLE);
 		/* 关闭dma */
 		DMA_Cmd(DMA1_Stream1, DISABLE);
 		//本帧数据长度=DMA准备的接收数据长度-DMA已接收数据长度
-		ulRxLen = USART3_RX_BUF_SIZE - DMA_GetCurrDataCounter(DMA1_Stream1); 
+		ulRxLen = USART_RX_BUF_SIZE - DMA_GetCurrDataCounter(DMA1_Stream1); 
 
 		/* 此时知道接收的长度以及Buf,直接传一个队列 */
 		osMessageQueuePut(queueCmdHandle, &ulRxLen, NULL, 0);
 		DMA_ClearFlag(DMA1_Stream1, DMA_FLAG_TCIF4 | DMA_FLAG_FEIF4 | DMA_FLAG_DMEIF4 |
 				DMA_FLAG_TEIF4 | DMA_FLAG_HTIF4);//清除DMA2_Steam7传输完成标志
 		while (DMA_GetCmdStatus(DMA1_Stream1) != DISABLE){}		
-		DMA_SetCurrDataCounter(DMA1_Stream1, USART3_RX_BUF_SIZE);
+		DMA_SetCurrDataCounter(DMA1_Stream1, USART_RX_BUF_SIZE);
 		DMA_Cmd(DMA1_Stream1, ENABLE);
 	}
 	

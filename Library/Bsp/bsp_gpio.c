@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-11 23:25:26
+ * @LastEditTime: 2023-03-12 16:40:03
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -39,6 +39,31 @@ VOID Bsp_Gpio_Mode1(GPIO_TypeDef* GPIOx, uint32_t GPIO_Pin, GPIOMode_TypeDef GPI
 }
 
 /**
+ * @description: 输出模式 推挽
+ * @detail: 
+ * @param {GPIO_TypeDef*} GPIOx
+ * @param {GPIO_InitTypeDef*} GPIO_InitStruct
+ * @return {*}
+ * @author: lkc
+ */
+VOID Bsp_Gpio_ModeAF(GPIO_TypeDef* GPIOx, uint32_t GPIO_Pin, uint16_t GPIO_PinSource, uint8_t GPIO_AF)
+{
+    /* gpio时钟默认前边初始化 */
+
+    GPIO_InitTypeDef  GPIO_InitStructure;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
+    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
+    GPIO_Init(GPIOx, &GPIO_InitStructure);
+
+    GPIO_PinAFConfig(GPIOx, GPIO_PinSource, GPIO_AF);
+
+    return;
+}
+
+/**
  * @description: led初始化
  * @detail: 
  * @return {*}
@@ -60,26 +85,31 @@ VOID Bsp_Gpio_Led(VOID)
  */
 VOID Bsp_Tim1_Gpio(VOID)
 {
-    GPIO_InitTypeDef  GPIO_InitStructure;
-    RCC_AHB1PeriphClockCmd(T_MOTOR1_RCC, ENABLE);
+    Bsp_Gpio_ModeAF(T_CHANNEL_PORT, T_CHANNEL_PIN, T_CHANNEL_SOURCE1, GPIO_AF_TIM1);
+    Bsp_Gpio_ModeAF(T_CHANNEL_PORT, T_CHANNEL_PIN, T_CHANNEL_SOURCE2, GPIO_AF_TIM1);
+    Bsp_Gpio_ModeAF(T_CHANNEL_PORT, T_CHANNEL_PIN, T_CHANNEL_SOURCE3, GPIO_AF_TIM1);
 
-    GPIO_InitStructure.GPIO_Pin = T_CHANNEL1_PIN | T_CHANNEL2_PIN | T_CHANNEL3_PIN;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-    /* 设置最高翻转速度*/
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-    GPIO_Init(T_CHANNEL_PORT, &GPIO_InitStructure);
-
-    GPIO_InitStructure.GPIO_Pin = T_CHANNEL1_N_PIN | T_CHANNEL2_N_PIN | T_CHANNEL3_N_PIN;
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-    GPIO_Init(T_CHANNEL_N_PORT, &GPIO_InitStructure);
-
-    /* 复用 */
-    GPIO_PinAFConfig(T_CHANNEL_PORT, T_CHANNEL1_PIN | T_CHANNEL2_PIN | T_CHANNEL3_PIN, GPIO_AF_TIM1);
-    GPIO_PinAFConfig(T_CHANNEL_N_PORT, T_CHANNEL1_N_PIN | T_CHANNEL2_N_PIN | T_CHANNEL3_N_PIN, GPIO_AF_TIM1);
+    
+    Bsp_Gpio_ModeAF(T_CHANNEL_N_PORT, T_CHANNEL_N_PIN, GPIO_PinSource13, GPIO_AF_TIM1);
+    Bsp_Gpio_ModeAF(T_CHANNEL_N_PORT, T_CHANNEL_N_PIN, GPIO_PinSource14, GPIO_AF_TIM1);
+    Bsp_Gpio_ModeAF(T_CHANNEL_N_PORT, T_CHANNEL_N_PIN, GPIO_PinSource15, GPIO_AF_TIM1);
 
 	return;
+}
+
+/**
+ * @description: 
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+VOID Bsp_Usart3_Gpio(VOID)
+{
+    // TODO 复用source不能|
+    Bsp_Gpio_ModeAF(DEBUG_PORT, DEBUG_PIN, DEBUG_USART_TX_SOURCE, GPIO_AF_USART3);
+    Bsp_Gpio_ModeAF(DEBUG_PORT, DEBUG_PIN, DEBUG_USART_RX_SOURCE, GPIO_AF_USART3);
+
+    return;
 }
 
 /**
@@ -102,6 +132,7 @@ VOID Bsp_Tim8_Gpio(VOID)
  */
 void Bsp_Gpio_Init(void)
 {
+    /* 初始化时钟 */
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
@@ -112,6 +143,7 @@ void Bsp_Gpio_Init(void)
     Bsp_Gpio_Mode1(DCCAL_PORT, DCCAL_PIN, GPIO_Mode_OUT);
     palClearPad(DCCAL_PORT, DCCAL_PIN);
     ENABLE_GATE();
+    Bsp_Usart3_Gpio();                                                
     Bsp_Tim1_Gpio();
 
     /* 编码器 霍尔 输入 */
