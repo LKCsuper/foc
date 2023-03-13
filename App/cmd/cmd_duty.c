@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-11 15:29:47
+ * @LastEditTime: 2023-03-12 18:24:33
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -18,6 +18,7 @@ typedef enum
     PLOT_NONE,
     PLOT_CREATE,                        /* 创建 */
     PLOT_DESTORY,                       /* 销毁 */
+    DUTY_SET,                           /* 设置占空比 */
     PLOT_NUM,
 }PLOT_TYPE;
 
@@ -59,11 +60,11 @@ VOID Duty_ControlTask(VOID *argument)
     {
         Bsp_Tim_StartPwm(false);
         TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, 0, 0);
-        osDelay(100);
+        osDelay(10);
         TIMER_UPDATE_DUTY_M1(0, TIM1->ARR / 2, 0);
-        osDelay(100);
+        osDelay(10);
         TIMER_UPDATE_DUTY_M1(0, 0, TIM1->ARR / 2);
-        osDelay(100);
+        osDelay(10);
     }
 }
 
@@ -106,6 +107,11 @@ VOID Cmd_Motor_Duty(char argc, char *argv)
                 PRINTF("err \n");
             }
             break;
+        case DUTY_SET:
+            Bsp_Tim_StartPwm(false);
+            TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, 0, 0);
+            break;
+
         default:
             break;
     }

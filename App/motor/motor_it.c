@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-11 15:22:43
+ * @LastEditTime: 2023-03-12 17:17:56
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -35,7 +35,15 @@ void Motor_DmaInt(void *p, uint32_t flags)
 	float ic = GET_CURRENT3() * FAC_CURRENT;
 	float Ialpha = 0;
 	float Ibeta = 0;
+	float va = 0.0f;
+	float vb = 0.0f;
+	float vc = 0.0f;
 
+	/* 这里是电压偏移*/
+	va = (ADC_VOLTS(ADC_IND_SENS1) - 0) * ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
+	vb = (ADC_VOLTS(ADC_IND_SENS3) - 0) * ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
+	vc = (ADC_VOLTS(ADC_IND_SENS2) - 0) * ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
+	
 	/* 总线电压,根据电流计算 */
 	UTILS_LP_FAST(stMotorNow->v_bus, GET_INPUT_VOLTAGE(), 0.1);
 
@@ -43,6 +51,10 @@ void Motor_DmaInt(void *p, uint32_t flags)
 	stMotorNow->ia = ia;
 	stMotorNow->ib = ib;
 	stMotorNow->ic = ic;
+
+	stMotorNow->va = va;
+	stMotorNow->vb = vb;
+	stMotorNow->vc = vc;
 
 	/* clarke 变换 */
 	clarke_transform(ia, ib, ic, &Ialpha, &Ibeta);

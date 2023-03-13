@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-11 07:48:42
+ * @LastEditTime: 2023-03-13 22:53:33
  */
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +40,7 @@ const osThreadAttr_t taskInitAttr =
  */
 void Task_Init(void *argument)
 {
+    Bsp_Init();
     PRINTF("Init Task\r\n");
 
     Command_Init();
@@ -57,13 +58,12 @@ void Task_Init(void *argument)
  */
 LONG main(VOID)
 {   
-    Bsp_Init();
-
+    Bsp_RTOS_Init();
 	osKernelInitialize();
     osThreadNew(Task_Init, NULL, &taskInitAttr);
 	if (osOK != osKernelStart())
     {
-        PRINTF("Task Start err.\r\n");
+        /* PRINTF("Task Start err.\r\n"); */
     }  
 
     while(1){}

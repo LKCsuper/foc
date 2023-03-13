@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-11 22:04:02
+ * @LastEditTime: 2023-03-13 23:01:38
  */
 #ifdef __cplusplus
 extern "C" {
@@ -104,16 +104,16 @@ void Bsp_Tim_StartPwm(bool is_second)
 {
 	if (!is_second) {
 		TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM1, TIM_Channel_1, TIM_CCxN_Enable);
+		TIM_CCxCmd(TIM1, 	 TIM_Channel_1, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM1, 	 TIM_Channel_1, TIM_CCxN_Enable);
 
 		TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM1, TIM_Channel_2, TIM_CCxN_Enable);
+		TIM_CCxCmd(TIM1, 	 TIM_Channel_2, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM1, 	 TIM_Channel_2, TIM_CCxN_Enable);
 
 		TIM_SelectOCxM(TIM1, TIM_Channel_3, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
+		TIM_CCxCmd(TIM1, 	 TIM_Channel_3, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM1, 	 TIM_Channel_3, TIM_CCxN_Enable);
 
 #ifdef HW_HAS_DUAL_PARALLEL
 		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_OCMode_PWM1);
@@ -140,16 +140,16 @@ void Bsp_Tim_StartPwm(bool is_second)
 		PHASE_FILTER_ON();
 	} else {
 		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_1, TIM_CCxN_Enable);
+		TIM_CCxCmd(TIM8, 	 TIM_Channel_1, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, 	 TIM_Channel_1, TIM_CCxN_Enable);
 
 		TIM_SelectOCxM(TIM8, TIM_Channel_2, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM8, TIM_Channel_2, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_2, TIM_CCxN_Enable);
+		TIM_CCxCmd(TIM8, 	 TIM_Channel_2, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, 	 TIM_Channel_2, TIM_CCxN_Enable);
 
 		TIM_SelectOCxM(TIM8, TIM_Channel_3, TIM_OCMode_PWM1);
-		TIM_CCxCmd(TIM8, TIM_Channel_3, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_3, TIM_CCxN_Enable);
+		TIM_CCxCmd(TIM8, 	 TIM_Channel_3, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, 	 TIM_Channel_3, TIM_CCxN_Enable);
 
 #ifdef HW_HAS_DRV8313_2
 		ENABLE_BR_2();
@@ -268,6 +268,8 @@ void Bsp_Tim_Pwm1(int f_zv)
 	Bsp_Tim_StopPwm(MOTOR1);
 
     TIM_CtrlPWMOutputs(TIM1, ENABLE);
+
+	TIMER_UPDATE_SAMP(MCPWM_FOC_CURRENT_SAMP_OFFSET);
 
     return;
 }

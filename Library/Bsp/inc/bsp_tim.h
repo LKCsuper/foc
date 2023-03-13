@@ -5,7 +5,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 10:03:36
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-10 22:27:33
+ * @LastEditTime: 2023-03-12 21:14:55
  */
 #ifndef _BSP_TIM_H
 #define _BSP_TIM_H
@@ -15,7 +15,8 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define SYSTEM_CORE_CLOCK		(168000000)
+#define SYSTEM_CORE_CLOCK							(168000000)
+#define MCPWM_FOC_CURRENT_SAMP_OFFSET				(2) // Offset from timer top for ADC samples
 
 #ifdef HW_HAS_3_SHUNTS
 #define TIMER_UPDATE_DUTY_M1(duty1, duty2, duty3) \

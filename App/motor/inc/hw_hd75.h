@@ -34,18 +34,18 @@
 
 // Macros
 #define ENABLE_GATE()			palSetPad(GPIOB, GPIO_Pin_5)
-#define DISABLE_GATE()			palClearPad(GPIOB, 5)
+#define DISABLE_GATE()			palClearPad(GPIOB, GPIO_Pin_5)
 
-#define IS_DRV_FAULT()			(!palReadPad(GPIOB, 7))
+#define IS_DRV_FAULT()			(!palReadPad(GPIOB, GPIO_Pin_7))
 
-#define LED_GREEN_ON()			palSetPad(GPIOB, 0)
-#define LED_GREEN_OFF()			palClearPad(GPIOB, 0)
-#define LED_RED_ON()			palSetPad(GPIOB, 1)
-#define LED_RED_OFF()			palClearPad(GPIOB, 1)
+#define LED_GREEN_ON()			palSetPad(GPIOB, GPIO_Pin_0)
+#define LED_GREEN_OFF()			palClearPad(GPIOB, GPIO_Pin_0)
+#define LED_RED_ON()			palSetPad(GPIOB, GPIO_Pin_1)
+#define LED_RED_OFF()			palClearPad(GPIOB, GPIO_Pin_1)
 
 // Shutdown pin
 #define HW_SHUTDOWN_GPIO		GPIOC
-#define HW_SHUTDOWN_PIN			5
+#define HW_SHUTDOWN_PIN			GPIO_Pin_5
 #define HW_SHUTDOWN_HOLD_ON()	palSetPad(HW_SHUTDOWN_GPIO, HW_SHUTDOWN_PIN)
 #define HW_SHUTDOWN_HOLD_OFF()	palClearPad(HW_SHUTDOWN_GPIO, HW_SHUTDOWN_PIN)
 #define HW_SAMPLE_SHUTDOWN()	hw_sample_shutdown_button()
@@ -147,26 +147,26 @@
 
 // COMM-port ADC GPIOs
 #define HW_ADC_EXT_GPIO			GPIOA
-#define HW_ADC_EXT_PIN			5
+#define HW_ADC_EXT_PIN			GPIO_Pin_5
 #define HW_ADC_EXT2_GPIO		GPIOA
-#define HW_ADC_EXT2_PIN			6
+#define HW_ADC_EXT2_PIN			GPIO_Pin_6
 
 // UART Peripheral
 #define HW_UART_DEV				SD3
 #define HW_UART_GPIO_AF			GPIO_AF_USART3
 #define HW_UART_TX_PORT			GPIOB
-#define HW_UART_TX_PIN			10
+#define HW_UART_TX_PIN			GPIO_Pin_10
 #define HW_UART_RX_PORT			GPIOB
-#define HW_UART_RX_PIN			11
+#define HW_UART_RX_PIN			GPIO_Pin_11
 
 // Permanent UART Peripheral (for NRF52)
 #define HW_UART_P_BAUD			115200
 #define HW_UART_P_DEV			SD4
 #define HW_UART_P_GPIO_AF		GPIO_AF_UART4
 #define HW_UART_P_TX_PORT		GPIOC
-#define HW_UART_P_TX_PIN		10
+#define HW_UART_P_TX_PIN		GPIO_Pin_10
 #define HW_UART_P_RX_PORT		GPIOC
-#define HW_UART_P_RX_PIN		11
+#define HW_UART_P_RX_PIN		GPIO_Pin_11
 
 // ICU Peripheral for servo decoding
 #define HW_USE_SERVO_TIM4
@@ -176,23 +176,23 @@
 #define HW_ICU_CHANNEL			ICU_CHANNEL_1
 #define HW_ICU_GPIO_AF			GPIO_AF_TIM4
 #define HW_ICU_GPIO				GPIOB
-#define HW_ICU_PIN				6
+#define HW_ICU_PIN				GPIO_Pin_6
 
 // I2C Peripheral
 #define HW_I2C_DEV				I2CD2
 #define HW_I2C_GPIO_AF			GPIO_AF_I2C2
 #define HW_I2C_SCL_PORT			GPIOB
-#define HW_I2C_SCL_PIN			10
+#define HW_I2C_SCL_PIN			GPIO_Pin_10
 #define HW_I2C_SDA_PORT			GPIOB
-#define HW_I2C_SDA_PIN			11
+#define HW_I2C_SDA_PIN			GPIO_Pin_11
 
 // Hall/encoder pins
 #define HW_HALL_ENC_GPIO1		GPIOC
-#define HW_HALL_ENC_PIN1		6
+#define HW_HALL_ENC_PIN1		GPIO_Pin_6
 #define HW_HALL_ENC_GPIO2		GPIOC
-#define HW_HALL_ENC_PIN2		7
+#define HW_HALL_ENC_PIN2		GPIO_Pin_7
 #define HW_HALL_ENC_GPIO3		GPIOC
-#define HW_HALL_ENC_PIN3		8
+#define HW_HALL_ENC_PIN3		GPIO_Pin_8
 #define HW_ENC_TIM				TIM3
 #define HW_ENC_TIM_AF			GPIO_AF_TIM3
 #define HW_ENC_TIM_CLK_EN()		RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE)
@@ -208,36 +208,36 @@
 #define HW_SPI_DEV				SPID1
 #define HW_SPI_GPIO_AF			GPIO_AF_SPI1
 #define HW_SPI_PORT_NSS			GPIOB
-#define HW_SPI_PIN_NSS			11
+#define HW_SPI_PIN_NSS			GPIO_Pin_11
 #define HW_SPI_PORT_SCK			GPIOA
-#define HW_SPI_PIN_SCK			5
+#define HW_SPI_PIN_SCK			GPIO_Pin_5
 #define HW_SPI_PORT_MOSI		GPIOA
-#define HW_SPI_PIN_MOSI			7
+#define HW_SPI_PIN_MOSI			GPIO_Pin_7
 #define HW_SPI_PORT_MISO		GPIOA
-#define HW_SPI_PIN_MISO			6
+#define HW_SPI_PIN_MISO			GPIO_Pin_6
 
 // SPI for DRV8323S
 #define DRV8323S_MOSI_GPIO		GPIOC
-#define DRV8323S_MOSI_PIN		12
+#define DRV8323S_MOSI_PIN		GPIO_Pin_12
 #define DRV8323S_MISO_GPIO		GPIOB
-#define DRV8323S_MISO_PIN		3
+#define DRV8323S_MISO_PIN		GPIO_Pin_3
 #define DRV8323S_SCK_GPIO		GPIOB
-#define DRV8323S_SCK_PIN		4
+#define DRV8323S_SCK_PIN		GPIO_Pin_4
 #define DRV8323S_CS_GPIO		GPIOC
-#define DRV8323S_CS_PIN			9
+#define DRV8323S_CS_PIN			GPIO_Pin_9
 
 // BMI160
 #define BMI160_SDA_GPIO			GPIOB
-#define BMI160_SDA_PIN			2
+#define BMI160_SDA_PIN			GPIO_Pin_2
 #define BMI160_SCL_GPIO			GPIOA
-#define BMI160_SCL_PIN			15
+#define BMI160_SCL_PIN			GPIO_Pin_15
 #define IMU_FLIP
 
 // NRF SWD
 #define NRF5x_SWDIO_GPIO		GPIOB
-#define NRF5x_SWDIO_PIN			12
+#define NRF5x_SWDIO_PIN			GPIO_Pin_12
 #define NRF5x_SWCLK_GPIO		GPIOA
-#define NRF5x_SWCLK_PIN			4
+#define NRF5x_SWCLK_PIN			GPIO_Pin_4
 
 // Measurement macros
 #define ADC_V_L1				ADC_Value[ADC_IND_SENS1]

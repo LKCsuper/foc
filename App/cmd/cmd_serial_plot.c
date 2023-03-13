@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-11 15:16:40
+ * @LastEditTime: 2023-03-12 17:18:37
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -67,6 +67,7 @@ VOID Serial_PlotCurentTask(VOID *argument)
         osDelay(1000);
         // 绘图
         TEXT_PLOT(current, "%f, %f, %f, %f", motor.ia, motor.ib, motor.ic, motor.v_bus);
+        TEXT_PLOT(voltage, "%f, %f, %f, %f", motor.va, motor.vb, motor.vc);
     }
 }
 

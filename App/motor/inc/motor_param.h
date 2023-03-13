@@ -199,6 +199,10 @@ typedef struct motor_param
 	float ib;
 	float ic;
 
+	float va;
+	float vb;
+	float vc;
+
 	float v_bus;
 
 	float Ialpha;

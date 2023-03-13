@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-12 16:40:03
+ * @LastEditTime: 2023-03-13 23:03:12
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -23,7 +23,7 @@ extern "C" {
  * @return {*}
  * @author: lkc
  */
-VOID Bsp_Gpio_Mode1(GPIO_TypeDef* GPIOx, uint32_t GPIO_Pin, GPIOMode_TypeDef GPIO_Mode)
+VOID Bsp_Gpio_Mode(GPIO_TypeDef* GPIOx, uint32_t GPIO_Pin, GPIOMode_TypeDef GPIO_Mode)
 {
     /* gpio时钟默认前边初始化 */
 
@@ -71,8 +71,8 @@ VOID Bsp_Gpio_ModeAF(GPIO_TypeDef* GPIOx, uint32_t GPIO_Pin, uint16_t GPIO_PinSo
  */
 VOID Bsp_Gpio_Led(VOID)
 {
-    Bsp_Gpio_Mode1(RED_PORT, RED_PIN, GPIO_Mode_OUT);
-    Bsp_Gpio_Mode1(GREEN_PORT, GREEN_PIN, GPIO_Mode_OUT);
+    Bsp_Gpio_Mode(RED_PORT, RED_PIN, GPIO_Mode_OUT);
+    Bsp_Gpio_Mode(GREEN_PORT, GREEN_PIN, GPIO_Mode_OUT);
     
     return;
 }
@@ -105,7 +105,7 @@ VOID Bsp_Tim1_Gpio(VOID)
  */
 VOID Bsp_Usart3_Gpio(VOID)
 {
-    // TODO 复用source不能|
+    // TODO 复用source不能| ,PIN 和 PIN SOURCE有区别,一个是引脚 一个是复用资源
     Bsp_Gpio_ModeAF(DEBUG_PORT, DEBUG_PIN, DEBUG_USART_TX_SOURCE, GPIO_AF_USART3);
     Bsp_Gpio_ModeAF(DEBUG_PORT, DEBUG_PIN, DEBUG_USART_RX_SOURCE, GPIO_AF_USART3);
 
@@ -134,40 +134,51 @@ void Bsp_Gpio_Init(void)
 {
     /* 初始化时钟 */
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
+
+    Bsp_Gpio_Mode(HW_SHUTDOWN_GPIO, HW_SHUTDOWN_PIN, GPIO_Mode_OUT);
+    HW_SHUTDOWN_HOLD_ON();
+
+    vTaskDelay(1000);
 
     Bsp_Gpio_Led();
-    Bsp_Gpio_Mode1(GATE_PORT, GATE_PIN, GPIO_Mode_OUT);
-    Bsp_Gpio_Mode1(DCCAL_PORT, DCCAL_PIN, GPIO_Mode_OUT);
+    GREEN_ON();
+    RED_ON();
+    
+    Bsp_Gpio_Mode(GATE_PORT, GATE_PIN, GPIO_Mode_OUT);
+    
+    Bsp_Gpio_Mode(DCCAL_PORT, DCCAL_PIN, GPIO_Mode_OUT);
     palClearPad(DCCAL_PORT, DCCAL_PIN);
     ENABLE_GATE();
-    Bsp_Usart3_Gpio();                                                
+
+    Bsp_Usart3_Gpio();
+                                                    
     Bsp_Tim1_Gpio();
 
     /* 编码器 霍尔 输入 */
 
     /* phase filters */
-    Bsp_Gpio_Mode1(PHASE_FILTER_PORT, PHASE_FILTER_PIN, GPIO_Mode_OUT);
+    Bsp_Gpio_Mode(PHASE_FILTER_PORT, PHASE_FILTER_PIN, GPIO_Mode_OUT);
     PHASE_FILTER_OFF();
 
     /* Fault */
-    Bsp_Gpio_Mode1(PHASE_FILTER_PORT, PHASE_FILTER_PIN, GPIO_Mode_IN);
+    Bsp_Gpio_Mode(PHASE_FILTER_PORT, PHASE_FILTER_PIN, GPIO_Mode_IN);
 
     /* ADC */
-    Bsp_Gpio_Mode1(ADC_0_PORT, ADC_0_PIN, GPIO_Mode_AN);
-    Bsp_Gpio_Mode1(ADC_1_PORT, ADC_1_PIN, GPIO_Mode_AN);
-    Bsp_Gpio_Mode1(ADC_2_PORT, ADC_2_PIN, GPIO_Mode_AN);
-    Bsp_Gpio_Mode1(ADC_3_PORT, ADC_3_PIN, GPIO_Mode_AN);
-    Bsp_Gpio_Mode1(ADC_5_PORT, ADC_5_PIN, GPIO_Mode_AN);
-    Bsp_Gpio_Mode1(ADC_6_PORT, ADC_6_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_0_PORT, ADC_0_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_1_PORT, ADC_1_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_2_PORT, ADC_2_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_3_PORT, ADC_3_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_5_PORT, ADC_5_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_6_PORT, ADC_6_PIN, GPIO_Mode_AN);
 
-    Bsp_Gpio_Mode1(ADC_00_PORT, ADC_00_PIN, GPIO_Mode_AN);
-    Bsp_Gpio_Mode1(ADC_11_PORT, ADC_11_PIN, GPIO_Mode_AN);
-    Bsp_Gpio_Mode1(ADC_22_PORT, ADC_22_PIN, GPIO_Mode_AN);
-    Bsp_Gpio_Mode1(ADC_33_PORT, ADC_33_PIN, GPIO_Mode_AN);
-    Bsp_Gpio_Mode1(ADC_44_PORT, ADC_44_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_00_PORT, ADC_00_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_11_PORT, ADC_11_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_22_PORT, ADC_22_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_33_PORT, ADC_33_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_44_PORT, ADC_44_PIN, GPIO_Mode_AN);
 
     return;
 }
