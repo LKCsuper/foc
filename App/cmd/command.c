@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-13 22:13:21
+ * @LastEditTime: 2023-03-14 23:22:19
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -67,11 +67,12 @@ int cmd_put_char(uint8_t ch)
  * @return {*}
  * @author: lkc
  */
+extern Shell shell;
 void Cmd_Task(void *argument)
 {
     PRINTF("Cmd Task Init\r\n");
-    shell_init();
-    
+    userShellInit();
+
     STATIC ULONG ulRxDataLen;
     ULONG i = 0;
     /* 创建队列用于接收DMA */
@@ -84,7 +85,8 @@ void Cmd_Task(void *argument)
 
         for (i = 0; i < ulRxDataLen; i++)
         {
-            shell(gucU3RxBuf[i]);
+            /* 这个地方为调用字符处理的地方 */
+            shellHandler(&shell, gucU3RxBuf[i]);
         }
     }
 }

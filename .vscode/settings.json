@@ -25,6 +25,9 @@
         "event_groups.h": "c",
         "serial.h": "c",
         "nr_micro_shell_config.h": "c",
-        "arm_common_tables.h": "c"
+        "arm_common_tables.h": "c",
+        "shell.h": "c",
+        "task.h": "c",
+        "semphr.h": "c"
     }
 }

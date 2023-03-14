@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-12 15:10:36
+ * @LastEditTime: 2023-03-14 23:21:31
  */
 #ifdef __cplusplus
 extern "C" {
@@ -50,15 +50,6 @@ VOID Bsp_Usart_DebugInit(ULONG ulBound)
 		USART_ReceiveData(DEBUG_USART);
 	}
 
-	// GPIO_InitTypeDef GPIO_InitStructure;
-
-	// GPIO_InitStructure.GPIO_Pin = DEBUG_USART_TX_PIN | DEBUG_USART_RX_PIN;
-	// GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-	// GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	// GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	// GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-	// GPIO_Init(DEBUG_USART_TX_GPIO_PORT, &GPIO_InitStructure);
-
 	/* 空闲中断使用命令行 */
 	NVIC_InitTypeDef NVIC_InitStre;
 	NVIC_InitStre.NVIC_IRQChannel = DEBUG_USART_IRQn;
@@ -75,7 +66,7 @@ VOID Bsp_Usart_DebugInit(ULONG ulBound)
 }
 
 /**
- * @Description: 串口获取
+ * @Description: 串口输出字符串
  * @author: lkc
  * @Date: 2023-02-17 23:01:32
  * @return {*}
@@ -86,6 +77,33 @@ void Bsp_Usart_PutString(const CHAR *cStr)
 	while (*cStr != '\0')
 	{ 
 		/* 换行 */
+/*
+#ifdef ENTER_PRI
+		if (*cStr == '\n')	
+		{
+			USART_SendData(DEBUG_USART, ENTER_PRI);
+			while(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET);
+		}
+#endif
+*/
+		USART_SendData(DEBUG_USART, *cStr++);
+	  	while (USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET);	
+	}		
+
+    return;
+}
+
+/**
+ * @Description: 串口输出N个字符
+ * @author: lkc
+ * @Date: 2023-02-17 23:01:32
+ * @return {*}
+ */
+VOID Bsp_Usart_PutBuf(const CHAR *cStr, ULONG ulLen)
+{
+	while (ulLen--)
+	{
+		/* 换行 */
 #ifdef ENTER_PRI
 		if (*cStr == '\n')	
 		{
@@ -95,10 +113,11 @@ void Bsp_Usart_PutString(const CHAR *cStr)
 #endif
 		USART_SendData(DEBUG_USART, *cStr++);
 	  	while (USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET);	
-	}		
+	}	
 
     return;
 }
+
 
 /**
   * @brief  输出到终端一个字符
@@ -133,6 +152,31 @@ ULONG Bsp_Usart_GetChar(UCHAR *ucKey)
 	}
 
 	return ERROR;
+}
+
+/**
+ * @description: 
+ * @detail: 
+ * @param {UCHAR} *ucBuf
+ * @return {*}
+ * @author: lkc
+ */
+ULONG Bsp_Usart_GetBuf(UCHAR *ucBuf, ULONG ulLen)
+{
+	ULONG i = 0;
+
+	for (i = 0; i < ulLen; i++)
+	{
+		/* 当存在数据的时候 */
+		if (USART_GetFlagStatus(DEBUG_USART, USART_FLAG_RXNE) != RESET)
+		{
+			/* 取出数据 */
+			ucBuf[i] = (uint8_t)DEBUG_USART->DR;
+			return SUCCESS;
+		}
+	}
+	
+	return ulLen;
 }
 
 /**

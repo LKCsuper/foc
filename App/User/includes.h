@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-17 22:55:09
- * @LastEditTime: 2023-03-11 07:47:36
+ * @LastEditTime: 2023-03-14 22:52:23
  * @FilePath: \my_foc\App\User\includes.h
  */
 #ifndef _INCLUDES_H
@@ -29,7 +29,7 @@ extern "C" {
 /* freertos */
 #include "FreeRTOS.h"
 #include "task.h"
-#include "serial.h"
+#include "semphr.h"
 #include "croutine.h"
 #include "event_groups.h"
 #include "list.h"
@@ -75,6 +75,12 @@ extern "C" {
 /* nr */
 #include "nr_micro_shell_config.h"
 #include "nr_micro_shell.h"
+
+/* letter shell */
+#include "shell.h"
+// #include "cevent.h"
+// #include "log.h"
+
 
 /* cmd */
 #include "command.h"

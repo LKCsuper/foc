@@ -53,6 +53,8 @@ VOID  Bsp_Usart_PutString(const CHAR *cStr);
 ULONG Bsp_Usart_GetChar(UCHAR* cKey);
 VOID  Bsp_Usart_PutChar(UCHAR cKey);
 VOID  Bsp_Usart_Handler(VOID);
+VOID Bsp_Usart_PutBuf(const CHAR *cStr, ULONG ulLen);
+ULONG Bsp_Usart_GetBuf(UCHAR *ucBuf, ULONG ulLen);
 int fputc(int ch, FILE *f);
 
 #ifdef __cplusplus

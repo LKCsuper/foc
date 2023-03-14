@@ -341,7 +341,7 @@
               <MiscControls>--locale=english</MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F40_41xxx,__CC_ARM,__TARGET_FPU_VFP=1,__FPU_PRESENT=1,__FPU_USED=1,ARM_MATH_CM4</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include;..\..\Library\CMSIS\Include;..\User;..\..\Library\Bsp\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\Configs\inc</IncludePath>
+              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include;..\..\Library\CMSIS\Include;..\User;..\..\Library\Bsp\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\Configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -826,19 +826,29 @@
           <GroupName>Shell</GroupName>
           <Files>
             <File>
-              <FileName>ansi.c</FileName>
+              <FileName>shell.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\ThirtyLibrary\nr_micro_shell-master\src\ansi.c</FilePath>
+              <FilePath>..\..\ThirtyLibrary\letter-shell-master\src\shell.c</FilePath>
             </File>
             <File>
-              <FileName>ansi_port.c</FileName>
+              <FileName>shell_cmd_list.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\ThirtyLibrary\nr_micro_shell-master\src\ansi_port.c</FilePath>
+              <FilePath>..\..\ThirtyLibrary\letter-shell-master\src\shell_cmd_list.c</FilePath>
             </File>
             <File>
-              <FileName>nr_micro_shell.c</FileName>
+              <FileName>shell_companion.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\ThirtyLibrary\nr_micro_shell-master\src\nr_micro_shell.c</FilePath>
+              <FilePath>..\..\ThirtyLibrary\letter-shell-master\src\shell_companion.c</FilePath>
+            </File>
+            <File>
+              <FileName>shell_ext.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\letter-shell-master\src\shell_ext.c</FilePath>
+            </File>
+            <File>
+              <FileName>shell_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\letter-shell-master\port\shell_port.c</FilePath>
             </File>
           </Files>
         </Group>
