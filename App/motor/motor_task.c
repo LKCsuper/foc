@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-02-26 22:02:09
+ * @LastEditTime: 2023-03-14 23:36:52
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -22,7 +22,7 @@ extern "C" {
  * @return {*}
  * @author: lkc
  */
-void Motor_Task_Pid(void)
+VOID Motor_Task_Pid(VOID)
 {
     
     return;
@@ -34,7 +34,7 @@ void Motor_Task_Pid(void)
  * @return {*}
  * @author: lkc
  */
-void Motor_Task_Hfi(void)
+VOID Motor_Task_Hfi(VOID)
 {
     
     return;
@@ -46,7 +46,7 @@ void Motor_Task_Hfi(void)
  * @return {*}
  * @author: lkc
  */
-void Motor_Task_Tim(void)
+VOID Motor_Task_Tim(VOID)
 {
     
     return;
@@ -58,7 +58,7 @@ void Motor_Task_Tim(void)
  * @return {*}
  * @author: lkc
  */
-void Motor_Task_Init(void)
+VOID Motor_Task_Init(VOID)
 {
 
     return;

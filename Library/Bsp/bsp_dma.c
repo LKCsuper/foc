@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-10 23:48:04
+ * @LastEditTime: 2023-03-14 23:39:28
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -13,7 +13,7 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-UCHAR gucU3RxBuf[128] = {0};
+UCHAR gucURxBuf[USART_RX_BUF_SIZE] = {0};
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -106,7 +106,7 @@ void Bsp_Dma_Usart3Rx(void)
 	/* 外设地址 */
 	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(USART3->DR);
 	/* 内存地址 */
-	DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)gucU3RxBuf;
+	DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)gucURxBuf;
 	/* 外设到内存 */
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory;
 	/* 一次性传输大小        */

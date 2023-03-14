@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-14 23:22:19
+ * @LastEditTime: 2023-03-14 23:39:42
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -32,7 +32,7 @@ typedef ULONG CMD_QUEUE_ITEM;								//队列项目定义类型
 #define CMD_QUEUE_LENGTH	1								//队列项目长度
 #define CMD_QUEUE_SIZE		sizeof(CMD_QUEUE_ITEM)		    //队列项目字节数
 
-extern UCHAR gucU3RxBuf[128];
+extern UCHAR gucURxBuf[USART_RX_BUF_SIZE];
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -86,7 +86,7 @@ void Cmd_Task(void *argument)
         for (i = 0; i < ulRxDataLen; i++)
         {
             /* 这个地方为调用字符处理的地方 */
-            shellHandler(&shell, gucU3RxBuf[i]);
+            shellHandler(&shell, gucURxBuf[i]);
         }
     }
 }

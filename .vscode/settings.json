@@ -28,6 +28,7 @@
         "arm_common_tables.h": "c",
         "shell.h": "c",
         "task.h": "c",
-        "semphr.h": "c"
+        "semphr.h": "c",
+        "motor_utils.h": "c"
     }
 }

@@ -40,9 +40,9 @@ void Motor_DmaInt(void *p, uint32_t flags)
 	float vc = 0.0f;
 
 	/* 这里是电压偏移*/
-	va = (ADC_VOLTS(ADC_IND_SENS1) - 0) * ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
-	vb = (ADC_VOLTS(ADC_IND_SENS3) - 0) * ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
-	vc = (ADC_VOLTS(ADC_IND_SENS2) - 0) * ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
+	va = (ADC_VOLTS(ADC_IND_SENS1) - 0.0f) * ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
+	vb = (ADC_VOLTS(ADC_IND_SENS3) - 0.0f) * ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
+	vc = (ADC_VOLTS(ADC_IND_SENS2) - 0.0f) * ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
 	
 	/* 总线电压,根据电流计算 */
 	UTILS_LP_FAST(stMotorNow->v_bus, GET_INPUT_VOLTAGE(), 0.1);

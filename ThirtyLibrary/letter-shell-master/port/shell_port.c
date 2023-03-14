@@ -27,7 +27,7 @@ static SemaphoreHandle_t shellMutex;
 short userShellWrite(char *data, unsigned short len)
 {
     //serialTransmit(&debugSerial, (uint8_t *)data, len, 0x1FF);
-    Bsp_Usart_PutBuf((uint8_t *)data, len);
+    Bsp_Usart_PutBuf((const UCHAR *)data, len);
     return len;
 }
 
@@ -43,7 +43,7 @@ short userShellWrite(char *data, unsigned short len)
 short userShellRead(char *data, unsigned short len)
 {
     //return serialReceive(&debugSerial, (uint8_t *)data, len, 0);
-    return Bsp_Usart_GetBuf((uint8_t *)data, len);
+    return Bsp_Usart_GetBuf((UCHAR *)data, len);
 }
 
 /**
@@ -96,5 +96,5 @@ void userShellInit(void)
     //     PRINTF("创建任务失败\r\n");
     // }
 }
-CEVENT_EXPORT(EVENT_INIT_STAGE2, userShellInit);
+//CEVENT_EXPORT(EVENT_INIT_STAGE2, userShellInit);
 

@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-13 22:53:33
+ * @LastEditTime: 2023-03-14 23:35:05
  */
 #ifdef __cplusplus
 extern "C" {
@@ -15,7 +15,6 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-
 /* 任务栈 */
 static StackType_t taskInitStack[128];
 static StaticTask_t taskInitTcb; //CreateAppTask任务控制块 

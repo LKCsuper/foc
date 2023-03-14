@@ -146,6 +146,7 @@ void DMA2_Stream4_IRQHandler(void)
     return;
 }
 
+// TODO
 /**
  * @description: foc用不到
  * @detail: 
@@ -206,7 +207,6 @@ void PendSV_Handler(void)
 {
     xPortPendSVHandler();
 }
-// todo 与freertos冲突
 /**
   * @brief  This function handles SVCall exception.
   * @param  None

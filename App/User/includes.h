@@ -72,15 +72,9 @@ extern "C" {
 #include "motor_pid.h"
 #include "motor_tim.h"
 
-/* nr */
-#include "nr_micro_shell_config.h"
-#include "nr_micro_shell.h"
-
 /* letter shell */
 #include "shell.h"
-// #include "cevent.h"
-// #include "log.h"
-
+#include "shell_port.h"
 
 /* cmd */
 #include "command.h"
