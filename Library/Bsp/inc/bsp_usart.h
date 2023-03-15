@@ -5,7 +5,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 10:03:36
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-12 15:01:15
+ * @LastEditTime: 2023-03-15 22:40:15
  */
 #ifndef _BSP_USART_H
 #define _BSP_USART_H
@@ -53,7 +53,7 @@ VOID  Bsp_Usart_PutString(const CHAR *cStr);
 ULONG Bsp_Usart_GetChar(UCHAR* cKey);
 VOID  Bsp_Usart_PutChar(UCHAR cKey);
 VOID  Bsp_Usart_Handler(VOID);
-VOID Bsp_Usart_PutBuf(const CHAR *cStr, ULONG ulLen);
+VOID Bsp_Usart_PutBuf(const UCHAR *cStr, ULONG ulLen);
 ULONG Bsp_Usart_GetBuf(UCHAR *ucBuf, ULONG ulLen);
 int fputc(int ch, FILE *f);
 

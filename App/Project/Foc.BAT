@@ -1,4 +1,4 @@
-SET PATH=E:\software_qrs\keil_core\ARM\ARMCC\Bin;E:\software_it\python311\Scripts\;E:\software_it\python311\;E:\software_qrs\vmare\bin\;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;E:\software\bandzip\Bandizip\;E:\tool\xshell\;E:\software_qrs\matlab\runtime\win64;E:\software_qrs\matlab\bin;C:\Program Files\Git\cmd;E:\tool\global-6.6.9;C:\Users\15403\AppData\Local\Microsoft\WindowsApps;E:\software_it\vs\bin;C:\Users\15403\AppData\Local\GitHubDesktop\bin
+SET PATH=E:\software_qrs\keil_core\ARM\ARMCC\Bin;E:\software_it\python311\Scripts\;E:\software_it\python311\;E:\software_qrs\vmare\bin\;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;E:\software\bandzip\Bandizip\;E:\tool\xshell\;E:\software_qrs\matlab\runtime\win64;E:\software_qrs\matlab\bin;C:\Program Files\Git\cmd;E:\tool\global-6.6.9;E:\software_it\svn\bin;C:\Users\15403\AppData\Local\Microsoft\WindowsApps;E:\software_it\vs\bin;C:\Users\15403\AppData\Local\GitHubDesktop\bin
 SET CPU_TYPE=STM32F405RGTx
 SET CPU_VENDOR=STMicroelectronics
 SET UV2_TARGET=Foc
@@ -82,8 +82,9 @@ SET CPU_CLOCK=0x00B71B00
 "E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\freertos.__i"
 "E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\freertos_port.__i"
 "E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\cmsis_os2.__i"
-"E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\ansi.__i"
-"E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\ansi_port.__i"
-"E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\nr_micro_shell.__i"
+"E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\shell.__i"
+"E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\shell_cmd_list.__i"
+"E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\shell_companion.__i"
+"E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\shell_ext.__i"
+"E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\shell_port.__i"
 "E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmLink" --Via "..\..\..\build\foc.lnp"
-"E:\software_qrs\keil_core\ARM\ARMCC\Bin\fromelf.exe" "..\..\..\build\foc.axf" --i32combined --output "..\..\..\build\foc.hex"

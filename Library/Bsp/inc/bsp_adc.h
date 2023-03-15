@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-02-22 22:03:15
+ * @LastEditTime: 2023-03-15 22:50:27
  * @FilePath: \foc\Library\Bsp\inc\bsp_adc.h
  */
 #ifndef _BSP_ADC_H
@@ -12,6 +12,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+// TODO 这里和hw里边的定义后期留一个
 /* 通道个数 */
 #define HW_ADC_CHANNELS			15
 

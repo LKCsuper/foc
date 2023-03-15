@@ -46,6 +46,7 @@ typedef signed char int8; /* Signed 8 bit value */
 #define STATIC static
 #define SHORT int16_t
 #define USHORT unsigned short
+#define BOOL bool
 
 /* 设置位 */
 #define SET_BIT(REG, BIT)     ((REG) |= (BIT))

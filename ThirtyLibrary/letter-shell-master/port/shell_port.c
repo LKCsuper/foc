@@ -26,7 +26,6 @@ static SemaphoreHandle_t shellMutex;
  */
 short userShellWrite(char *data, unsigned short len)
 {
-    //serialTransmit(&debugSerial, (uint8_t *)data, len, 0x1FF);
     Bsp_Usart_PutBuf((const UCHAR *)data, len);
     return len;
 }
@@ -42,7 +41,6 @@ short userShellWrite(char *data, unsigned short len)
  */
 short userShellRead(char *data, unsigned short len)
 {
-    //return serialReceive(&debugSerial, (uint8_t *)data, len, 0);
     return Bsp_Usart_GetBuf((UCHAR *)data, len);
 }
 
@@ -55,7 +53,6 @@ short userShellRead(char *data, unsigned short len)
  */
 int userShellLock(Shell *shell)
 {
-    //xSemaphoreTakeRecursive(shellMutex, portMAX_DELAY);
     osMutexAcquire(shellMutex, portMAX_DELAY);
     return 0;
 }
@@ -69,7 +66,6 @@ int userShellLock(Shell *shell)
  */
 int userShellUnlock(Shell *shell)
 {
-    //xSemaphoreGiveRecursive(shellMutex);
     osMutexRelease(shellMutex);
     return 0;
 }
@@ -80,7 +76,6 @@ int userShellUnlock(Shell *shell)
  */
 void userShellInit(void)
 {
-    //shellMutex = xSemaphoreCreateMutex();
     shellMutex = osMutexNew(NULL);
 
     shell.write = userShellWrite;
@@ -96,5 +91,4 @@ void userShellInit(void)
     //     PRINTF("创建任务失败\r\n");
     // }
 }
-//CEVENT_EXPORT(EVENT_INIT_STAGE2, userShellInit);
 

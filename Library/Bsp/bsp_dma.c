@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-14 23:39:28
+ * @LastEditTime: 2023-03-15 23:02:35
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -13,11 +13,17 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+/* 串口接收中断 */
 UCHAR gucURxBuf[USART_RX_BUF_SIZE] = {0};
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-
-void Bsp_Dma_AdcSample(void)
+/**
+ * @description: DMA adc采样触发
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+VOID Bsp_Dma_AdcSample(VOID)
 {
     /* 开启中断 */
     DMA_InitTypeDef DMA_InitStructure;
@@ -75,7 +81,7 @@ void Bsp_Dma_AdcSample(void)
 #if ADC_IND_CURR1 < 3 && ADC_IND_CURR2 < 3 && ADC_IND_CURR3 < 3
 	DMA_ITConfig(DMA2_Stream4, DMA_IT_HT, ENABLE);
 #else
-	// 开启传输完成中断
+	/* 开启传输完成中断 */
 	DMA_ITConfig(DMA2_Stream4, DMA_IT_TC, ENABLE);
 #endif
 	
@@ -90,7 +96,7 @@ void Bsp_Dma_AdcSample(void)
  * @return {*}
  * @author: lkc
  */
-void Bsp_Dma_Usart3Rx(void)
+VOID Bsp_Dma_UsartRx(VOID)
 {
 	DMA_InitTypeDef DMA_InitStructure;
 
@@ -135,7 +141,7 @@ void Bsp_Dma_Usart3Rx(void)
 	DMA_SetCurrDataCounter(DMA1_Stream1, USART_RX_BUF_SIZE);
 	DMA_Cmd(DMA1_Stream1, ENABLE);
 
-	// todo 注意 如果是使能dma一定要加这个
+	// TODO 注意 如果是使能dma一定要加这个
 	USART_DMACmd(DEBUG_USART, USART_DMAReq_Rx, ENABLE);
 
 	return;
@@ -147,12 +153,12 @@ void Bsp_Dma_Usart3Rx(void)
  * @return {*}
  * @author: lkc
  */
-void Bsp_Dma_Init(void)
+VOID Bsp_Dma_Init(VOID)
 {
 	/* dma ADC 采样 */
 	Bsp_Dma_AdcSample();
-	/* 串口3接收 */
-	Bsp_Dma_Usart3Rx();
+	/* 串口接收 */
+	Bsp_Dma_UsartRx();
 
 	PRINTF("DMA Init\r\n");
 	return;

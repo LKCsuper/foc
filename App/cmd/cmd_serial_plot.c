@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-12 17:18:37
+ * @LastEditTime: 2023-03-15 19:50:14
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -67,35 +67,26 @@ VOID Serial_PlotCurentTask(VOID *argument)
         osDelay(1000);
         // 绘图
         TEXT_PLOT(current, "%f, %f, %f, %f", motor.ia, motor.ib, motor.ic, motor.v_bus);
-        TEXT_PLOT(voltage, "%f, %f, %f, %f", motor.va, motor.vb, motor.vc);
+        TEXT_PLOT(voltage, "%f, %f, %f", motor.va, motor.vb, motor.vc);
     }
 }
 
 /**
- * @description: 
+ * @description: Cmd_Serial_Plot
  * @detail: 
+ * @param {char} cTaskStat 任务状态
+ * @param {char} cPlotStat 绘画状态
  * @return {*}
  * @author: lkc
  */
-VOID Cmd_Serial_Plot(char argc, char *argv)
+VOID Cmd_Serial_Plot(UCHAR cTaskStat, UCHAR cPlotStat)
 {
-    if (argc < 2)
-    {
-        return;
-    }
-
-    for (UCHAR i = 1; i < argc; i++)
-    {
-        PRINTF("PARAM [%d]  [%s]", i, &argv[argv[i]]);
-    }
-    PRINTF("\n");
-
     /* 销毁和创建任务 */
-    switch (atoi(&argv[argv[1]]))
+    switch (cTaskStat)
     {
         case PLOT_CREATE:
             /* 打印不同格式的任务 */
-            switch (atoi(&argv[argv[2]]))
+            switch (cPlotStat)
             {
                 case PLOT_CURRENT:
                     PRINTF("电流 显示 任务\n");
@@ -123,8 +114,8 @@ VOID Cmd_Serial_Plot(char argc, char *argv)
     return;
 }
 
-NR_SHELL_CMD_EXPORT(plot,  Cmd_Serial_Plot);
-
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_FUNC),
+                plot, Cmd_Serial_Plot, plot task);
 #ifdef __cplusplus
 }
 #endif

@@ -8,8 +8,9 @@
  * @copyright (c) 2020 Letter
  * 
  */
- #include "shell.h"
- 
+#include "shell.h"
+#include "includes.h"
+
 #if SHELL_USING_COMPANION == 1
 /**
  * @brief shell添加伴生对象

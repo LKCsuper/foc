@@ -29,6 +29,7 @@
         "shell.h": "c",
         "task.h": "c",
         "semphr.h": "c",
-        "motor_utils.h": "c"
+        "motor_utils.h": "c",
+        "freertos_mpool.h": "c"
     }
 }

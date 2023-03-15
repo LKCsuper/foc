@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:51:32
- * @LastEditTime: 2023-03-12 15:32:00
+ * @LastEditTime: 2023-03-15 22:28:23
  * @FilePath: \foc\Library\Bsp\inc\bsp_dma.h
  */
 #ifndef _BSP_GPIO_H
@@ -37,16 +37,14 @@ extern "C" {
 
 /* TIM1 CHANNEL */
 #define T_CHANNEL_PORT          GPIOA
-#define T_CHANNEL_PIN           GPIO_Pin_8 | GPIO_Pin_9 | GPIO_Pin_10    
-#define T_CHANNEL_SOURCE        GPIO_PinSource8 | GPIO_PinSource9 | GPIO_PinSource10    
+#define T_CHANNEL_PIN           GPIO_Pin_8 | GPIO_Pin_9 | GPIO_Pin_10     
 
 #define T_CHANNEL_SOURCE1       GPIO_PinSource8
 #define T_CHANNEL_SOURCE2       GPIO_PinSource9
 #define T_CHANNEL_SOURCE3       GPIO_PinSource10
 
 #define T_CHANNEL_N_PORT        GPIOB
-#define T_CHANNEL_N_PIN         GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15    
-#define T_CHANNEL_N_SOURCE      GPIO_PinSource13 | GPIO_PinSource14 | GPIO_PinSource15      
+#define T_CHANNEL_N_PIN         GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15       
 
 #define T_CHANNEL_N_SOURCE1     GPIO_PinSource13
 #define T_CHANNEL_N_SOURCE2     GPIO_PinSource14

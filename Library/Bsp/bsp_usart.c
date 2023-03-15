@@ -99,7 +99,7 @@ void Bsp_Usart_PutString(const CHAR *cStr)
  * @Date: 2023-02-17 23:01:32
  * @return {*}
  */
-VOID Bsp_Usart_PutBuf(const CHAR *cStr, ULONG ulLen)
+VOID Bsp_Usart_PutBuf(const UCHAR *cStr, ULONG ulLen)
 {
 	while (ulLen--)
 	{

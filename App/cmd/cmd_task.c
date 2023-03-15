@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-11 00:10:00
+ * @LastEditTime: 2023-03-15 19:36:37
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -24,7 +24,7 @@ CHAR gacRunInfo[512];
  * @return {*}
  * @author: lkc
  */
-void Cmd_Task_Show(char argc, char *argv)
+VOID Cmd_Task_Show(VOID)
 {
     memset(gacRunInfo, 0, sizeof(gacRunInfo));				//信息缓冲区清零
     PRINTF("=======================================================\r\n");
@@ -39,7 +39,8 @@ void Cmd_Task_Show(char argc, char *argv)
     return;
 }
 
-NR_SHELL_CMD_EXPORT(show,  Cmd_Task_Show);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_FUNC),
+                task, Cmd_Task_Show, show task);
 
 #ifdef __cplusplus
 }

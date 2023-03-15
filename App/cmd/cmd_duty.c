@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-12 18:24:33
+ * @LastEditTime: 2023-03-15 23:32:30
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -71,32 +71,24 @@ VOID Duty_ControlTask(VOID *argument)
 /**
  * @description: 
  * @detail: 
+ * @param {UCHAR} cTaskStat 任务状态
+ * @param {UCHAR} cContStat 控制状态
  * @return {*}
  * @author: lkc
  */
-VOID Cmd_Motor_Duty(char argc, char *argv)
+VOID Cmd_Motor_Duty(UCHAR cTaskStat, UCHAR cContStat)
 {
-    if (argc < 2)
-    {
-        return;
-    }
-
-    for (UCHAR i = 1; i < argc; i++)
-    {
-        PRINTF("PARAM [%d]  [%s]", i, &argv[argv[i]]);
-    }
-    PRINTF("\n");
-
     /* 销毁和创建任务 */
-    switch (atoi(&argv[argv[1]]))
+    switch (cTaskStat)
     {
         case PLOT_CREATE:
-            PRINTF("占空比 创建 任务 ");
+            PRINTF("占空比 创建 任务 \n");
             /* 打印不同格式的任务 */
             taskPlotHandle = osThreadNew(Duty_ControlTask, NULL, &taskDutyAttr);
             break;
         case PLOT_DESTORY:
-            PRINTF("占空比 销毁 任务 ");
+        // TODO 创建任务之后 再运行这里Bsp_Tim_StopPwm会导致卡死
+            PRINTF("占空比 销毁 任务 \n");
             Bsp_Tim_StopPwm(false);
             if (osOK == osThreadTerminate(taskPlotHandle))
             {
@@ -119,8 +111,8 @@ VOID Cmd_Motor_Duty(char argc, char *argv)
     return;
 }
 
-NR_SHELL_CMD_EXPORT(duty,  Cmd_Motor_Duty);
-
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_FUNC),
+                duty, Cmd_Motor_Duty, duty task);
 #ifdef __cplusplus
 }
 #endif

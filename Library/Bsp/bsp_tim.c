@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-13 23:01:38
+ * @LastEditTime: 2023-03-15 23:23:07
  */
 #ifdef __cplusplus
 extern "C" {
@@ -27,23 +27,27 @@ extern "C" {
  * @param {bool} is_second
  * @return {*}
  */
-void Bsp_Tim_StopPwm(bool is_second)
+VOID Bsp_Tim_StopPwm(BOOL is_second)
 {
     /* dq 为0 */
     if (!is_second)
     {
+		/* 强制通道1为低电平 */
 		TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM1, TIM_Channel_1, TIM_CCxN_Disable);
+		/* 使能通道1 */
+		TIM_CCxCmd(TIM1, 	 TIM_Channel_1, TIM_CCx_Enable);
+		/* 互补失能 */
+		TIM_CCxNCmd(TIM1, 	 TIM_Channel_1, TIM_CCxN_Disable);
 
 		TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM1, TIM_Channel_2, TIM_CCxN_Disable);
+		TIM_CCxCmd(TIM1, 	 TIM_Channel_2, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM1, 	 TIM_Channel_2, TIM_CCxN_Disable);
 
 		TIM_SelectOCxM(TIM1, TIM_Channel_3, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Disable);
+		TIM_CCxCmd(TIM1, 	 TIM_Channel_3, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM1, 	 TIM_Channel_3, TIM_CCxN_Disable);
 
+		/* 这里应该是再进入一次dma中断,处理状态 */
 		TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 
 #ifdef HW_HAS_DUAL_PARALLEL
@@ -70,16 +74,16 @@ void Bsp_Tim_StopPwm(bool is_second)
     else
     {
 		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_1, TIM_CCxN_Disable);
+		TIM_CCxCmd(TIM8, 	 TIM_Channel_1, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, 	 TIM_Channel_1, TIM_CCxN_Disable);
 
 		TIM_SelectOCxM(TIM8, TIM_Channel_2, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM8, TIM_Channel_2, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_2, TIM_CCxN_Disable);
+		TIM_CCxCmd(TIM8, 	 TIM_Channel_2, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, 	 TIM_Channel_2, TIM_CCxN_Disable);
 
 		TIM_SelectOCxM(TIM8, TIM_Channel_3, TIM_ForcedAction_InActive);
-		TIM_CCxCmd(TIM8, TIM_Channel_3, TIM_CCx_Enable);
-		TIM_CCxNCmd(TIM8, TIM_Channel_3, TIM_CCxN_Disable);
+		TIM_CCxCmd(TIM8, 	 TIM_Channel_3, TIM_CCx_Enable);
+		TIM_CCxNCmd(TIM8, 	 TIM_Channel_3, TIM_CCxN_Disable);
 
 		TIM_GenerateEvent(TIM8, TIM_EventSource_COM);
 
@@ -100,11 +104,14 @@ void Bsp_Tim_StopPwm(bool is_second)
  * @param {bool} is_second
  * @return {*}
  */
-void Bsp_Tim_StartPwm(bool is_second)
+VOID Bsp_Tim_StartPwm(BOOL is_second)
 {
 	if (!is_second) {
+		/* 选择输出pwm1 */
 		TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_OCMode_PWM1);
+		/* 使能通道1 */
 		TIM_CCxCmd(TIM1, 	 TIM_Channel_1, TIM_CCx_Enable);
+		/* 使能互补通道1 */
 		TIM_CCxNCmd(TIM1, 	 TIM_Channel_1, TIM_CCxN_Enable);
 
 		TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_OCMode_PWM1);

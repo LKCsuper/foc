@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-13 23:03:12
+ * @LastEditTime: 2023-03-15 23:28:30
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -26,7 +26,6 @@ extern "C" {
 VOID Bsp_Gpio_Mode(GPIO_TypeDef* GPIOx, uint32_t GPIO_Pin, GPIOMode_TypeDef GPIO_Mode)
 {
     /* gpio时钟默认前边初始化 */
-
     GPIO_InitTypeDef  GPIO_InitStructure;
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode;
@@ -55,7 +54,8 @@ VOID Bsp_Gpio_ModeAF(GPIO_TypeDef* GPIOx, uint32_t GPIO_Pin, uint16_t GPIO_PinSo
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
     GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
+    /* 定时器复用使用浮空.其他复用未知 */
+    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
     GPIO_Init(GPIOx, &GPIO_InitStructure);
 
     GPIO_PinAFConfig(GPIOx, GPIO_PinSource, GPIO_AF);
@@ -85,14 +85,15 @@ VOID Bsp_Gpio_Led(VOID)
  */
 VOID Bsp_Tim1_Gpio(VOID)
 {
+    /* 复用pwm通道 */
     Bsp_Gpio_ModeAF(T_CHANNEL_PORT, T_CHANNEL_PIN, T_CHANNEL_SOURCE1, GPIO_AF_TIM1);
     Bsp_Gpio_ModeAF(T_CHANNEL_PORT, T_CHANNEL_PIN, T_CHANNEL_SOURCE2, GPIO_AF_TIM1);
     Bsp_Gpio_ModeAF(T_CHANNEL_PORT, T_CHANNEL_PIN, T_CHANNEL_SOURCE3, GPIO_AF_TIM1);
-
     
-    Bsp_Gpio_ModeAF(T_CHANNEL_N_PORT, T_CHANNEL_N_PIN, GPIO_PinSource13, GPIO_AF_TIM1);
-    Bsp_Gpio_ModeAF(T_CHANNEL_N_PORT, T_CHANNEL_N_PIN, GPIO_PinSource14, GPIO_AF_TIM1);
-    Bsp_Gpio_ModeAF(T_CHANNEL_N_PORT, T_CHANNEL_N_PIN, GPIO_PinSource15, GPIO_AF_TIM1);
+    /* 复用pwm互补通道 */
+    Bsp_Gpio_ModeAF(T_CHANNEL_N_PORT, T_CHANNEL_N_PIN, T_CHANNEL_N_SOURCE1, GPIO_AF_TIM1);
+    Bsp_Gpio_ModeAF(T_CHANNEL_N_PORT, T_CHANNEL_N_PIN, T_CHANNEL_N_SOURCE2, GPIO_AF_TIM1);
+    Bsp_Gpio_ModeAF(T_CHANNEL_N_PORT, T_CHANNEL_N_PIN, T_CHANNEL_N_SOURCE3, GPIO_AF_TIM1);
 
 	return;
 }
@@ -153,8 +154,10 @@ void Bsp_Gpio_Init(void)
     palClearPad(DCCAL_PORT, DCCAL_PIN);
     ENABLE_GATE();
 
+    /* 串口gpio */
     Bsp_Usart3_Gpio();
-                                                    
+
+    /* 定时器gpio */                                   
     Bsp_Tim1_Gpio();
 
     /* 编码器 霍尔 输入 */

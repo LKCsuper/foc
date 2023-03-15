@@ -22,12 +22,15 @@ extern "C" {
 #ifndef USE_STDPERIPH_DRIVER
 #define USE_STDPERIPH_DRIVER    1
 #endif
+#define HSE_VALUE               ((uint32_t)8000000)
+#define HSE_USE                 (1)
 
 #include "arm_math.h"
 #include "stm32f4xx.h"
 
 /* freertos */
 #include "FreeRTOS.h"
+#include "portable.h"
 #include "task.h"
 #include "semphr.h"
 #include "croutine.h"
