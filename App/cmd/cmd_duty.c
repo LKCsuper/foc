@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-15 23:32:30
+ * @LastEditTime: 2023-03-16 22:17:24
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -56,15 +56,16 @@ STATIC const osThreadAttr_t taskDutyAttr =
 VOID Duty_ControlTask(VOID *argument)
 {
     PRINTF("\n");
+
     while (1)
     {
-        Bsp_Tim_StartPwm(false);
-        TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, 0, 0);
-        osDelay(10);
-        TIMER_UPDATE_DUTY_M1(0, TIM1->ARR / 2, 0);
-        osDelay(10);
-        TIMER_UPDATE_DUTY_M1(0, 0, TIM1->ARR / 2);
-        osDelay(10);
+			    Bsp_Tim_StartPwm(false);
+        TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, TIM1->ARR / 2, TIM1->ARR / 2);
+        // osDelay(10);
+        // TIMER_UPDATE_DUTY_M1(0, TIM1->ARR / 2, 0);
+        // osDelay(10);
+        // TIMER_UPDATE_DUTY_M1(0, 0, TIM1->ARR / 2);
+        // osDelay(10);
     }
 }
 
