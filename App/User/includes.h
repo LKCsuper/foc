@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-17 22:55:09
- * @LastEditTime: 2023-03-14 22:52:23
+ * @LastEditTime: 2023-03-16 22:58:30
  * @FilePath: \my_foc\App\User\includes.h
  */
 #ifndef _INCLUDES_H
@@ -50,6 +50,10 @@ extern "C" {
 /* common */
 #include "motor_utils.h"
 
+/* hardware */
+#include "hw_hd75.h"
+#include "hw.h"
+
 /* bsp */
 #include "bsp_adc.h"
 #include "bsp_gpio.h"
@@ -66,8 +70,6 @@ extern "C" {
 /* motor */
 #include "motor_common.h"
 #include "datatypes.h"
-#include "hw_hd75.h"
-#include "hw.h"
 #include "motor_param.h"
 #include "motor_task.h"
 #include "motor_foc.h"

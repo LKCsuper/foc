@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2023-02-26 21:30:25
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-02 23:18:35
+ * @LastEditTime: 2023-03-16 22:38:29
  */
 /**
 * @file         
@@ -47,6 +47,13 @@ typedef signed char int8; /* Signed 8 bit value */
 #define SHORT int16_t
 #define USHORT unsigned short
 #define BOOL bool
+
+typedef enum{FALSE = 0, TRUE=!FALSE} tagJuder;
+/*
+typedef enum {RESET = 0, SET = !RESET} FlagStatus, ITStatus;
+typedef enum {DISABLE = 0, ENABLE = !DISABLE} FunctionalState;
+typedef enum {ERROR = 0, SUCCESS = !ERROR} ErrorStatus;
+*/
 
 /* 设置位 */
 #define SET_BIT(REG, BIT)     ((REG) |= (BIT))
@@ -109,6 +116,18 @@ typedef signed char int8; /* Signed 8 bit value */
     #error not supported tool chain
 #endif
 
+/* 超时函数 */
+#define TIME_OUT()       Common_Time_Out()
+
+/* 用来超时执行 */
+#define TIME_OUT_JUDGE(x) \
+while(1)    \
+{           \
+    x;      \
+    if (TIME_OUT())break; \
+}\
+
+ULONG Common_Time_Out(VOID);
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/

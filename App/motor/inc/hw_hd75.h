@@ -81,8 +81,13 @@
  * 14:	IN1		SENS2
  */
 
+/* 通道个数 */
 #define HW_ADC_CHANNELS			15
+/* adc额外通道 */
+#define HW_ADC_CHANNELS_EXTRA   0
+/* 注入通道个数 注入通道是抢占的 */
 #define HW_ADC_INJ_CHANNELS		3
+/* adc 一次性转换通道个数  */
 #define HW_ADC_NBR_CONV			5
 
 // ADC Indexes

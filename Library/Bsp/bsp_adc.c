@@ -23,7 +23,7 @@ volatile float ADC_curr_norm_value[6];
  * @Date: 2023-02-19 09:22:41
  * @return {*}
  */
-void Bsp_Adc_Sample(void)
+VOID Bsp_Adc_Sample(VOID)
 {
 	ADC_CommonInitTypeDef ADC_CommonInitStructure;
 	ADC_InitTypeDef ADC_InitStructure;
@@ -85,7 +85,7 @@ void Bsp_Adc_Sample(void)
  * @return {*}
  * @author: lkc
  */
-void Bsp_Adc_SetChannels(void)
+VOID Bsp_Adc_SetChannels(VOID)
 {
 	// ADC1 regular channels
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 		1, ADC_SampleTime_15Cycles);
@@ -128,7 +128,7 @@ void Bsp_Adc_SetChannels(void)
  * @return {*}
  * @author: lkc
  */
-void Bsp_Adc_Init(void)
+VOID Bsp_Adc_Init(VOID)
 {
 	Bsp_Adc_Sample();
 	Bsp_Adc_SetChannels();

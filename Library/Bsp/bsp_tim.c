@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-15 23:23:07
+ * @LastEditTime: 2023-03-16 22:54:14
  */
 #ifdef __cplusplus
 extern "C" {
@@ -14,8 +14,10 @@ extern "C" {
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #ifndef HW_DEAD_TIME_NSEC
+//#define HW_DEAD_TIME_NSEC				(360.0f)	// Dead time
 #define HW_DEAD_TIME_NSEC				(360.0f)	// Dead time
 #endif
+
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
@@ -174,7 +176,7 @@ VOID Bsp_Tim_StartPwm(BOOL is_second)
  * @Date: 2023-02-19 09:46:46
  * @return {*}
  */
-void Bsp_Tim_Pwm1(int f_zv)
+VOID Bsp_Tim_Pwm1(ULONG f_zv)
 {
     TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
 	TIM_OCInitTypeDef TIM_OCInitStructure;
@@ -287,7 +289,7 @@ void Bsp_Tim_Pwm1(int f_zv)
  * @Date: 2023-02-19 09:47:01
  * @return {*}
  */
-void Bsp_Tim_Pwm2(int f_zv)
+VOID Bsp_Tim_Pwm2(ULONG f_zv)
 {
     TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
 	TIM_OCInitTypeDef TIM_OCInitStructure;
@@ -373,7 +375,7 @@ void Bsp_Tim_Pwm2(int f_zv)
  * @return {*}
  * @author: lkc
  */
-void Bsp_Tim_TrigAdc(void)
+VOID Bsp_Tim_TrigAdc(VOID)
 {
 	TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
 	TIM_OCInitTypeDef TIM_OCInitStructure;
@@ -422,7 +424,7 @@ void Bsp_Tim_TrigAdc(void)
  * @Date: 2023-02-19 10:07:08
  * @return {*}
  */
-void Bsp_Tim_Trig(void)
+VOID Bsp_Tim_Trig(VOID)
 {
     #if defined HW_HAS_DUAL_MOTORS || defined HW_HAS_DUAL_PARALLEL
         // See: https://www.cnblogs.com/shangdawei/p/4758988.html
@@ -450,7 +452,7 @@ void Bsp_Tim_Trig(void)
  * @return {*}
  * @author: lkc
  */
-void Bsp_Tim3_RunCount(void)
+VOID Bsp_Tim3_RunCount(VOID)
 {
 	TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
 
@@ -477,14 +479,13 @@ void Bsp_Tim3_RunCount(void)
 	return;
 }
 
-
 /**
  * @description: 定时器初始化
  * @detail: 
  * @return {*}
  * @author: lkc
  */
-void Bsp_Tim_Init(void)
+VOID Bsp_Tim_Init(VOID)
 {
 	/* 多少hz 30000 30hz  */
     Bsp_Tim_Pwm1(MCCONF_FOC_F_ZV);

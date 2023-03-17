@@ -1,32 +1,42 @@
 /*
  * @Description: 
- * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-16 22:56:31
- * @FilePath: \foc\Library\Bsp\inc\bsp_adc.h
+ * @Version: 2.0
+ * @Author: lkc
+ * @Date: 2022-11-19 09:57:21
+ * @LastEditors: lkc
+ * @LastEditTime: 2023-03-16 22:35:37
  */
-#ifndef _BSP_ADC_H
-#define _BSP_ADC_H
 #ifdef __cplusplus
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#include "includes.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-extern volatile uint16_t ADC_Value[HW_ADC_CHANNELS + HW_ADC_CHANNELS_EXTRA];
-extern volatile float ADC_curr_norm_value[6];
-
-// Current ADC to amperes factor
-#define FAC_CURRENT					((V_REG / 4095.0) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN))
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-VOID Bsp_Adc_Sample(VOID);
-VOID Bsp_Adc_SetChannels(VOID);
-VOID Bsp_Adc_Init(VOID);
+
+/**
+ * @description: 是否超时函数
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+ULONG Common_Time_Out(VOID)
+{
+    STATIC ULONG ulTim = 6000;
+
+    if (0 == ulTim)
+    {
+        return TRUE;
+    }
+
+    ulTim--;
+    return FALSE
+}
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

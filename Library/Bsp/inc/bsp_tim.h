@@ -5,7 +5,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 10:03:36
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-12 21:14:55
+ * @LastEditTime: 2023-03-16 22:53:14
  */
 #ifndef _BSP_TIM_H
 #define _BSP_TIM_H
@@ -74,16 +74,16 @@ typedef enum{
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-void Bsp_Tim_StartPwm(bool is_second);
-void Bsp_Tim_StopPwm(bool is_second);
-void Bsp_Tim_Trig(void);
-void Bsp_Tim_TrigAdc(void);
-void Bsp_Tim_Pwm1(int f_zv);
-void Bsp_Tim_Pwm2(int f_zv);
-void Bsp_Tim_Init(void);
-void Bsp_Tim3_RunCount(void);
+VOID Bsp_Tim_StartPwm(BOOL is_second);
+VOID Bsp_Tim_StopPwm(BOOL is_second);
+VOID Bsp_Tim_Trig(VOID);
+VOID Bsp_Tim_TrigAdc(VOID);
+VOID Bsp_Tim_Pwm1(ULONG f_zv);
+VOID Bsp_Tim_Pwm2(ULONG f_zv);
+VOID Bsp_Tim_Init(VOID);
+VOID Bsp_Tim3_RunCount(VOID);
 VOID Bsp_Tim3_IRQ(VOID);
-void Bsp_Tim3_RunCount(void);
+VOID Bsp_Tim3_RunCount(VOID);
 
 #ifdef __cplusplus
 }
