@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-10 23:39:25
+ * @LastEditTime: 2023-03-19 16:20:23
  * @FilePath: \foc\Library\Bsp\bsp_adc.c
  */
 #ifdef __cplusplus
@@ -13,25 +13,22 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-volatile uint16_t ADC_Value[HW_ADC_CHANNELS + HW_ADC_CHANNELS_EXTRA];
-volatile float ADC_curr_norm_value[6];
+/* 默认初始化为0 */
+volatile uint16_t ADC_Value[HW_ADC_CHANNELS + HW_ADC_CHANNELS_EXTRA] = {0};
+volatile float ADC_curr_norm_value[6] = {0};
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /**
- * @Description: adc采样
- * @author: lkc
- * @Date: 2023-02-19 09:22:41
+ * @description: 通用状态寄存器
+ * @detail: 
  * @return {*}
+ * @author: lkc
  */
-VOID Bsp_Adc_Sample(VOID)
+STATIC VOID Bsp_Adc123_Common(VOID)
 {
-	ADC_CommonInitTypeDef ADC_CommonInitStructure;
-	ADC_InitTypeDef ADC_InitStructure;
-
-	/* 时钟初始化 */
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA2 | RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOC, ENABLE);
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1 | RCC_APB2Periph_ADC2 | RCC_APB2Periph_ADC3, ENABLE);
-    
+	
+	ADC_CommonInitTypeDef ADC_CommonInitStructure;
 	/* 目前adc运行42mhz 但是数据手册是36,但是可行 */
 	/* *三重同步模式 3个连续的DMA请求 */
 	ADC_CommonInitStructure.ADC_Mode = ADC_TripleMode_RegSimult;
@@ -42,6 +39,19 @@ VOID Bsp_Adc_Sample(VOID)
 	/* 采样周期 5 */
 	ADC_CommonInitStructure.ADC_TwoSamplingDelay = ADC_TwoSamplingDelay_5Cycles;
 	ADC_CommonInit(&ADC_CommonInitStructure);
+
+	return;
+}
+
+/**
+ * @description: 
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+STATIC VOID Bsp_Adc123_Init(VOID)
+{
+	ADC_InitTypeDef ADC_InitStructure;
 
 	/* 分辨率 12 位 */
 	ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b;
@@ -65,18 +75,7 @@ VOID Bsp_Adc_Sample(VOID)
 	ADC_Init(ADC2, &ADC_InitStructure);
 	ADC_Init(ADC3, &ADC_InitStructure);
 
-	// 使能内部温度传感器
-	ADC_TempSensorVrefintCmd(ENABLE);
-	/* 主从模式adc1 带动adc2 */
-	ADC_MultiModeDMARequestAfterLastTransferCmd(ENABLE);
-
- 	Bsp_Adc_SetChannels();
-
-	ADC_Cmd(ADC1, ENABLE);
-	ADC_Cmd(ADC2, ENABLE);
-	ADC_Cmd(ADC3, ENABLE);
-
-    return;
+	return;
 }
 
 /**
@@ -120,6 +119,31 @@ VOID Bsp_Adc_SetChannels(VOID)
 	ADC_InjectedChannelConfig(ADC3, ADC_Channel_12, 3, ADC_SampleTime_15Cycles);
 
 	return;
+}
+
+/**
+ * @Description: adc采样
+ * @author: lkc
+ * @Date: 2023-02-19 09:22:41
+ * @return {*}
+ */
+VOID Bsp_Adc_Sample(VOID)
+{
+	Bsp_Adc123_Common();
+	Bsp_Adc123_Init();
+                                                                                             
+	// 使能内部温度传感器
+	ADC_TempSensorVrefintCmd(ENABLE);
+	/* 主从模式adc1 带动adc2 */
+	ADC_MultiModeDMARequestAfterLastTransferCmd(ENABLE);
+
+ 	Bsp_Adc_SetChannels();
+
+	ADC_Cmd(ADC1, ENABLE);
+	ADC_Cmd(ADC2, ENABLE);
+	ADC_Cmd(ADC3, ENABLE);
+
+    return;
 }
 
 /**

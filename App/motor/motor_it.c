@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-12 17:17:56
+ * @LastEditTime: 2023-03-19 19:00:32
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -33,6 +33,7 @@ void Motor_DmaInt(void *p, uint32_t flags)
 	float ia = GET_CURRENT1() * FAC_CURRENT;
 	float ib = GET_CURRENT2() * FAC_CURRENT;
 	float ic = GET_CURRENT3() * FAC_CURRENT;
+	
 	float Ialpha = 0;
 	float Ibeta = 0;
 	float va = 0.0f;
@@ -55,6 +56,8 @@ void Motor_DmaInt(void *p, uint32_t flags)
 	stMotorNow->va = va;
 	stMotorNow->vb = vb;
 	stMotorNow->vc = vc;
+
+	//PRINTF("123");
 
 	/* clarke 变换 */
 	clarke_transform(ia, ib, ic, &Ialpha, &Ibeta);

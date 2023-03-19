@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-16 22:17:24
+ * @LastEditTime: 2023-03-19 14:55:22
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -15,10 +15,12 @@ extern "C" {
 /* 参数1 */
 typedef enum
 {
-    PLOT_NONE,
-    PLOT_CREATE,                        /* 创建 */
-    PLOT_DESTORY,                       /* 销毁 */
+    DUTY_NONE,
+    DUTY_CREATE,                        /* 创建 */
+    DUTY_DESTORY,                       /* 销毁 */
     DUTY_SET,                           /* 设置占空比 */
+    DUTY_START,
+    DUTY_STOP,
     PLOT_NUM,
 }PLOT_TYPE;
 
@@ -56,16 +58,10 @@ STATIC const osThreadAttr_t taskDutyAttr =
 VOID Duty_ControlTask(VOID *argument)
 {
     PRINTF("\n");
-
+	Bsp_Tim_StartPwm(false);
     while (1)
     {
-			    Bsp_Tim_StartPwm(false);
-        TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, TIM1->ARR / 2, TIM1->ARR / 2);
-        // osDelay(10);
-        // TIMER_UPDATE_DUTY_M1(0, TIM1->ARR / 2, 0);
-        // osDelay(10);
-        // TIMER_UPDATE_DUTY_M1(0, 0, TIM1->ARR / 2);
-        // osDelay(10);
+        
     }
 }
 
@@ -74,21 +70,22 @@ VOID Duty_ControlTask(VOID *argument)
  * @detail: 
  * @param {UCHAR} cTaskStat 任务状态
  * @param {UCHAR} cContStat 控制状态
+ * @param {UCHAR} cPrecentage 百分比
  * @return {*}
  * @author: lkc
  */
-VOID Cmd_Motor_Duty(UCHAR cTaskStat, UCHAR cContStat)
+VOID Cmd_Motor_Duty(int cTaskStat, int cPrecentage)
 {
     /* 销毁和创建任务 */
     switch (cTaskStat)
     {
-        case PLOT_CREATE:
+        case DUTY_CREATE:
             PRINTF("占空比 创建 任务 \n");
             /* 打印不同格式的任务 */
             taskPlotHandle = osThreadNew(Duty_ControlTask, NULL, &taskDutyAttr);
             break;
-        case PLOT_DESTORY:
-        // TODO 创建任务之后 再运行这里Bsp_Tim_StopPwm会导致卡死
+        case DUTY_DESTORY:
+            // TODO 创建任务之后 再运行这里Bsp_Tim_StopPwm会导致卡死
             PRINTF("占空比 销毁 任务 \n");
             Bsp_Tim_StopPwm(false);
             if (osOK == osThreadTerminate(taskPlotHandle))
@@ -101,10 +98,19 @@ VOID Cmd_Motor_Duty(UCHAR cTaskStat, UCHAR cContStat)
             }
             break;
         case DUTY_SET:
-            Bsp_Tim_StartPwm(false);
-            TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, 0, 0);
+            PRINTF("占空比 百分比[%d]\n", cPrecentage);
+            TIMER_UPDATE_DUTY_M1((HW_PWM1_TIM->ARR / 100) * cPrecentage, \
+            (HW_PWM1_TIM->ARR / 100) * cPrecentage, (HW_PWM1_TIM->ARR / 100) * cPrecentage);
             break;
-
+        case DUTY_START:
+            PRINTF("Duty Start\n");
+            TIMER_UPDATE_DUTY_M1(HW_PWM1_TIM->ARR / 5, HW_PWM1_TIM->ARR / 5, HW_PWM1_TIM->ARR / 5);
+            Bsp_Tim_StartPwm(false);
+            break;
+        case DUTY_STOP:
+            PRINTF("Duty Stop\n");
+            Bsp_Tim_StopPwm(false);
+            break;
         default:
             break;
     }

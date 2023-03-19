@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-14 23:21:31
+ * @LastEditTime: 2023-03-19 20:54:09
  */
 #ifdef __cplusplus
 extern "C" {
@@ -223,7 +223,7 @@ VOID Bsp_Usart_Handler(VOID)
 		USART_ClearITPendingBit(DEBUG_USART, USART_IT_IDLE);
 		/* 关闭dma */
 		DMA_Cmd(DMA1_Stream1, DISABLE);
-		//本帧数据长度=DMA准备的接收数据长度-DMA已接收数据长度
+		/* 本帧数据长度=DMA准备的接收数据长度-DMA已接收数据长度 */
 		ulRxLen = USART_RX_BUF_SIZE - DMA_GetCurrDataCounter(DMA1_Stream1); 
 
 		/* 此时知道接收的长度以及Buf,直接传一个队列 */

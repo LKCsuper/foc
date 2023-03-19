@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-11 00:05:21
+ * @LastEditTime: 2023-03-19 20:47:28
  */
 #ifdef __cplusplus
 extern "C" {
@@ -198,6 +198,26 @@ VOID HSI_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq)
         /* HSI启动出错处理 */
         while (1) {}
     }
+}
+
+/**
+ * @description: 每次延时1毫秒,延时100次
+ * @detail: 实现while判断条件
+ * @return {*}
+ * @author: lkc
+ */
+ULONG Common_Time_Out(VOID)
+{
+    STATIC ULONG ulTim = 100;
+
+    if (0 == ulTim)
+    {
+        PRINTF("\nTime Out \n");
+        return TRUE;
+    }
+    //vTaskDelay(1);
+    ulTim--;
+    return FALSE;
 }
 
 #ifdef __cplusplus

@@ -88,3 +88,4 @@ SET CPU_CLOCK=0x00B71B00
 "E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\shell_ext.__i"
 "E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmCC" --Via "..\..\..\build\shell_port.__i"
 "E:\software_qrs\keil_core\ARM\ARMCC\Bin\ArmLink" --Via "..\..\..\build\foc.lnp"
+"E:\software_qrs\keil_core\ARM\ARMCC\Bin\fromelf.exe" "..\..\..\build\foc.axf" --i32combined --output "..\..\..\build\foc.hex"

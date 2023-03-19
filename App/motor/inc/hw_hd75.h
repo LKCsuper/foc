@@ -19,6 +19,9 @@
 
 #ifndef HW_HD_H_
 #define HW_HD_H_
+/* my definition */
+//#define MCCONF_FOC_F_ZV         1000
+/* my definition */
 
 #define HW_NAME					"HD75"
 

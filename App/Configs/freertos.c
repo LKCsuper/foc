@@ -65,7 +65,7 @@ void vApplicationDaemonTaskStartupHook(void);
 __weak void configureTimerForRunTimeStats(void)
 {
 	// ulFreeRTOSRunTimeTicks = 0;
-	// Bsp_Tim3_RunCount();
+	// Bsp_Tim_RunCount();
 }
 
 __weak unsigned long getRunTimeCounterValue(void)

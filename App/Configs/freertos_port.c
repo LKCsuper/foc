@@ -27,7 +27,7 @@ ULONG ulFreeRTOSRunTimeTicks = 0;
 void configureTimerForRunTimeStats(void)
 {
 	ulFreeRTOSRunTimeTicks = 0;
-	Bsp_Tim3_RunCount();
+	Bsp_Tim_RunCount();
 }
 
 /**
