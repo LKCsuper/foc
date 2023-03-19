@@ -200,26 +200,6 @@ VOID HSI_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq)
     }
 }
 
-/**
- * @description: 每次延时1毫秒,延时100次
- * @detail: 实现while判断条件
- * @return {*}
- * @author: lkc
- */
-ULONG Common_Time_Out(VOID)
-{
-    STATIC ULONG ulTim = 100;
-
-    if (0 == ulTim)
-    {
-        PRINTF("\nTime Out \n");
-        return TRUE;
-    }
-    //vTaskDelay(1);
-    ulTim--;
-    return FALSE;
-}
-
 #ifdef __cplusplus
 }
 #endif

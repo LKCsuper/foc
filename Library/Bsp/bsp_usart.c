@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-19 20:54:09
+ * @LastEditTime: 2023-03-19 21:03:53
  */
 #ifdef __cplusplus
 extern "C" {
@@ -18,13 +18,13 @@ extern "C" {
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /**
- * @Description: 串口初始化
- * @author: lkc
- * @Date: 2023-02-17 23:06:43
- * @param {int} baud
+ * @description: debug 初始化结构体
+ * @detail: 
+ * @param {ULONG} ulBound
  * @return {*}
+ * @author: lkc
  */
-VOID Bsp_Usart_DebugInit(ULONG ulBound)
+STATIC VOID Bsp_Debug_InitType(ULONG ulBound)
 {
 	DEBUG_USART_CLK_EN();
 	DEBUG_USART_TX_CLK_EN();
@@ -50,6 +50,17 @@ VOID Bsp_Usart_DebugInit(ULONG ulBound)
 		USART_ReceiveData(DEBUG_USART);
 	}
 
+	return;
+}
+
+/**
+ * @description: debug 中断
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+STATIC VOID Bsp_Debug_Nvic(VOID)
+{
 	/* 空闲中断使用命令行 */
 	NVIC_InitTypeDef NVIC_InitStre;
 	NVIC_InitStre.NVIC_IRQChannel = DEBUG_USART_IRQn;
@@ -61,6 +72,22 @@ VOID Bsp_Usart_DebugInit(ULONG ulBound)
 	/* 空闲中断,接收到一连串数据触发一次 */
 	USART_ITConfig(DEBUG_USART, USART_IT_IDLE, ENABLE);
 	USART_ClearITPendingBit(DEBUG_USART, USART_IT_IDLE);
+
+	return;
+}
+
+/**
+ * @Description: 串口初始化
+ * @author: lkc
+ * @Date: 2023-02-17 23:06:43
+ * @param {int} baud
+ * @return {*}
+ */
+VOID Bsp_Usart_DebugInit(ULONG ulBound)
+{
+	Bsp_Debug_InitType(ulBound);
+	Bsp_Debug_Nvic();
+
 
     return;
 }
@@ -87,7 +114,8 @@ void Bsp_Usart_PutString(const CHAR *cStr)
 #endif
 */
 		USART_SendData(DEBUG_USART, *cStr++);
-	  	while (USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET);	
+		IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET);
+
 	}		
 
     return;
@@ -108,11 +136,11 @@ VOID Bsp_Usart_PutBuf(const UCHAR *cStr, ULONG ulLen)
 		if (*cStr == '\n')	
 		{
 			USART_SendData(DEBUG_USART, ENTER_PRI);
-			while(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET);
+			IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET);
 		}
 #endif
 		USART_SendData(DEBUG_USART, *cStr++);
-	  	while (USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET);	
+		IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET);
 	}	
 
     return;
@@ -127,10 +155,7 @@ VOID Bsp_Usart_PutBuf(const UCHAR *cStr, ULONG ulLen)
 void Bsp_Usart_PutChar(UCHAR cKey)
 {
 	USART_SendData(DEBUG_USART, cKey);
-	while (USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET)
-	{
-
-	}
+	IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET);
 
 	return;
 }
@@ -194,11 +219,11 @@ int fputc(int ch, FILE *f)
 	if ('\n' == ch)
 	{
 		USART_SendData(DEBUG_USART, (u8)ENTER_PRI);
-		while (USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TC) == RESET);
+		IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TC) == RESET);
 	}
 #endif
 	USART_SendData(DEBUG_USART, (u8)ch);
-	while (USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TC) == RESET);
+	IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TC) == RESET);
 
     return ch;
 }
@@ -230,7 +255,8 @@ VOID Bsp_Usart_Handler(VOID)
 		osMessageQueuePut(queueCmdHandle, &ulRxLen, NULL, 0);
 		DMA_ClearFlag(DMA1_Stream1, DMA_FLAG_TCIF4 | DMA_FLAG_FEIF4 | DMA_FLAG_DMEIF4 |
 				DMA_FLAG_TEIF4 | DMA_FLAG_HTIF4);//清除DMA2_Steam7传输完成标志
-		while (DMA_GetCmdStatus(DMA1_Stream1) != DISABLE){}		
+		IS_TIME_OUT(DMA_GetCmdStatus(DMA1_Stream1) != DISABLE);
+		
 		DMA_SetCurrDataCounter(DMA1_Stream1, USART_RX_BUF_SIZE);
 		DMA_Cmd(DMA1_Stream1, ENABLE);
 	}

@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2023-02-26 21:30:25
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-19 20:47:05
+ * @LastEditTime: 2023-03-19 21:11:17
  */
 /**
 * @file         
@@ -120,7 +120,8 @@ typedef enum {ERROR = 0, SUCCESS = !ERROR} ErrorStatus;
 #define TIME_OUT()       Common_Time_Out()
 
 /* 用来超时执行 */
-#define IS_TIME_OUT(x) while((x)) {if(TIME_OUT())break;}                           
+//#define IS_TIME_OUT(x) while((x)) {if(TIME_OUT())break;}  
+#define IS_TIME_OUT(x) while((x)) {}
 
 ULONG Common_Time_Out(VOID);
 /* Private macro -------------------------------------------------------------*/
