@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:51:32
- * @LastEditTime: 2023-03-18 22:34:33
+ * @LastEditTime: 2023-03-19 22:45:13
  * @FilePath: \foc\Library\Bsp\inc\bsp_dma.h
  */
 #ifndef _BSP_GPIO_H
@@ -121,14 +121,19 @@ extern "C" {
 
 /* ADC */
 // TODO 名字后期再定义 具体有电流啥的
+/* A电压 */
 #define ADC_0_PORT              GPIOA
 #define ADC_0_PIN               GPIO_Pin_0
+/* B电压 */
 #define ADC_1_PORT              GPIOA
 #define ADC_1_PIN               GPIO_Pin_1
+/* C电压 */
 #define ADC_2_PORT              GPIOA
 #define ADC_2_PIN               GPIO_Pin_2
+
 #define ADC_3_PORT              GPIOA
 #define ADC_3_PIN               GPIO_Pin_3
+
 #define ADC_5_PORT              GPIOA
 #define ADC_5_PIN               GPIO_Pin_5
 #define ADC_6_PORT              GPIOA

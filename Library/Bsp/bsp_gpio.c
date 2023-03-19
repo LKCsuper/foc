@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-19 09:09:52
+ * @LastEditTime: 2023-03-19 22:26:04
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -169,19 +169,19 @@ void Bsp_Gpio_Init(void)
     // /* Fault */
     // Bsp_Gpio_Mode(PHASE_FILTER_PORT, PHASE_FILTER_PIN, GPIO_Mode_IN);
 
-    // /* ADC */
-    // Bsp_Gpio_Mode(ADC_0_PORT, ADC_0_PIN, GPIO_Mode_AN);
-    // Bsp_Gpio_Mode(ADC_1_PORT, ADC_1_PIN, GPIO_Mode_AN);
-    // Bsp_Gpio_Mode(ADC_2_PORT, ADC_2_PIN, GPIO_Mode_AN);
-    // Bsp_Gpio_Mode(ADC_3_PORT, ADC_3_PIN, GPIO_Mode_AN);
-    // Bsp_Gpio_Mode(ADC_5_PORT, ADC_5_PIN, GPIO_Mode_AN);
-    // Bsp_Gpio_Mode(ADC_6_PORT, ADC_6_PIN, GPIO_Mode_AN);
+    /* ADC */
+    Bsp_Gpio_Mode(ADC_0_PORT, ADC_0_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_1_PORT, ADC_1_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_2_PORT, ADC_2_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_3_PORT, ADC_3_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_5_PORT, ADC_5_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_6_PORT, ADC_6_PIN, GPIO_Mode_AN);
 
-    // Bsp_Gpio_Mode(ADC_00_PORT, ADC_00_PIN, GPIO_Mode_AN);
-    // Bsp_Gpio_Mode(ADC_11_PORT, ADC_11_PIN, GPIO_Mode_AN);
-    // Bsp_Gpio_Mode(ADC_22_PORT, ADC_22_PIN, GPIO_Mode_AN);
-    // Bsp_Gpio_Mode(ADC_33_PORT, ADC_33_PIN, GPIO_Mode_AN);
-    // Bsp_Gpio_Mode(ADC_44_PORT, ADC_44_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_00_PORT, ADC_00_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_11_PORT, ADC_11_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_22_PORT, ADC_22_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_33_PORT, ADC_33_PIN, GPIO_Mode_AN);
+    Bsp_Gpio_Mode(ADC_44_PORT, ADC_44_PIN, GPIO_Mode_AN);
 
     return;
 }

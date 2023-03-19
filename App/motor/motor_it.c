@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-19 19:00:32
+ * @LastEditTime: 2023-03-19 22:57:55
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -29,10 +29,13 @@ void Motor_DmaInt(void *p, uint32_t flags)
 	/* 创建电机结构体 */
 	MOTOR_PARAM_S *stMotorNow = &motor; 
 
-	/* 采集电流,这里理论上应该减去偏差 */
-	float ia = GET_CURRENT1() * FAC_CURRENT;
-	float ib = GET_CURRENT2() * FAC_CURRENT;
-	float ic = GET_CURRENT3() * FAC_CURRENT;
+	/* 
+	采集电流,这里理论上应该减去偏差,减去偏差才对,
+	偏移大约2045左右
+	 */
+	float ia = (GET_CURRENT1() - 2045) * FAC_CURRENT;
+	float ib = (GET_CURRENT2() - 2045) * FAC_CURRENT;
+	float ic = (GET_CURRENT3() - 2045) * FAC_CURRENT;
 	
 	float Ialpha = 0;
 	float Ibeta = 0;

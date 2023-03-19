@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-19 19:49:02
+ * @LastEditTime: 2023-03-19 21:39:33
  * @detail: 逻辑分析仪 死区时间350ns左右 一个周期66.6us
  */
 #ifdef __cplusplus
@@ -161,7 +161,7 @@ STATIC VOID Bsp_Tim_Pwm1(ULONG f_zv)
     TIM_Cmd(HW_PWM1_TIM, ENABLE);
 
 	/* 停止pwm */
-	//Bsp_Tim_StopPwm(MOTOR1);
+	Bsp_Tim_StopPwm(MOTOR1);
 
 	/* 输出pwm */
 	// TODO 必须有这一句才会输出pwm,默认pwm引脚全是低电平
