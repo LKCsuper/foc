@@ -115,7 +115,7 @@ VOID Bsp_Dma1_Init(VOID)
 	DMA_InitTypeDef DMA_InitStructure;
 	while (DMA_GetCmdStatus(DMA1_Stream1) != DISABLE){} /* 检测dma是否之前配置过 */
 	DMA_InitStructure.DMA_Channel = DMA_Channel_4; 
-	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(USART3->DR); /* 外设地址 */
+	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(DEBUG_USART->DR); /* 外设地址 */
 	DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)gucURxBuf; /* 内存地址 */
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory; /* 外设到内存 */
 	DMA_InitStructure.DMA_BufferSize = (uint32_t)32; /* 一次性传输大小 */

@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-19 21:03:53
+ * @LastEditTime: 2023-03-19 23:12:54
  */
 #ifdef __cplusplus
 extern "C" {
@@ -87,7 +87,6 @@ VOID Bsp_Usart_DebugInit(ULONG ulBound)
 {
 	Bsp_Debug_InitType(ulBound);
 	Bsp_Debug_Nvic();
-
 
     return;
 }

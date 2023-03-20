@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-18 23:54:54
+ * @LastEditTime: 2023-03-19 23:10:55
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -46,6 +46,7 @@ VOID Bsp_RTOS_Init(VOID)
 定时器问题,如果屏蔽定时器初始化,因为freertos时间统计需要定时器,所以也会卡死
 定时器初始化,因为可能和adc dma有挂钩,所以不初始化adc和 dma也会卡死
 电脑串口长时间插着,自己的串口必须要再插拔一下才能有回显,应该是电脑驱动问题
+外设不起作用,时钟没有使能,gpio没有初始化
  * @return {*}
  * @author: lkc
  */

@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-19 21:39:33
+ * @LastEditTime: 2023-03-20 21:54:46
  * @detail: 逻辑分析仪 死区时间350ns左右 一个周期66.6us
  */
 #ifdef __cplusplus
@@ -201,10 +201,7 @@ VOID Bsp_Tim_StopPwm(BOOL is_second)
 		TIM_CCxNCmd(HW_PWM1_TIM, 	 TIM_Channel_3, TIM_CCxN_Disable);
 
 		/* 这里应该是再进入一次dma中断,处理状态 */
-		// TODO 这里产生事件会导致 定时器无法正常工作
 		TIM_GenerateEvent(HW_PWM1_TIM, TIM_EventSource_COM);
-
-		PRINTF("Stop \n");
 #ifdef HW_HAS_DUAL_PARALLEL
 		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_ForcedAction_InActive);
 		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
@@ -294,8 +291,10 @@ VOID Bsp_Tim_StartPwm(BOOL is_second)
 		PHASE_FILTER_ON_M2();
 #endif
 
-		// Generate COM event in ADC interrupt to get better synchronization
-		// TODO VESC 这里没写,导致自己开启占空比一直没有生效
+		/* Generate COM event in ADC interrupt to get better synchronization */
+		/* 只有产生com事件才会生效,因为预先写入影子寄存器,需要触发写入
+			后续这里可能在dma中断生效9
+		 */
 		TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 
 #ifdef HW_HAS_DRV8313
