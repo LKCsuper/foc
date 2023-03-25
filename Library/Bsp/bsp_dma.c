@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-25 17:10:18
+ * @LastEditTime: 2023-03-25 17:16:08
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -81,7 +81,7 @@ STATIC VOID Bsp_Dma2_NVIC(VOID)
 #endif
 
 	// TODO 清空一遍中断标志
-	DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_TCIF4);
+	//DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_TCIF4);
 
 	return;
 }
@@ -115,7 +115,7 @@ VOID Bsp_Dma1_Init(VOID)
 	DMA_InitTypeDef DMA_InitStructure;
 	while (DMA_GetCmdStatus(DMA1_Stream1) != DISABLE){} /* 检测dma是否之前配置过 */
 	DMA_InitStructure.DMA_Channel = DMA_Channel_4; 
-	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(DEBUG_USART->DR); /* 外设地址 */
+	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(USART3->DR); /* 外设地址 */
 	DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)gucURxBuf; /* 内存地址 */
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory; /* 外设到内存 */
 	DMA_InitStructure.DMA_BufferSize = (uint32_t)32; /* 一次性传输大小 */
@@ -161,11 +161,10 @@ VOID Bsp_Dma_UsartRx(VOID)
  */
 VOID Bsp_Dma_Init(VOID)
 {
+	/* dma ADC 采样 */
+	Bsp_Dma_AdcSample();
 	/* 串口接收 */
 	Bsp_Dma_UsartRx();
-	
-	/* dma ADC 采样 */
-	//Bsp_Dma_AdcSample();
 
 	PRINTF("DMA Init\r\n");
 	return;

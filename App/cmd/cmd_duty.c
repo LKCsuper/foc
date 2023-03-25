@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-19 14:55:22
+ * @LastEditTime: 2023-03-25 18:17:35
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -90,11 +90,11 @@ VOID Cmd_Motor_Duty(int cTaskStat, int cPrecentage)
             Bsp_Tim_StopPwm(false);
             if (osOK == osThreadTerminate(taskPlotHandle))
             {
-                PRINTF("success \n");
+                //PRINTF("success \n");
             } 
             else
             {
-                PRINTF("err \n");
+                //PRINTF("err \n");
             }
             break;
         case DUTY_SET:
@@ -108,7 +108,7 @@ VOID Cmd_Motor_Duty(int cTaskStat, int cPrecentage)
             Bsp_Tim_StartPwm(false);
             break;
         case DUTY_STOP:
-            PRINTF("Duty Stop\n");
+            //PRINTF("Duty Stop\n");
             Bsp_Tim_StopPwm(false);
             break;
         default:

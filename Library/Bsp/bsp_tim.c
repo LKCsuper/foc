@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-20 21:54:46
+ * @LastEditTime: 2023-03-25 18:21:55
  * @detail: 逻辑分析仪 死区时间350ns左右 一个周期66.6us
  */
 #ifdef __cplusplus
@@ -165,11 +165,10 @@ STATIC VOID Bsp_Tim_Pwm1(ULONG f_zv)
 
 	/* 输出pwm */
 	// TODO 必须有这一句才会输出pwm,默认pwm引脚全是低电平
-   TIM_CtrlPWMOutputs(HW_PWM1_TIM, ENABLE);
+    TIM_CtrlPWMOutputs(HW_PWM1_TIM, ENABLE);
 
 	/* */
 	TIMER_UPDATE_SAMP(MCPWM_FOC_CURRENT_SAMP_OFFSET);
-
 	return;
 }
 
@@ -200,8 +199,10 @@ VOID Bsp_Tim_StopPwm(BOOL is_second)
 		TIM_CCxCmd(HW_PWM1_TIM, 	 TIM_Channel_3, TIM_CCx_Enable);
 		TIM_CCxNCmd(HW_PWM1_TIM, 	 TIM_Channel_3, TIM_CCxN_Disable);
 
-		/* 这里应该是再进入一次dma中断,处理状态 */
+		/* 更新影子寄存器,处理状态 */
 		TIM_GenerateEvent(HW_PWM1_TIM, TIM_EventSource_COM);
+
+		//PRINTF("Stop \n");
 #ifdef HW_HAS_DUAL_PARALLEL
 		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_ForcedAction_InActive);
 		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
@@ -619,7 +620,7 @@ VOID Bsp_Tim_Init(VOID)
 	Bsp_Tim_Trig();
 	Bsp_Tim_RunCount();
 	// todo 这里其实还有定时器3中断,只不过是写在freertos里边了
-
+	
 	return;
 }
 

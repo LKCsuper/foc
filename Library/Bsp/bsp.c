@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-25 17:10:27
+ * @LastEditTime: 2023-03-25 18:23:19
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -57,11 +57,13 @@ VOID Bsp_Init(VOID)
 
     /* 串口初始化 */
     Bsp_Usart_DebugInit(115200);
-
+	
     /* 初始化定时器1 pwm */
-    Bsp_Tim_Init();
+    // TODO 注意: 如果初始化顺序 Tim Adc Dma 如果tim和dma中断中间没有加打印,串口就会死掉
+    // TODO 更改初始化顺序 或者 中间加打印 串口正常
     Bsp_Adc_Init();
     Bsp_Dma_Init();
+    Bsp_Tim_Init();
 
     PRINTF("hardware init success\r\n");
 
