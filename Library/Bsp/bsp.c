@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-25 18:23:19
+ * @LastEditTime: 2023-03-25 18:25:37
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -65,7 +65,7 @@ VOID Bsp_Init(VOID)
     Bsp_Dma_Init();
     Bsp_Tim_Init();
 
-    PRINTF("hardware init success\r\n");
+    PRINTF("Hardware Init Success\r\n");
 
     return;
 }
