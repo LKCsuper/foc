@@ -1,7 +1,7 @@
 /*
  * @Description: 检测参数
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-21 23:49:56
+ * @LastEditTime: 2023-03-25 23:32:22
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -15,7 +15,6 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-
 /* 检测电流偏移*/
 /**
  * Calibrate voltage and current offsets. For the observer to work at low modulation it
@@ -36,32 +35,14 @@ extern "C" {
  * 1: Success
  *
  */
-int mcpwm_foc_dc_cal(bool cal_undriven) 
+ULONG DETECT_Offset(BOOL cal_undriven)
 {
-//#if 1
-	// Wait max 5 seconds for DRV-fault to go away
+	PRINTF("detect\n");
+
+	osDelay(1000);
 	int cnt = 0;
-	/* 这个引脚直接3.3v上拉的,感觉没啥太大意义 待定*/
-	// while(IS_DRV_FAULT()){
-	// 	chThdSleepMilliseconds(1);
-	// 	cnt++;
-	// 	if (cnt > 5000) { 
-	// 		return -1;
-	// 	}
-	// };
-
-	//chThdSleepMilliseconds(1000);
-
-	// Disable timeout
-	// systime_t tout = timeout_get_timeout_msec();
-	// float tout_c = timeout_get_brake_current();
-	// KILL_SW_MODE tout_ksw = timeout_get_kill_sw_mode();
-	// timeout_reset();
-	// timeout_configure(60000, 0.0, KILL_SW_MODE_DISABLED);
 
 	// TODO 看门狗时间必须延长 
-
-	// Measure driven offsets
 
 	const float samples = 1000.0;
 	float current_sum[3] = {0.0, 0.0, 0.0};
@@ -73,7 +54,6 @@ int mcpwm_foc_dc_cal(bool cal_undriven)
 	// Start PWM on phase 1
 	Bsp_Tim_StopPwm(MOTOR1);
 
-	//stop_pwm_hw((motor_all_state_t*)&m_motor_1);
 	// TODO 开启过滤
 	//PHASE_FILTER_ON();
 	// 下边很显然是开启pwm
@@ -82,99 +62,47 @@ int mcpwm_foc_dc_cal(bool cal_undriven)
 	TIM_CCxNCmd(TIM1, 	 TIM_Channel_1, TIM_CCxN_Enable);
 	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 
-// #ifdef HW_HAS_DUAL_MOTORS
-// 	float current_sum_m2[3] = {0.0, 0.0, 0.0};
-// 	float voltage_sum_m2[3] = {0.0, 0.0, 0.0};
-// 	TIMER_UPDATE_DUTY_M2(TIM8->ARR / 2, TIM8->ARR / 2, TIM8->ARR / 2);
-
-// 	stop_pwm_hw((motor_all_state_t*)&m_motor_2);
-// 	PHASE_FILTER_ON_M2();
-// 	TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_OCMode_PWM1);
-// 	TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
-// 	TIM_CCxNCmd(TIM8, TIM_Channel_1, TIM_CCxN_Enable);
-// 	TIM_GenerateEvent(TIM8, TIM_EventSource_COM);
-// #endif
-
 	osDelay(1);
-	//chThdSleep(1);
 
 	for (float i = 0;i < samples;i++) {
 		current_sum[0] += motor.currentAdc[0];
 		voltage_sum[0] += motor.voltAdc[0];
-
-// #ifdef HW_HAS_DUAL_MOTORS
-// 		current_sum_m2[0] += m_motor_2.m_currents_adc[0];
-// 		voltage_sum_m2[0] += ADC_VOLTS(ADC_IND_SENS4);
-// #endif
-		//hThdSleep(1);
 		osDelay(1);
 	}
 
 	// Start PWM on phase 2
 	Bsp_Tim_StopPwm(MOTOR1);
-	//PHASE_FILTER_ON();
+
 	TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_OCMode_PWM1);
 	TIM_CCxCmd(TIM1, 	 TIM_Channel_2, TIM_CCx_Enable);
 	TIM_CCxNCmd(TIM1, 	 TIM_Channel_2, TIM_CCxN_Enable);
 	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 
-// #ifdef HW_HAS_DUAL_MOTORS
-// 	stop_pwm_hw((motor_all_state_t*)&m_motor_2);
-// 	PHASE_FILTER_ON_M2();
-// 	TIM_SelectOCxM(TIM8, TIM_Channel_2, TIM_OCMode_PWM1);
-// 	TIM_CCxCmd(TIM8, TIM_Channel_2, TIM_CCx_Enable);
-// 	TIM_CCxNCmd(TIM8, TIM_Channel_2, TIM_CCxN_Enable);
-// 	TIM_GenerateEvent(TIM8, TIM_EventSource_COM);
-// #endif
-
-	//chThdSleep(1);
 	osDelay(1);
 
 	for (float i = 0;i < samples;i++) {
 		current_sum[1] += motor.currentAdc[1];
 		voltage_sum[1] += motor.voltAdc[1];
-// #ifdef HW_HAS_DUAL_MOTORS
-// 		current_sum_m2[1] += m_motor_2.m_currents_adc[1];
-// 		voltage_sum_m2[1] += ADC_VOLTS(ADC_IND_SENS5);
-// #endif
 		osDelay(1);
-		//chThdSleep(1);
 	}
 
 	// Start PWM on phase 3
 	Bsp_Tim_StopPwm(MOTOR1);
-	//stop_pwm_hw((motor_all_state_t*)&m_motor_1);
-	//PHASE_FILTER_ON();
+
 	TIM_SelectOCxM(TIM1, TIM_Channel_3, TIM_OCMode_PWM1);
-	TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
-	TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
-	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+	TIM_CCxCmd(TIM1, 	 TIM_Channel_3, TIM_CCx_Enable);
+	TIM_CCxNCmd(TIM1, 	 TIM_Channel_3, TIM_CCxN_Enable);
+	TIM_GenerateEvent(	 TIM1, TIM_EventSource_COM);
 
-// #ifdef HW_HAS_DUAL_MOTORS
-// 	stop_pwm_hw((motor_all_state_t*)&m_motor_2);
-// 	PHASE_FILTER_ON_M2();
-// 	TIM_SelectOCxM(TIM8, TIM_Channel_3, TIM_OCMode_PWM1);
-// 	TIM_CCxCmd(TIM8, TIM_Channel_3, TIM_CCx_Enable);
-// 	TIM_CCxNCmd(TIM8, TIM_Channel_3, TIM_CCxN_Enable);
-// 	TIM_GenerateEvent(TIM8, TIM_EventSource_COM);
-// #endif
-
-	//chThdSleep(1);
 	osDelay(1);
 
 	for (float i = 0;i < samples;i++) {
 		current_sum[2] += motor.currentAdc[2];
 		voltage_sum[2] += motor.voltAdc[2];
-// #ifdef HW_HAS_DUAL_MOTORS
-// 		current_sum_m2[2] += m_motor_2.m_currents_adc[2];
-// 		voltage_sum_m2[2] += ADC_VOLTS(ADC_IND_SENS6);
-// #endif
 		osDelay(1);
-		//chThdSleep(1);
 	}
 
 	Bsp_Tim_StopPwm(MOTOR1);
-	//stop_pwm_hw((motor_all_state_t*)&m_motor_1);
 
 	motor.currentOffset[0] = current_sum[0] / samples;
 	motor.currentOffset[1] = current_sum[1] / samples;
@@ -184,87 +112,46 @@ int mcpwm_foc_dc_cal(bool cal_undriven)
 	voltage_sum[1] /= samples;
 	voltage_sum[2] /= samples;
 	float v_avg = (voltage_sum[0] + voltage_sum[1] + voltage_sum[2]) / 3.0;
-
 	
 	motor.voltOffset[0] = voltage_sum[0] - v_avg;
 	motor.voltOffset[1] = voltage_sum[1] - v_avg;
 	motor.voltOffset[2] = voltage_sum[2] - v_avg;
 
+	// TODO 为什么这里加打印,命令行调用和卡死串口
+	// TODO 但是如果是在外设初始化完成后,这里有打印没问题
+/*
 	PRINTF("Current Offset [%f] [%f] [%f] \n", motor.currentOffset[0], motor.currentOffset[1], motor.currentOffset[2]);
 	PRINTF("Volt Offset [%f] [%f] [%f] \n", motor.voltOffset[0], motor.voltOffset[1], motor.voltOffset[2]);
-
-// #ifdef HW_HAS_DUAL_MOTORS
-// 	stop_pwm_hw((motor_all_state_t*)&m_motor_2);
-
-// 	m_motor_2.m_conf->foc_offsets_current[0] = current_sum_m2[0] / samples;
-// 	m_motor_2.m_conf->foc_offsets_current[1] = current_sum_m2[1] / samples;
-// 	m_motor_2.m_conf->foc_offsets_current[2] = current_sum_m2[2] / samples;
-
-// 	voltage_sum_m2[0] /= samples;
-// 	voltage_sum_m2[1] /= samples;
-// 	voltage_sum_m2[2] /= samples;
-// 	v_avg = (voltage_sum_m2[0] + voltage_sum_m2[1] + voltage_sum_m2[2]) / 3.0;
-
-// 	m_motor_2.m_conf->foc_offsets_voltage[0] = voltage_sum_m2[0] - v_avg;
-// 	m_motor_2.m_conf->foc_offsets_voltage[1] = voltage_sum_m2[1] - v_avg;
-// 	m_motor_2.m_conf->foc_offsets_voltage[2] = voltage_sum_m2[2] - v_avg;
-// #endif
-
+*/
+#if 0
 	// Measure undriven offsets
+	// 有无负载
+	if (cal_undriven) {
+		osDelay(10);
 
-	// TODO 这里是计算有负载的
-// 	if (cal_undriven) {
-// 		chThdSleepMilliseconds(10);
+		voltage_sum[0] = 0.0; voltage_sum[1] = 0.0; voltage_sum[2] = 0.0;
 
-// 		voltage_sum[0] = 0.0; voltage_sum[1] = 0.0; voltage_sum[2] = 0.0;
-// #ifdef HW_HAS_DUAL_MOTORS
-// 		voltage_sum_m2[0] = 0.0; voltage_sum_m2[1] = 0.0; voltage_sum_m2[2] = 0.0;
-// #endif
+		for (float i = 0;i < samples;i++) {
+			v_avg = (ADC_VOLTS(ADC_IND_SENS1) + ADC_VOLTS(ADC_IND_SENS2) + ADC_VOLTS(ADC_IND_SENS3)) / 3.0;
+			voltage_sum[0] += ADC_VOLTS(ADC_IND_SENS1) - v_avg;
+			voltage_sum[1] += ADC_VOLTS(ADC_IND_SENS2) - v_avg;
+			voltage_sum[2] += ADC_VOLTS(ADC_IND_SENS3) - v_avg;
+			osDelay(1);
+		}
+		Bsp_Tim_StopPwm(MOTOR1);
 
-// 		for (float i = 0;i < samples;i++) {
-// 			v_avg = (ADC_VOLTS(ADC_IND_SENS1) + ADC_VOLTS(ADC_IND_SENS2) + ADC_VOLTS(ADC_IND_SENS3)) / 3.0;
-// 			voltage_sum[0] += ADC_VOLTS(ADC_IND_SENS1) - v_avg;
-// 			voltage_sum[1] += ADC_VOLTS(ADC_IND_SENS2) - v_avg;
-// 			voltage_sum[2] += ADC_VOLTS(ADC_IND_SENS3) - v_avg;
-// #ifdef HW_HAS_DUAL_MOTORS
-// 			v_avg = (ADC_VOLTS(ADC_IND_SENS4) + ADC_VOLTS(ADC_IND_SENS5) + ADC_VOLTS(ADC_IND_SENS6)) / 3.0;
-// 			voltage_sum_m2[0] += ADC_VOLTS(ADC_IND_SENS4) - v_avg;
-// 			voltage_sum_m2[1] += ADC_VOLTS(ADC_IND_SENS5) - v_avg;
-// 			voltage_sum_m2[2] += ADC_VOLTS(ADC_IND_SENS6) - v_avg;
-// #endif
-// 			chThdSleep(1);
-// 		}
+		voltage_sum[0] /= samples;
+		voltage_sum[1] /= samples;
+		voltage_sum[2] /= samples;
 
-// 		stop_pwm_hw((motor_all_state_t*)&m_motor_1);
-
-// 		voltage_sum[0] /= samples;
-// 		voltage_sum[1] /= samples;
-// 		voltage_sum[2] /= samples;
-
-// 		m_motor_1.m_conf->foc_offsets_voltage_undriven[0] = voltage_sum[0];
-// 		m_motor_1.m_conf->foc_offsets_voltage_undriven[1] = voltage_sum[1];
-// 		m_motor_1.m_conf->foc_offsets_voltage_undriven[2] = voltage_sum[2];
-// #ifdef HW_HAS_DUAL_MOTORS
-// 		stop_pwm_hw((motor_all_state_t*)&m_motor_2);
-
-// 		voltage_sum_m2[0] /= samples;
-// 		voltage_sum_m2[1] /= samples;
-// 		voltage_sum_m2[2] /= samples;
-
-// 		m_motor_2.m_conf->foc_offsets_voltage_undriven[0] = voltage_sum_m2[0];
-// 		m_motor_2.m_conf->foc_offsets_voltage_undriven[1] = voltage_sum_m2[1];
-// 		m_motor_2.m_conf->foc_offsets_voltage_undriven[2] = voltage_sum_m2[2];
-// #endif
-// 	}
+		motor.voltundrivenOffset[0] = voltage_sum[0];
+		motor.voltundrivenOffset[1] = voltage_sum[1];
+		motor.voltundrivenOffset[2] = voltage_sum[2];
+	}
 
 	// TODO: Make sure that offsets are no more than e.g. 5%, as larger values indicate hardware problems.
-
-	// Enable timeout
-	// timeout_configure(tout, tout_c, tout_ksw);
-	// mc_interface_unlock();
-
-	// m_dccal_done = true;
-//#endif
+	// TODO 看门狗时间恢复
+#endif
 	return 1;
 }
 #ifdef __cplusplus

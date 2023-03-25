@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-25 18:21:55
+ * @LastEditTime: 2023-03-25 23:34:57
  * @detail: 逻辑分析仪 死区时间350ns左右 一个周期66.6us
  */
 #ifdef __cplusplus
@@ -202,7 +202,6 @@ VOID Bsp_Tim_StopPwm(BOOL is_second)
 		/* 更新影子寄存器,处理状态 */
 		TIM_GenerateEvent(HW_PWM1_TIM, TIM_EventSource_COM);
 
-		//PRINTF("Stop \n");
 #ifdef HW_HAS_DUAL_PARALLEL
 		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_ForcedAction_InActive);
 		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
@@ -296,7 +295,7 @@ VOID Bsp_Tim_StartPwm(BOOL is_second)
 		/* 只有产生com事件才会生效,因为预先写入影子寄存器,需要触发写入
 			后续这里可能在dma中断生效9
 		 */
-		TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+		//TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 
 #ifdef HW_HAS_DRV8313
 		ENABLE_BR();

@@ -33,6 +33,10 @@
         "freertos_mpool.h": "c",
         "cmd_serial_plot.h": "c",
         "command.h": "c",
-        "shell_cfg.h": "c"
+        "shell_cfg.h": "c",
+        "shell_port.h": "c",
+        "motor_detect.h": "c",
+        "motor_pid.h": "c",
+        "motor_tim.h": "c"
     }
 }

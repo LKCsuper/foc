@@ -730,6 +730,11 @@
               <FileType>1</FileType>
               <FilePath>..\Cmd\cmd_duty.c</FilePath>
             </File>
+            <File>
+              <FileName>cmd_detect.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Cmd\cmd_detect.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

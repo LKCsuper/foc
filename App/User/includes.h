@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-17 22:55:09
- * @LastEditTime: 2023-03-16 22:58:30
+ * @LastEditTime: 2023-03-25 20:50:11
  * @FilePath: \my_foc\App\User\includes.h
  */
 #ifndef _INCLUDES_H
@@ -76,6 +76,7 @@ extern "C" {
 #include "motor_it.h"
 #include "motor_pid.h"
 #include "motor_tim.h"
+#include "motor_detect.h"
 
 /* letter shell */
 #include "shell.h"
@@ -84,7 +85,6 @@ extern "C" {
 /* cmd */
 #include "command.h"
 #include "cmd_serial_plot.h"
-
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/

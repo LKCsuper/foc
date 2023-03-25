@@ -213,8 +213,9 @@ typedef struct motor_param
 
 
 	/* conf */
-	float currentOffset[3];
-	float voltOffset[3];
+	float currentOffset[3];			/* 电流偏移 */
+	float voltOffset[3];			/* 电压偏移 */
+	float voltundrivenOffset[3]; 	/* 电压无负载偏移 */
 
 }MOTOR_PARAM_S;
 

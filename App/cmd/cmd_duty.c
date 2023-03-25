@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-25 18:17:35
+ * @LastEditTime: 2023-03-25 20:23:07
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -58,10 +58,22 @@ STATIC const osThreadAttr_t taskDutyAttr =
 VOID Duty_ControlTask(VOID *argument)
 {
     PRINTF("\n");
+    /* 开启pwm */
 	Bsp_Tim_StartPwm(false);
     while (1)
     {
+        //更新到影子寄存器
+        TIMER_UPDATE_DUTY_M1(HW_PWM1_TIM->ARR / 10, 0, 0);
+        TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+
+        osDelay(50);
+        TIMER_UPDATE_DUTY_M1(0, HW_PWM1_TIM->ARR / 10, 0);
+        TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
         
+        osDelay(50);
+        TIMER_UPDATE_DUTY_M1(0, 0, HW_PWM1_TIM->ARR / 10);
+        TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+        osDelay(50);
     }
 }
 
@@ -90,22 +102,24 @@ VOID Cmd_Motor_Duty(int cTaskStat, int cPrecentage)
             Bsp_Tim_StopPwm(false);
             if (osOK == osThreadTerminate(taskPlotHandle))
             {
-                //PRINTF("success \n");
+                PRINTF("success \n");
             } 
             else
             {
-                //PRINTF("err \n");
+                PRINTF("err \n");
             }
             break;
         case DUTY_SET:
             PRINTF("占空比 百分比[%d]\n", cPrecentage);
             TIMER_UPDATE_DUTY_M1((HW_PWM1_TIM->ARR / 100) * cPrecentage, \
             (HW_PWM1_TIM->ARR / 100) * cPrecentage, (HW_PWM1_TIM->ARR / 100) * cPrecentage);
+            TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
             break;
         case DUTY_START:
             PRINTF("Duty Start\n");
             TIMER_UPDATE_DUTY_M1(HW_PWM1_TIM->ARR / 5, HW_PWM1_TIM->ARR / 5, HW_PWM1_TIM->ARR / 5);
             Bsp_Tim_StartPwm(false);
+            TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
             break;
         case DUTY_STOP:
             //PRINTF("Duty Stop\n");
