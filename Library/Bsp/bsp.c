@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-19 23:10:55
+ * @LastEditTime: 2023-03-25 17:10:27
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -57,7 +57,7 @@ VOID Bsp_Init(VOID)
 
     /* 串口初始化 */
     Bsp_Usart_DebugInit(115200);
-	
+
     /* 初始化定时器1 pwm */
     Bsp_Tim_Init();
     Bsp_Adc_Init();

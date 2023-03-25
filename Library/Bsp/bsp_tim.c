@@ -165,7 +165,7 @@ STATIC VOID Bsp_Tim_Pwm1(ULONG f_zv)
 
 	/* 输出pwm */
 	// TODO 必须有这一句才会输出pwm,默认pwm引脚全是低电平
-    TIM_CtrlPWMOutputs(HW_PWM1_TIM, ENABLE);
+   TIM_CtrlPWMOutputs(HW_PWM1_TIM, ENABLE);
 
 	/* */
 	TIMER_UPDATE_SAMP(MCPWM_FOC_CURRENT_SAMP_OFFSET);

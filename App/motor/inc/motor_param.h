@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-11 11:38:13
+ * @LastEditTime: 2023-03-21 23:41:54
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_PARAM_H
@@ -195,6 +195,9 @@ typedef struct {
 
 typedef struct motor_param
 {
+	float currentAdc[3];
+	float voltAdc[3];
+
 	float ia;
 	float ib;
 	float ic;
@@ -207,7 +210,12 @@ typedef struct motor_param
 
 	float Ialpha;
 	float Ibeta;
-    
+
+
+	/* conf */
+	float currentOffset[3];
+	float voltOffset[3];
+
 }MOTOR_PARAM_S;
 
 /* Private variables ---------------------------------------------------------*/

@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-19 16:46:01
+ * @LastEditTime: 2023-03-25 17:10:18
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -81,7 +81,7 @@ STATIC VOID Bsp_Dma2_NVIC(VOID)
 #endif
 
 	// TODO 清空一遍中断标志
-	//DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_TCIF4);
+	DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_TCIF4);
 
 	return;
 }
@@ -161,10 +161,11 @@ VOID Bsp_Dma_UsartRx(VOID)
  */
 VOID Bsp_Dma_Init(VOID)
 {
-	/* dma ADC 采样 */
-	Bsp_Dma_AdcSample();
 	/* 串口接收 */
 	Bsp_Dma_UsartRx();
+	
+	/* dma ADC 采样 */
+	//Bsp_Dma_AdcSample();
 
 	PRINTF("DMA Init\r\n");
 	return;
