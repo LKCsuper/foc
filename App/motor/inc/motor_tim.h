@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-02-21 22:08:31
+ * @LastEditTime: 2023-03-26 20:12:32
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_TIM_H
@@ -16,7 +16,7 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-void Motor_PidControl(void);
+
 #ifdef __cplusplus
 }
 #endif

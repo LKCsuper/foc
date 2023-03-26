@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-17 22:55:09
- * @LastEditTime: 2023-03-26 19:57:30
+ * @LastEditTime: 2023-03-26 22:01:34
  * @FilePath: \my_foc\App\User\includes.h
  */
 #ifndef _INCLUDES_H
@@ -46,6 +46,12 @@ extern "C" {
 /* commn */
 #include "printf_color.h"
 #include "common.h"
+
+/* fal */
+#include <fal.h>
+
+/* flashdb */
+#include "flashdb.h"
 
 /* common */
 #include "motor_utils.h"

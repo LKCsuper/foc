@@ -49,6 +49,7 @@
   */
 void NMI_Handler(void)
 {
+    return;
 }
 
 /**
@@ -58,10 +59,10 @@ void NMI_Handler(void)
   */
 void HardFault_Handler(void)
 {
-  /* Go to infinite loop when Hard Fault exception occurs */
-  while (1)
-  {
-  }
+    /* Go to infinite loop when Hard Fault exception occurs */
+    while (1)
+    {
+    }
 }
 
 /**
@@ -71,10 +72,10 @@ void HardFault_Handler(void)
   */
 void MemManage_Handler(void)
 {
-  /* Go to infinite loop when Memory Manage exception occurs */
-  while (1)
-  {
-  }
+    /* Go to infinite loop when Memory Manage exception occurs */
+    while (1)
+    {
+    }
 }
 
 /**
@@ -85,9 +86,7 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
     /* Go to infinite loop when Bus Fault exception occurs */
-    while (1)
-    {
-    }
+    while (1){}
 }
 
 /**
@@ -98,9 +97,7 @@ void BusFault_Handler(void)
 void UsageFault_Handler(void)
 {
     /* Go to infinite loop when Usage Fault exception occurs */
-    while (1)
-    {
-    }
+    while (1){}
 }
 
 /**
@@ -110,6 +107,7 @@ void UsageFault_Handler(void)
   */
 void DebugMon_Handler(void)
 {
+
 }
 
 /**
@@ -146,7 +144,6 @@ void DMA2_Stream4_IRQHandler(void)
     return;
 }
 
-// TODO
 /**
  * @description: foc用不到
  * @detail: 
@@ -193,9 +190,9 @@ void UART4_IRQHandler( void )
  */
 void TIM3_IRQHandler(void)
 {
-	Bsp_Tim3_IRQ();
+    Bsp_Tim3_IRQ();
 
-	return;
+    return;
 }
 #if 0
 /**

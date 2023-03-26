@@ -127,6 +127,15 @@ extern const float utils_tab_cos_32_1[];
 extern const float utils_tab_cos_32_2[];
 
 // Inline functions
+/**
+ * @description: 相当于每次一小步
+ * @detail: 
+ * @param {float} *value 改变的值
+ * @param {float} goal 目标值
+ * @param {float} step 每次走一步,一步的距离
+ * @return {*}
+ * @author: lkc
+ */
 static inline void utils_step_towards(float *value, float goal, float step) {
     if (*value < goal) {
         if ((*value + step) < goal) {
@@ -144,7 +153,7 @@ static inline void utils_step_towards(float *value, float goal, float step) {
 }
 
 /**
- * Make sure that 0 <= angle < 360
+ * Make sure that 0 <= angle < 360,使角度位于正常值
  *
  * @param angle
  * The angle to normalize.
@@ -169,6 +178,15 @@ static inline void utils_norm_angle_rad(float *angle) {
 	while (*angle >=  M_PI) { *angle -= 2.0f * M_PI; }
 }
 
+/**
+ * @description: 使变量位于 min 和 max之间
+ * @detail: 
+ * @param {float} *number
+ * @param {float} min
+ * @param {float} max
+ * @return {*}
+ * @author: lkc
+ */
 static inline void utils_truncate_number(float *number, float min, float max) {
 	if (*number > max) {
 		*number = max;
@@ -185,6 +203,14 @@ static inline void utils_truncate_number_int(int *number, int min, int max) {
 	}
 }
 
+/**
+ * @description: 让变量在max 和 -max范围,绝对值
+ * @detail: 
+ * @param {float} *number
+ * @param {float} max
+ * @return {*}
+ * @author: lkc
+ */
 static inline void utils_truncate_number_abs(float *number, float max) {
 	if (*number > max) {
 		*number = max;
@@ -193,6 +219,17 @@ static inline void utils_truncate_number_abs(float *number, float max) {
 	}
 }
 
+/**
+ * @description: 映射函数,具体原理待定
+ * @detail: 
+ * @param {float} x
+ * @param {float} in_min
+ * @param {float} in_max
+ * @param {float} out_min
+ * @param {float} out_max
+ * @return {*}
+ * @author: lkc
+ */
 static inline float utils_map(float x, float in_min, float in_max, float out_min, float out_max) {
 	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
@@ -203,7 +240,7 @@ static inline int utils_map_int(int x, int in_min, int in_max, int out_min, int 
 
 /**
  * Truncate the magnitude of a vector.
- *
+ * 截断一个向量的大小
  * @param x
  * The first component.
  *

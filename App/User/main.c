@@ -63,7 +63,7 @@ LONG main(VOID)
 	if (osOK != osKernelStart())
     {
         /* PRINTF("Task Start err.\r\n"); */
-    }  
+    }
 
     while(1){}
 }

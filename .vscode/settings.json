@@ -38,6 +38,11 @@
         "motor_detect.h": "c",
         "motor_pid.h": "c",
         "motor_tim.h": "c",
-        "bsp_flash.h": "c"
+        "bsp_flash.h": "c",
+        "freertos_port.h": "c",
+        "fal_cfg.h": "c",
+        "stm32f4xx_conf.h": "c",
+        "stm32f4xx_flash.h": "c",
+        "hw.h": "c"
     }
 }

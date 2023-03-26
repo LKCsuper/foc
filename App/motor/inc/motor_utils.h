@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-02-19 15:57:40
+ * @LastEditTime: 2023-03-26 20:12:09
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_UTILS_H
@@ -16,7 +16,7 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-uint8_t calculate_deadtime(float deadtime_ns, float core_clock_freq);
+UCHAR calculate_deadtime(float deadtime_ns, float core_clock_freq);
 #ifdef __cplusplus
 }
 #endif

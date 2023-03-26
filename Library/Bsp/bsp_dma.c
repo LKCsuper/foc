@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-25 18:32:46
+ * @LastEditTime: 2023-03-26 20:50:09
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -28,8 +28,8 @@ STATIC VOID Bsp_DMA2_Init(VOID)
 	/* 时钟初始化 */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA2, ENABLE);
 
-    /* 开启中断 */
-    DMA_InitTypeDef DMA_InitStructure;
+	/* 开启中断 */
+	DMA_InitTypeDef DMA_InitStructure;
 	DMA_InitStructure.DMA_Channel = DMA_Channel_0; 	/* 选择通道0 */
 	DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)&ADC_Value; 	/* 外设到内存 */
 	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&ADC->CDR; 	/* 外设地址 */
@@ -97,7 +97,7 @@ VOID Bsp_Dma_AdcSample(VOID)
 	Bsp_DMA2_Init();
 	Bsp_Dma2_NVIC();
 
-    return;
+	return;
 }
 
 /**

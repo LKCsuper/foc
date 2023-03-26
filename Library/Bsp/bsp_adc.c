@@ -137,7 +137,7 @@ VOID Bsp_Adc_Sample(VOID)
 	/* 主从模式adc1 带动adc2 */
 	ADC_MultiModeDMARequestAfterLastTransferCmd(ENABLE);
 
- 	Bsp_Adc_SetChannels();
+	Bsp_Adc_SetChannels();
 
 	ADC_Cmd(ADC1, ENABLE);
 	ADC_Cmd(ADC2, ENABLE);

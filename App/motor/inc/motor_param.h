@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-21 23:41:54
+ * @LastEditTime: 2023-03-26 20:13:20
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_PARAM_H

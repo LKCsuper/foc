@@ -341,7 +341,7 @@
               <MiscControls>--locale=english</MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F40_41xxx,__CC_ARM,__TARGET_FPU_VFP=1,__FPU_PRESENT=1,__FPU_USED=1,ARM_MATH_CM4</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include;..\..\Library\CMSIS\Include;..\User;..\..\Library\Bsp\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\Configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port</IncludePath>
+              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include;..\..\Library\CMSIS\Include;..\User;..\..\Library\Bsp\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\Configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -869,6 +869,66 @@
               <FileName>common.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\Library\Common\common.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>FlashDB</GroupName>
+          <Files>
+            <File>
+              <FileName>fdb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\FlashDB\src\fdb.c</FilePath>
+            </File>
+            <File>
+              <FileName>fdb_file.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\FlashDB\src\fdb_file.c</FilePath>
+            </File>
+            <File>
+              <FileName>fdb_kvdb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\FlashDB\src\fdb_kvdb.c</FilePath>
+            </File>
+            <File>
+              <FileName>fdb_tsdb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\FlashDB\src\fdb_tsdb.c</FilePath>
+            </File>
+            <File>
+              <FileName>fdb_utils.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\FlashDB\src\fdb_utils.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Fal</GroupName>
+          <Files>
+            <File>
+              <FileName>fal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\Fal\src\fal.c</FilePath>
+            </File>
+            <File>
+              <FileName>fal_flash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\Fal\src\fal_flash.c</FilePath>
+            </File>
+            <File>
+              <FileName>fal_partition.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\Fal\src\fal_partition.c</FilePath>
+            </File>
+            <File>
+              <FileName>fal_rtt.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\Fal\src\fal_rtt.c</FilePath>
+            </File>
+            <File>
+              <FileName>fal_flash_stm32f4.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\Fal\port\fal_flash_stm32f4.c</FilePath>
             </File>
           </Files>
         </Group>

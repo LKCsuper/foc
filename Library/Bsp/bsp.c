@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-25 18:25:37
+ * @LastEditTime: 2023-03-26 20:53:13
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -25,17 +25,17 @@ extern "C" {
 VOID Bsp_RTOS_Init(VOID)
 {
 #ifdef HSE_USE
-    /* 嵌入式定位前三大要点:时钟 复位 电源 */
-    /* 时钟初始化  8/8 * 336 /2  q分频的时钟可能是超了最大48 */
-    Bsp_Rcu_Init(8, 336, 2, 4);
+	/* 嵌入式定位前三大要点:时钟 复位 电源 */
+	/* 时钟初始化  8/8 * 336 /2  q分频的时钟可能是超了最大48 */
+	Bsp_Rcu_Init(8, 336, 2, 4);
 #else
-    /* hsi 时钟初始化 */
-    HSI_SetSysClock(8, 168, 2, 4); 
+	/* hsi 时钟初始化 */
+	HSI_SetSysClock(8, 168, 2, 4); 
 #endif
-    /* 中断 sys初始化 */
-    Bsp_Sys_Init(1000);
+	/* 中断 sys初始化 */
+	Bsp_Sys_Init(1000);
 
-    return;
+	return;
 }
 
 /**
@@ -52,22 +52,22 @@ VOID Bsp_RTOS_Init(VOID)
  */
 VOID Bsp_Init(VOID)
 {
-    /* gpio 初始化 */
-    Bsp_Gpio_Init();
+	/* gpio 初始化 */
+	Bsp_Gpio_Init();
 
-    /* 串口初始化 */
-    Bsp_Usart_DebugInit(115200);
-	
-    /* 初始化定时器1 pwm */
-    // TODO 注意: 如果初始化顺序 Tim Adc Dma 如果tim和dma中断中间没有加打印,串口就会死掉
-    // TODO 更改初始化顺序 或者 中间加打印 串口正常
-    Bsp_Adc_Init();
-    Bsp_Dma_Init();
-    Bsp_Tim_Init();
+	/* 串口初始化 */
+	Bsp_Usart_DebugInit(115200);
 
-    PRINTF("Hardware Init Success\r\n");
+	/* 初始化定时器1 pwm */
+	// TODO 注意: 如果初始化顺序 Tim Adc Dma 如果tim和dma中断中间没有加打印,串口就会死掉
+	// TODO 更改初始化顺序 或者 中间加打印 串口正常
+	Bsp_Adc_Init();
+	Bsp_Dma_Init();
+	Bsp_Tim_Init();
 
-    return;
+	PRINTF("Hardware Init Success\r\n");
+
+	return;
 }
 
 #ifdef __cplusplus

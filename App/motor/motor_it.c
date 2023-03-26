@@ -69,10 +69,7 @@ void Motor_DmaInt(void *p, uint32_t flags)
 	stMotorNow->va = va;
 	stMotorNow->vb = vb;
 	stMotorNow->vc = vc;
-
-
-
-
+	
 /* 开环方案,每次改变实际位置 */
 	static float theta = 0;
 
