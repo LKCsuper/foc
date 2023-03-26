@@ -37,6 +37,7 @@
         "shell_port.h": "c",
         "motor_detect.h": "c",
         "motor_pid.h": "c",
-        "motor_tim.h": "c"
+        "motor_tim.h": "c",
+        "bsp_flash.h": "c"
     }
 }

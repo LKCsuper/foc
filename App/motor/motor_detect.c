@@ -111,7 +111,7 @@ ULONG DETECT_Offset(BOOL cal_undriven)
 	voltage_sum[0] /= samples;
 	voltage_sum[1] /= samples;
 	voltage_sum[2] /= samples;
-	float v_avg = (voltage_sum[0] + voltage_sum[1] + voltage_sum[2]) / 3.0;
+	float v_avg = (voltage_sum[0] + voltage_sum[1] + voltage_sum[2]) / 3.0f;
 	
 	motor.voltOffset[0] = voltage_sum[0] - v_avg;
 	motor.voltOffset[1] = voltage_sum[1] - v_avg;

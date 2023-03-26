@@ -1,7 +1,7 @@
 /*
- * @Description: 
+ * @Description: foc中断,一个周期15k左右,66us
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-25 19:03:34
+ * @LastEditTime: 2023-03-26 10:47:17
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -45,8 +45,10 @@ void Motor_DmaInt(void *p, uint32_t flags)
 	float ib = (GET_CURRENT2() - 2045) * FAC_CURRENT;
 	float ic = (GET_CURRENT3() - 2045) * FAC_CURRENT;
 	
-	float Ialpha = 0;
-	float Ibeta = 0;
+	float Ialpha = 0.0f;
+	float Ibeta = 0.0f;
+	float Id = 0.0f;
+	float Iq = 0.0f;
 	float va = 0.0f;
 	float vb = 0.0f;
 	float vc = 0.0f;
@@ -68,30 +70,33 @@ void Motor_DmaInt(void *p, uint32_t flags)
 	stMotorNow->vb = vb;
 	stMotorNow->vc = vc;
 
-	//PRINTF("123");
 
-	/* clarke 变换 */
-	clarke_transform(ia, ib, ic, &Ialpha, &Ibeta);
+
+
+/* 开环方案,每次改变实际位置 */
+	static float theta = 0;
 
 	// motor_now->m_motor_state.i_alpha = ia;
 	// motor_now->m_motor_state.i_beta = ONE_BY_SQRT3 * ia + TWO_BY_SQRT3 * ib;
 
 	// float vd_tmp = c * motor_now->m_motor_state.v_alpha + s * motor_now->m_motor_state.v_beta;
 	// float vq_tmp = c * motor_now->m_motor_state.v_beta  - s * motor_now->m_motor_state.v_alpha;
-		
+
+	/*1. 给定d q值 */
+	float modQ = 0.0f;
+	float modD = 0.0f;
+
+
+	/* park逆变换得到α β,角度用的是自己估测的角度 */
+	inverse_park(modD, modQ, theta, &Ialpha, &Ibeta);
 	stMotorNow->Ialpha = Ialpha;
 	stMotorNow->Ibeta = Ibeta;
 
-	/* park变换,这里很显然不是开环 */
-//	park_transform();
-	// svm();
-	// uint32_t duty1, duty2, duty3, top;
-	// top = TIM1->ARR;
 
-	// foc_svm();
+	/* 参考电压 */
 
-	// /* 设置占空比 */
-	// TIMER_UPDATE_DUTY_M1();
+	/* svpwm */
+//	foc_svm(Ialpha, Ibeta, 0.5);
 
 	return;
 }

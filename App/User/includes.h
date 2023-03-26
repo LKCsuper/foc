@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-17 22:55:09
- * @LastEditTime: 2023-03-25 20:50:11
+ * @LastEditTime: 2023-03-26 19:57:30
  * @FilePath: \my_foc\App\User\includes.h
  */
 #ifndef _INCLUDES_H
@@ -71,6 +71,7 @@ extern "C" {
 #include "motor_common.h"
 #include "datatypes.h"
 #include "motor_param.h"
+#include "motor_math.h"
 #include "motor_task.h"
 #include "motor_foc.h"
 #include "motor_it.h"

@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-11 14:39:14
+ * @LastEditTime: 2023-03-26 20:05:11
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_FOC_H
@@ -16,12 +16,6 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-
-#define M_PI                    (3.14159265358f)
-#define M_2PI                    (6.28318530716f)
-#define ONE_BY_SQRT3            (0.57735026919f)
-#define TWO_BY_SQRT3            (2.0f * 0.57735026919f)
-#define SQRT3_BY_2                (0.86602540378f)
 
 /**
  * A simple low pass filter.
@@ -45,7 +39,7 @@ extern "C" {
  * It is not entirely the same as it behaves like an IIR filter rather than a FIR filter, but takes
  * much less memory and is much faster to run.
  */
-#define UTILS_LP_MOVING_AVG_APPROX(value, sample, N)    UTILS_LP_FAST(value, sample, 2.0f / ((N) + 1.0f))
+//#define UTILS_LP_MOVING_AVG_APPROX(value, sample, N)    UTILS_LP_FAST(value, sample, 2.0f / ((N) + 1.0f))
 
 extern inline void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta);
 extern inline void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq);

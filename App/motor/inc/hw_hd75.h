@@ -112,19 +112,19 @@
 
 // Component parameters (can be overridden)
 #ifndef V_REG
-#define V_REG					3.3
+#define V_REG					3.3f
 #endif
 #ifndef VIN_R1
-#define VIN_R1					56000.0
+#define VIN_R1					56000.0f
 #endif
 #ifndef VIN_R2
-#define VIN_R2					2200.0
+#define VIN_R2					2200.0f
 #endif
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN		20.0
+#define CURRENT_AMP_GAIN		20.0f
 #endif
 #ifndef CURRENT_SHUNT_RES
-#define CURRENT_SHUNT_RES		0.0005
+#define CURRENT_SHUNT_RES		0.0005f
 #endif
 
 // Input voltage
@@ -139,7 +139,7 @@
 #define NTC_TEMP_MOTOR(beta)	(1.0 / ((logf(NTC_RES_MOTOR(ADC_Value[ADC_IND_TEMP_MOTOR]) / 10000.0) / beta) + (1.0 / 298.15)) - 273.15)
 
 // Voltage on ADC channel
-#define ADC_VOLTS(ch)			((float)ADC_Value[ch] / 4096.0 * V_REG)
+#define ADC_VOLTS(ch)			((float)ADC_Value[ch] / 4096.0f * V_REG)
 
 // Double samples in beginning and end for positive current measurement.
 // Useful when the shunt sense traces have noise that causes offset.

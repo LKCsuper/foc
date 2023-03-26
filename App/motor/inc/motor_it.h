@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-02-19 22:23:08
+ * @LastEditTime: 2023-03-26 20:08:32
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_IT_H
@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 // Current ADC to amperes factor V_REG输入3.3v电  采样电阻CURRENT_SHUNT_RES
-#define FAC_CURRENT					((V_REG / 4095.0) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN))
+//#define FAC_CURRENT					((V_REG / 4095.0) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN))
 
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/

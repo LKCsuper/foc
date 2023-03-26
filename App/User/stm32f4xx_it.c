@@ -193,9 +193,9 @@ void UART4_IRQHandler( void )
  */
 void TIM3_IRQHandler(void)
 {
-    Bsp_Tim3_IRQ();
-    
-    return;
+	Bsp_Tim3_IRQ();
+
+	return;
 }
 #if 0
 /**

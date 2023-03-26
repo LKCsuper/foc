@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-11 14:38:40
+ * @LastEditTime: 2023-03-26 10:41:09
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -55,6 +55,8 @@ inline void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, fl
 /**
  * @description: 
  * @detail: 
+ * [uα]   [cos角度 -sin角度] [ud]
+ * [uβ]	  [sin角度 cos角度]  [uq]
  * @param {float} mod_d
  * @param {float} mod_q
  * @param {float} Theta
@@ -215,6 +217,7 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 {
 	uint32_t sector;
 
+	/* 扇区判断 */
 	if (beta >= 0.0f) {
 		if (alpha >= 0.0f) {
 			//quadrant I
@@ -344,6 +347,24 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 	*tCout = tC;
 	*svm_sector = sector;
 }
+
+/**
+ * @description: pll锁相环
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+void foc_pll_run(float phase, float dt, float *phase_var,
+					float *speed_var, mc_configuration *conf) {
+	UTILS_NAN_ZERO(*phase_var);
+	float delta_theta = phase - *phase_var;
+	utils_norm_angle_rad(&delta_theta);
+	UTILS_NAN_ZERO(*speed_var);
+	*phase_var += (*speed_var + conf->foc_pll_kp * delta_theta) * dt;
+	utils_norm_angle_rad((float*)phase_var);
+	*speed_var += conf->foc_pll_ki * delta_theta * dt;
+}
+
 
 #ifdef __cplusplus
 }

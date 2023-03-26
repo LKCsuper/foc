@@ -18,7 +18,7 @@ extern volatile uint16_t ADC_Value[HW_ADC_CHANNELS + HW_ADC_CHANNELS_EXTRA];
 extern volatile float ADC_curr_norm_value[6];
 
 // Current ADC to amperes factor
-#define FAC_CURRENT					((V_REG / 4095.0) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN))
+#define FAC_CURRENT					((V_REG / 4095.0f) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN))
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 VOID Bsp_Adc_Sample(VOID);

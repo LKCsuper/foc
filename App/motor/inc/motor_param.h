@@ -211,6 +211,8 @@ typedef struct motor_param
 	float Ialpha;
 	float Ibeta;
 
+	float modD;
+	float modQ;
 
 	/* conf */
 	float currentOffset[3];			/* 电流偏移 */

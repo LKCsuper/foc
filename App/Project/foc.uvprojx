@@ -705,6 +705,11 @@
               <FileType>1</FileType>
               <FilePath>..\Motor\motor_detect.c</FilePath>
             </File>
+            <File>
+              <FileName>motor_math.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Motor\motor_math.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
