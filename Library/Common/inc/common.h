@@ -48,6 +48,10 @@ typedef signed char int8; /* Signed 8 bit value */
 #define USHORT unsigned short
 #define BOOL bool
 
+/* IN 表示输入 OUT表示输出参数 */
+#define IN
+#define OUT
+
 typedef enum{FALSE = 0, TRUE=!FALSE} tagJuder;
 /*
 typedef enum {RESET = 0, SET = !RESET} FlagStatus, ITStatus;

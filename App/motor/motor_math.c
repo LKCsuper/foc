@@ -17,10 +17,17 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
     */
 #include "includes.h"
-/*
+/**
+ * @description: angle映射到min 到 max
+ * @detail: 
  * Map angle from 0 to 1 in the range min to max. If angle is
  * outside of the range it will be less truncated to the closest
  * angle. Angle units: Degrees
+ * @param {float} angle 
+ * @param {float} min
+ * @param {float} max
+ * @return {*}
+ * @author: lkc
  */
 float utils_map_angle(float angle, float min, float max) {
 	if (max == min) {
@@ -46,8 +53,16 @@ float utils_map_angle(float angle, float min, float max) {
 }
 
 /**
- * Truncate absolute values less than tres to zero. The value
- * tres will be mapped to 0 and the value max to max.
+ * @description: 
+ * @detail: 
+ * 将小于tres的值截断为0
+ * Truncate absolute values less than tres to zero. 
+ * The value tres will be mapped to 0 and the value max to max.
+ * @param {float} *value
+ * @param {float} tres
+ * @param {float} max
+ * @return {*}
+ * @author: lkc
  */
 void utils_deadband(float *value, float tres, float max) {
 	if (fabsf(*value) < tres) {
@@ -63,13 +78,13 @@ void utils_deadband(float *value, float tres, float max) {
 }
 
 /**
- * Get the difference between two angles. Will always be between -180 and +180 degrees.
- * @param angle1
- * The first angle
- * @param angle2
- * The second angle
- * @return
- * The difference between the angles
+ * @description: 
+ * @detail: 角度差值-180 到 180
+ * Get the difference between two angles. Will always be between -180 and +180 degrees
+ * @param {float} angle1 The first angle
+ * @param {float} angle2 The second angle
+ * @return {float} The difference between the angles
+ * @author: lkc
  */
 float utils_angle_difference(float angle1, float angle2) {
 	float difference = angle1 - angle2;
@@ -79,13 +94,13 @@ float utils_angle_difference(float angle1, float angle2) {
 }
 
 /**
+ * @description: 
+ * @detail: 转换为Π的角度差值
  * Get the difference between two angles. Will always be between -pi and +pi radians.
- * @param angle1
- * The first angle in radians
- * @param angle2
- * The second angle in radians
- * @return
- * The difference between the angles in radians
+ * @param {float} angle1 The first angle in radians
+ * @param {float} angle2 The second angle in radians
+ * @return {*} The difference between the angles in radians
+ * @author: lkc
  */
 float utils_angle_difference_rad(float angle1, float angle2) {
 	float difference = angle1 - angle2;
@@ -95,21 +110,15 @@ float utils_angle_difference_rad(float angle1, float angle2) {
 }
 
 /**
- * Takes the average of a number of angles.
- *
- * @param angles
- * The angles in radians.
- *
- * @param angles_num
- * The number of angles.
- *
- * @param weights
- * The weight of the summarized angles
- *
- * @return
- * The average angle.
+ * @description: 角度平均值,但是这个utils_fast_sincos_better
+ * @detail: Takes the average of a number of angles.
+ * @param {float} *angles The angles in radians.
+ * @param {float} *weights The weight of the summarized angles
+ * @param {int} angles_num The number of angles.
+ * @return {*} The average angle. 
+ * @author: lkc
  */
-float utils_avg_angles_rad_fast(float *angles, float *weights, int angles_num) {
+float utils_avg_angles_rad_fast(IN float *angles, IN float *weights,IN int angles_num) {
 	float s_sum = 0.0f;
 	float c_sum = 0.0f;
 
@@ -124,19 +133,13 @@ float utils_avg_angles_rad_fast(float *angles, float *weights, int angles_num) {
 }
 
 /**
- * Get the middle value of three values
- *
- * @param a
- * First value
- *
- * @param b
- * Second value
- *
- * @param c
- * Third value
- *
- * @return
- * The middle value
+ * @description: 取三者中间值 float
+ * @detail: Get the middle value of three values
+ * @param {float} a
+ * @param {float} b
+ * @param {float} c
+ * @return {*} The middle value
+ * @author: lkc
  */
 float utils_middle_of_3(float a, float b, float c) {
 	float middle;
@@ -152,19 +155,13 @@ float utils_middle_of_3(float a, float b, float c) {
 }
 
 /**
- * Get the middle value of three values
- *
- * @param a
- * First value
- *
- * @param b
- * Second value
- *
- * @param c
- * Third value
- *
- * @return
- * The middle value
+ * @description: 取三者中间值 int
+ * @detail: Get the middle value of three values
+ * @param {int} a
+ * @param {int} b
+ * @param {int} c
+ * @return {*} The middle value
+ * @author: lkc
  */
 int utils_middle_of_3_int(int a, int b, int c) {
 	int middle;
@@ -180,18 +177,12 @@ int utils_middle_of_3_int(int a, int b, int c) {
 }
 
 /**
- * Fast atan2
- *
- * See http://www.dspguru.com/dsp/tricks/fixed-point-atan2-with-self-normalization
- *
- * @param y
- * y
- *
- * @param x
- * x
- *
- * @return
- * The angle in radians
+ * @description: Fast atan2
+ * @detail: See http://www.dspguru.com/dsp/tricks/fixed-point-atan2-with-self-normalization
+ * @param {float} y
+ * @param {float} x
+ * @return {*} The angle in radians
+ * @author: lkc
  */
 float utils_fast_atan2(float y, float x) {
 	float abs_y = fabsf(y) + 1e-20f; // kludge to prevent 0/0 condition
@@ -217,19 +208,14 @@ float utils_fast_atan2(float y, float x) {
 }
 
 /**
- * Fast sine and cosine implementation.
- *
- * See http://lab.polygonal.de/?p=205
- *
- * @param angle
- * The angle in radians
+ * @description: Fast sine and cosine implementation.
+ * @detail: See http://lab.polygonal.de/?p=205
+ * @param {float} angle The angle in radians
  * WARNING: Don't use too large angles.
- *
- * @param sin
- * A pointer to store the sine value.
- *
- * @param cos
- * A pointer to store the cosine value.
+ * @param {float} *sin A pointer to store the sine value.
+ * @param {float} *cos A pointer to store the cosine value.
+ * @return {*}
+ * @author: lkc
  */
 void utils_fast_sincos(float angle, float *sin, float *cos) {
 	//always wrap input angle to -PI..PI
@@ -263,19 +249,14 @@ void utils_fast_sincos(float angle, float *sin, float *cos) {
 }
 
 /**
- * Fast sine and cosine implementation.
- *
- * See http://lab.polygonal.de/?p=205
- *
- * @param angle
- * The angle in radians
+ * @description: Fast sine and cosine implementation.
+ * @detail: See http://lab.polygonal.de/?p=205
+ * @param {float} angle The angle in radians
  * WARNING: Don't use too large angles.
- *
- * @param sin
- * A pointer to store the sine value.
- *
- * @param cos
- * A pointer to store the cosine value.
+ * @param {float} *sin A pointer to store the sine value.
+ * @param {float} *cos A pointer to store the cosine value.
+ * @return {*}
+ * @author: lkc
  */
 void utils_fast_sincos_better(float angle, float *sin, float *cos) {
 	//always wrap input angle to -PI..PI
@@ -332,16 +313,12 @@ void utils_fast_sincos_better(float angle, float *sin, float *cos) {
 }
 
 /**
- * Calculate the values with the lowest magnitude.
- *
- * @param va
- * The first value.
- *
- * @param vb
- * The second value.
- *
- * @return
- * The value with the lowest magnitude.
+ * @description: 绝对值最小值
+ * @detail: Calculate the values with the lowest magnitude.
+ * @param {float} va The first value.
+ * @param {float} vb The second value.
+ * @return {*} The value with the lowest magnitude.
+ * @author: lkc
  */
 float utils_min_abs(float va, float vb) {
 	float res;
@@ -355,16 +332,12 @@ float utils_min_abs(float va, float vb) {
 }
 
 /**
- * Calculate the values with the highest magnitude.
- *
- * @param va
- * The first value.
- *
- * @param vb
- * The second value.
- *
- * @return
- * The value with the highest magnitude.
+ * @description: 绝对值最大值
+ * @detail: Calculate the values with the highest magnitude.
+ * @param {float} va
+ * @param {float} vb
+ * @return {*} The value with the highest magnitude.
+ * @author: lkc
  */
 float utils_max_abs(float va, float vb) {
 	float res;
@@ -378,13 +351,12 @@ float utils_max_abs(float va, float vb) {
 }
 
 /**
- * Create string representation of the binary content of a byte
- *
- * @param x
- * The byte.
- *
- * @param b
- * Array to store the string representation in.
+ * @description: 将int转换为字节 字符串 
+ * @detail: Create string representation of the binary content of a byte
+ * @param {int} x The byte.
+ * @param {char} *b Array to store the string representation in.
+ * @return {*}
+ * @author: lkc
  */
 void utils_byte_to_binary(int x, char *b) {
 	b[0] = '\0';
@@ -395,6 +367,16 @@ void utils_byte_to_binary(int x, char *b) {
 	}
 }
 
+/**
+ * @description: 该函数应该与电源有关系
+ * @detail: 
+ * @param {float} val
+ * @param {float} curve_acc
+ * @param {float} curve_brake
+ * @param {int} mode
+ * @return {*}
+ * @author: lkc
+ */
 float utils_throttle_curve(float val, float curve_acc, float curve_brake, int mode) {
 	float ret = 0.0f;
 	
