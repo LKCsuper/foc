@@ -1,0 +1,1 @@
+var reportPages = [["摘要","clarke0_survey.html"],["子系统报告","clarke0_subsystems.html"],["代码接口报告","clarke0_interface.html"],["可追溯性报告","clarke0_trace.html"],["静态代码指标报告","clarke0_metrics.html"],["代码替换报告","clarke0_replacements.html"],["代码生成器假设","clarke0_coderassumptions.html"]];

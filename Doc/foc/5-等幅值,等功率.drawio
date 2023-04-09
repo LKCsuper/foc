@@ -1,0 +1,13 @@
+<mxfile host="65bd71144e">
+    <diagram id="jrEIXGtVBLYEIO71MGku" name="第 1 页">
+        <mxGraphModel dx="838" dy="664" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="2" value="等功率变换：电机的功率和转矩在三相坐标系和 两相坐标系都相等；&lt;br&gt;等幅值变换：三相坐标系下每相变量的赋值与 两相坐标系下的幅值相等。" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;align=left;" vertex="1" parent="1">
+                    <mxGeometry x="110" y="70" width="500" height="140" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

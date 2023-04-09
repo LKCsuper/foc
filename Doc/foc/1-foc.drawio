@@ -1,0 +1,19 @@
+<mxfile host="65bd71144e">
+    <diagram id="U6vT7sa00FAG-aIrmNQi" name="第 1 页">
+        <mxGraphModel dx="838" dy="664" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="2" value="foc:产生正旋交流&lt;br&gt;clarke和park变换都是对电流操作&lt;br&gt;反clarke和发park都是对电压操作" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="254" y="100" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="3" value="SPEED &amp;lt;-&amp;gt; 转矩&lt;br&gt;&lt;div style=&quot;text-align: left;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;提高转矩,需要提高正旋幅值,也就是提高电压&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;text-align: left;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;PID -&amp;gt; 直流&lt;/span&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" parent="1" vertex="1">
+                    <mxGeometry x="254" y="170" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="4" value="力矩:力与臂的乘积" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" vertex="1" parent="1">
+                    <mxGeometry x="254" y="260" width="320" height="60" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
