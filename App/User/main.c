@@ -1,10 +1,10 @@
 /*
- * @Description: 
+ * @Description: 主函数文件
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-25 23:39:48
+ * @LastEditTime: 2023-08-27 23:48:21
  */
 #ifdef __cplusplus
 extern "C" {
@@ -57,9 +57,14 @@ void Task_Init(void *argument)
  */
 LONG main(VOID)
 {   
+    /* 任务bsp初始化 */
     Bsp_RTOS_Init();
+    /* 内核初始化 */
 	osKernelInitialize();
+    /* 创建新任务 */
     osThreadNew(Task_Init, NULL, &taskInitAttr);
+
+    /* 任务启动 */
 	if (osOK != osKernelStart())
     {
         /* PRINTF("Task Start err.\r\n"); */

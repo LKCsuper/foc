@@ -1,7 +1,7 @@
 /*
- * @Description: 
+ * @Description: adc初始化
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-19 16:20:23
+ * @LastEditTime: 2023-08-27 23:58:10
  * @FilePath: \foc\Library\Bsp\bsp_adc.c
  */
 #ifdef __cplusplus
@@ -26,11 +26,12 @@ volatile float ADC_curr_norm_value[6] = {0};
  */
 STATIC VOID Bsp_Adc123_Common(VOID)
 {
+	/* 初始化adc时钟 */
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1 | RCC_APB2Periph_ADC2 | RCC_APB2Periph_ADC3, ENABLE);
 	
 	ADC_CommonInitTypeDef ADC_CommonInitStructure;
 	/* 目前adc运行42mhz 但是数据手册是36,但是可行 */
-	/* *三重同步模式 3个连续的DMA请求 */
+	/* 三重同步模式 3个连续的DMA请求 */
 	ADC_CommonInitStructure.ADC_Mode = ADC_TripleMode_RegSimult;
 	/* 2分频 */ 
 	ADC_CommonInitStructure.ADC_Prescaler = ADC_Prescaler_Div2;

@@ -68,6 +68,7 @@ extern "C" {
 #include "bsp_tim.h"
 #include "bsp_dma.h"
 #include "bsp_flash.h"
+#include "bsp_it.h"
 #include "bsp.h"
 
 /* it */

@@ -1,10 +1,10 @@
 /*
- * @Description: 
+ * @Description: 定时器初始化
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-25 23:34:57
+ * @LastEditTime: 2023-08-27 23:51:43
  * @detail: 逻辑分析仪 死区时间350ns左右 一个周期66.6us
  */
 #ifdef __cplusplus
@@ -26,6 +26,7 @@ extern "C" {
  */
 STATIC VOID Bsp_Tim1_Base(ULONG f_zv)
 {
+	/* 定时器结构体 */
 	TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
 
 	/* 初始化定时器时钟 */
@@ -622,40 +623,6 @@ VOID Bsp_Tim_Init(VOID)
 	
 	return;
 }
-
-/**
- * @description: 定时器3中断
- * @detail: 
- * @return {*}
- * @author: lkc
- */
-extern ULONG ulFreeRTOSRunTimeTicks;
-VOID Bsp_Tim3_IRQ(VOID)
-{
-	if(SET == TIM_GetITStatus(HW_COUNT_TIM, TIM_IT_Update)) //溢出中断
-	{
-		ulFreeRTOSRunTimeTicks++;
-	}
-	TIM_ClearITPendingBit(HW_COUNT_TIM, TIM_IT_Update);
-	return;
-}
-
-/**
- * @description: 定时器2中断
- * @detail: 
- * @return {*}
- * @author: lkc
- */
-VOID Bsp_Tim2_IRQ(VOID)
-{
-	if(SET == TIM_GetITStatus(HW_TRIG_TIM, TIM_IT_CC2)) //溢出中断
-	{
-		ulFreeRTOSRunTimeTicks++;
-	}
-	TIM_ClearITPendingBit(HW_TRIG_TIM, TIM_IT_CC2);
-	return;
-}
-
 #ifdef __cplusplus
 }
 #endif

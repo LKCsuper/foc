@@ -116,17 +116,11 @@ void DebugMon_Handler(void)
  * @return {*}
  * @author: lkc
  */
-extern void xPortSysTickHandler(void);
 void SysTick_Handler(void)
 {	
-    #if (INCLUDE_xTaskGetSchedulerState  == 1 )
-      if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
-      {
-    #endif  /* INCLUDE_xTaskGetSchedulerState */  
-        xPortSysTickHandler();
-    #if (INCLUDE_xTaskGetSchedulerState  == 1 )
-      }
-    #endif  /* INCLUDE_xTaskGetSchedulerState */
+    Bsp_SysTick_Handler();
+
+    return;
 }
 
 /**
@@ -137,9 +131,7 @@ void SysTick_Handler(void)
  */
 void DMA2_Stream4_IRQHandler(void)
 {
-    Motor_DmaInt(NULL, NULL);
-    DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_TCIF4);
-    DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_HTIF4);
+    Bsp_Dma2Stream4_Handler();
     
     return;
 }
