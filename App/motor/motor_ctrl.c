@@ -1,0 +1,183 @@
+/*
+ * @Description: 
+ * @Version: 1.0
+ * @Author: lkc
+ * @Date: 2023-08-29 22:34:25
+ * @LastEditors: lkc
+ * @LastEditTime: 2023-09-02 22:07:43
+ * @detail: 
+ */
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Includes ------------------------------------------------------------------*/
+#include "includes.h"
+/* Private define ------------------------------------------------------------*/
+#define VOLTAGE_BUSTAR                                                      (24.0f)  /* 母线电压 */
+float gfMechAngle = 0;              /* 机械角度 */
+float gfOpenloopTimstamp = 0;       /* 开环时间戳 */        
+float ualpha, ubeta;
+float ua, ub, uc;
+float ud, uq;
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 设置pwm
+ * @detail: 
+ * @param {float} ua
+ * @param {float} ub
+ * @param {float} uc
+ * @return {*}
+ * @author: lkc
+ */
+VOID Motor_Ctrl_Pwm(float ua, float ub, float uc)
+{
+    ua += 24;
+    ub += 24;
+    uc += 24;
+
+    /* 控制幅值，避免超过上限和下限 */
+    utils_truncate_number(&ua, 0.0f, 2 * VOLTAGE_BUSTAR);
+    utils_truncate_number(&ub, 0.0f, 2 * VOLTAGE_BUSTAR);
+    utils_truncate_number(&uc, 0.0f, 2 * VOLTAGE_BUSTAR);
+
+    /* 限制占空比0到1 */
+    float dutya = ua / (2 * VOLTAGE_BUSTAR);
+    float dutyb = ub / (2 * VOLTAGE_BUSTAR);
+    float dutyc = uc / (2 * VOLTAGE_BUSTAR);
+    utils_truncate_number(&dutya, 0.0f, 1);
+    utils_truncate_number(&dutyb, 0.0f, 1);
+    utils_truncate_number(&dutyc, 0.0f, 1);
+
+    //PRINTF("a%f b%f c %f\r\n", dutya, dutyb, dutyc);
+
+    /* 更新占空比 */
+    TIMER_UPDATE_DUTY_M1(HW_PWM1_TIM->ARR * dutya, HW_PWM1_TIM->ARR * dutyb, HW_PWM1_TIM->ARR * dutyc);
+    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    return;
+}
+
+/**
+ * @description: 
+ * @detail: 
+ * @param {float} uq
+ * @param {float} ud
+ * @param {float} angle
+ * @return {*}
+ * @author: lkc
+ */
+VOID Motor_Ctrl_SetVoltage(float uq, float ud, float angle)
+{
+    utils_norm_angle_rad(&angle);
+ 
+    /* 反park变换, */
+	inverse_park(ud, uq, angle, &ualpha, &ubeta);
+
+    /* clark逆变换 */
+    inverse_clarke(ualpha, ubeta, &ua, &ub, &uc);
+
+    Motor_Ctrl_Pwm(ua, ub, uc);
+    return;
+}
+
+VOID Motor_Ctrl_OpenLoop(float speed)
+{
+    ULONG ulCurTimStamp = xTaskGetTickCount();
+    static ULONG ulOpenLoopTimStampe = 0;
+    
+        /* 计算每个loop时间间隔 */
+    float Ts = (float)(ulCurTimStamp - ulOpenLoopTimStampe) * 1e-6f;
+
+    if (0 == ulOpenLoopTimStampe)
+    {
+        Ts = 0;
+    }
+
+    /* 转换角度 */
+	gfMechAngle += speed * Ts;
+    gfMechAngle = DEG2RAD_f(gfMechAngle);
+    PRINTF("%f %f %d %d\r\n", gfMechAngle, Ts, ulCurTimStamp, ulOpenLoopTimStampe);
+
+    float radian = gfMechAngle;
+
+    /* 转换弧度 */
+    utils_norm_angle_rad(&radian);
+
+    
+    /* 最高的电压 */
+    float uq = 12.0;
+
+    Motor_Ctrl_SetVoltage(uq, 0, utils_mech_to_electrical_angle(radian, 2));
+
+    ulOpenLoopTimStampe = ulCurTimStamp;
+    return;
+}
+
+VOID Motor_Ctrl_OpenLoop1(VOID)
+{
+    float radin = 0.0f;
+    ud = 0;
+    uq = 3.0;
+     float sector;
+    static ULONG ulUa, ulUb, ulUc;
+    static float m_openloop_angle = 0.0;
+    ULONG curTim = Bsp_Tim_DtNow();
+    static ULONG lastTim = 0;
+    float dt = 0.0f;
+    float phase = 0.0f;
+
+    //radin = DEG2RAD_f(gfMechAngle);
+
+    // * 开环实际需要的东西 时间差 开环角度
+	// motor_now->m_openloop_angle += dt * motor_now->m_openloop_speed;
+	// utils_norm_angle_rad((float*)&motor_now->m_openloop_angle);
+	// motor_now->m_motor_state.phase = motor_now->m_openloop_angle;
+
+    dt = Bsp_Tim_DtSecondElapsedSince(curTim);
+
+    if (0 == lastTim)
+    {
+        dt = 0;
+    }
+
+    m_openloop_angle += dt * 3000; // * 速度暂定3000
+	utils_norm_angle_rad((float*)&m_openloop_angle);
+	phase = m_openloop_angle;
+
+    //utils_mech_to_electrical_angle(phase, 2);
+
+#if 0
+    //setPhaseVoltage(3.0f, 0.0f, _electricalAngle(radin, 2));
+#endif
+
+     inverse_park(ud, uq, phase, &ualpha, &ubeta);
+
+     foc_svm(ualpha, ubeta, TIM1->ARR, &ulUa, &ulUb, &ulUc , &sector);
+    
+//     svm(ualpha, ualpha, &ua, &ub, &uc);
+    
+    //gfMechAngle ++;
+// //    // gfMechAngle = gfMechAngle % 360;
+	
+	// if (gfMechAngle - 360 > 0)
+    // {
+    //     gfMechAngle = 0;
+    // }
+    //vTaskDelay(20);
+    //PRINTF("a%d b%d c %d %f %f %f %d\r\n", ulUa, ulUb, ulUc, gfMechAngle, phase, m_openloop_angle, lastTim);
+
+    //Motor_Ctrl_Pwm(ua, ub, uc);
+    /* 更新占空比 */
+    TIMER_UPDATE_DUTY_M1(ulUa, ulUb, ulUc);
+    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+
+    lastTim = curTim;
+
+    return;
+}
+#ifdef __cplusplus
+}
+#endif

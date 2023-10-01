@@ -34,7 +34,7 @@
           <SLE66CMisc></SLE66CMisc>
           <SLE66AMisc></SLE66AMisc>
           <SLE66LinkerMisc></SLE66LinkerMisc>
-          <SFDFile>$$Device:STM32F405RGTx$CMSIS\SVD\STM32F40x.svd</SFDFile>
+          <SFDFile>$$Device:STM32F405RGTx$CMSIS\SVD\STM32F405.svd</SFDFile>
           <bCustSvd>0</bCustSvd>
           <UseEnv>0</UseEnv>
           <BinPath></BinPath>
@@ -112,12 +112,12 @@
         <DllOption>
           <SimDllName>SARMCM3.DLL</SimDllName>
           <SimDllArguments> -REMAP -MPU</SimDllArguments>
-          <SimDlgDll>DARMSTM.DLL</SimDlgDll>
-          <SimDlgDllArguments>-pSTM32F405RG</SimDlgDllArguments>
+          <SimDlgDll>DCM.DLL</SimDlgDll>
+          <SimDlgDllArguments>-pCM4</SimDlgDllArguments>
           <TargetDllName>SARMCM3.DLL</TargetDllName>
           <TargetDllArguments> -MPU</TargetDllArguments>
-          <TargetDlgDll>TARMSTM.DLL</TargetDlgDll>
-          <TargetDlgDllArguments>-pSTM32F405RG</TargetDlgDllArguments>
+          <TargetDlgDll>TCM.DLL</TargetDlgDll>
+          <TargetDlgDllArguments>-pCM4</TargetDlgDllArguments>
         </DllOption>
         <DebugOption>
           <OPTHX>
@@ -315,7 +315,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>1</Optim>
+            <Optim>0</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -341,7 +341,7 @@
               <MiscControls>--locale=english</MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F40_41xxx,__CC_ARM,__TARGET_FPU_VFP=1,__FPU_PRESENT=1,__FPU_USED=1,ARM_MATH_CM4</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include;..\..\Library\CMSIS\Include;..\User;..\..\Library\Bsp\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\Configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc</IncludePath>
+              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include;..\..\Library\CMSIS\Include;..\User;..\..\Library\Bsp\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\Configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc;..\..\Doc\matlab\foc_simulink0_ert_rtw;..\motor_simple_foc\inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -715,6 +715,11 @@
               <FileType>1</FileType>
               <FilePath>..\Motor\motor_math.c</FilePath>
             </File>
+            <File>
+              <FileName>motor_ctrl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_ctrl.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -744,6 +749,11 @@
               <FileName>cmd_detect.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Cmd\cmd_detect.c</FilePath>
+            </File>
+            <File>
+              <FileName>cmd_openloop.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_openloop.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -934,6 +944,36 @@
               <FileName>fal_flash_stm32f4.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\ThirtyLibrary\Fal\port\fal_flash_stm32f4.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Simulink</GroupName>
+          <Files>
+            <File>
+              <FileName>foc_simulink0.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Doc\matlab\foc_simulink0_ert_rtw\foc_simulink0.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor_Simple</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_simple_bldc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_simple_foc\motor_simple_bldc.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_simple_foc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_simple_foc\motor_simple_foc.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_simple_utils.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_simple_foc\motor_simple_utils.c</FilePath>
             </File>
           </Files>
         </Group>

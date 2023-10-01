@@ -36,6 +36,10 @@
 
 /* ymodem */
 #include "ymodem_includes.h"
+#include "foc_simulink0.h"
+
+#include "motor_math.h"
+
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/

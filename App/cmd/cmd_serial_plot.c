@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-15 19:50:14
+ * @LastEditTime: 2023-09-24 13:23:11
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -62,12 +62,17 @@ const osThreadAttr_t taskPlotAttr =
 VOID Serial_PlotCurentTask(VOID *argument)
 {
     PRINTF("\n");
+    float a = 1.1f;
+    float b = 3.3f;
+
     while (1)
     {
-        osDelay(1000);
         // 绘图
-        TEXT_PLOT(current, "%f, %f, %f, %f", motor.ia, motor.ib, motor.ic, motor.v_bus);
-        TEXT_PLOT(voltage, "%f, %f, %f", motor.va, motor.vb, motor.vc);
+        //TEXT_PLOT(current, "%f, %f, %f, %f", motor.ia, motor.ib, motor.ic, motor.v_bus);
+        //TEXT_PLOT(voltage, "%f, %f, %f", motor.va, motor.vb, motor.vc);
+
+//        TEXT_PLOT(voltage, "%f, %f, %f, %f, %f",rtU.theta, rtY.Valpha, rtY.Vbeta, rtU.Vd, rtU.Vq);
+        //printf("{%f,%f}\n",rtY.Valpha, rtY.Vbeta);
     }
 }
 
@@ -94,7 +99,7 @@ VOID Cmd_Serial_Plot(UCHAR cTaskStat, UCHAR cPlotStat)
                     break;
                 default:
                     break;
-                }
+            }
             break;
         case PLOT_DESTORY:
             PRINTF("电流 销毁 任务 ");

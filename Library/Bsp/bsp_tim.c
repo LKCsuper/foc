@@ -1,11 +1,18 @@
 /*
- * @Description: 定时器初始化
+ * @Description: 定时器初始化 
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-08-27 23:51:43
- * @detail: 逻辑分析仪 死区时间350ns左右 一个周期66.6us
+ * @LastEditTime: 2023-09-30 20:36:17
+ * @detail: 逻辑分析仪 死区时间350ns左右 一个周期66.6us 15khz
+ * 
+ * 
+ * 
+ * 	TIM_Period 重载值 TIM_Prescaler 预分频值
+ * 
+ * 
+ * 
  */
 #ifdef __cplusplus
 extern "C" {
@@ -61,12 +68,9 @@ STATIC VOID Bsp_Tim1_OC(VOID)
 
 	TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
 	/* 上桥臂和下桥臂导通,需要输出互补pwm */
-	/* 比较输出使能 */
-	TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
-	/* 互补输出使能 */
-	TIM_OCInitStructure.TIM_OutputNState = TIM_OutputNState_Enable;
-	/* 占空比 */
-	TIM_OCInitStructure.TIM_Pulse = HW_PWM1_TIM->ARR / 2;
+	TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;			/* 比较输出使能 */
+	TIM_OCInitStructure.TIM_OutputNState = TIM_OutputNState_Enable;			/* 互补输出使能 */
+	TIM_OCInitStructure.TIM_Pulse = HW_PWM1_TIM->ARR / 2;					/* 默认初始化输出的,占空比 */
 
 	/* 意味着上下桥臂有没有接反 */
 #ifndef INVERTED_TOP_DRIVER_INPUT
@@ -87,7 +91,8 @@ STATIC VOID Bsp_Tim1_OC(VOID)
 #endif
 	TIM_OCInitStructure.TIM_OCNIdleState = TIM_OCNIdleState_Set;
 
-	// TODO 这里为什么初始化的是四个通道
+	// TODO 这里为什么初始化的是四个通道,
+	// TODO 暂时看来定时器4可能是用来触发ADC采样
     TIM_OC1Init(HW_PWM1_TIM, &TIM_OCInitStructure);
 	TIM_OC2Init(HW_PWM1_TIM, &TIM_OCInitStructure);
 	TIM_OC3Init(HW_PWM1_TIM, &TIM_OCInitStructure);
@@ -275,7 +280,6 @@ VOID Bsp_Tim_StartPwm(BOOL is_second)
 		TIM_CCxCmd(HW_PWM1_TIM, 	 TIM_Channel_3, TIM_CCx_Enable);
 		TIM_CCxNCmd(HW_PWM1_TIM, 	 TIM_Channel_3, TIM_CCxN_Enable);
 
-		PRINTF("Start \n");
 #ifdef HW_HAS_DUAL_PARALLEL
 		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_OCMode_PWM1);
 		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
@@ -296,7 +300,7 @@ VOID Bsp_Tim_StartPwm(BOOL is_second)
 		/* 只有产生com事件才会生效,因为预先写入影子寄存器,需要触发写入
 			后续这里可能在dma中断生效9
 		 */
-		//TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+		TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 
 #ifdef HW_HAS_DRV8313
 		ENABLE_BR();
@@ -516,7 +520,7 @@ VOID Bsp_Tim2_Pwm(VOID)
  * @return {*}
  * @author: lkc
  */
-VOID Bsp_Tim_TrigAdc(VOID)
+VOID Bsp_Tim1_TrigAdc(VOID)
 {
 	/* pwm触发adc */
 	Bsp_Tim2_Pwm();
@@ -530,7 +534,7 @@ VOID Bsp_Tim_TrigAdc(VOID)
  * @Date: 2023-02-19 10:07:08
  * @return {*}
  */
-VOID Bsp_Tim_Trig(VOID)
+VOID Bsp_Tim1_Trig(VOID)
 {
     #if defined HW_HAS_DUAL_MOTORS || defined HW_HAS_DUAL_PARALLEL
         // See: https://www.cnblogs.com/shangdawei/p/4758988.html
@@ -606,6 +610,90 @@ VOID Bsp_Tim_RunCount(VOID)
 	return;
 }
 
+#define TIMER_DT_HZ					1.4e7
+VOID Bsp_Tim5_Dt(VOID)
+{
+	/* APB1 最大时钟84000000 */
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM5, ENABLE);
+
+	// 定时器频率Tclk/(psc+1)  定时器时钟 / (84000000 / 2) / 1.4e7
+	uint16_t PrescalerValue = (uint16_t) ((SYSTEM_CORE_CLOCK / 2) / TIMER_DT_HZ) - 1;
+
+	TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
+	TIM_TimeBaseStructure.TIM_Period = 0xFFFFFFFF;
+	// TODO 暂时微妙定时器
+	//TIM_TimeBaseStructure.TIM_Prescaler = PrescalerValue;
+	TIM_TimeBaseStructure.TIM_Prescaler = 84 - 1;
+	TIM_TimeBaseStructure.TIM_ClockDivision = 0;
+	TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+	TIM_TimeBaseInit(TIM5, &TIM_TimeBaseStructure);
+
+	TIM5->CNT = 0;
+	TIM_Cmd(TIM5, ENABLE);
+
+	return;
+}
+
+// 当前定时器count
+ULONG Bsp_Tim_DtNow(void) 
+{
+	return TIM5->CNT;
+}
+
+// 时间差值
+float Bsp_Tim_DtSecondElapsedSince(ULONG time) 
+{
+	uint32_t diff = TIM5->CNT - time;
+	return (float)diff / (float)TIMER_DT_HZ;
+}
+
+/**
+ * @description: 编码器定时器初始化
+ * @detail:  ab脉冲 
+ * @return {*}
+ * @author: lkc
+ */
+VOID Bsp_Tim4_EncInit(VOID)
+{
+	GPIO_InitTypeDef GPIO_InitStructure;
+	TIM_TimeBaseInitTypeDef TIM_TimBaseInitStructure;
+	TIM_ICInitTypeDef TIM_ICInitStructure;
+
+	/* 时钟初始化 */
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+
+	/* 引脚初始化 */
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_InitStructure.GPIO_Speed = GPIO_High_Speed;
+	GPIO_Init(GPIOB, &GPIO_InitStructure);
+
+	/* 复用引脚 */
+	GPIO_PinAFConfig(GPIOB, GPIO_Pin_6, GPIO_AF_TIM4);
+	GPIO_PinAFConfig(GPIOB, GPIO_Pin_7, GPIO_AF_TIM4);
+
+	/* 定时器初始化 */
+	TIM_TimBaseInitStructure.TIM_Period = 1024 * 4 - 1;
+	TIM_TimBaseInitStructure.TIM_Prescaler = 0;
+	TIM_TimBaseInitStructure.TIM_CounterMode = TIM_CounterMode_Up;
+	TIM_TimBaseInitStructure.TIM_ClockDivision = TIM_CKD_DIV1;
+	TIM_TimeBaseInit(TIM4, &TIM_TimBaseInitStructure);
+
+	/* 4倍频 */
+	TIM_EncoderInterfaceConfig(TIM4, TIM_EncoderMode_TI12, TIM_ICPolarity_Rising, TIM_ICPolarity_Rising); 
+
+	// TODO 滤波最后加
+	// TIM_ICInitStructure.TIM_Channel = TIM_Channel_1;
+	// TIM_ICInitStructure.TIM_ICPrescaler = TIM_ICPSC_DIV1;
+	// TIM_ICInitStructure.TIM_ICFilter =
+
+	TIM_Cmd(TIM4, ENABLE);
+
+	return;
+}
+
 /**
  * @description: 定时器初始化
  * @detail: 
@@ -615,10 +703,11 @@ VOID Bsp_Tim_RunCount(VOID)
 VOID Bsp_Tim_Init(VOID)
 {
 	/* 多少hz 30000 30hz  */
-    Bsp_Tim_Pwm1(MCCONF_FOC_F_ZV);
-    Bsp_Tim_TrigAdc();
-	Bsp_Tim_Trig();
-	Bsp_Tim_RunCount();
+    Bsp_Tim_Pwm1(30000);
+    Bsp_Tim1_TrigAdc();
+	Bsp_Tim1_Trig();
+	Bsp_Tim5_Dt();
+	//Bsp_Tim_RunCount();
 	// todo 这里其实还有定时器3中断,只不过是写在freertos里边了
 	
 	return;

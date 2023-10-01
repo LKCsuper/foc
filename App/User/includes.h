@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-17 22:55:09
- * @LastEditTime: 2023-03-26 22:01:34
+ * @LastEditTime: 2023-09-27 19:25:17
  * @FilePath: \my_foc\App\User\includes.h
  */
 #ifndef _INCLUDES_H
@@ -74,17 +74,26 @@ extern "C" {
 /* it */
 #include "stm32f4xx_it.h"
 
+/* foc */
+#include "foc_simulink0.h"
+
+/* simple foc */
+#include "motor_simple_utils.h"
+
 /* motor */
 #include "motor_common.h"
 #include "datatypes.h"
 #include "motor_param.h"
 #include "motor_math.h"
-#include "motor_task.h"
 #include "motor_foc.h"
+#include "motor_task.h"
 #include "motor_it.h"
 #include "motor_pid.h"
 #include "motor_tim.h"
+#include "motor_ctrl.h"
 #include "motor_detect.h"
+
+#include "motor_simple_includes.h"
 
 /* letter shell */
 #include "shell.h"

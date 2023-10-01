@@ -87,8 +87,8 @@ typedef enum{
 /* Private functions ---------------------------------------------------------*/
 VOID Bsp_Tim_StartPwm(BOOL is_second);
 VOID Bsp_Tim_StopPwm(BOOL is_second);
-VOID Bsp_Tim_Trig(VOID);
-VOID Bsp_Tim_TrigAdc(VOID);
+VOID Bsp_Tim1_Trig(VOID);
+VOID Bsp_Tim1_TrigAdc(VOID);
 VOID Bsp_Tim_Pwm1(ULONG f_zv);
 VOID Bsp_Tim_Pwm2(ULONG f_zv);
 VOID Bsp_Tim_Init(VOID);
@@ -115,7 +115,8 @@ VOID Bsp_Tim1_BDTR(VOID);
 三高级功能
 */
 
-
+ULONG Bsp_Tim_DtNow(void);
+float Bsp_Tim_DtSecondElapsedSince(ULONG time);
 #ifdef __cplusplus
 }
 #endif

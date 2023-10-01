@@ -375,10 +375,10 @@
 
 // Adc voltage scaling on phases and input
 #ifndef ADC_VOLTS_PH_FACTOR
-#define ADC_VOLTS_PH_FACTOR		1.0
+#define ADC_VOLTS_PH_FACTOR		1.0f
 #endif
 #ifndef ADC_VOLTS_INPUT_FACTOR
-#define ADC_VOLTS_INPUT_FACTOR	1.0
+#define ADC_VOLTS_INPUT_FACTOR	1.0f
 #endif
 
 // NRF SW SPI (default to spi header pins)
@@ -443,18 +443,18 @@
 #endif
 
 #ifndef HW_LIM_CURRENT
-#define HW_LIM_CURRENT			-100.0, 100.0
+#define HW_LIM_CURRENT			-100.0f, 100.0f
 #endif
 #ifndef HW_LIM_CURRENT_ABS
-#define HW_LIM_CURRENT_ABS		0.0, 140.0
+#define HW_LIM_CURRENT_ABS		0.0f, 140.0f
 #endif
 
 #ifndef HW_LIM_FOC_CTRL_LOOP_FREQ
-#define HW_LIM_FOC_CTRL_LOOP_FREQ	3000.0, 30000.0
+#define HW_LIM_FOC_CTRL_LOOP_FREQ	3000.0f, 30000.0f
 #endif
 
 #ifndef HW_FOC_CURRENT_FILTER_LIM
-#define HW_FOC_CURRENT_FILTER_LIM	0.05, 1.0
+#define HW_FOC_CURRENT_FILTER_LIM	0.05f, 1.0f
 #endif
 
 #ifndef COMM_USE_USB
@@ -466,8 +466,8 @@
 #define PTC_TEMP_MOTOR(res, con, tbase)			(((NTC_RES_MOTOR(ADC_Value[ADC_IND_TEMP_MOTOR]) - (res)) / (res)) * 100 / (con) + (tbase))
 #define PTC_TEMP_MOTOR_2(res, con, tbase)		(((NTC_RES_MOTOR(ADC_Value[ADC_IND_TEMP_MOTOR_2]) - (res)) / (res)) * 100 / (con) + (tbase))
 #else
-#define PTC_TEMP_MOTOR(res, con, tbase)			0.0
-#define PTC_TEMP_MOTOR_2(res, con, tbase)		0.0
+#define PTC_TEMP_MOTOR(res, con, tbase)			0.0f
+#define PTC_TEMP_MOTOR_2(res, con, tbase)		0.0f
 #endif
 #endif
 
@@ -476,8 +476,8 @@
 #define NTC100K_TEMP_MOTOR(beta)				(1.0 / ((logf(NTC_RES_MOTOR(ADC_Value[ADC_IND_TEMP_MOTOR]) / 100000.0) / beta) + (1.0 / 298.15)) - 273.15)
 #define NTC100K_TEMP_MOTOR_2(beta)				(1.0 / ((logf(NTC_RES_MOTOR(ADC_Value[ADC_IND_TEMP_MOTOR_2]) / 100000.0) / beta) + (1.0 / 298.15)) - 273.15)
 #else
-#define NTC100K_TEMP_MOTOR(beta)				0.0
-#define NTC100K_TEMP_MOTOR_2(beta)				0.0
+#define NTC100K_TEMP_MOTOR(beta)				0.0f
+#define NTC100K_TEMP_MOTOR_2(beta)				0.0f
 #endif
 #endif
 
@@ -486,8 +486,8 @@
 #define NTCX_TEMP_MOTOR(res, beta, tbase)		(1.0 / ((logf(NTC_RES_MOTOR(ADC_Value[ADC_IND_TEMP_MOTOR]) / (res)) / (beta)) + (1.0 / (273.15 + (tbase)))) - 273.15)
 #define NTCX_TEMP_MOTOR_2(res, beta, tbase)		(1.0 / ((logf(NTC_RES_MOTOR(ADC_Value[ADC_IND_TEMP_MOTOR_2]) / (res)) / (beta)) + (1.0 / (273.15 + (tbase)))) - 273.15)
 #else
-#define NTCX_TEMP_MOTOR(res, beta, tbase)		0.0
-#define NTCX_TEMP_MOTOR_2(res, beta, tbase)		0.0
+#define NTCX_TEMP_MOTOR(res, beta, tbase)		0.0f
+#define NTCX_TEMP_MOTOR_2(res, beta, tbase)		0.0f
 #endif
 #endif
 

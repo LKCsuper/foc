@@ -166,7 +166,7 @@ static inline void utils_norm_angle(float *angle) {
 	}
 }
 
-/**
+/** 限制角度 在0到2Π
  * Make sure that -pi <= angle < pi,
  *
  * @param angle
@@ -179,7 +179,20 @@ static inline void utils_norm_angle_rad(float *angle) {
 }
 
 /**
- * @description: 使变量位于 min 和 max之间
+ * @description: 
+ * @detail: 
+ * @param {float} mechAngle 机械角度
+ * @param {int} polePair 极对数
+ * @return {*}
+ * @author: lkc
+ */
+static inline float utils_mech_to_electrical_angle(float mechAngle, int polePair)
+{
+	return mechAngle * polePair;
+}
+
+/**
+ * @description: 使变量位于 min 和 max之间，处于正常值，一般用于电压幅值
  * @detail: 
  * @param {float} *number
  * @param {float} min

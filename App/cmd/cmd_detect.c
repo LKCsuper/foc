@@ -41,13 +41,15 @@ VOID Cmd_Detect(ULONG ulDetectType)
     switch (ulDetectType)
     {
         case DETECT_OFFSET:
-            osDelay(100);
+        {
             PRINTF("Detect Offset\n");
             DETECT_Offset(FALSE);
             break;
+        }
         default:
             break;
     }
+
     PRINTF("Detect End\n");
     PRINTF("==================================================\n");
 

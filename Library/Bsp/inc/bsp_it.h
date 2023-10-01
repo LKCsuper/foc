@@ -1,4 +1,13 @@
-﻿#ifndef _BSP_IT_H
+﻿/*
+ * @Description: 
+ * @Version: 1.0
+ * @Author: lkc
+ * @Date: 2023-08-28 19:45:06
+ * @LastEditors: lkc
+ * @LastEditTime: 2023-08-29 23:51:56
+ * @detail: 
+ */
+#ifndef _BSP_IT_H
 #define _BSp_IT_H
 #ifdef __cplusplus
 extern "C" {
@@ -14,6 +23,7 @@ VOID Bsp_Dma2Stream4_Handler(VOID);
 VOID Bsp_Usart_Handler(VOID);
 VOID Bsp_Tim3_IRQ(VOID);
 VOID Bsp_Tim2_IRQ(VOID);
+VOID Bsp_SysTick_Handler(VOID);
 #ifdef __cplusplus
 }
 #endif

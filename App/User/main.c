@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-08-27 23:48:21
+ * @LastEditTime: 2023-09-30 22:07:20
  */
 #ifdef __cplusplus
 extern "C" {
@@ -28,6 +28,7 @@ const osThreadAttr_t taskInitAttr =
     .stack_mem = &taskInitStack,
     .stack_size = sizeof(taskInitStack),
 };
+float target;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -40,10 +41,10 @@ const osThreadAttr_t taskInitAttr =
 void Task_Init(void *argument)
 {
     Bsp_Init();
-    PRINTF("Init Task\r\n");
+    PRINTF("Init Task %d\r\n", TIM1->ARR);
 
     Command_Init();
-
+    //Bsp_Tim_StartPwm(MOTOR1);
     while (1)
     {
         osDelay(1000);
@@ -61,6 +62,9 @@ LONG main(VOID)
     Bsp_RTOS_Init();
     /* 内核初始化 */
 	osKernelInitialize();
+
+    Motor_Simple_BldcInit();
+
     /* 创建新任务 */
     osThreadNew(Task_Init, NULL, &taskInitAttr);
 
@@ -70,7 +74,16 @@ LONG main(VOID)
         /* PRINTF("Task Start err.\r\n"); */
     }
 
-    while(1){}
+#if 0
+    Bsp_Init();
+    Motor_Simple_BldcInit();
+    //Bsp_Tim_StartPwm(MOTOR1);
+    target = 0.05;
+    while(1)
+    {
+        move(target);
+    }
+#endif
 }
 
 #ifdef __cplusplus

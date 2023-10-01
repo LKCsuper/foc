@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-26 20:54:42
+ * @LastEditTime: 2023-09-02 21:19:01
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -15,7 +15,6 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-
 /**
  * @description: clarke 变换
  * @detail: 
@@ -27,13 +26,26 @@ extern "C" {
  * @return {*}
  * @author: lkc
  */
-inline void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
+void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
 {
 #if 1
 	*Ialpha = Ia;
 	*Ibeta  = (Ib - Ic) * ONE_BY_SQRT3;
 #endif
 
+	return;
+}
+
+void inverse_clarke(float Ialpha, float Ibeta, float *Ia, float *Ib, float *Ic)
+{
+    // *Ia =  Ialpha + 24.0f / 2;
+    // *Ib =  Ibeta * SQRT3_BY_2 - Ialpha / 2 + 24.0 / 2;
+    // *Ic =  - Ialpha / 2 - Ibeta * SQRT3_BY_2 + 24.0 / 2;
+
+    *Ia =  Ialpha;
+    *Ib =  Ibeta * SQRT3_BY_2 - Ialpha / 2;
+    *Ic =  - Ialpha / 2 - Ibeta * SQRT3_BY_2;
+	
 	return;
 }
 
@@ -48,7 +60,7 @@ inline void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float 
  * @return {*}
  * @author: lkc
  */
-inline void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq)
+void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq)
 {
 	float s = sin_f32(Theta);
 	float c = cos_f32(Theta);
@@ -69,12 +81,14 @@ inline void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, fl
  * @return {*}
  * @author: lkc
  */
-inline void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float *mod_beta)
+void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float *mod_beta)
 {
 	float s = sin_f32(Theta);
 	float c = cos_f32(Theta);
 	*mod_alpha = mod_d * c - mod_q * s;
 	*mod_beta  = mod_d * s + mod_q * c;
+	
+	return;
 }
 
 /**
@@ -88,7 +102,7 @@ inline void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha
  * @return {*}
  * @author: lkc
  */
-inline int svm(float alpha, float beta, float* tA, float* tB, float* tC)
+int svm(float alpha, float beta, float* tA, float* tB, float* tC)
 {
 	int Sextant;
 

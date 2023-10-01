@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-25 20:23:07
+ * @LastEditTime: 2023-08-30 10:36:23
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -48,7 +48,6 @@ STATIC const osThreadAttr_t taskDutyAttr =
 };
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-
 /**
  * @description: 串口绘画任务初始化
  * @detail: 

@@ -66,7 +66,7 @@ dis_mode1, fwd_clor1, bak_clor1, dev_name,...) {\
 #define PRINTF_WHITE(fmt, ...)      DEVICE_LOG(BOLD, WHITE,  BLACK_BACKGROUND,fmt,##__VA_ARGS__)
 
 /* 普通打印 */
-#define PRINTF(fmt, ...)    PRINTF_WHITE(fmt, ##__VA_ARGS__)
+#define PRINTF(fmt, ...)    printf(fmt, ##__VA_ARGS__)
 /* 通知 */
 #define INFO(fmt, ...)      PRINTF_BLUE("INFO:"fmt, ##__VA_ARGS__)
 /* 警告 */
@@ -74,7 +74,7 @@ dis_mode1, fwd_clor1, bak_clor1, dev_name,...) {\
 /* 错误 */
 #define ERROR(fmt, ...)     PRINTF_RED("ERROR:[%s %s line%d]"fmt, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 /* 打印日期 */
-#define PRINTF_Date()       PRINTF_WHITE("Firmware compile time:%s %s\n", __DATE__, __TIME__)
+#define PRINTF_Date()       printf("Firmware compile time:%s %s\n", __DATE__, __TIME__)
 
 #endif
 

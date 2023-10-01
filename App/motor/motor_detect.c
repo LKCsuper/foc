@@ -1,7 +1,7 @@
 /*
  * @Description: 检测参数
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-25 23:32:22
+ * @LastEditTime: 2023-09-08 11:16:56
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -117,12 +117,12 @@ ULONG DETECT_Offset(BOOL cal_undriven)
 	motor.voltOffset[1] = voltage_sum[1] - v_avg;
 	motor.voltOffset[2] = voltage_sum[2] - v_avg;
 
-	// TODO 为什么这里加打印,命令行调用和卡死串口
-	// TODO 但是如果是在外设初始化完成后,这里有打印没问题
-/*
+	// 为什么这里加打印,命令行调用和卡死串口
+	// 但是如果是在外设初始化完成后,这里有打印没问题
+	// !已解决，因为打印浮点数，这个任务栈不够用了
 	PRINTF("Current Offset [%f] [%f] [%f] \n", motor.currentOffset[0], motor.currentOffset[1], motor.currentOffset[2]);
 	PRINTF("Volt Offset [%f] [%f] [%f] \n", motor.voltOffset[0], motor.voltOffset[1], motor.voltOffset[2]);
-*/
+
 #if 0
 	// Measure undriven offsets
 	// 有无负载
@@ -154,6 +154,104 @@ ULONG DETECT_Offset(BOOL cal_undriven)
 #endif
 	return 1;
 }
+
+#if 0
+/* 检测电阻，原理其实就是电压除以电流 */
+ULONG DETECT_resistance(float current, int samples, bool stop_after, float *resistance) {
+	mc_interface_lock();
+
+	volatile motor_all_state_t *motor = get_motor_now();
+	int fault = FAULT_CODE_NONE;
+
+	motor->m_phase_override = true;
+	motor->m_phase_now_override = 0.0;
+	motor->m_id_set = 0.0;
+	motor->m_control_mode = CONTROL_MODE_CURRENT;
+	motor->m_motor_released = false;
+	motor->m_state = MC_STATE_RUNNING;
+
+	// Disable timeout
+	// systime_t tout = timeout_get_timeout_msec();
+	// float tout_c = timeout_get_brake_current();
+	// KILL_SW_MODE tout_ksw = timeout_get_kill_sw_mode();
+	// timeout_reset();
+	// timeout_configure(60000, 0.0, KILL_SW_MODE_DISABLED);
+
+	// Ramp up the current slowly 慢慢升高电压
+	while (fabsf(motor->m_iq_set - current) > 0.001) {
+		utils_step_towards((float*)&motor->m_iq_set, current, fabsf(current) / 200.0);
+		// fault = mc_interface_get_fault();
+		// if (fault != FAULT_CODE_NONE) {
+		// 	motor->m_id_set = 0.0;
+		// 	motor->m_iq_set = 0.0;
+		// 	motor->m_phase_override = false;
+		// 	motor->m_control_mode = CONTROL_MODE_NONE;
+		// 	motor->m_state = MC_STATE_OFF;
+		// 	stop_pwm_hw((motor_all_state_t*)motor);
+
+		// 	timeout_configure(tout, tout_c, tout_ksw);
+		// 	mc_interface_unlock();
+
+		// 	return fault;
+		// }
+		chThdSleepMilliseconds(1);
+	}
+
+	// Wait for the current to rise and the motor to lock.
+	chThdSleepMilliseconds(50);
+
+	// Sample
+	motor->m_samples.avg_current_tot = 0.0;
+	motor->m_samples.avg_voltage_tot = 0.0;
+	motor->m_samples.sample_num = 0;
+
+	int cnt = 0;
+	while (motor->m_samples.sample_num < samples) {
+		chThdSleepMilliseconds(1);
+		cnt++;
+		// Timeout
+		if (cnt > 10000) {
+			break;
+		}
+		fault = mc_interface_get_fault();
+		if (fault != FAULT_CODE_NONE) {
+			motor->m_id_set = 0.0;
+			motor->m_iq_set = 0.0;
+			motor->m_phase_override = false;
+			motor->m_control_mode = CONTROL_MODE_NONE;
+			motor->m_state = MC_STATE_OFF;
+			stop_pwm_hw((motor_all_state_t*)motor);
+
+			timeout_configure(tout, tout_c, tout_ksw);
+			mc_interface_unlock();
+
+			return fault;
+		}
+	}
+
+	const float current_avg = motor->m_samples.avg_current_tot / (float)motor->m_samples.sample_num;
+	const float voltage_avg = motor->m_samples.avg_voltage_tot / (float)motor->m_samples.sample_num;
+
+	// Stop
+	if (stop_after) {
+		motor->m_id_set = 0.0;
+		motor->m_iq_set = 0.0;
+		motor->m_phase_override = false;
+		motor->m_control_mode = CONTROL_MODE_NONE;
+		motor->m_state = MC_STATE_OFF;
+		stop_pwm_hw((motor_all_state_t*)motor);
+	}
+
+	// Enable timeout
+	timeout_configure(tout, tout_c, tout_ksw);
+	mc_interface_unlock();
+
+	// 平均电流 / 平均电压
+	*resistance = voltage_avg / current_avg;
+
+	return fault;
+}
+#endif
 #ifdef __cplusplus
 }
 #endif

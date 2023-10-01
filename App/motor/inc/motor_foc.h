@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-26 20:05:11
+ * @LastEditTime: 2023-08-29 23:45:42
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_FOC_H
@@ -41,10 +41,11 @@ extern "C" {
  */
 //#define UTILS_LP_MOVING_AVG_APPROX(value, sample, N)    UTILS_LP_FAST(value, sample, 2.0f / ((N) + 1.0f))
 
-extern inline void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta);
-extern inline void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq);
-extern inline void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float *mod_beta);
-extern inline int svm(float alpha, float beta, float* tA, float* tB, float* tC);
+void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta);
+void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq);
+void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float *mod_beta);
+void inverse_clarke(float Ialpha, float Ibeta, float *Ia, float *Ib, float *Ic);
+int svm(float alpha, float beta, float* tA, float* tB, float* tC);
 void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 				uint32_t* tAout, uint32_t* tBout, uint32_t* tCout, uint32_t *svm_sector);
 
