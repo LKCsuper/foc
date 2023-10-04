@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-17 22:55:09
- * @LastEditTime: 2023-09-27 19:25:17
+ * @LastEditTime: 2023-10-03 16:39:46
  * @FilePath: \my_foc\App\User\includes.h
  */
 #ifndef _INCLUDES_H
@@ -46,6 +46,10 @@ extern "C" {
 /* commn */
 #include "printf_color.h"
 #include "common.h"
+
+/* jlink */
+#include "SEGGER_RTT.h"
+#include "SEGGER_RTT_DEBUG.h"
 
 /* fal */
 #include <fal.h>
@@ -92,6 +96,7 @@ extern "C" {
 #include "motor_tim.h"
 #include "motor_ctrl.h"
 #include "motor_detect.h"
+#include "motor.h"
 
 #include "motor_simple_includes.h"
 

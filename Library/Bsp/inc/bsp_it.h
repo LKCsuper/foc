@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2023-08-28 19:45:06
  * @LastEditors: lkc
- * @LastEditTime: 2023-08-29 23:51:56
+ * @LastEditTime: 2023-10-03 09:20:14
  * @detail: 
  */
 #ifndef _BSP_IT_H
@@ -24,6 +24,7 @@ VOID Bsp_Usart_Handler(VOID);
 VOID Bsp_Tim3_IRQ(VOID);
 VOID Bsp_Tim2_IRQ(VOID);
 VOID Bsp_SysTick_Handler(VOID);
+VOID Bsp_It_Init(VOID);
 #ifdef __cplusplus
 }
 #endif

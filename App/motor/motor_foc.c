@@ -28,9 +28,12 @@ extern "C" {
  */
 void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
 {
-#if 1
+#if 0
 	*Ialpha = Ia;
 	*Ibeta  = (Ib - Ic) * ONE_BY_SQRT3;
+#else // vesc
+	*Ialpha = Ia;
+	*Ibeta = ONE_BY_SQRT3 * Ia + TWO_BY_SQRT3 * Ib;
 #endif
 
 	return;

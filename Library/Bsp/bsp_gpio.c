@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-03-26 20:50:30
+ * @LastEditTime: 2023-10-03 09:14:14
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -161,6 +161,10 @@ void Bsp_Gpio_Init(void)
 	Bsp_Tim1_Gpio();
 
 	// /* 编码器 霍尔 输入 */
+	/* 初始化霍尔 */
+	Bsp_Gpio_Mode(HW_HALL_A_PORT, HW_HALL_A_PIN, GPIO_Mode_IN);
+	Bsp_Gpio_Mode(HW_HALL_B_PORT, HW_HALL_B_PIN, GPIO_Mode_IN);
+	Bsp_Gpio_Mode(HW_HALL_C_PORT, HW_HALL_C_PIN, GPIO_Mode_IN);
 
 	// /* phase filters */
 	// Bsp_Gpio_Mode(PHASE_FILTER_PORT, PHASE_FILTER_PIN, GPIO_Mode_OUT);

@@ -1,7 +1,7 @@
 /*
  * @Description: 检测参数
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-09-08 11:16:56
+ * @LastEditTime: 2023-10-03 19:47:45
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -120,10 +120,10 @@ ULONG DETECT_Offset(BOOL cal_undriven)
 	// 为什么这里加打印,命令行调用和卡死串口
 	// 但是如果是在外设初始化完成后,这里有打印没问题
 	// !已解决，因为打印浮点数，这个任务栈不够用了
-	PRINTF("Current Offset [%f] [%f] [%f] \n", motor.currentOffset[0], motor.currentOffset[1], motor.currentOffset[2]);
-	PRINTF("Volt Offset [%f] [%f] [%f] \n", motor.voltOffset[0], motor.voltOffset[1], motor.voltOffset[2]);
+	// PRINTF("Current Offset [%f] [%f] [%f] \n", motor.currentOffset[0], motor.currentOffset[1], motor.currentOffset[2]);
+	// PRINTF("Volt Offset [%f] [%f] [%f] \n", motor.voltOffset[0], motor.voltOffset[1], motor.voltOffset[2]);
 
-#if 0
+#if 1
 	// Measure undriven offsets
 	// 有无负载
 	if (cal_undriven) {
@@ -252,6 +252,18 @@ ULONG DETECT_resistance(float current, int samples, bool stop_after, float *resi
 	return fault;
 }
 #endif
+
+/**
+ * @description: 检测初始化
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+VOID Detect_Init(VOID)
+{
+	DETECT_Offset(TRUE);
+	return;
+}
 #ifdef __cplusplus
 }
 #endif

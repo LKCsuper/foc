@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-09-30 22:07:20
+ * @LastEditTime: 2023-10-03 22:27:30
  */
 #ifdef __cplusplus
 extern "C" {
@@ -16,7 +16,7 @@ extern "C" {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* 任务栈 */
-static StackType_t taskInitStack[128];
+static StackType_t taskInitStack[1024];
 static StaticTask_t taskInitTcb; //CreateAppTask任务控制块 
 const osThreadAttr_t taskInitAttr = 
 {
@@ -41,12 +41,16 @@ float target;
 void Task_Init(void *argument)
 {
     Bsp_Init();
+    //Detect_Init();
     PRINTF("Init Task %d\r\n", TIM1->ARR);
-
+    RTT_Debug_Init();
     Command_Init();
-    //Bsp_Tim_StartPwm(MOTOR1);
+    MOTOR_ShowParam();
+    Bsp_Tim_StartPwm(MOTOR1);
     while (1)
     {
+        //SEGGER_RTT_printf(0,"Test\r\n");
+        //PRINTF("TEST %f %f %f %f\r\n", motor.ia, motor.ib, motor.ic, rtU.Udc);
         osDelay(1000);
     }
 }
@@ -61,7 +65,7 @@ LONG main(VOID)
     /* 任务bsp初始化 */
     Bsp_RTOS_Init();
     /* 内核初始化 */
-	osKernelInitialize();
+    osKernelInitialize();
 
     Motor_Simple_BldcInit();
 

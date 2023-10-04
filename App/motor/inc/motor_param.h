@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-26 20:13:20
+ * @LastEditTime: 2023-10-03 22:15:01
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_PARAM_H
@@ -198,21 +198,33 @@ typedef struct motor_param
 	float currentAdc[3];
 	float voltAdc[3];
 
-	float ia;
-	float ib;
-	float ic;
+	float ia;						/* 检测到的电流a */
+	float ib;						/* 检测到的电流b */
+	float ic;						/* 检测到的电流c */
 
-	float va;
-	float vb;
-	float vc;
+	float va;						/* 检测到的电压a */
+	float vb;                       /* 检测到的电压b */
+	float vc;                       /* 检测到的电压c */
 
-	float v_bus;
+	float v_bus;					/* 总线电压 */
 
 	float Ialpha;
 	float Ibeta;
 
+	float Theta;					/* 角度 */
+
+	float Id;						/* park 变换 */
+	float Iq;						/* park 变换 */
+
 	float modD;
 	float modQ;
+
+	float modAlpha;
+	float modBeta;
+
+	ULONG duty1;
+	ULONG duty2;
+	ULONG duty3;
 
 	/* conf */
 	float currentOffset[3];			/* 电流偏移 */

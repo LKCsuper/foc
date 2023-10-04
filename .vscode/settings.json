@@ -3,6 +3,7 @@
         "foc_simulink0.h": "c",
         "includes.h": "c",
         "shell_port.h": "c",
-        "shell.h": "c"
+        "shell.h": "c",
+        "SEGGER_RTT_DEBUG.C": "cpp"
     }
 }

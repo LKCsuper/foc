@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2023-08-27 10:31:55
  * @LastEditors: lkc
- * @LastEditTime: 2023-08-27 10:51:12
+ * @LastEditTime: 2023-10-03 09:18:52
  * @detail: 
  */
 #ifdef __cplusplus
@@ -118,6 +118,28 @@ VOID Bsp_Tim2_IRQ(VOID)
 		ulFreeRTOSRunTimeTicks++;
 	}
 	TIM_ClearITPendingBit(HW_TRIG_TIM, TIM_IT_CC2);
+	return;
+}
+
+/**
+ * @description: 中断初始化
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+VOID Bsp_It_Init(VOID)
+{
+	// NVIC_InitTypeDef NVIC_InitStre;
+	// NVIC_InitStre.NVIC_IRQChannel = TIM3_IRQn;
+    // NVIC_InitStre.NVIC_IRQChannelPreemptionPriority = IRQ_TIM3;
+    // NVIC_InitStre.NVIC_IRQChannelSubPriority = 0x0;
+    // NVIC_InitStre.NVIC_IRQChannelCmd = ENABLE;
+    // NVIC_Init(&NVIC_InitStre);
+
+	// TIM_ITConfig(HW_COUNT_TIM, TIM_IT_Update, ENABLE);
+	// TIM_ClearITPendingBit(HW_COUNT_TIM, TIM_IT_Update);
+
+	
 	return;
 }
 #ifdef __cplusplus

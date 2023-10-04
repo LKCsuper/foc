@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-09-06 22:32:44
+ * @LastEditTime: 2023-10-03 19:53:56
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -14,7 +14,7 @@ extern "C" {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* 任务栈 */
-static StackType_t  taskCmdStack[512];
+static StackType_t  taskCmdStack[1024];
 static StaticTask_t taskCmdTcb; //CreateAppTask任务控制块 
 const osThreadAttr_t taskCmdAttr = 
 {

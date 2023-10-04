@@ -4,11 +4,11 @@
  * @Author: lkc
  * @Date: 2023-09-30 17:09:35
  * @LastEditors: lkc
- * @LastEditTime: 2023-09-30 18:01:43
+ * @LastEditTime: 2023-10-03 19:34:55
  * @detail: 
  */
-#ifndef __MOTOR_SIMLPE_FOC_H__
-#define __MOTOR_SIMLPE_FOC_H__
+#ifndef __MOTOR_SIMLPE_BLDC_H__
+#define __MOTOR_SIMLPE_BLDC_H__
 #ifdef __cplusplus
 extern "C" {
 #endif
