@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-10-03 22:15:01
+ * @LastEditTime: 2023-10-04 21:09:13
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_PARAM_H
@@ -236,11 +236,16 @@ typedef struct motor_param
 /* Private variables ---------------------------------------------------------*/
 extern motor_all_state_t motor1;
 extern motor_all_state_t motor2;
-
 extern MOTOR_PARAM_S motor;
+extern mc_configuration motorCfg;
+
+extern motor_all_state_t *gpstMotor1;
+extern motor_all_state_t *gpstMotor2;
+extern MOTOR_PARAM_S *gpstMotor;
+extern mc_configuration *gpstMotorCfg;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-
+VOID MOTOR_Param_Init(VOID);
 #ifdef __cplusplus
 }
 #endif

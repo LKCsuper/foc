@@ -1,7 +1,7 @@
 /*
  * @Description: 检测参数
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-03 19:47:45
+ * @LastEditTime: 2023-10-04 10:27:47
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -256,6 +256,7 @@ ULONG DETECT_resistance(float current, int samples, bool stop_after, float *resi
 /**
  * @description: 检测初始化
  * @detail: 
+ * 注意如果先检测,adc检测中断中处理foc的函数一定要关闭
  * @return {*}
  * @author: lkc
  */

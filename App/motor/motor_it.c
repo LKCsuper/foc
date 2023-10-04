@@ -1,8 +1,17 @@
 /*
  * @Description: foc中断,一个周期15k左右,66us
- * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-03 22:28:16
- * @FilePath: \foc\App\motor\utils.c
+ * @Version: 1.0
+ * @Author: lkc
+ * @Date: 2023-10-01 10:28:50
+ * @LastEditors: lkc
+ * @LastEditTime: 2023-10-04 21:41:17
+ * @detail: 
+ * 
+ * 开环注意：TIM1->ARR 为5600  modQ 为模拟vq
+ * (1) modq 过大，就会使劲转一下，然后重启，所以此时应该增大角度，或者减小modq
+ * (2) 角度过大，电机就会抖，可以增大modq或者减小角度
+ * 
+ * 
  */
 #ifdef __cplusplus
 extern "C" {
@@ -68,10 +77,19 @@ VOID Motor_It_ParamCal(VOID)
 // TODO 停止pwm, 检测电流差异大约-0.3 到 0.3
 void Motor_DmaInt(void *p, uint32_t flags)
 {
+    /* 目前电机频率是30khz，所以每两次运行一次双电机，所以15khz */
+    static int skip = 0;
+	if (++skip == FOC_CONTROL_LOOP_FREQ_DIVIDER) {
+		skip = 0;
+	} else {
+		return;
+	}
+
     /* 创建电机结构体 */
     MOTOR_PARAM_S *stMotorNow = &motor; 
-
+    /* 获取电流 电压参数 */
     Motor_It_ParamCal();
+
 
     float Ialpha = 0.0f;
     float Ibeta = 0.0f;
@@ -100,7 +118,8 @@ void Motor_DmaInt(void *p, uint32_t flags)
 #endif
 
 #if 1
-		float modQ = 0.3;
+	//float modQ = 0.3;
+    float modQ = 0.3;
     Theta += 0.007;
 #endif
     //theta += 0.0001;
@@ -118,7 +137,6 @@ void Motor_DmaInt(void *p, uint32_t flags)
     rtU.Ia = ia;
     rtU.Ib = ib;
     rtU.Ic = ic;
-
 
     /* clarke 变换 */
     clarke_transform(ia, ib, ic, &Ialpha, &Ibeta);
@@ -142,7 +160,6 @@ void Motor_DmaInt(void *p, uint32_t flags)
     inverse_park(modD, modQ, Theta, &modAlpha, &modBeta);
     stMotorNow->modAlpha = modAlpha;
     stMotorNow->modBeta = modBeta;
-
 
     ULONG duty1;
     ULONG duty2;
