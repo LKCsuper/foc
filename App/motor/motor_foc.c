@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-09-02 21:19:01
+ * @LastEditTime: 2023-10-06 11:20:07
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -88,8 +88,8 @@ void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float
 {
 	float s = sin_f32(Theta);
 	float c = cos_f32(Theta);
-	*mod_alpha = mod_d * c - mod_q * s;
-	*mod_beta  = mod_d * s + mod_q * c;
+	*mod_alpha = -(mod_d * c - mod_q * s);
+	*mod_beta  = -(mod_d * s + mod_q * c);
 	
 	return;
 }
@@ -370,6 +370,165 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 }
 
 /**
+ * @description: 慧驱动svpwm
+ * @detail: 
+ * @param {float} Valpha
+ * @param {float} Vbeta
+ * @param {float} Udc
+ * @param {uint32_t} Tpwm
+ * @param {uint32_t} *pTcmp1
+ * @param {uint32_t} *pTcmp2
+ * @param {uint32_t} *pTcmp3
+ * @param {uint32_t} *pSector
+ * @return {*}
+ * @author: lkc
+ */
+void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcmp1, uint32_t *pTcmp2, uint32_t *pTcmp3, uint32_t *pSector)
+{
+    float Vref1 = Vbeta;							                   
+    float Vref2 = (ONE_BY_SQRT3 * Valpha - Vbeta) / 2; 				    
+    float Vref3 = (-ONE_BY_SQRT3 * Valpha - Vbeta)/2;	
+    float ta;
+    float tb;
+    float tc;
+    float X;
+    float Y;
+    float Z;	
+    uint32_t Tcmp1 = 0.0f; 
+    uint32_t Tcmp2 = 0.0f;
+    uint32_t Tcmp3 = 0.0f;
+    uint32_t sector = 0;
+    float T1;
+    float T2;
+
+    if (Vref1 > 0)
+    {
+        sector = 1;
+    }
+
+    if (Vref2 > 0)
+    {
+        sector = sector + 2;
+    }
+
+    if (Vref3 > 0)
+    {
+        sector = sector + 4 ;
+    }
+
+    X = ONE_BY_SQRT3 * Vbeta * Tpwm/ Udc;
+    Y = Tpwm / Udc * (3 / 2 * Valpha + ONE_BY_SQRT3 / 2 * Vbeta);
+    Z = Tpwm / Udc * (-3 / 2 * Valpha + ONE_BY_SQRT3 / 2 * Vbeta);	         
+
+    switch (sector)
+    {
+        case 1:
+        {
+            T1 = Z; T2 = Y; 
+            break;
+        }
+        case 2:
+        {
+            T1 = Y; T2 = -X; 
+            break;
+        }
+        case 3:
+        {
+            T1 = -Z; T2 = X; 
+            break;
+        }
+        case 4:
+        {
+            T1 = -X; T2 = Z;
+            break;
+        }
+        case 5:
+        {
+            T1 = X; T2 = -Y;
+            break;
+        }
+        case 6:
+        {
+            T1 = -Y; T2 = -Z;
+            break;
+        }
+        default:
+            break;
+    }
+
+    if (T1+T2 > Tpwm)
+    {
+        T1 = T1/(T1+T2);
+        T2 = T2/(T1+T2);
+    }
+    else
+    {
+        T1 = T1;
+        T2 = T2;
+    }
+
+    ta = (Tpwm-(T1+T2))/4.0;
+    tb = ta+T1/2;
+    tc = tb+T2/2;
+
+    switch (sector)
+    {
+        case 1:
+        {
+            Tcmp1=tb;
+            Tcmp2=ta;
+            Tcmp3=tc; 
+            break;
+        }
+        case 2:
+        {
+            Tcmp1=ta;
+            Tcmp2=tc;
+            Tcmp3=tb; 
+            break;
+        }
+        case 3:
+        {
+            Tcmp1=ta;
+            Tcmp2=tb;
+            Tcmp3=tc; 
+            break;
+        }
+        case 4:
+        {
+            Tcmp1=tc;
+            Tcmp2=tb;
+            Tcmp3=ta;
+            break;
+        }
+        case 5:
+        {
+            Tcmp1=tc;
+            Tcmp2=ta;
+            Tcmp3=tb;
+            break;
+        }
+        case 6:
+        {
+            Tcmp1=tb;
+            Tcmp2=tc;
+            Tcmp3=ta;
+            break;
+        }
+        default:
+            break;
+    }
+
+    *pTcmp1 = Tcmp1;
+    *pTcmp2 = Tcmp2;
+    *pTcmp3 = Tcmp3;
+    *pSector = sector;
+
+    return;
+}
+
+
+/**
  * @description: pll锁相环
  * @detail: 
  * @return {*}
@@ -385,8 +544,6 @@ void foc_pll_run(float phase, float dt, float *phase_var,
 	utils_norm_angle_rad((float*)phase_var);
 	*speed_var += conf->foc_pll_ki * delta_theta * dt;
 }
-
-
 #ifdef __cplusplus
 }
 #endif

@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-10-04 21:09:13
+ * @LastEditTime: 2023-10-06 10:59:24
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_PARAM_H
@@ -193,6 +193,19 @@ typedef struct {
 	float p_v2_v3_inv_avg_half; // (0.5/ld + 0.5/lq)
 } motor_all_state_t;
 
+typedef struct
+{
+  real32_T P_Gain;
+  real32_T I_Gain;
+  real32_T D_Gain;
+  real32_T B_Gain;
+  real32_T Max_Output;
+  real32_T Min_Output;
+  real32_T I_Sum;
+  real32_T Cal_Out;
+  real32_T Err;				/* 差值 */
+}CURRENT_PID_DEF;
+
 typedef struct motor_param
 {
 	float currentAdc[3];
@@ -215,6 +228,25 @@ typedef struct motor_param
 
 	float Id;						/* park 变换 */
 	float Iq;						/* park 变换 */
+
+	float theta;					/* 角度 */
+
+
+	/* 电流环,设置 */
+	float e_id_set;
+	float e_iq_set;
+	float e_err_ki_sum;				/* 积分累加 */
+    float e_ki_windup;				/* 积分抗饱和 */
+	float e_iq_ki;					/* q轴电流环ki */
+	float e_iq_kp;					/* q轴电流环kp */
+    float e_id_ki;					/* d轴电流环ki */
+	float e_id_kp;					/* d轴电流环kp */
+    float e_iq_limit;                /* q轴限制 */
+    float e_id_limit;                /* d轴限制 */
+	CURRENT_PID_DEF e_iq_pid;
+
+	float e_iq_out;					/* q轴实际输出 */
+	float e_id_out;					/* d轴实际输出 */
 
 	float modD;
 	float modQ;

@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2023-10-01 10:28:50
  * @LastEditors: lkc
- * @LastEditTime: 2023-10-04 21:41:17
+ * @LastEditTime: 2023-10-06 14:25:50
  * @detail: 
  * 
  * 开环注意：TIM1->ARR 为5600  modQ 为模拟vq
@@ -79,9 +79,12 @@ void Motor_DmaInt(void *p, uint32_t flags)
 {
     /* 目前电机频率是30khz，所以每两次运行一次双电机，所以15khz */
     static int skip = 0;
-	if (++skip == FOC_CONTROL_LOOP_FREQ_DIVIDER) {
+	if (++skip == FOC_CONTROL_LOOP_FREQ_DIVIDER) 
+    {
 		skip = 0;
-	} else {
+	} 
+    else 
+    {
 		return;
 	}
 
@@ -89,7 +92,6 @@ void Motor_DmaInt(void *p, uint32_t flags)
     MOTOR_PARAM_S *stMotorNow = &motor; 
     /* 获取电流 电压参数 */
     Motor_It_ParamCal();
-
 
     float Ialpha = 0.0f;
     float Ibeta = 0.0f;
@@ -101,6 +103,7 @@ void Motor_DmaInt(void *p, uint32_t flags)
     float ia = 0.0f;
     float ib = 0.0f;
     float ic = 0.0f;
+    float vBus = 0.0f;
     static float Theta = 0;
 
     ia = stMotorNow->ia;
@@ -111,6 +114,8 @@ void Motor_DmaInt(void *p, uint32_t flags)
     vb = stMotorNow->vb;
     vc = stMotorNow->vc;
 
+    vBus = stMotorNow->v_bus;
+
     float modD = 0;
 #if 0
     float modQ = 0.4;
@@ -118,61 +123,55 @@ void Motor_DmaInt(void *p, uint32_t flags)
 #endif
 
 #if 1
-	//float modQ = 0.3;
+	  //float modD = 0;
     float modQ = 0.3;
-    Theta += 0.007;
+    stMotorNow->theta += 0.001;
 #endif
     //theta += 0.0001;
-    if (Theta > (M_2PI))
+    if (stMotorNow->theta > (M_2PI))
     {
-    Theta -= (M_2PI);
+        stMotorNow->theta -= (M_2PI);
     }
-
-    rtU.Theta = Theta;
-    rtU.Tpwm = 11200;
-    rtU.Udc = 24.0;
-    //rtU.Iq_ref = 0.3;
-    rtU.Iq_ref = 0.5;
-    rtU.Id_ref = 0;
+#if 1
+    rtU.Theta = stMotorNow->theta;
+    rtU.Tpwm = 5600;
+    rtU.Udc = stMotorNow->v_bus;
+    rtU.Iq_ref = 1.0f;
+    rtU.Id_ref = 0.0f;
     rtU.Ia = ia;
     rtU.Ib = ib;
     rtU.Ic = ic;
-
+    foc_simulink0_step();
+    TIMER_UPDATE_DUTY_M1(rtY.Tcm1, rtY.Tcm2, rtY.Tcm3);
+    // PRINTF("{%f,%f,%f, %f}\r\n", rtU.Ia, rtU.Ib, rtU.Ic, TIM1->ARR);
+    // PRINTF("{%f,%f,%f, %f}\r\n", rtY.Tcm1, rtY.Tcm2, rtY.Tcm3, TIM1->ARR);
+    // PRINTF("{%f,%f}\r\n", rtY.Vd, rtY.Vq);
+#else
     /* clarke 变换 */
     clarke_transform(ia, ib, ic, &Ialpha, &Ibeta);
     stMotorNow->Ialpha = Ialpha;
     stMotorNow->Ibeta = Ibeta;
-    stMotorNow->Theta = Theta;
-    park_transform(Ialpha, Ibeta, Theta, &Id, &Iq);
+    park_transform(Ialpha, Ibeta, stMotorNow->theta, &Id, &Iq);
     stMotorNow->Id = Id;
     stMotorNow->Iq = Iq;
-
-    /* 位置环 */
-
-    /* 速度环 */
-
-    /* 电流环 */
-
-    // float modD = stMotorNow->modD;
-    // float modQ = stMotorNow->modQ;
+    stMotorNow->e_iq_pid.Max_Output = 16.0f;
+    stMotorNow->e_iq_pid.Min_Output = -16.0f;
+    stMotorNow->e_iq_pid.B_Gain = 15.0f;
+    stMotorNow->e_iq_pid.I_Gain = 450.0f;
+    stMotorNow->e_iq_pid.P_Gain = 0.64167f  ;
+    stMotorNow->e_iq_set = 0.5f;
+    stMotorNow->e_id_set = 0.0f;
+    Current_PID_Calc(stMotorNow->e_iq_set, stMotorNow->Iq, &stMotorNow->e_iq_out, &stMotorNow->e_iq_pid);
+    stMotorNow->e_id_out = 0;
     float modAlpha = 0.0f;
     float modBeta = 0.0f;
-    inverse_park(modD, modQ, Theta, &modAlpha, &modBeta);
+    inverse_park(stMotorNow->e_id_out , stMotorNow->e_iq_out, stMotorNow->theta, &modAlpha, &modBeta);
     stMotorNow->modAlpha = modAlpha;
     stMotorNow->modBeta = modBeta;
-
-    ULONG duty1;
-    ULONG duty2;
-    ULONG duty3;
     ULONG sector;
-    foc_svm(modAlpha, modBeta, TIM1->ARR, &duty1, &duty2, &duty3, &sector);
-    //foc_simulink0_step();
-
-    //PRINTF("{%d,%d,%d, %d}\r\n", duty1, duty2, duty3, TIM1->ARR);
-
-    TIMER_UPDATE_DUTY_M1(duty1, duty2, duty3);
-    //TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-
+    svm_hqd(modAlpha, modBeta, vBus, TIM1->ARR, &stMotorNow->duty1, &stMotorNow->duty2, &stMotorNow->duty3, &sector);
+    TIMER_UPDATE_DUTY_M1(stMotorNow->duty1, stMotorNow->duty2, stMotorNow->duty3);
+#endif
 	return;
 }
 

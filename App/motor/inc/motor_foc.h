@@ -48,7 +48,7 @@ void inverse_clarke(float Ialpha, float Ibeta, float *Ia, float *Ib, float *Ic);
 int svm(float alpha, float beta, float* tA, float* tB, float* tC);
 void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 				uint32_t* tAout, uint32_t* tBout, uint32_t* tCout, uint32_t *svm_sector);
-
+void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcmp1, uint32_t *pTcmp2, uint32_t *pTcmp3, uint32_t *pSector);
 float sin_f32(float x);
 float cos_f32(float x);
 

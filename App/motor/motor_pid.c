@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-04 15:07:41
+ * @LastEditTime: 2023-10-06 10:30:31
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -15,6 +15,31 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+void Current_PID_Calc(real32_T ref_temp, real32_T fdb_temp, real32_T* out_temp, CURRENT_PID_DEF* current_pid_temp)
+{
+	real32_T error;
+	real32_T temp;
+	current_pid_temp->Err = ref_temp - fdb_temp;										/* 差值 */
+	current_pid_temp->Cal_Out = current_pid_temp->P_Gain * current_pid_temp->Err + current_pid_temp->I_Sum;
+	
+    current_pid_temp->Max_Output = 5;
+
+	if (current_pid_temp->Cal_Out > current_pid_temp->Max_Output) 
+	{
+		*out_temp = current_pid_temp->Max_Output;
+	} 
+	else if (current_pid_temp->Cal_Out < current_pid_temp->Min_Output) 
+	{
+		*out_temp = current_pid_temp->Min_Output;
+	} 
+	else 
+	{
+		*out_temp = current_pid_temp->Cal_Out;
+	}
+
+	current_pid_temp->I_Sum += ((*out_temp - current_pid_temp->Cal_Out) * current_pid_temp->B_Gain + current_pid_temp->I_Gain * current_pid_temp->Err) * 0.000067;
+}
+
 /**
  * @description: 电流环
  * @detail: 

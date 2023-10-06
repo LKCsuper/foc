@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-10-04 10:41:58
+ * @LastEditTime: 2023-10-05 21:55:04
  */
 #ifdef __cplusplus
 extern "C" {
@@ -61,7 +61,7 @@ void Task_Init(void *argument)
  * @return {*}
  */
 LONG main(VOID)
-{   
+				{   
     /* 任务bsp初始化 */
     Bsp_RTOS_Init();
     /* 内核初始化 */

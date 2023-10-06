@@ -3,9 +3,9 @@
  *
  * Code generated for Simulink model 'foc_simulink0'.
  *
- * Model version                  : 1.209
+ * Model version                  : 1.276
  * Simulink Coder version         : 9.8 (R2022b) 13-May-2022
- * C/C++ source code generated on : Tue Oct  3 20:36:08 2023
+ * C/C++ source code generated on : Fri Oct  6 14:23:30 2023
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: ARM Compatible->ARM Cortex-M
