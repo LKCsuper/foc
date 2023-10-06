@@ -4,14 +4,16 @@
  * @Author: lkc
  * @Date: 2023-10-01 10:28:50
  * @LastEditors: lkc
- * @LastEditTime: 2023-10-06 14:25:50
+ * @LastEditTime: 2023-10-06 15:05:26
  * @detail: 
  * 
  * 开环注意：TIM1->ARR 为5600  modQ 为模拟vq
  * (1) modq 过大，就会使劲转一下，然后重启，所以此时应该增大角度，或者减小modq
  * (2) 角度过大，电机就会抖，可以增大modq或者减小角度
  * 
- * 
+ * 电流环：
+ * (1) 电流环的本质，你设置一个q值，并不是你实际输出的vq是符合这个q值，实际上是Iq，实际电机转换来的Iq最终符合这个设置q值
+ * (2) 输入q值是正的，结果反馈是负的
  */
 #ifdef __cplusplus
 extern "C" {
@@ -125,7 +127,7 @@ void Motor_DmaInt(void *p, uint32_t flags)
 #if 1
 	  //float modD = 0;
     float modQ = 0.3;
-    stMotorNow->theta += 0.001;
+    stMotorNow->theta += 0.005;
 #endif
     //theta += 0.0001;
     if (stMotorNow->theta > (M_2PI))
@@ -136,7 +138,7 @@ void Motor_DmaInt(void *p, uint32_t flags)
     rtU.Theta = stMotorNow->theta;
     rtU.Tpwm = 5600;
     rtU.Udc = stMotorNow->v_bus;
-    rtU.Iq_ref = 1.0f;
+    rtU.Iq_ref = 5.0f;
     rtU.Id_ref = 0.0f;
     rtU.Ia = ia;
     rtU.Ib = ib;

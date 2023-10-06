@@ -23,7 +23,7 @@ VOID Bsp_Rcu_Init(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq);
 VOID Bsp_Sys_Init(ULONG fzv);
 VOID HSI_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq);
 VOID HSE_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq);
-
+VOID Bsp_Misc_Reset(VOID);
 #ifdef __cplusplus
 }
 #endif

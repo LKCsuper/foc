@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-03-26 20:52:37
+ * @LastEditTime: 2023-10-06 17:40:19
  */
 #ifdef __cplusplus
 extern "C" {
@@ -201,6 +201,18 @@ VOID HSI_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq)
 	return;
 }
 
+/**
+ * @description: 重启设备
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+VOID Bsp_Misc_Reset(VOID)
+{
+	NVIC_SystemReset();
+
+	return;
+}
 #ifdef __cplusplus
 }
 #endif

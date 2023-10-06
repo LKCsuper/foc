@@ -7,6 +7,8 @@
         "SEGGER_RTT_DEBUG.C": "cpp",
         "motor_foc.h": "c",
         "motor_task.h": "c",
-        "motor_param.h": "c"
+        "motor_param.h": "c",
+        "easyflash.h": "c",
+        "shell_cfg.h": "c"
     }
 }

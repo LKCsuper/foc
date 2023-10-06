@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-10-05 21:55:04
+ * @LastEditTime: 2023-10-06 21:59:20
  */
 #ifdef __cplusplus
 extern "C" {
@@ -16,7 +16,7 @@ extern "C" {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* 任务栈 */
-static StackType_t taskInitStack[1024];
+static StackType_t taskInitStack[2048];
 static StaticTask_t taskInitTcb; //CreateAppTask任务控制块 
 const osThreadAttr_t taskInitAttr = 
 {
@@ -45,12 +45,11 @@ void Task_Init(void *argument)
     PRINTF("Init Task %d\r\n", TIM1->ARR);
     RTT_Debug_Init();
     Command_Init();
+    MOTOR_Param_Init();
     MOTOR_ShowParam();
-    Bsp_Tim_StartPwm(MOTOR1);
+    //Bsp_Tim_StartPwm(MOTOR1);
     while (1)
     {
-        //SEGGER_RTT_printf(0,"Test\r\n");
-        //PRINTF("TEST %f %f %f %f\r\n", motor.ia, motor.ib, motor.ic, rtU.Udc);
         osDelay(1000);
     }
 }
@@ -61,7 +60,7 @@ void Task_Init(void *argument)
  * @return {*}
  */
 LONG main(VOID)
-				{   
+{   
     /* 任务bsp初始化 */
     Bsp_RTOS_Init();
     /* 内核初始化 */
@@ -77,17 +76,6 @@ LONG main(VOID)
     {
         /* PRINTF("Task Start err.\r\n"); */
     }
-
-#if 0
-    Bsp_Init();
-    Motor_Simple_BldcInit();
-    //Bsp_Tim_StartPwm(MOTOR1);
-    target = 0.05;
-    while(1)
-    {
-        move(target);
-    }
-#endif
 }
 
 #ifdef __cplusplus

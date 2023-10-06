@@ -54,6 +54,8 @@ extern "C" {
 /* fal */
 #include <fal.h>
 
+#include "easyflash.h"
+
 /* flashdb */
 #include "flashdb.h"
 

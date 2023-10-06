@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2023-10-03 16:19:58
  * @LastEditors: lkc
- * @LastEditTime: 2023-10-03 16:32:05
+ * @LastEditTime: 2023-10-06 21:59:06
  * @detail: 
  */
 #ifdef __cplusplus
@@ -29,6 +29,9 @@ VOID RTT_Debug_Init(VOID)
     //#define SEGGER_RTT_MODE_NO_BLOCK_TRIM         (1)     // 如果缓冲区放不下当前帧数据，则缓冲区能放几个当前帧byte就放几个
     //#define SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL    (2)     // 如果缓冲区放不下当前帧数据，则堵塞直到缓冲区能放下当前帧所有数据
     SEGGER_RTT_ConfigUpBuffer(1, "JScope_u4i4", g_ucJscopBuff, JSCOP_BUFF_SIZE, SEGGER_RTT_MODE_NO_BLOCK_SKIP);
+
+    /* 打印 */
+    //SEGGER_RTT_printf(0,"Test\r\n");
 
     return;
 }

@@ -107,7 +107,7 @@ void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
     /* Run time stack overflow checking is performed if
     configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
     called if a stack overflow is detected. */
-    PRINTF("Stack Over Flow\r\n");
+    PRINTF("Stack Over Flow [%s]\r\n", pcTaskName);
 }
 /* USER CODE END 4 */
 

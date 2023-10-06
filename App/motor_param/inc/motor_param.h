@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-10-06 10:59:24
+ * @LastEditTime: 2023-10-06 22:31:04
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_PARAM_H
@@ -13,7 +13,7 @@ extern "C" {
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
-
+//#pragma pack (1)
 typedef struct {
 	float va;
 	float vb;
@@ -224,13 +224,10 @@ typedef struct motor_param
 	float Ialpha;
 	float Ibeta;
 
-	float Theta;					/* 角度 */
-
 	float Id;						/* park 变换 */
 	float Iq;						/* park 变换 */
 
 	float theta;					/* 角度 */
-
 
 	/* 电流环,设置 */
 	float e_id_set;
@@ -243,6 +240,7 @@ typedef struct motor_param
 	float e_id_kp;					/* d轴电流环kp */
     float e_iq_limit;                /* q轴限制 */
     float e_id_limit;                /* d轴限制 */
+	
 	CURRENT_PID_DEF e_iq_pid;
 
 	float e_iq_out;					/* q轴实际输出 */
@@ -264,7 +262,18 @@ typedef struct motor_param
 	float voltundrivenOffset[3]; 	/* 电压无负载偏移 */
 
 }MOTOR_PARAM_S;
+//#pragma pack ()
 
+/*
+参数分为几种呢：当然下边的任何保存，都是全部保存
+(1) 掉电保存
+(2) 修改完立刻保存
+(3) 定时保存
+*/
+typedef struct tagFlashParam
+{
+    MOTOR_PARAM_S motor;
+}FLASH_PARAM_S;
 /* Private variables ---------------------------------------------------------*/
 extern motor_all_state_t motor1;
 extern motor_all_state_t motor2;
