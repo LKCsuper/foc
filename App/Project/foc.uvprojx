@@ -324,7 +324,7 @@
             <PlainCh>0</PlainCh>
             <Ropi>0</Ropi>
             <Rwpi>0</Rwpi>
-            <wLevel>2</wLevel>
+            <wLevel>1</wLevel>
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <uC99>1</uC99>
@@ -339,9 +339,9 @@
             <v6Rtti>0</v6Rtti>
             <VariousControls>
               <MiscControls>--locale=english</MiscControls>
-              <Define>USE_STDPERIPH_DRIVER,STM32F40_41xxx,__CC_ARM,__TARGET_FPU_VFP=1,__FPU_PRESENT=1,__FPU_USED=1,ARM_MATH_CM4</Define>
+              <Define>USE_STDPERIPH_DRIVER,STM32F40_41xxx,__CC_ARM,__TARGET_FPU_VFP=1,__FPU_PRESENT=1,__FPU_USED=1,ARM_MATH_CM4,SIMULINK_USE_ARM_MATH</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include;..\..\Library\CMSIS\Include;..\User;..\..\Library\Bsp\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\Configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc;..\..\Doc\matlab\foc_simulink0_ert_rtw;..\motor_simple_foc\inc;..\motor_param\inc;..\RTT;..\motor_param\inc;..\..\ThirtyLibrary\easyflash\inc</IncludePath>
+              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include;..\..\Library\CMSIS\Include;..\User;..\..\Library\Bsp\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\Configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc;..\..\Doc\matlab\foc_simulink0_ert_rtw;..\motor_simple_foc\inc;..\motor_param\inc;..\RTT;..\motor_param\inc;..\..\ThirtyLibrary\easyflash\inc;..\motor_sensor\inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -673,56 +673,6 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>Motor</GroupName>
-          <Files>
-            <File>
-              <FileName>motor_foc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_foc.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_it.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_it.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_pid.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_pid.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_task.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_task.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_utils.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_utils.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_math.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Motor\motor_math.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_ctrl.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_ctrl.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor.c</FilePath>
-            </File>
-            <File>
-              <FileName>cmd_env.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\cmd\cmd_env.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
           <GroupName>Cmd</GroupName>
           <Files>
             <File>
@@ -759,6 +709,11 @@
               <FileName>cmd_misc.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\cmd\cmd_misc.c</FilePath>
+            </File>
+            <File>
+              <FileName>cmd_show_param.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_show_param.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -960,35 +915,15 @@
               <FileType>1</FileType>
               <FilePath>..\..\Doc\matlab\foc_simulink0_ert_rtw\foc_simulink0.c</FilePath>
             </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Motor_Simple</GroupName>
-          <Files>
             <File>
-              <FileName>motor_simple_bldc.c</FileName>
+              <FileName>foc_simulink0_data.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\motor_simple_foc\motor_simple_bldc.c</FilePath>
+              <FilePath>..\..\Doc\matlab\foc_simulink0_ert_rtw\foc_simulink0_data.c</FilePath>
             </File>
             <File>
-              <FileName>motor_simple_foc.c</FileName>
+              <FileName>EKF_CAL_wrapper.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\motor_simple_foc\motor_simple_foc.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_simple_utils.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor_simple_foc\motor_simple_utils.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Motor_Detect</GroupName>
-          <Files>
-            <File>
-              <FileName>motor_detect.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor_param\motor_detect.c</FilePath>
+              <FilePath>..\..\Doc\matlab\EKF_CAL_wrapper.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1064,6 +999,106 @@
               <FileName>ef_port.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\ThirtyLibrary\easyflash\port\ef_port.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_foc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_foc.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_it.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_it.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_pid.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_pid.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_task.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_task.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_utils.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_utils.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_math.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Motor\motor_math.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_ctrl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_ctrl.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor.c</FilePath>
+            </File>
+            <File>
+              <FileName>cmd_env.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_env.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor_Simple</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_simple_bldc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_simple_foc\motor_simple_bldc.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_simple_foc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_simple_foc\motor_simple_foc.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_simple_utils.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_simple_foc\motor_simple_utils.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor_Detect</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_detect.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_param\motor_detect.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor_Sensor</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_hall.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_sensor\motor_hall.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>M4_Library</GroupName>
+          <Files>
+            <File>
+              <FileName>arm_cortexM4lf_math.lib</FileName>
+              <FileType>4</FileType>
+              <FilePath>..\..\Library\arm_cortexM4lf_math.lib</FilePath>
             </File>
           </Files>
         </Group>

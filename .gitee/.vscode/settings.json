@@ -1,0 +1,17 @@
+{
+    "files.associations": {
+        "foc_simulink0.h": "c",
+        "includes.h": "c",
+        "shell_port.h": "c",
+        "shell.h": "c",
+        "SEGGER_RTT_DEBUG.C": "cpp",
+        "motor_foc.h": "c",
+        "motor_task.h": "c",
+        "motor_param.h": "c",
+        "easyflash.h": "c",
+        "shell_cfg.h": "c",
+        "bsp_hall.h": "c",
+        "motor_hall.h": "c",
+        "motor_detect.h": "c"
+    }
+}

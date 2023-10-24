@@ -15,6 +15,7 @@ typedef enum tagDetectType
 {
     DETECT_NONE,
     DETECT_OFFSET,
+    DETECT_HALL,
     DETECT_NUM,
 }DETECT_TYPE;
 /* Private define ------------------------------------------------------------*/
@@ -44,6 +45,12 @@ VOID Cmd_Detect(ULONG ulDetectType)
         {
             PRINTF("Detect Offset\n");
             DETECT_Offset(FALSE);
+            break;
+        }
+        case DETECT_HALL:
+        {
+            PRINTF("Detect Hall\n");
+            DETECT_Hall();
             break;
         }
         default:

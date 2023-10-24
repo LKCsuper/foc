@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-08-29 23:45:42
+ * @LastEditTime: 2023-10-14 17:12:21
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_FOC_H
@@ -16,7 +16,6 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-
 /**
  * A simple low pass filter.
  *
@@ -66,6 +65,8 @@ int32_t data_to_int32(uint8_t *data);
 uint16_t data_to_uint16(uint8_t *data);
 int16_t data_to_int16(uint8_t *data);
 float data_to_float(uint8_t *data);
+void foc_pll_run(float phase, float dt, float *phase_var,
+					float *speed_var, mc_configuration *conf);
 
 #ifdef __cplusplus
 }

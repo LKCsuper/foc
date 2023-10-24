@@ -18,6 +18,7 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 ULONG DETECT_Offset(BOOL cal_undriven);
 VOID Detect_Init(VOID);
+VOID DETECT_Hall(VOID);
 #ifdef __cplusplus
 }
 #endif

@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2023-10-01 10:28:50
  * @LastEditors: lkc
- * @LastEditTime: 2023-10-06 15:05:26
+ * @LastEditTime: 2023-10-24 23:29:19
  * @detail: 
  * 
  * 开环注意：TIM1->ARR 为5600  modQ 为模拟vq
@@ -92,6 +92,7 @@ void Motor_DmaInt(void *p, uint32_t flags)
 
     /* 创建电机结构体 */
     MOTOR_PARAM_S *stMotorNow = &motor; 
+    motor_all_state_t *motor = &m_motor_1;
     /* 获取电流 电压参数 */
     Motor_It_ParamCal();
 
@@ -124,25 +125,35 @@ void Motor_DmaInt(void *p, uint32_t flags)
     Theta += 0.01;
 #endif
 
-#if 1
+#if 0
 	  //float modD = 0;
     float modQ = 0.3;
-    stMotorNow->theta += 0.005;
+    //stMotorNow->theta += 0.1;
+    //stMotorNow->theta = 0;
 #endif
-    //theta += 0.0001;
+    stMotorNow->theta += 0.005;
     if (stMotorNow->theta > (M_2PI))
     {
         stMotorNow->theta -= (M_2PI);
     }
 #if 1
-    rtU.Theta = stMotorNow->theta;
+    //rtU.Theta = motor->m_phase_now_override;
     rtU.Tpwm = 5600;
     rtU.Udc = stMotorNow->v_bus;
-    rtU.Iq_ref = 5.0f;
-    rtU.Id_ref = 0.0f;
+    rtU.Theta = rtY.Angle;
+    //rtU.Theta = stMotorNow->theta;
+    rtU.we = rtY.Speed;
+    rtU.Iq_ref = 0.45;
+    rtU.Id_ref = 0;
     rtU.Ia = ia;
     rtU.Ib = ib;
     rtU.Ic = ic;
+    // Ls = Ld + Lq
+    rtU.Ls = 0.00015;                        // H
+    rtU.Rs = 0.4;                           // 欧姆
+    // 反电动势常数 3.2 v kprm
+    rtU.flux = 0.017643;                    /* 可以由反电动势常数转换 */
+
     foc_simulink0_step();
     TIMER_UPDATE_DUTY_M1(rtY.Tcm1, rtY.Tcm2, rtY.Tcm3);
     // PRINTF("{%f,%f,%f, %f}\r\n", rtU.Ia, rtU.Ib, rtU.Ic, TIM1->ARR);

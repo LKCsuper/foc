@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-10-06 22:31:04
+ * @LastEditTime: 2023-10-09 23:00:11
  * @FilePath: \foc\App\motor\inc\utils.h
  */
 #ifndef _MOTOR_PARAM_H
@@ -99,11 +99,11 @@ typedef struct {
 	motor_state_t m_motor_state;
 	float m_curr_unbalance;
 	float m_currents_adc[3];
-	bool m_phase_override;
-	float m_phase_now_override;
+	bool m_phase_override;					/* 这个为true就是纯角度 */
+	float m_phase_now_override;				/* 这个目前看来就是纯角度控制 */
 	float m_duty_cycle_set;
-	float m_id_set;
-	float m_iq_set;
+	float m_id_set;							/* 电流环 设置d轴值 */
+	float m_iq_set;							/* 电流环 设置q轴值*/
 	float m_i_fw_set;
 	float m_current_off_delay;
 	float m_openloop_speed;
@@ -256,6 +256,10 @@ typedef struct motor_param
 	ULONG duty2;
 	ULONG duty3;
 
+	uint8_t curHallABC;
+	uint8_t lastHallABC;
+	uint8_t hallABC[6];
+
 	/* conf */
 	float currentOffset[3];			/* 电流偏移 */
 	float voltOffset[3];			/* 电压偏移 */
@@ -275,8 +279,8 @@ typedef struct tagFlashParam
     MOTOR_PARAM_S motor;
 }FLASH_PARAM_S;
 /* Private variables ---------------------------------------------------------*/
-extern motor_all_state_t motor1;
-extern motor_all_state_t motor2;
+extern motor_all_state_t m_motor_1;
+extern motor_all_state_t m_motor_2;
 extern MOTOR_PARAM_S motor;
 extern mc_configuration motorCfg;
 

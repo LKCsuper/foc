@@ -1,7 +1,7 @@
 /*
  * @Description: 检测参数
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-04 10:27:47
+ * @LastEditTime: 2023-10-10 19:06:27
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -252,6 +252,41 @@ ULONG DETECT_resistance(float current, int samples, bool stop_after, float *resi
 	return fault;
 }
 #endif
+
+/**
+ * @description: 检测霍尔
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+VOID DETECT_Hall(VOID)
+{
+	motor_all_state_t *motor = gpstMotor1;
+
+	uint8_t hall_tab[8];
+	bool res;
+	mcpwm_foc_hall_detect(6.0 / 3.0, hall_tab, &res);
+
+	/* 如果检测成功 */
+	if (res)
+	{
+		INFO("DETECT HALL Success.\r\n");
+		/* 获取霍尔table */
+		for (int i = 0; i < 8; i++) {
+			motor->m_conf->foc_hall_table[i] = hall_tab[i];
+			PRINTF("%d ", hall_tab[i]);
+		}
+		PRINTF("\r\n");
+		/* 获取霍尔table */
+		for (int i = 0; i < 6; i++) {
+			PRINTF("%d ", gpstMotor->hallABC[i]);
+		}
+		PRINTF("\r\n");
+	}
+
+	return;
+}
+
 
 /**
  * @description: 检测初始化

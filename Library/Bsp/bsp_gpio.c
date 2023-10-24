@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-03 09:14:14
+ * @LastEditTime: 2023-10-09 21:37:15
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -162,10 +162,15 @@ void Bsp_Gpio_Init(void)
 
 	// /* 编码器 霍尔 输入 */
 	/* 初始化霍尔 */
-	Bsp_Gpio_Mode(HW_HALL_A_PORT, HW_HALL_A_PIN, GPIO_Mode_IN);
-	Bsp_Gpio_Mode(HW_HALL_B_PORT, HW_HALL_B_PIN, GPIO_Mode_IN);
-	Bsp_Gpio_Mode(HW_HALL_C_PORT, HW_HALL_C_PIN, GPIO_Mode_IN);
+	// Bsp_Gpio_Mode(HW_HALL_A_PORT, HW_HALL_A_PIN, GPIO_Mode_IN);
+	// Bsp_Gpio_Mode(HW_HALL_B_PORT, HW_HALL_B_PIN, GPIO_Mode_IN);
+	// Bsp_Gpio_Mode(HW_HALL_C_PORT, HW_HALL_C_PIN, GPIO_Mode_IN);
 
+	GPIO_InitTypeDef  GPIO_InitStructure;
+	GPIO_InitStructure.GPIO_Pin = HW_HALL_A_PIN | HW_HALL_B_PIN | HW_HALL_C_PIN;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
+	GPIO_Init(HW_HALL_A_PORT, &GPIO_InitStructure);
+	
 	// /* phase filters */
 	// Bsp_Gpio_Mode(PHASE_FILTER_PORT, PHASE_FILTER_PIN, GPIO_Mode_OUT);
 	// PHASE_FILTER_OFF();

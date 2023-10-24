@@ -48,8 +48,8 @@ void Current_PID_Calc(real32_T ref_temp, real32_T fdb_temp, real32_T* out_temp, 
  */
 VOID MOTOR_Pid_Electric(VOID)
 {
-	volatile motor_state_t *state_m = &motor1.m_motor_state;
-	volatile mc_configuration *conf_now = motor1.m_conf;
+	volatile motor_state_t *state_m = &m_motor_1.m_motor_state;
+	volatile mc_configuration *conf_now = m_motor_1.m_conf;
     float ki = conf_now->foc_current_ki;                /* 电流ki */
     float dt;                                           /* 时间差 */
 

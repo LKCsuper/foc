@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-06 21:27:12
+ * @LastEditTime: 2023-10-10 19:02:14
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -13,14 +13,16 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-motor_all_state_t motor1;
-motor_all_state_t motor2;
+motor_all_state_t m_motor_1;
+motor_all_state_t m_motor_2;
+mc_configuration mcconf1;
+mc_configuration mcconf2;
 MOTOR_PARAM_S motor;
 MOTOR_PARAM_S motorDefault;
 mc_configuration motorCfg;
 //MOTOR_PARAM_S motor;
-motor_all_state_t *gpstMotor1 = &motor1;
-motor_all_state_t *gpstMotor2 = &motor2;
+motor_all_state_t *gpstMotor1 = &m_motor_1;
+motor_all_state_t *gpstMotor2 = &m_motor_2;
 MOTOR_PARAM_S *gpstMotor = &motor;
 MOTOR_PARAM_S *gpstMotorDefault = &motorDefault;
 mc_configuration *gpstMotorCfg = &motorCfg;
@@ -58,6 +60,15 @@ VOID MOTOR_Param_Init(VOID)
     }
 
     PRINTF("Motor iq set [%f]\r\n", gpstMotor->e_iq_set);
+
+    gpstMotor1->m_conf = &mcconf1;
+    gpstMotor2->m_conf = &mcconf2;
+
+    motor_all_state_t *motor = gpstMotor1;
+
+    motor->m_conf->m_hall_extra_samples = MCCONF_M_HALL_EXTRA_SAMPLES;
+
+    PRINTF("PARAM %d %d\r\n", motor->m_conf->m_hall_extra_samples, MCCONF_M_HALL_EXTRA_SAMPLES);
 
     return;
 }

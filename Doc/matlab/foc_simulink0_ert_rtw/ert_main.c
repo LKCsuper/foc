@@ -3,9 +3,9 @@
  *
  * Code generated for Simulink model 'foc_simulink0'.
  *
- * Model version                  : 1.276
+ * Model version                  : 1.319
  * Simulink Coder version         : 9.8 (R2022b) 13-May-2022
- * C/C++ source code generated on : Fri Oct  6 14:23:30 2023
+ * C/C++ source code generated on : Tue Oct 24 23:01:26 2023
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: ARM Compatible->ARM Cortex-M
@@ -78,7 +78,7 @@ int_T main(int_T argc, const char *argv[])
   foc_simulink0_initialize();
 
   /* Attach rt_OneStep to a timer or interrupt service routine with
-   * period 1.0E-7 seconds (base rate of the model) here.
+   * period 1.0E-6 seconds (base rate of the model) here.
    * The call syntax for rt_OneStep is
    *
    *  rt_OneStep();

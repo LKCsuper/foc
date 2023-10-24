@@ -695,6 +695,18 @@ VOID Bsp_Tim4_EncInit(VOID)
 }
 
 /**
+ * @description: 定时器霍尔
+ * @detail: 
+ * @return {*}
+ * @author: lkc
+ */
+VOID Bsp_Tim3_Hall()
+{
+
+	return;
+}
+
+/**
  * @description: 定时器初始化
  * @detail: 
  * @return {*}

@@ -431,7 +431,7 @@ typedef struct {
 	mc_foc_sensor_mode foc_sensor_mode;
 	uint8_t foc_hall_table[8];
 	float foc_hall_interp_erpm;
-	float foc_sl_erpm;
+	float foc_sl_erpm;							/* 无感时 速度 */
 	bool foc_sample_v0_v7;
 	bool foc_sample_high_current;
 	SAT_COMP_MODE foc_sat_comp_mode;
@@ -521,7 +521,7 @@ typedef struct {
 	out_aux_mode m_out_aux_mode;
 	temp_sensor_type m_motor_temp_sens_type;
 	float m_ptc_motor_coeff;
-	int m_hall_extra_samples;
+	int m_hall_extra_samples;                               /* 霍尔额外采样次数,多采样一次可以过滤 */
 	int m_batt_filter_const;
 	float m_ntcx_ptcx_temp_base;
 	float m_ntcx_ptcx_res;

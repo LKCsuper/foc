@@ -1,0 +1,7 @@
+-IF:/BaiduSyncdisk/git/foc/Doc/matlab
+-IF:/BaiduSyncdisk/git/foc/Doc/matlab/foc_simulink0_ert_rtw
+-ID:/tools/matlab2022/extern/include
+-ID:/tools/matlab2022/simulink/include
+-ID:/tools/matlab2022/rtw/c/src
+-ID:/tools/matlab2022/rtw/c/src/ext_mode/common
+-ID:/tools/matlab2022/rtw/c/ert

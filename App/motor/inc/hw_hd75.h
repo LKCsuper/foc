@@ -253,10 +253,11 @@
 #define ADC_V_L3				ADC_Value[ADC_IND_SENS3]
 #define ADC_V_ZERO				(ADC_Value[ADC_IND_VIN_SENS] / 2)
 
+
 // Macros
-#define READ_HALL1()			palReadPad(HW_HALL_ENC_GPIO1, HW_HALL_ENC_PIN1)
-#define READ_HALL2()			palReadPad(HW_HALL_ENC_GPIO2, HW_HALL_ENC_PIN2)
-#define READ_HALL3()			palReadPad(HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3)
+#define READ_HALL1()			GPIO_ReadInputDataBit(HW_HALL_ENC_GPIO1, HW_HALL_ENC_PIN1)
+#define READ_HALL2()			GPIO_ReadInputDataBit(HW_HALL_ENC_GPIO2, HW_HALL_ENC_PIN2)
+#define READ_HALL3()			GPIO_ReadInputDataBit(HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3)
 
 // Default setting overrides
 #ifndef MCCONF_L_MIN_VOLTAGE

@@ -13,9 +13,8 @@
 #endif
 
 
-
+#define SIMULINK_USE_ARM_MATH
 /* %%%-SFUNWIZ_wrapper_includes_Changes_BEGIN --- EDIT HERE TO _END */
-
 //#define SIMULINK_USE_ARM_MATH
 #ifdef  SIMULINK_USE_ARM_MATH  
 #include "arm_math.h"
@@ -202,7 +201,6 @@ float tempa_3_0;
  *
  */
 /* %%%-SFUNWIZ_wrapper_externs_Changes_BEGIN --- EDIT HERE TO _END */
-
 /* extern double func(double a); */
 /* %%%-SFUNWIZ_wrapper_externs_Changes_END --- EDIT HERE TO _BEGIN */
 
@@ -213,18 +211,20 @@ float tempa_3_0;
 void stm32_ekf_Start_wrapper(real_T *xD)
 {
 /* %%%-SFUNWIZ_wrapper_Start_Changes_BEGIN --- EDIT HERE TO _END */
-
 /**********************************
-             慧驱动
-        视频教程详见QQ空间或B站
-          QQ：1323279545
-        官网：www.huiqudong.cn
+             ??????
+        ?????????QQ????B?
+          QQ??1323279545
+        ??????www.huiqudong.cn
 **********************************/
 
-Rs = 0.35f;//电阻
-Ls = 0.0006f;//电感
-flux = 0.011027f;//磁链
-
+Rs = 0.4f;//????
+Ls = 0.00015f;//???
+flux = 0.017643f;//????
+    // rtU.Ls = 0.00015;                        // H
+    // rtU.Rs = 0.4;                           // 欧姆
+    // // 反电动势常数 3.2 v kprm
+    // rtU.flux = 0.017643;                    /* 可以由反电动势常数转换 */
 
 Q_0_0 = 0.1f;
 Q_0_1 = 0.0f;
@@ -258,7 +258,8 @@ H_1_1 = 1.0f;
 H_1_2 = 0.0f;
 H_1_3 = 0.0f;
 
-B_0_0 = 1.0f/Ls;
+B_0_0 = 1.0f / 0.00015f;
+
 B_0_1 = 0.0f;
 B_1_0 = 0.0f;
 B_1_1 = 1.0f/Ls;
@@ -294,12 +295,11 @@ void stm32_ekf_Outputs_wrapper(const real32_T *u,
 			const real_T *xD)
 {
 /* %%%-SFUNWIZ_wrapper_Outputs_Changes_BEGIN --- EDIT HERE TO _END */
-
 /**********************************
-             慧驱动
-        视频教程详见QQ空间或B站
-          QQ：1323279545
-        官网：www.huiqudong.cn
+             ??????
+        ?????????QQ????B?
+          QQ??1323279545
+        ??????www.huiqudong.cn
 **********************************/
 y[0] = xD[0];
 y[1] = xD[1];
@@ -317,12 +317,11 @@ void stm32_ekf_Update_wrapper(const real32_T *u,
 			real_T *xD)
 {
 /* %%%-SFUNWIZ_wrapper_Update_Changes_BEGIN --- EDIT HERE TO _END */
-
 /**********************************
-             慧驱动
-        视频教程详见QQ空间或B站
-          QQ：1323279545
-        官网：www.huiqudong.cn
+             ??????
+        ?????????QQ????B?
+          QQ??1323279545
+        ??????www.huiqudong.cn
 **********************************/
 
 
@@ -332,9 +331,9 @@ vs_ab_1_0 = u[1];
 is_ab_0_0 = u[2];
 is_ab_1_0 = u[3];
 
-Rs = u[4];//电阻
-Ls = u[5];//电感
-flux = u[6];//磁链
+Rs = u[4];//????
+Ls = u[5];//???
+flux = u[6];//????
 /*
 P0_0_0 = xD[4];
 P0_0_1 = xD[5];

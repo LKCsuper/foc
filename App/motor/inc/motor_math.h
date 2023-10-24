@@ -65,10 +65,10 @@ void utils_rotate_vector3(float *input, float *rotation, float *output, bool rev
 #define UTILS_NAN_ZERO(x)	(x = UTILS_IS_NAN(x) ? 0.0f : x)
 
 // Handy conversions for radians/degrees and RPM/radians-per-second
-#define DEG2RAD_f(deg) ((deg) * (float)(M_PI / 180.0f))
-#define RAD2DEG_f(rad) ((rad) * (float)(180.0f / M_PI))
-#define RPM2RADPS_f(rpm) ((rpm) * (float)((2.0f * M_PI) / 60.0f))
-#define RADPS2RPM_f(rad_per_sec) ((rad_per_sec) * (float)(60.0f / (2.0f * M_PI)))
+#define DEG2RAD_f(deg) ((deg) * (float)(M_PI / 180.0f))				// 转换为弧度
+#define RAD2DEG_f(rad) ((rad) * (float)(180.0f / M_PI))				// 转换为角度
+#define RPM2RADPS_f(rpm) ((rpm) * (float)((2.0f * M_PI) / 60.0f))	// 每分钟多少转 -> 每秒弧度
+#define RADPS2RPM_f(rad_per_sec) ((rad_per_sec) * (float)(60.0f / (2.0f * M_PI))) // 每秒弧度 -> 每分钟多少转
 
 #ifndef MIN
 #define MIN(a,b) (((a)<(b))?(a):(b))

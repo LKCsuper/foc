@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
- * @LastEditTime: 2023-10-06 21:59:20
+ * @LastEditTime: 2023-10-24 23:23:22
  */
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +40,8 @@ float target;
  */
 void Task_Init(void *argument)
 {
+	osDelay(5000);
+    foc_simulink0_initialize();
     Bsp_Init();
     //Detect_Init();
     PRINTF("Init Task %d\r\n", TIM1->ARR);
@@ -47,7 +49,7 @@ void Task_Init(void *argument)
     Command_Init();
     MOTOR_Param_Init();
     MOTOR_ShowParam();
-    //Bsp_Tim_StartPwm(MOTOR1);
+    Bsp_Tim_StartPwm(MOTOR1);
     while (1)
     {
         osDelay(1000);

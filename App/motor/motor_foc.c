@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-06 11:20:07
+ * @LastEditTime: 2023-10-14 17:08:15
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -531,6 +531,11 @@ void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcm
 /**
  * @description: pll锁相环
  * @detail: 
+ * @param:phase
+ * @param:dt
+ * @param:phase_var
+ * @param:speed_var
+ * @param:conf
  * @return {*}
  * @author: lkc
  */

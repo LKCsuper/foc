@@ -3,9 +3,9 @@
  *
  * Code generated for Simulink model 'foc_simulink0'.
  *
- * Model version                  : 1.276
+ * Model version                  : 1.319
  * Simulink Coder version         : 9.8 (R2022b) 13-May-2022
- * C/C++ source code generated on : Fri Oct  6 14:23:30 2023
+ * C/C++ source code generated on : Tue Oct 24 23:01:26 2023
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: ARM Compatible->ARM Cortex-M
@@ -36,8 +36,13 @@ typedef struct tag_RTM RT_MODEL;
 
 /* Block signals and states (default storage) for system '<Root>' */
 typedef struct {
-  real32_T qi;                         /* '<S95>/Integrator' */
+  real_T EKF_DSTATE[4];                /* '<S1>/EKF' */
+  real32_T Gain;                       /* '<S5>/Gain' */
+  real32_T Gain1;                      /* '<S5>/Gain1' */
+  real32_T Vbeta;                      /* '<S4>/antipark_vbeta_fun' */
+  real32_T Valpha;                     /* '<S4>/antipark_valpha_fun' */
   real32_T di;                         /* '<S45>/Integrator' */
+  real32_T qi;                         /* '<S95>/Integrator' */
 } DW;
 
 /* External inputs (root inport signals with default storage) */
@@ -50,7 +55,10 @@ typedef struct {
   real32_T Ia;                         /* '<Root>/Ia' */
   real32_T Ib;                         /* '<Root>/Ib' */
   real32_T Ic;                         /* '<Root>/Ic' */
-  real_T we[2];                        /* '<Root>/we' */
+  real32_T we;                         /* '<Root>/we' */
+  real32_T Rs;                         /* '<Root>/Rs' */
+  real32_T Ls;                         /* '<Root>/Ls' */
+  real32_T flux;                       /* '<Root>/flux' */
 } ExtU;
 
 /* External outputs (root outports fed by signals with default storage) */
@@ -58,16 +66,59 @@ typedef struct {
   real32_T Tcm1;                       /* '<Root>/Tcm1' */
   real32_T Tcm2;                       /* '<Root>/Tcm2' */
   real32_T Tcm3;                       /* '<Root>/Tcm3' */
-  real32_T Vd;                         /* '<Root>/Vd' */
-  real32_T Vq;                         /* '<Root>/Vq' */
   real32_T Id;                         /* '<Root>/Id' */
   real32_T Iq;                         /* '<Root>/Iq' */
+  real_T EKF1[4];                      /* '<Root>/EKF1' */
+  real_T Out1;                         /* '<Root>/Out1' */
+  real_T Out2;                         /* '<Root>/Out2' */
+  real_T Speed;                        /* '<Root>/Speed' */
+  real_T Angle;                        /* '<Root>/Angle' */
 } ExtY;
+
+/* Parameters (default storage) */
+struct P_ {
+  real32_T D_PI_I;                     /* Variable: D_PI_I
+                                        * Referenced by: '<S42>/Integral Gain'
+                                        */
+  real32_T D_PI_KB;                    /* Variable: D_PI_KB
+                                        * Referenced by: '<S38>/Kb'
+                                        */
+  real32_T D_PI_LOW_LIMIT;             /* Variable: D_PI_LOW_LIMIT
+                                        * Referenced by: '<S52>/Saturation'
+                                        */
+  real32_T D_PI_P;                     /* Variable: D_PI_P
+                                        * Referenced by: '<S50>/Proportional Gain'
+                                        */
+  real32_T D_PI_UP_LIMIT;              /* Variable: D_PI_UP_LIMIT
+                                        * Referenced by: '<S52>/Saturation'
+                                        */
+  real32_T Q_PI_I;                     /* Variable: Q_PI_I
+                                        * Referenced by: '<S92>/Integral Gain'
+                                        */
+  real32_T Q_PI_KB;                    /* Variable: Q_PI_KB
+                                        * Referenced by: '<S88>/Kb'
+                                        */
+  real32_T Q_PI_LOW_LIMIT;             /* Variable: Q_PI_LOW_LIMIT
+                                        * Referenced by: '<S102>/Saturation'
+                                        */
+  real32_T Q_PI_P;                     /* Variable: Q_PI_P
+                                        * Referenced by: '<S100>/Proportional Gain'
+                                        */
+  real32_T Q_PI_UP_LIMIT;              /* Variable: Q_PI_UP_LIMIT
+                                        * Referenced by: '<S102>/Saturation'
+                                        */
+};
+
+/* Parameters (default storage) */
+typedef struct P_ P;
 
 /* Real-time Model Data Structure */
 struct tag_RTM {
   const char_T * volatile errorStatus;
 };
+
+/* Block parameters (default storage) */
+extern P rtP;
 
 /* Block signals and states (default storage) */
 extern DW rtDW;
@@ -90,11 +141,6 @@ extern RT_MODEL *const rtM;
  *
  * Block '<S1>/Scope' : Unused code path elimination
  * Block '<S1>/Scope1' : Unused code path elimination
- * Block '<S1>/Scope2' : Unused code path elimination
- * Block '<S1>/Scope3' : Unused code path elimination
- * Block '<S1>/Scope4' : Unused code path elimination
- * Block '<S1>/Scope5' : Unused code path elimination
- * Block '<S1>/Scope6' : Unused code path elimination
  * Block '<S7>/Scope' : Unused code path elimination
  */
 
@@ -117,8 +163,8 @@ extern RT_MODEL *const rtM;
  *
  * '<Root>' : 'foc_simulink'
  * '<S1>'   : 'foc_simulink/foc_simulink'
- * '<S2>'   : 'foc_simulink/foc_simulink/MATLAB Function'
- * '<S3>'   : 'foc_simulink/foc_simulink/MATLAB Function1'
+ * '<S2>'   : 'foc_simulink/foc_simulink/MATLAB Function2'
+ * '<S3>'   : 'foc_simulink/foc_simulink/MATLAB Function3'
  * '<S4>'   : 'foc_simulink/foc_simulink/anti_park'
  * '<S5>'   : 'foc_simulink/foc_simulink/clarke'
  * '<S6>'   : 'foc_simulink/foc_simulink/d Controller'

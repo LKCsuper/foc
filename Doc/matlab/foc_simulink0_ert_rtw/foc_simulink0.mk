@@ -2,7 +2,7 @@
 ## Makefile generated for component 'foc_simulink0'. 
 ## 
 ## Makefile     : foc_simulink0.mk
-## Generated on : Mon Oct 02 10:34:17 2023
+## Generated on : Tue Oct 24 22:57:20 2023
 ## Final product: $(RELATIVE_PATH_TO_ANCHOR)/foc_simulink0.exe
 ## Product type : executable
 ## 
@@ -155,7 +155,7 @@ DEFINES = $(DEFINES_BUILD_ARGS) $(DEFINES_CUSTOM) $(DEFINES_OPTS) $(DEFINES_STAN
 ## SOURCE FILES
 ###########################################################################
 
-SRCS = $(START_DIR)/foc_simulink0_ert_rtw/foc_simulink0.c
+SRCS = $(START_DIR)/foc_simulink0_ert_rtw/foc_simulink0.c $(START_DIR)/foc_simulink0_ert_rtw/foc_simulink0_data.c
 
 MAIN_SRC = $(START_DIR)/foc_simulink0_ert_rtw/ert_main.c
 
@@ -165,7 +165,7 @@ ALL_SRCS = $(SRCS) $(MAIN_SRC)
 ## OBJECTS
 ###########################################################################
 
-OBJS = foc_simulink0.obj
+OBJS = foc_simulink0.obj foc_simulink0_data.obj
 
 MAIN_OBJ = ert_main.obj
 
@@ -286,6 +286,10 @@ ert_main.obj : $(START_DIR)/foc_simulink0_ert_rtw/ert_main.c
 
 
 foc_simulink0.obj : $(START_DIR)/foc_simulink0_ert_rtw/foc_simulink0.c
+	$(CC) $(CFLAGS) -Fo"$@" $(subst /,\,"$<")
+
+
+foc_simulink0_data.obj : $(START_DIR)/foc_simulink0_ert_rtw/foc_simulink0_data.c
 	$(CC) $(CFLAGS) -Fo"$@" $(subst /,\,"$<")
 
 

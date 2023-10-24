@@ -1,7 +1,7 @@
 /*
  * @Description: 
  * @Date: 2023-02-17 22:55:09
- * @LastEditTime: 2023-10-04 21:08:15
+ * @LastEditTime: 2023-10-09 19:18:30
  * @FilePath: \my_foc\App\User\includes.h
  */
 #ifndef _INCLUDES_H
@@ -75,6 +75,7 @@ extern "C" {
 #include "bsp_dma.h"
 #include "bsp_flash.h"
 #include "bsp_it.h"
+#include "bsp_hall.h"
 #include "bsp.h"
 
 /* it */
@@ -89,9 +90,11 @@ extern "C" {
 /* motor */
 #include "motor_common.h"
 #include "datatypes.h"
+#include "mcconf_default.h"
 #include "motor_cal.h"
 #include "motor_param.h"
 #include "motor_math.h"
+#include "motor_hall.h"
 #include "motor_foc.h"
 #include "motor_task.h"
 #include "motor_it.h"
