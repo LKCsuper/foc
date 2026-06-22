@@ -97,8 +97,9 @@ static int Cmd_Getvalue(uint8_t argc, char **argv) {
 SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
                 getvalue, Cmd_Getvalue, getvalue);
 
+
 /**
- * @description: 复位环境变量
+ * @description: Reset environment variables to default values
  * @detail: 
  * @param {uint8_t} argc
  * @param {char} *

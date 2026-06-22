@@ -10,14 +10,14 @@
       <TargetName>Foc</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
-      <pArmCC>5060960::V5.06 update 7 (build 960)::.\armcc</pArmCC>
-      <pCCUsed>5060960::V5.06 update 7 (build 960)::.\armcc</pCCUsed>
+      <pArmCC>5060960::V5.06 update 7 (build 960)::.\ARMCC</pArmCC>
+      <pCCUsed>5060960::V5.06 update 7 (build 960)::.\ARMCC</pCCUsed>
       <uAC6>0</uAC6>
       <TargetOption>
         <TargetCommonOption>
           <Device>STM32F405RGTx</Device>
           <Vendor>STMicroelectronics</Vendor>
-          <PackID>Keil.STM32F4xx_DFP.2.17.1</PackID>
+          <PackID>Keil.STM32F4xx_DFP.3.1.1</PackID>
           <PackURL>https://www.keil.com/pack/</PackURL>
           <Cpu>IRAM(0x20000000,0x00020000) IRAM2(0x10000000,0x00010000) IROM(0x08000000,0x00100000) CPUTYPE("Cortex-M4") FPU2 CLOCK(12000000) ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
@@ -341,7 +341,7 @@
               <MiscControls>--locale=english</MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F40_41xxx,__CC_ARM,__TARGET_FPU_VFP=1,__FPU_PRESENT=1,__FPU_USED=1,ARM_MATH_CM4,SIMULINK_USE_ARM_MATH</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include;..\..\Library\CMSIS\Include;..\User;..\..\Library\Bsp\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\Configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc;..\..\Doc\matlab\foc_simulink0_ert_rtw;..\motor_simple_foc\inc;..\motor_param\inc;..\RTT;..\motor_param\inc;..\..\ThirtyLibrary\easyflash\inc;..\motor_sensor\inc</IncludePath>
+              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\User;..\..\Library\Bsp\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\Configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc;..\..\Doc\matlab\foc_simulink0_ert_rtw;..\Motor_Simple_Foc\inc;..\Motor_Param\inc;..\RTT;..\Motor_Param\inc;..\..\ThirtyLibrary\easyflash\inc;..\Motor_Sensor\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -1094,21 +1094,55 @@
         </Group>
         <Group>
           <GroupName>M4_Library</GroupName>
-          <Files>
-            <File>
-              <FileName>arm_cortexM4lf_math.lib</FileName>
-              <FileType>4</FileType>
-              <FilePath>..\..\Library\arm_cortexM4lf_math.lib</FilePath>
-            </File>
-          </Files>
+        </Group>
+        <Group>
+          <GroupName>::CMSIS</GroupName>
         </Group>
       </Groups>
     </Target>
   </Targets>
 
   <RTE>
+    <packages>
+      <filter>
+        <targetInfos/>
+      </filter>
+      <package name="CMSIS-Compiler" vendor="ARM">
+        <targetInfos>
+          <targetInfo name="Foc"/>
+        </targetInfos>
+      </package>
+      <package name="CMSIS-DSP" vendor="ARM" version="1.16.2">
+        <targetInfos>
+          <targetInfo name="Foc" versionMatchMode="fixed"/>
+        </targetInfos>
+      </package>
+      <package name="CMSIS" vendor="ARM" version="5.9.0">
+        <targetInfos>
+          <targetInfo name="Foc" versionMatchMode="fixed"/>
+        </targetInfos>
+      </package>
+      <package name="STM32F4xx_DFP" vendor="Keil" version="3.1.1">
+        <targetInfos>
+          <targetInfo name="Foc" versionMatchMode="fixed"/>
+        </targetInfos>
+      </package>
+    </packages>
     <apis/>
-    <components/>
+    <components>
+      <component Cclass="CMSIS" Cgroup="CORE" Cvendor="ARM" Cversion="5.6.0" condition="ARMv6_7_8-M Device" ymlID="CMSIS:CORE">
+        <package name="CMSIS" schemaVersion="1.7.7" url="http://www.keil.com/pack/" vendor="ARM" version="5.9.0"/>
+        <targetInfos>
+          <targetInfo name="Foc"/>
+        </targetInfos>
+      </component>
+      <component Cclass="CMSIS" Cgroup="DSP" Cvariant="Source" Cvendor="ARM" Cversion="1.16.2" condition="CMSISCORE" ymlID="CMSIS:DSP&amp;Source">
+        <package name="CMSIS-DSP" schemaVersion="1.7.27" url="https://www.keil.com/pack/" vendor="ARM" version="1.16.2"/>
+        <targetInfos>
+          <targetInfo name="Foc"/>
+        </targetInfos>
+      </component>
+    </components>
     <files>
       <file attr="config" category="source" name="CMSIS\RTOS2\RTX\Config\RTX_Config.c" version="5.1.1">
         <instance index="0" removed="1">RTE\CMSIS\RTX_Config.c</instance>

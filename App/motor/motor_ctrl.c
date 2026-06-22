@@ -24,27 +24,28 @@ float ud, uq;
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+
 /**
- * @description: 设置pwm
- * @detail: 
- * @param {float} ua
- * @param {float} ub
- * @param {float} uc
- * @return {*}
- * @author: lkc
+ * @brief  三相相电压 -> PWM 占空比输出
+ * @detail 输入为 Clark 逆变换后的三相相电压（以中性点为 0，约 ±Vbus/2），
+ *         先加 Vbus/2 偏置转为单极性 [0, Vbus]，再归一化为占空比并写入定时器。
+ * @param  ua  A 相电压 (V)
+ * @param  ub  B 相电压 (V)
+ * @param  uc  C 相电压 (V)
  */
 VOID Motor_Ctrl_Pwm(float ua, float ub, float uc)
 {
+    /* 偏置 Vbus/2：双极性相电压 -> 单极性 PWM 参考 [0, Vbus] */
     ua += 24;
     ub += 24;
     uc += 24;
 
-    /* 控制幅值，避免超过上限和下限 */
+    /* 限幅到 [0, 2*Vbus]，防止过调制 */
     utils_truncate_number(&ua, 0.0f, 2 * VOLTAGE_BUSTAR);
     utils_truncate_number(&ub, 0.0f, 2 * VOLTAGE_BUSTAR);
     utils_truncate_number(&uc, 0.0f, 2 * VOLTAGE_BUSTAR);
 
-    /* 限制占空比0到1 */
+    /* 电压 -> 占空比 [0, 1] */
     float dutya = ua / (2 * VOLTAGE_BUSTAR);
     float dutyb = ub / (2 * VOLTAGE_BUSTAR);
     float dutyc = uc / (2 * VOLTAGE_BUSTAR);
@@ -54,7 +55,7 @@ VOID Motor_Ctrl_Pwm(float ua, float ub, float uc)
 
     //PRINTF("a%f b%f c %f\r\n", dutya, dutyb, dutyc);
 
-    /* 更新占空比 */
+    /* 写入 CCR 并触发 COM 事件，三相占空比同步更新 */
     TIMER_UPDATE_DUTY_M1(HW_PWM1_TIM->ARR * dutya, HW_PWM1_TIM->ARR * dutyb, HW_PWM1_TIM->ARR * dutyc);
     TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
     return;
