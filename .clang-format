@@ -1,0 +1,70 @@
+# Project clang-format style.
+#
+# Goal:
+# - Keep STM32 / embedded C code readable.
+# - Avoid include reordering because many HAL/BSP headers depend on order.
+# - Keep formatting deterministic while avoiding large semantic-looking rewrites.
+#
+# Reference:
+# https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Basic layout
+ColumnLimit: 120
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
+ConstructorInitializerIndentWidth: 4
+IndentCaseLabels: true
+IndentWrappedFunctionNames: false
+
+# Braces and compact statements
+BreakBeforeBraces: Linux
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: AcrossComments
+AlignEscapedNewlines: Left
+AlignOperands: Align
+AlignTrailingComments: true
+BitFieldColonSpacing: After
+
+# Pointers and spacing
+DerivePointerAlignment: false
+PointerAlignment: Right
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatementsExceptControlMacros
+SpaceAfterCStyleCast: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Function calls / declarations
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+BinPackArguments: true
+BinPackParameters: true
+
+# Includes
+SortIncludes: Never
+IncludeBlocks: Preserve
+
+# Comments and empty lines
+ReflowComments: false
+MaxEmptyLinesToKeep: 1
+
+# Do not let the formatter rewrite control-flow by inserting braces.
+# It is safer to make that kind of change explicitly in code review.
+InsertBraces: false

@@ -64,7 +64,11 @@ VOID Bsp_Rcu_Init(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq)
  */
 VOID Bsp_Sys_Init(ULONG ulFzv)
 {
-	/* 中断初始化 */
+	/* 	中断初始化 
+		优先级分组4,4位抢占优先级,4位响应优先级
+		向量表偏移量设置为0x0,中断向量表在flash中
+		配置系统滴答定时器,每1ms中断一次
+	*/
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
 	NVIC_SetVectorTable(NVIC_VectTab_FLASH, 0x0);
 
@@ -73,6 +77,7 @@ VOID Bsp_Sys_Init(ULONG ulFzv)
 		/* Capture error */
 		while (1) {};
 	}
+	// 使能SysTick中断
 	NVIC_EnableIRQ(SysTick_IRQn); 
 
 	return;

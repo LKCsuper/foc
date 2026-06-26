@@ -22,8 +22,8 @@ extern "C" {
 #ifndef USE_STDPERIPH_DRIVER
 #define USE_STDPERIPH_DRIVER    1
 #endif
-#define HSE_VALUE               ((uint32_t)8000000)
-#define HSE_USE                 (1)
+#define HSE_VALUE               ((uint32_t)8000000) // 外部晶振频率
+#define HSE_USE                 (1)                 // 1:使用外部晶振 0:使用内部晶振
 
 #include "arm_math.h"
 #include "stm32f4xx.h"
