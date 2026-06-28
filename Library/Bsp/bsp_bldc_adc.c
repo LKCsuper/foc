@@ -19,6 +19,31 @@ extern "C" {
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /**
+ * @description: ADC 公共配置
+ * @detail: 配置 ADC1/ADC2/ADC3 共享的多 ADC 模式、时钟分频和 DMA 访问方式
+ * @return {*}
+ * @author: lkc
+ */
+STATIC VOID Bsp_Adc_Bldc_CommonInit(VOID)
+{
+	ADC_CommonInitTypeDef ADC_CommonInitStructure;
+
+	/* 初始化 ADC 公共时钟 */
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1 | RCC_APB2Periph_ADC2 | RCC_APB2Periph_ADC3, ENABLE);
+
+	// ADC Common Init
+	// Note that the ADC is running at 42MHz, which is higher than the
+	// specified 36MHz in the data sheet, but it works.
+	ADC_CommonInitStructure.ADC_Mode = ADC_TripleMode_RegSimult;                    // 三重同步模式，ADC1/ADC2/ADC3 同步采样
+	ADC_CommonInitStructure.ADC_Prescaler = ADC_Prescaler_Div2;                     // ADC 时钟二分频
+	ADC_CommonInitStructure.ADC_DMAAccessMode = ADC_DMAAccessMode_1;                // 多 ADC DMA 模式1，从公共数据寄存器搬运结果
+	ADC_CommonInitStructure.ADC_TwoSamplingDelay = ADC_TwoSamplingDelay_5Cycles;    // 多 ADC 采样间隔参数，规则同步模式保持最小延迟
+	ADC_CommonInit(&ADC_CommonInitStructure);
+
+	return;
+}
+
+/**
  * @description: adc1 初始化
  * @detail: 
  * @return {*}
@@ -33,21 +58,11 @@ extern "C" {
 VOID Bsp_Adc1_Bldc_Init(VOID)
 {
     /* adc 结构体 */
-	ADC_CommonInitTypeDef ADC_CommonInitStructure;
 	ADC_InitTypeDef ADC_InitStructure;
 
 	/* 初始化 */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOC, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
-
-	// ADC Common Init
-	// Note that the ADC is running at 42MHz, which is higher than the
-	// specified 36MHz in the data sheet, but it works.
-	ADC_CommonInitStructure.ADC_Mode = ADC_TripleMode_RegSimult;                    // 三重同步模式 ADC1 ADC2 ADC3 同时采样,三相电路同时采样
-	ADC_CommonInitStructure.ADC_Prescaler = ADC_Prescaler_Div2;                     // 二分频
-	ADC_CommonInitStructure.ADC_DMAAccessMode = ADC_DMAAccessMode_1;                // dma模式1 用于三重同步模式，DMA1流将ADC1、ADC2和ADC3的转换结果依次存储到内存中
-	ADC_CommonInitStructure.ADC_TwoSamplingDelay = ADC_TwoSamplingDelay_5Cycles;    // 采样计算 5/频率/2，很短的多ADC采样间隔参数
-	ADC_CommonInit(&ADC_CommonInitStructure);
 
 	// Channel-specific settings
 	ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b;                          // 分辨率12位
@@ -71,34 +86,21 @@ VOID Bsp_Adc1_Bldc_Init(VOID)
  */
 VOID Bsp_Adc2_Bldc_Init(VOID)
 {
-	ADC_CommonInitTypeDef ADC_CommonInitStructure;
 	ADC_InitTypeDef ADC_InitStructure;
 
 	/* 初始化时钟 */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOC, ENABLE);
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC2, ENABLE);
 
-	// ADC Common Init
-	// Note that the ADC is running at 42MHz, which is higher than the
-	// specified 36MHz in the data sheet, but it works.
-	ADC_CommonInitStructure.ADC_Mode = ADC_TripleMode_RegSimult;                    // 三重同步模式 ADC1 ADC2 ADC3 同时采样,三相电路同时采样
-	ADC_CommonInitStructure.ADC_Prescaler = ADC_Prescaler_Div2;                     // 二分频
-	ADC_CommonInitStructure.ADC_DMAAccessMode = ADC_DMAAccessMode_1;                // dma模式1 用于三重同步模式，DMA1流将ADC1、ADC2和ADC3的转换结果依次存储到内存中
-	ADC_CommonInitStructure.ADC_TwoSamplingDelay = ADC_TwoSamplingDelay_5Cycles;    // 采样计算 5/频率/2，很短的多ADC采样间隔参数
-	ADC_CommonInit(&ADC_CommonInitStructure);
-
 	// Channel-specific settings
 	ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b;                          // 分辨率12位
 	ADC_InitStructure.ADC_ScanConvMode = ENABLE;                                    // 扫描转换模式开启，一次性转换多个通道
 	ADC_InitStructure.ADC_ContinuousConvMode = DISABLE;                             // 关闭连续转换
-	ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_Falling;  // 外部触发模式，下降沿
-	ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_T8_CC1;
+	ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;     // 从 ADC 不单独接外部规则触发，只跟随 ADC1 多 ADC 触发
+	ADC_InitStructure.ADC_ExternalTrigConv = 0;
 	ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;                          // 数据对齐，右对齐
 	ADC_InitStructure.ADC_NbrOfConversion = HW_ADC_NBR_CONV;                        // 一次性转换HW_ADC_NBR_CONV个通道
 
-	// 关闭触发，只由ADC1触发
-	ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;     // 触发模式关闭
-	ADC_InitStructure.ADC_ExternalTrigConv = 0;                                     // 转换为0
 	ADC_Init(ADC2, &ADC_InitStructure);
 
     return;
@@ -112,34 +114,21 @@ VOID Bsp_Adc2_Bldc_Init(VOID)
  */
 VOID Bsp_Adc3_Bldc_Init(VOID)
 {
-	ADC_CommonInitTypeDef ADC_CommonInitStructure;
 	ADC_InitTypeDef ADC_InitStructure;
 
 	/* 初始化时钟 */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOC, ENABLE);
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC3, ENABLE);
 
-	// ADC Common Init
-	// Note that the ADC is running at 42MHz, which is higher than the
-	// specified 36MHz in the data sheet, but it works.
-	ADC_CommonInitStructure.ADC_Mode = ADC_TripleMode_RegSimult;                    // 三重同步模式
-	ADC_CommonInitStructure.ADC_Prescaler = ADC_Prescaler_Div2;                     // 二分频
-	ADC_CommonInitStructure.ADC_DMAAccessMode = ADC_DMAAccessMode_1;                // dma模式1 用于三重同步模式
-	ADC_CommonInitStructure.ADC_TwoSamplingDelay = ADC_TwoSamplingDelay_5Cycles;    // 几个时钟采样
-	ADC_CommonInit(&ADC_CommonInitStructure);
-
 	// Channel-specific settings
 	ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b;                          // 分辨率12位
 	ADC_InitStructure.ADC_ScanConvMode = ENABLE;                                    // 扫描转换模式开启
 	ADC_InitStructure.ADC_ContinuousConvMode = DISABLE;                             // 关闭连续转换
-	ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_Falling;  // 外部触发模式，下降沿
-	ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_T8_CC1;
+	ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;     // 从 ADC 不单独接外部规则触发，只跟随 ADC1 多 ADC 触发
+	ADC_InitStructure.ADC_ExternalTrigConv = 0;
 	ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;                          // 数据对齐，右对齐
 	ADC_InitStructure.ADC_NbrOfConversion = HW_ADC_NBR_CONV;                        // 一次性转换几个
 
-	// 关闭触发，只由ADC1触发
-	ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;     // 触发模式关闭
-	ADC_InitStructure.ADC_ExternalTrigConv = 0;                                     // 转换为0
 	ADC_Init(ADC3, &ADC_InitStructure);
     
     return;
@@ -208,15 +197,21 @@ VOID Bsp_Adc_Bldc_SetChannels(VOID)
 	// 这里 3 个 rank 都采同一组三相电流，便于在一个周期内多点采样或后续取平均/择优使用。
 	ADC_InjectedChannelConfig(ADC1, ADC_Channel_10, 1, ADC_SampleTime_15Cycles);	// ADC1 injected rank1: CURR1
 	ADC_InjectedChannelConfig(ADC2, ADC_Channel_11, 1, ADC_SampleTime_15Cycles);	// ADC2 injected rank1: CURR2
+#ifdef HW_HAS_3_SHUNTS
 	ADC_InjectedChannelConfig(ADC3, ADC_Channel_12, 1, ADC_SampleTime_15Cycles);	// ADC3 injected rank1: CURR3
+#endif
 
 	ADC_InjectedChannelConfig(ADC1, ADC_Channel_10, 2, ADC_SampleTime_15Cycles);	// ADC1 injected rank2: CURR1
 	ADC_InjectedChannelConfig(ADC2, ADC_Channel_11, 2, ADC_SampleTime_15Cycles);	// ADC2 injected rank2: CURR2
+#ifdef HW_HAS_3_SHUNTS
 	ADC_InjectedChannelConfig(ADC3, ADC_Channel_12, 2, ADC_SampleTime_15Cycles);	// ADC3 injected rank2: CURR3
+#endif
 
 	ADC_InjectedChannelConfig(ADC1, ADC_Channel_10, 3, ADC_SampleTime_15Cycles);	// ADC1 injected rank3: CURR1
 	ADC_InjectedChannelConfig(ADC2, ADC_Channel_11, 3, ADC_SampleTime_15Cycles);	// ADC2 injected rank3: CURR2
+#ifdef HW_HAS_3_SHUNTS
 	ADC_InjectedChannelConfig(ADC3, ADC_Channel_12, 3, ADC_SampleTime_15Cycles);	// ADC3 injected rank3: CURR3
+#endif
 
 	return;
 }
@@ -229,13 +224,18 @@ VOID Bsp_Adc_Bldc_SetChannels(VOID)
  */
 VOID Bsp_Adc_Bldc_Init(VOID)
 {
+	Bsp_Adc_Bldc_CommonInit();
+	Bsp_Adc1_Bldc_Init();
+	Bsp_Adc2_Bldc_Init();
+	Bsp_Adc3_Bldc_Init();
+
 	// Enable Vrefint channel 开启内部参考电压通道
 	ADC_TempSensorVrefintCmd(ENABLE);
 
 	// Enable DMA request after last transfer (Multi-ADC mode) 让三重 ADC + DMA 在每次转换序列结束后还能持续发 DMA 请求，保证周期性采样不断流
 	ADC_MultiModeDMARequestAfterLastTransferCmd(ENABLE);
 
-	// Injected channels for current measurement at end of cycle S
+	// Injected channels for current measurement at end of cycle
 	// ADC1的注入触发。由ADC_ExternalTrigInjecConv_T1_CC4触发
 	// ADC2的注入触发。由ADC_ExternalTrigInjecConv_T8_CC2触发
 	ADC_ExternalTrigInjectedConvConfig(ADC1, ADC_ExternalTrigInjecConv_T1_CC4);
