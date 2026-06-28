@@ -265,12 +265,10 @@ VOID Bsp_Tim_StopPwm(BOOL is_second)
 VOID Bsp_Tim_StartPwm(BOOL is_second)
 {
 	if (!is_second) {
-		/* 选择输出pwm1 */
-		TIM_SelectOCxM(HW_PWM1_TIM,  TIM_Channel_1, TIM_OCMode_PWM1);
-		/* 使能通道1 */
-		TIM_CCxCmd(HW_PWM1_TIM, 	 TIM_Channel_1, TIM_CCx_Enable);
-		/* 使能互补通道1 */
-		TIM_CCxNCmd(HW_PWM1_TIM, 	 TIM_Channel_1, TIM_CCxN_Enable);
+
+		TIM_SelectOCxM(HW_PWM1_TIM,  TIM_Channel_1, TIM_OCMode_PWM1);	// 选择PWM1模式
+		TIM_CCxCmd(HW_PWM1_TIM, 	 TIM_Channel_1, TIM_CCx_Enable);	// 使能通道1
+		TIM_CCxNCmd(HW_PWM1_TIM, 	 TIM_Channel_1, TIM_CCxN_Enable); 	// 使能互补通道1
 
 		TIM_SelectOCxM(HW_PWM1_TIM,  TIM_Channel_2, TIM_OCMode_PWM1);
 		TIM_CCxCmd(HW_PWM1_TIM, 	 TIM_Channel_2, TIM_CCx_Enable);
@@ -280,7 +278,8 @@ VOID Bsp_Tim_StartPwm(BOOL is_second)
 		TIM_CCxCmd(HW_PWM1_TIM, 	 TIM_Channel_3, TIM_CCx_Enable);
 		TIM_CCxNCmd(HW_PWM1_TIM, 	 TIM_Channel_3, TIM_CCxN_Enable);
 
-#ifdef HW_HAS_DUAL_PARALLEL
+		
+#ifdef HW_HAS_DUAL_PARALLEL		// 同时开俩电机
 		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_OCMode_PWM1);
 		TIM_CCxCmd(TIM8, TIM_Channel_1, TIM_CCx_Enable);
 		TIM_CCxNCmd(TIM8, TIM_Channel_1, TIM_CCxN_Enable);
@@ -295,17 +294,15 @@ VOID Bsp_Tim_StartPwm(BOOL is_second)
 
 		PHASE_FILTER_ON_M2();
 #endif
-
-		/* Generate COM event in ADC interrupt to get better synchronization */
 		/* 只有产生com事件才会生效,因为预先写入影子寄存器,需要触发写入
-			后续这里可能在dma中断生效9
+			后续这里可能在dma中断生效9】
+			Generate COM event in ADC interrupt to get better synchronization 
 		 */
 		TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-
-#ifdef HW_HAS_DRV8313
+#ifdef HW_HAS_DRV8313	// 刹车
 		ENABLE_BR();
 #endif
-		PHASE_FILTER_ON();
+		PHASE_FILTER_ON();	// 使能滤波器，控制电容滤波
 	} else {
 		TIM_SelectOCxM(TIM8, TIM_Channel_1, TIM_OCMode_PWM1);
 		TIM_CCxCmd(TIM8, 	 TIM_Channel_1, TIM_CCx_Enable);

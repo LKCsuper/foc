@@ -41,15 +41,14 @@ float target;
 void Task_Init(void *argument)
 {
 	osDelay(5000);
-    foc_simulink0_initialize();
-    Bsp_Init();
-    //Detect_Init();
+    Bsp_Init();             // 初始化硬件
+    Detect_Init();          // 电机参数检测
     PRINTF("Init Task %d\r\n", TIM1->ARR);
-    RTT_Debug_Init();
-    Command_Init();
-    MOTOR_Param_Init();
-    MOTOR_ShowParam();
-    Bsp_Tim_StartPwm(MOTOR1);
+    // RTT_Debug_Init();
+    Command_Init();         // 命令行初始化
+    MOTOR_Param_Init();     // easyflash初始化，电机参数初始化     
+    MOTOR_ShowParam();      // 显示参数
+    Bsp_Tim_StartPwm(MOTOR1);   // 启动PWM输出
     while (1)
     {
         osDelay(1000);
@@ -63,15 +62,11 @@ void Task_Init(void *argument)
  */
 LONG main(VOID)
 {   
-    /* 任务bsp初始化 */
-    Bsp_RTOS_Init();
-    /* 内核初始化 */
-    osKernelInitialize();
+    Bsp_RTOS_Init();    // 初始化RTOS
+    osKernelInitialize();   // 初始化CMSIS-RTOS内核
+    Motor_Simple_BldcInit(); // 电机参数初始化
 
-    Motor_Simple_BldcInit();
-
-    /* 创建新任务 */
-    osThreadNew(Task_Init, NULL, &taskInitAttr);
+    osThreadNew(Task_Init, NULL, &taskInitAttr);    // 创建初始化任务
 
     /* 任务启动 */
 	if (osOK != osKernelStart())
