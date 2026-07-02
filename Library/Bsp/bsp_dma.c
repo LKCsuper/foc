@@ -79,31 +79,40 @@ STATIC VOID Bsp_DMA2_Init(VOID)
 }
 
 /**
- * @description: dma2 中断
- * @detail: 
- * @return {*}
+ * @description: DMA2 Stream4 中断配置（ADC 采样完成 / 半完成中断）
+ * @detail:
+ *   配置 DMA2 Stream4 的 NVIC 中断，用于在 ADC DMA 搬运完成后触发 FOC 算法处理：
+ *
+ *   中断策略（关键优化）：
+ *   - 当 ADC 前三个通道为电流采样（ADC_IND_CURR1/2/3 < 3）时，使用半传输中断（HT）
+ *     原因：DMA 搬运一半数据时，三相电流 + 电压数据已经到达内存，可以提前开始 FOC 计算
+ *     优势：在下一个零矢量到来之前有更多 CPU 周期完成计算并更新定时器，支持更高的 PWM 频率
+ *   - 否则使用传输完成中断（TC）：等待所有 ADC 通道数据到齐后再处理
+ *
+ *   中断优先级：IRQ_DMA2_STREAM2，子优先级 0（最高），确保 ADC 数据及时处理
+ * @return {VOID}
  * @author: lkc
  */
 STATIC VOID Bsp_Dma2_NVIC(VOID)
 {
-	/* 中断 */
+	/* NVIC 中断初始化结构体 */
 	NVIC_InitTypeDef NVIC_InitStre;
+	/* 中断通道：DMA2 Stream4，对应 ADC1 DMA 请求 */
 	NVIC_InitStre.NVIC_IRQChannel = DMA2_Stream4_IRQn;
+	/* 抢占优先级：IRQ_DMA2_STREAM2 */
     NVIC_InitStre.NVIC_IRQChannelPreemptionPriority = IRQ_DMA2_STREAM2;
+	/* 子优先级：0（最高），优先处理 ADC 数据 */
     NVIC_InitStre.NVIC_IRQChannelSubPriority = 0x0;
+	/* 使能中断通道 */
     NVIC_InitStre.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStre);
-/*
-	 Note: The half transfer interrupt is used as we already have all current and voltage
-	 samples by then and we can start processing them. Entering the interrupt earlier gives
-	 more cycles to finish it and update the timer before the next zero vector. This helps
-	 at higher f_zv. Only use this if the three first samples are current samples.
-*/
-	/* 这里尤其注意一下,半dma中断模式,已经采样完成电流电压,可以提高采样频率 */
+
+	/* 根据 ADC 通道排列选择中断触发点：
+	 * 前三个通道是电流 → 半传输中断（HT）：DMA 搬运一半时电流电压已就绪，可提前开始 FOC
+	 * 否则 → 传输完成中断（TC）：所有通道数据到齐再处理 */
 #if ADC_IND_CURR1 < 3 && ADC_IND_CURR2 < 3 && ADC_IND_CURR3 < 3
 	DMA_ITConfig(DMA2_Stream4, DMA_IT_HT, ENABLE);
 #else
-	/* 开启传输完成中断 */
 	DMA_ITConfig(DMA2_Stream4, DMA_IT_TC, ENABLE);
 #endif
 
@@ -114,83 +123,127 @@ STATIC VOID Bsp_Dma2_NVIC(VOID)
 }
 
 /**
- * @description: DMA adc采样触发
- * @detail: 
- * @return {*}
+ * @description: ADC DMA 采样初始化入口
+ * @detail:
+ *   调用 DMA2 初始化及中断配置，完成 ADC 采样数据的 DMA 自动搬运链路：
+ *   Bsp_DMA2_Init() → 配置 DMA2 Stream4 循环搬运 ADC->CDR → ADC_Value[]
+ *   Bsp_Dma2_NVIC() → 配置传输完成/半完成中断，触发 FOC 电流环计算
+ * @return {VOID}
  * @author: lkc
  */
 VOID Bsp_Dma_AdcSample(VOID)
 {
+	/* 初始化 DMA2 Stream4：ADC 数据自动搬运 */
 	Bsp_DMA2_Init();
+	/* 配置 DMA2 Stream4 中断：采样完成后触发 FOC 算法 */
 	Bsp_Dma2_NVIC();
 
 	return;
 }
 
 /**
- * @description: dma1 初始化
- * @detail: 
- * @return {*}
+ * @description: DMA1 Stream1 初始化（串口接收 DMA）
+ * @detail:
+ *   配置 DMA1 Stream1 通道4，将 USART 接收数据寄存器 DR 的内容自动搬运到接收缓冲区：
+ *   - 数据流：DEBUG_USART->DR（外设）→ gucURxBuf[]（内存），字节单位
+ *   - 通道：DMA_Channel_4，对应 USART1_RX 的 DMA 请求
+ *   - 模式：循环模式（必须），否则接收一包数据后 DMA 自动停止
+ *   - 缓冲区大小：32 字节，外设地址固定（DR 寄存器），内存地址递增
+ *   - FIFO 禁用，单次突发传输，高优先级确保串口数据不丢失
+ *
+ *   注意：本函数仅初始化 DMA 结构体，不使能 DMA 和 USART DMA 请求
+ *   （由 Bsp_Dma_UsartRx 完成使能）。
+ * @return {VOID}
  * @author: lkc
  */
 VOID Bsp_Dma1_Init(VOID)
 {
-	/* 每个dma数据流和通道对应不同的外设 */
+	/* 复位 DMA1 Stream1 至默认状态 */
 	DMA_DeInit(DMA1_Stream1);
+	/* 使能 DMA1 时钟（AHB1总线） */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA1, ENABLE);
 
 	DMA_InitTypeDef DMA_InitStructure;
-	while (DMA_GetCmdStatus(DMA1_Stream1) != DISABLE){} /* 检测dma是否之前配置过 */
-	DMA_InitStructure.DMA_Channel = DMA_Channel_4; 
-	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(DEBUG_USART->DR); /* 外设地址 */
-	DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)gucURxBuf; /* 内存地址 */
-	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory; /* 外设到内存 */
-	DMA_InitStructure.DMA_BufferSize = (uint32_t)32; /* 一次性传输大小 */
-	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable; /* 外设地址不变 */
-	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable; /* memory地址自增 */
-	DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte; /* 外设地址数据单位 */
-	DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte; /* memory地址数据单位 */
-	DMA_InitStructure.DMA_Mode = DMA_Mode_Circular; /* 注意! 这里一定要使用循环模式,否则收到一包之后就停止了 */
-	DMA_InitStructure.DMA_Priority = DMA_Priority_High; /* 优先级 */
-	DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable;       
+	/* 等待上一次 DMA 配置彻底关闭，防止配置冲突 */
+	while (DMA_GetCmdStatus(DMA1_Stream1) != DISABLE){}
+	/* 通道4 → 对应 USART1_RX DMA 请求 */
+	DMA_InitStructure.DMA_Channel = DMA_Channel_4;
+	/* 外设地址：串口数据寄存器 DR */
+	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(DEBUG_USART->DR);
+	/* 内存地址：接收缓冲区 gucURxBuf */
+	DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)gucURxBuf;
+	/* 传输方向：外设 → 内存 */
+	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory;
+	/* 缓冲区大小：32 字节，与 USART_RX_BUF_SIZE 一致 */
+	DMA_InitStructure.DMA_BufferSize = (uint32_t)32;
+	/* 外设地址固定：DR 寄存器只有一个地址 */
+	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+	/* 内存地址递增：依次填入 gucURxBuf[0], [1], ... */
+	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+	/* 外设数据宽度：字节（8bit），串口数据寄存器低 8 位有效 */
+	DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
+	/* 内存数据宽度：字节（8bit） */
+	DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
+	/* 循环模式：必须！否则接收完一包数据后 DMA 自动停止 */
+	DMA_InitStructure.DMA_Mode = DMA_Mode_Circular;
+	/* 优先级：高，确保串口数据及时搬运 */
+	DMA_InitStructure.DMA_Priority = DMA_Priority_High;
+	/* FIFO 模式：禁用，使用直接模式 */
+	DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable;
+	/* FIFO 阈值：FIFO 禁用时无效 */
 	DMA_InitStructure.DMA_FIFOThreshold = DMA_FIFOThreshold_Full;
-	DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single; /* 存储器突发模式选择，可选单次模式、 4 节拍的增量突发模式、 8 节拍的增量突发模式或 16 节拍的增量突发模式。*/
-	DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single; /* 外设突发模式选择，可选单次模式、 4 节拍的增量突发模式、 8 节拍的增量突发模式或 16 节拍的增量突发模式。 */
-	DMA_Init(DMA1_Stream1, &DMA_InitStructure); 
+	/* 内存突发传输：单次 */
+	DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
+	/* 外设突发传输：单次 */
+	DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+	DMA_Init(DMA1_Stream1, &DMA_InitStructure);
 
 	return;
 }
 
 /**
- * @description: 串口接受dma
- * @detail: 
- * @return {*}
+ * @description: 串口 DMA 接收初始化入口
+ * @detail:
+ *   调用 Bsp_Dma1_Init() 初始化 DMA1 Stream1，然后使能 DMA 传输和 USART DMA 请求：
+ *   1. DMA_SetCurrDataCounter → 设置当前传输计数 = 缓冲区大小
+ *   2. DMA_Cmd → 使能 DMA1 Stream1，开始等待 USART DMA 请求
+ *   3. USART_DMACmd → 使能 USART 接收 DMA 请求，串口收到字节时自动触发 DMA 搬运
+ *
+ *   注意：USART_DMACmd 必须在 DMA_Cmd 之后调用，否则 DMA 不会响应串口请求。
+ * @return {VOID}
  * @author: lkc
  */
 VOID Bsp_Dma_UsartRx(VOID)
 {
+	/* 初始化 DMA1 Stream1 通道4 配置 */
 	Bsp_Dma1_Init();
 
+	/* 设置 DMA 传输数据量 = 接收缓冲区大小 */
 	DMA_SetCurrDataCounter(DMA1_Stream1, USART_RX_BUF_SIZE);
+	/* 使能 DMA1 Stream1，开始监听 USART DMA 请求 */
 	DMA_Cmd(DMA1_Stream1, ENABLE);
 
-	// TODO 注意 如果是使能dma一定要加这个
+	/* 使能 USART 接收 DMA：串口每收到一个字节，自动触发一次 DMA 搬运
+	 * 必须在 DMA_Cmd 之后才使能，否则 DMA 不响应 */
 	USART_DMACmd(DEBUG_USART, USART_DMAReq_Rx, ENABLE);
 
 	return;
 }
 
 /**
- * @description: dma初始化
- * @detail: 
- * @return {*}
+ * @description: DMA 系统初始化顶层入口
+ * @detail:
+ *   初始化系统全部 DMA 通道：
+ *   1. Bsp_Dma_AdcSample() → DMA2 Stream4：ADC 采样数据自动搬运至内存
+ *   2. Bsp_Dma_UsartRx()  → DMA1 Stream1：串口接收数据自动搬运至缓冲区
+ * @return {VOID}
  * @author: lkc
  */
 VOID Bsp_Dma_Init(VOID)
 {
-	/* dma ADC 采样 */
+	/* DMA2 Stream4：ADC 数据搬运 + 中断配置 */
 	Bsp_Dma_AdcSample();
-	/* 串口接收 */
+	/* DMA1 Stream1：串口接收数据搬运 */
 	Bsp_Dma_UsartRx();
 
 	return;
