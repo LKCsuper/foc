@@ -18,33 +18,60 @@ UCHAR gucURxBuf[USART_RX_BUF_SIZE] = {0};
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /**
- * @description: dma2 初始化
- * @detail: 
- * @return {*}
+ * @description: DMA2 Stream4 初始化（ADC 采样数据自动搬运）
+ * @detail:
+ *   配置 DMA2 的 Stream4，将 ADC 转换结果从 ADC 通用数据寄存器自动搬运到内存数组：
+ *   - 数据流：ADC->CDR（外设）→ ADC_Value[]（内存），半字（16bit）单位
+ *   - 通道：DMA_Channel_0，对应 ADC1 的 DMA 请求
+ *   - 模式：循环模式（Circular），每轮 ADC 扫描完成后自动重新开始，不断刷新采样数据
+ *   - 缓冲区大小：HW_ADC_CHANNELS（ADC 通道数），每轮传输所有通道的转换结果
+ *   - 外设地址固定（CDR 寄存器只有一个地址），内存地址递增（填充数组各元素）
+ *   - 高优先级，确保 ADC 数据及时搬运不被其他 DMA 请求阻塞
+ *   - FIFO 禁用，单次突发传输（直接模式，每个 DMA 请求传输一个半字）
+ *
+ *   对应中断配置见 Bsp_Dma2_NVIC()：
+ *   - 前三个 ADC 通道为电流采样时使用半传输中断（HT），提前开始 FOC 计算
+ *   - 否则使用传输完成中断（TC）
+ * @return {VOID}
  * @author: lkc
  */
 STATIC VOID Bsp_DMA2_Init(VOID)
 {
-	/* 时钟初始化 */
+	/* 使能 DMA2 时钟（AHB1总线） */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA2, ENABLE);
 
-	/* 开启中断 */
 	DMA_InitTypeDef DMA_InitStructure;
-	DMA_InitStructure.DMA_Channel = DMA_Channel_0; 	/* 选择通道0 */
-	DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)&ADC_Value; 	/* 外设到内存 */
-	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&ADC->CDR; 	/* 外设地址 */
-	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory;	/* 传输方向 */
-	DMA_InitStructure.DMA_BufferSize = HW_ADC_CHANNELS; /* 传输大小15 */
-	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable; /* 外设地址增量模式,就是外设地址递增 */
-	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable; /* 内存的地址是变化的 */
-	DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord; /* 外设大小是半字 */
-	DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord; /* 内存地址大小半字 */
-	DMA_InitStructure.DMA_Mode = DMA_Mode_Circular; /* 循环接受直到接受完成 */
-	DMA_InitStructure.DMA_Priority = DMA_Priority_High; /* 优先等级高 */
-	DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable; /* FIFO模式关闭 */
+	/* 通道选择：通道0 → 对应 ADC1 的 DMA 请求 */
+	DMA_InitStructure.DMA_Channel = DMA_Channel_0;
+	/* 内存基地址：ADC 采样结果数组 ADC_Value[] */
+	DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)&ADC_Value;
+	/* 外设基地址：ADC 通用规则数据寄存器（CDR），所有通道转换结果在此 */
+	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&ADC->CDR;
+	/* 传输方向：外设 → 内存（ADC 读到数组） */
+	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory;
+	/* 缓冲区大小：等于 ADC 通道数，每轮传输所有通道的转换结果 */
+	DMA_InitStructure.DMA_BufferSize = HW_ADC_CHANNELS;
+	/* 外设地址不递增：CDR 寄存器地址固定，每次读取同一个地址 */
+	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+	/* 内存地址递增：依次填入 ADC_Value[0], ADC_Value[1], ... */
+	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+	/* 外设数据宽度：半字（16bit），ADC 转换精度 12bit */
+	DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
+	/* 内存数据宽度：半字（16bit），与外设一致 */
+	DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
+	/* 循环模式：ADC 持续扫描，DMA 自动循环搬运，无需软件重新配置 */
+	DMA_InitStructure.DMA_Mode = DMA_Mode_Circular;
+	/* 优先级：高，ADC 采样数据需要及时搬运避免覆盖 */
+	DMA_InitStructure.DMA_Priority = DMA_Priority_High;
+	/* FIFO 模式：禁用，使用直接模式（每个请求立即触发一次传输） */
+	DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable;
+	/* FIFO 阈值：仅 FIFO 使能时有效，此处无实际作用 */
 	DMA_InitStructure.DMA_FIFOThreshold = DMA_FIFOThreshold_1QuarterFull;
-	DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single; /* 内存突发传输 */
-	DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single; /* 外设突发传输 */
+	/* 内存突发传输：单次（直接模式下一拍一个数据） */
+	DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
+	/* 外设突发传输：单次 */
+	DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+	/* 写入 DMA 配置并立即使能 Stream4 */
 	DMA_Init(DMA2_Stream4, &DMA_InitStructure);
 	DMA_Cmd(DMA2_Stream4, ENABLE);
 
