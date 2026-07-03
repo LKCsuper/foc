@@ -18,7 +18,9 @@ extern "C" {
 /* 这里存储中断优先级,方便安排 */
 #define IRQ_TIM3                (6)
 #define IRQ_DEBUG_IDE           (5)
-#define IRQ_DMA2_STREAM2        (1)
+/* modify:codex 原因：ADC DMA 中断实际是 DMA2 Stream4；保留旧宏别名，避免其他旧引用编译失败。 */
+#define IRQ_DMA2_STREAM4        (1)
+#define IRQ_DMA2_STREAM2        IRQ_DMA2_STREAM4
 
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/

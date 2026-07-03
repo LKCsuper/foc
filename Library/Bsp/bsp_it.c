@@ -60,8 +60,9 @@ VOID Bsp_Usart_Handler(VOID)
 
 		/* 此时知道接收的长度以及Buf,直接传一个队列 */
 		osMessageQueuePut(queueCmdHandle, &ulRxLen, NULL, 0);
-		DMA_ClearFlag(DMA1_Stream1, DMA_FLAG_TCIF4 | DMA_FLAG_FEIF4 | DMA_FLAG_DMEIF4 |
-				DMA_FLAG_TEIF4 | DMA_FLAG_HTIF4);//清除DMA2_Steam7传输完成标志
+		/* modify:codex 原因：这里操作的是 DMA1 Stream1，必须清 IF1 标志；原来清 IF4 会留下 Stream1 pending 标志。 */
+		DMA_ClearFlag(DMA1_Stream1, DMA_FLAG_TCIF1 | DMA_FLAG_FEIF1 | DMA_FLAG_DMEIF1 |
+				DMA_FLAG_TEIF1 | DMA_FLAG_HTIF1);
 		IS_TIME_OUT(DMA_GetCmdStatus(DMA1_Stream1) != DISABLE);
 		
 		DMA_SetCurrDataCounter(DMA1_Stream1, USART_RX_BUF_SIZE);
@@ -79,9 +80,20 @@ VOID Bsp_Usart_Handler(VOID)
  */
 VOID Bsp_Dma2Stream4_Handler(VOID)
 {
-    Motor_DmaInt(NULL, NULL);
-    DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_TCIF4);
-    DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_HTIF4);
+    /* modify:codex 原因：只在当前启用的 HT/TC 标志置位时调用 Motor_DmaInt，避免非目标或残留 DMA 标志误触发 FOC 计算。 */
+#if ADC_IND_CURR1 < 3 && ADC_IND_CURR2 < 3 && ADC_IND_CURR3 < 3
+    if (RESET != DMA_GetITStatus(DMA2_Stream4, DMA_IT_HTIF4))
+    {
+        DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_HTIF4);
+        Motor_DmaInt(NULL, NULL);
+    }
+#else
+    if (RESET != DMA_GetITStatus(DMA2_Stream4, DMA_IT_TCIF4))
+    {
+        DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_TCIF4);
+        Motor_DmaInt(NULL, NULL);
+    }
+#endif
     return;
 }
 

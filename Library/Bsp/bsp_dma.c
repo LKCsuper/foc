@@ -39,6 +39,12 @@ STATIC VOID Bsp_DMA2_Init(VOID)
 {
 	/* 使能 DMA2 时钟（AHB1总线） */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA2, ENABLE);
+	/* modify:codex 原因：重新初始化 ADC DMA 前先关闭 Stream4 并清旧标志，避免上次运行残留的 TC/HT/错误标志误触发 FOC 中断。 */
+	DMA_DeInit(DMA2_Stream4);
+	volatile uint32_t dma_timeout = 100000;
+	while (DMA_GetCmdStatus(DMA2_Stream4) != DISABLE && --dma_timeout) {}
+	DMA_ClearFlag(DMA2_Stream4, DMA_FLAG_TCIF4 | DMA_FLAG_HTIF4 | DMA_FLAG_TEIF4 |
+			DMA_FLAG_DMEIF4 | DMA_FLAG_FEIF4);
 
 	DMA_InitTypeDef DMA_InitStructure;
 	/* 填充默认值，避免栈上随机值被误写入寄存器 */
@@ -73,9 +79,8 @@ STATIC VOID Bsp_DMA2_Init(VOID)
 	DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
 	/* 外设突发传输：单次 */
 	DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
-	/* 写入 DMA 配置并立即使能 Stream4 */
+	/* modify:codex 原因：先只写入 DMA 配置，待中断源和 NVIC 配好后再使能 Stream4，避免初始化窗口内漏触发或误触发。 */
 	DMA_Init(DMA2_Stream4, &DMA_InitStructure);
-	DMA_Cmd(DMA2_Stream4, ENABLE);
 
 	return;
 }
@@ -101,8 +106,8 @@ STATIC VOID Bsp_Dma2_NVIC(VOID)
 	NVIC_InitTypeDef NVIC_InitStre;
 	/* 中断通道：DMA2 Stream4，对应 ADC1 DMA 请求 */
 	NVIC_InitStre.NVIC_IRQChannel = DMA2_Stream4_IRQn;
-	/* 抢占优先级：IRQ_DMA2_STREAM2 */
-    NVIC_InitStre.NVIC_IRQChannelPreemptionPriority = IRQ_DMA2_STREAM2;
+	/* modify:codex 原因：该中断实际使用 DMA2 Stream4，宏名改为 IRQ_DMA2_STREAM4，避免和 Stream2 混淆。 */
+    NVIC_InitStre.NVIC_IRQChannelPreemptionPriority = IRQ_DMA2_STREAM4;
 	/* 子优先级：0（最高），优先处理 ADC 数据 */
     NVIC_InitStre.NVIC_IRQChannelSubPriority = 0x0;
 	/* 使能中断通道 */
@@ -117,9 +122,10 @@ STATIC VOID Bsp_Dma2_NVIC(VOID)
 #else
 	DMA_ITConfig(DMA2_Stream4, DMA_IT_TC, ENABLE);
 #endif
-
-	// TODO 清空一遍中断标志
-	//DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_TCIF4);
+	/* modify:codex 原因：中断源配置完成后再次清 Stream4 标志，再使能 DMA，防止 pending 标志导致一开中断就进入 Motor_DmaInt。 */
+	DMA_ClearFlag(DMA2_Stream4, DMA_FLAG_TCIF4 | DMA_FLAG_HTIF4 | DMA_FLAG_TEIF4 |
+			DMA_FLAG_DMEIF4 | DMA_FLAG_FEIF4);
+	DMA_Cmd(DMA2_Stream4, ENABLE);
 
 	return;
 }
