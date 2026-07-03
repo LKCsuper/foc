@@ -41,6 +41,8 @@ STATIC VOID Bsp_DMA2_Init(VOID)
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA2, ENABLE);
 
 	DMA_InitTypeDef DMA_InitStructure;
+	/* 填充默认值，避免栈上随机值被误写入寄存器 */
+	DMA_StructInit(&DMA_InitStructure);
 	/* 通道选择：通道0 → 对应 ADC1 的 DMA 请求 */
 	DMA_InitStructure.DMA_Channel = DMA_Channel_0;
 	/* 内存基地址：ADC 采样结果数组 ADC_Value[] */
@@ -164,8 +166,10 @@ VOID Bsp_Dma1_Init(VOID)
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA1, ENABLE);
 
 	DMA_InitTypeDef DMA_InitStructure;
-	/* 等待上一次 DMA 配置彻底关闭，防止配置冲突 */
-	while (DMA_GetCmdStatus(DMA1_Stream1) != DISABLE){}
+	DMA_StructInit(&DMA_InitStructure);
+	/* 等待上一次 DMA 配置彻底关闭，超时约 1ms 后强制退出，防止死循环 */
+	volatile uint32_t dma_timeout = 100000;
+	while (DMA_GetCmdStatus(DMA1_Stream1) != DISABLE && --dma_timeout) {}
 	/* 通道4 → 对应 USART1_RX DMA 请求 */
 	DMA_InitStructure.DMA_Channel = DMA_Channel_4;
 	/* 外设地址：串口数据寄存器 DR */
@@ -174,8 +178,8 @@ VOID Bsp_Dma1_Init(VOID)
 	DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)gucURxBuf;
 	/* 传输方向：外设 → 内存 */
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory;
-	/* 缓冲区大小：32 字节，与 USART_RX_BUF_SIZE 一致 */
-	DMA_InitStructure.DMA_BufferSize = (uint32_t)32;
+	/* 缓冲区大小：与 USART_RX_BUF_SIZE 一致 */
+	DMA_InitStructure.DMA_BufferSize = (uint32_t)USART_RX_BUF_SIZE;
 	/* 外设地址固定：DR 寄存器只有一个地址 */
 	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
 	/* 内存地址递增：依次填入 gucURxBuf[0], [1], ... */
