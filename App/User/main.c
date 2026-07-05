@@ -17,8 +17,8 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* 任务栈 */
 static StackType_t taskInitStack[2048];
-static StaticTask_t taskInitTcb; //CreateAppTask任务控制块 
-const osThreadAttr_t taskInitAttr = 
+static StaticTask_t taskInitTcb; //CreateAppTask任务控制块
+const osThreadAttr_t taskInitAttr =
 {
     .name = "Task Init",
     /* 注意如果超出这个中断最大,任务将创建失败 */
@@ -34,34 +34,34 @@ float target;
 
 /**
  * @description: 任务初始化
- * @detail: 
+ * @detail:
  * @param {void} *argument
  * @return {*}
  */
 void Task_Init(void *argument)
 {
-	osDelay(5000);
+	osDelay(pdMS_TO_TICKS(5000));
     Bsp_Init();             // 初始化硬件
-    Detect_Init();          // 电机参数检测
+    MOTOR_Param_Init();     // easyflash初始化，先加载Flash参数
+    Detect_Init();          // 电机参数检测（覆盖Flash中的零值偏移）
+    MOTOR_ShowParam();      // 显示参数（在Shell启动前打印完，避免抢UART）
     PRINTF("Init Task %d\r\n", TIM1->ARR);
     // RTT_Debug_Init();
-    Command_Init();         // 命令行初始化
-    MOTOR_Param_Init();     // easyflash初始化，电机参数初始化     
-    MOTOR_ShowParam();      // 显示参数
+    Command_Init();         // 命令行初始化（最后启动，避免Shell抢UART）
     Bsp_Tim_StartPwm(MOTOR1);   // 启动PWM输出
     while (1)
     {
-        osDelay(1000);
+        osDelay(pdMS_TO_TICKS(1000));
     }
 }
 
 /**
  * @description: 主函数
- * @detail: 
+ * @detail:
  * @return {*}
  */
 LONG main(VOID)
-{   
+{
     Bsp_RTOS_Init();    // 初始化RTOS
     osKernelInitialize();   // 初始化CMSIS-RTOS内核
     Motor_Simple_BldcInit(); // 电机参数初始化

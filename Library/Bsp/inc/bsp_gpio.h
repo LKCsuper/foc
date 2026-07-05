@@ -66,7 +66,7 @@ extern "C" {
 #define T_CHANNEL_N_SOURCE3     GPIO_PinSource15
 
 /* USART */
-#define USART_NUM						   (3)
+#define USART_NUM						   (4)
 
 #if (1 == USART_NUM)
 #define DEBUG_USART_TX_PIN                 GPIO_Pin_9

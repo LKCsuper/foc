@@ -231,7 +231,7 @@ int mcpwm_foc_hall_detect(float current, uint8_t *hall_table, bool *result) {
 		// if (fault != FAULT_CODE_NONE) {
 		// 	goto exit_hall_detect;
 		// }
-        osDelay(1);
+        osDelay(pdMS_TO_TICKS(1));
 		//chThdSleepMilliseconds(1);
 	}
 
@@ -252,7 +252,7 @@ int mcpwm_foc_hall_detect(float current, uint8_t *hall_table, bool *result) {
 			// if (fault != FAULT_CODE_NONE) {
 			// 	goto exit_hall_detect;
 			// }
-             osDelay(5);
+             osDelay(pdMS_TO_TICKS(5));
 			//chThdSleepMilliseconds(5);
 
             // 读取霍尔值
@@ -284,7 +284,7 @@ int mcpwm_foc_hall_detect(float current, uint8_t *hall_table, bool *result) {
 			// if (fault != FAULT_CODE_NONE) {
 			// 	goto exit_hall_detect;
 			// }
-            osDelay(5);
+            osDelay(pdMS_TO_TICKS(5));
 			//chThdSleepMilliseconds(5);
 
 			int hall = utils_read_hall(motor != &m_motor_1, motor->m_conf->m_hall_extra_samples);

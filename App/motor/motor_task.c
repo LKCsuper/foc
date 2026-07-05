@@ -114,7 +114,7 @@ VOID Motor_Task_Hfi(VOID)
         // 延时500 us
 		// chThdSleepMicroseconds(500);
         /* 延时1ms */
-        osDelay(1);
+        osDelay(pdMS_TO_TICKS(1));
 	}
 
 }
@@ -152,7 +152,7 @@ VOID Motor_Task_Tim(VOID)
 
 		//chThdSleepMilliseconds(1);
         /* 延时1ms */
-        osDelay(1);
+        osDelay(pdMS_TO_TICKS(1));
 	}
 
 }

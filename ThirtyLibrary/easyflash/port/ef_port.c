@@ -350,7 +350,7 @@ void ef_log_debug(const char *file, const long line, const char *format, ...) {
 
     /* You can add your code under here. */
     vsprintf(log_buf, format, args);
-    WARNING("%s", log_buf);
+    PRINTF("%s", log_buf);
 
     va_end(args);
 

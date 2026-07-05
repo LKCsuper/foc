@@ -96,95 +96,62 @@ void Motor_DmaInt(void *p, uint32_t flags)
     /* 获取电流 电压参数 */
     Motor_It_ParamCal();
 
-    float Ialpha = 0.0f;
-    float Ibeta = 0.0f;
-    float Id = 0.0f;
-    float Iq = 0.0f;
-    float va = 0.0f;
-    float vb = 0.0f;
-    float vc = 0.0f;
-    float ia = 0.0f;
-    float ib = 0.0f;
-    float ic = 0.0f;
-    float vBus = 0.0f;
-    static float Theta = 0;
+    // float Ialpha = 0.0f;
+    // float Ibeta = 0.0f;
+    // float Id = 0.0f;
+    // float Iq = 0.0f;
+    // float va = 0.0f;
+    // float vb = 0.0f;
+    // float vc = 0.0f;
+    // float ia = 0.0f;
+    // float ib = 0.0f;
+    // float ic = 0.0f;
+    // float vBus = 0.0f;
+    // static float Theta = 0;
 
-    ia = stMotorNow->ia;
-    ib = stMotorNow->ib;
-    ic = stMotorNow->ic;
+    // ia = stMotorNow->ia;
+    // ib = stMotorNow->ib;
+    // ic = stMotorNow->ic;
 
-    va = stMotorNow->va;
-    vb = stMotorNow->vb;
-    vc = stMotorNow->vc;
+    // va = stMotorNow->va;
+    // vb = stMotorNow->vb;
+    // vc = stMotorNow->vc;
 
-    vBus = stMotorNow->v_bus;
+    // vBus = stMotorNow->v_bus;
 
-    float modD = 0;
-#if 0
-    float modQ = 0.4;
-    Theta += 0.01;
-#endif
+    // float modD = 0;
 
-#if 0
-	  //float modD = 0;
-    float modQ = 0.3;
-    //stMotorNow->theta += 0.1;
-    //stMotorNow->theta = 0;
-#endif
-    stMotorNow->theta += 0.005;
-    if (stMotorNow->theta > (M_2PI))
-    {
-        stMotorNow->theta -= (M_2PI);
-    }
-#if 1
-    //rtU.Theta = motor->m_phase_now_override;
-    rtU.Tpwm = 5600;
-    rtU.Udc = stMotorNow->v_bus;
-    rtU.Theta = rtY.Angle;
-    //rtU.Theta = stMotorNow->theta;
-    rtU.we = rtY.Speed;
-    rtU.Iq_ref = 0.45;
-    rtU.Id_ref = 0;
-    rtU.Ia = ia;
-    rtU.Ib = ib;
-    rtU.Ic = ic;
-    // Ls = Ld + Lq
-    rtU.Ls = 0.00015;                        // H
-    rtU.Rs = 0.4;                           // 欧姆
-    // 反电动势常数 3.2 v kprm
-    rtU.flux = 0.017643;                    /* 可以由反电动势常数转换 */
+    // stMotorNow->theta += 0.005;
+    // if (stMotorNow->theta > (M_2PI))
+    // {
+    //     stMotorNow->theta -= (M_2PI);
+    // }
 
-    foc_simulink0_step();
-    TIMER_UPDATE_DUTY_M1(rtY.Tcm1, rtY.Tcm2, rtY.Tcm3);
-    // PRINTF("{%f,%f,%f, %f}\r\n", rtU.Ia, rtU.Ib, rtU.Ic, TIM1->ARR);
-    // PRINTF("{%f,%f,%f, %f}\r\n", rtY.Tcm1, rtY.Tcm2, rtY.Tcm3, TIM1->ARR);
-    // PRINTF("{%f,%f}\r\n", rtY.Vd, rtY.Vq);
-#else
-    /* clarke 变换 */
-    clarke_transform(ia, ib, ic, &Ialpha, &Ibeta);
-    stMotorNow->Ialpha = Ialpha;
-    stMotorNow->Ibeta = Ibeta;
-    park_transform(Ialpha, Ibeta, stMotorNow->theta, &Id, &Iq);
-    stMotorNow->Id = Id;
-    stMotorNow->Iq = Iq;
-    stMotorNow->e_iq_pid.Max_Output = 16.0f;
-    stMotorNow->e_iq_pid.Min_Output = -16.0f;
-    stMotorNow->e_iq_pid.B_Gain = 15.0f;
-    stMotorNow->e_iq_pid.I_Gain = 450.0f;
-    stMotorNow->e_iq_pid.P_Gain = 0.64167f  ;
-    stMotorNow->e_iq_set = 0.5f;
-    stMotorNow->e_id_set = 0.0f;
-    Current_PID_Calc(stMotorNow->e_iq_set, stMotorNow->Iq, &stMotorNow->e_iq_out, &stMotorNow->e_iq_pid);
-    stMotorNow->e_id_out = 0;
-    float modAlpha = 0.0f;
-    float modBeta = 0.0f;
-    inverse_park(stMotorNow->e_id_out , stMotorNow->e_iq_out, stMotorNow->theta, &modAlpha, &modBeta);
-    stMotorNow->modAlpha = modAlpha;
-    stMotorNow->modBeta = modBeta;
-    ULONG sector;
-    svm_hqd(modAlpha, modBeta, vBus, TIM1->ARR, &stMotorNow->duty1, &stMotorNow->duty2, &stMotorNow->duty3, &sector);
-    TIMER_UPDATE_DUTY_M1(stMotorNow->duty1, stMotorNow->duty2, stMotorNow->duty3);
-#endif
+    // /* clarke 变换 */
+    // clarke_transform(ia, ib, ic, &Ialpha, &Ibeta);
+    // stMotorNow->Ialpha = Ialpha;
+    // stMotorNow->Ibeta = Ibeta;
+    // park_transform(Ialpha, Ibeta, stMotorNow->theta, &Id, &Iq);
+    // stMotorNow->Id = Id;
+    // stMotorNow->Iq = Iq;
+    // stMotorNow->e_iq_pid.Max_Output = 16.0f;
+    // stMotorNow->e_iq_pid.Min_Output = -16.0f;
+    // stMotorNow->e_iq_pid.B_Gain = 15.0f;
+    // stMotorNow->e_iq_pid.I_Gain = 450.0f;
+    // stMotorNow->e_iq_pid.P_Gain = 0.64167f  ;
+    // stMotorNow->e_iq_set = 0.5f;
+    // stMotorNow->e_id_set = 0.0f;
+    // Current_PID_Calc(stMotorNow->e_iq_set, stMotorNow->Iq, &stMotorNow->e_iq_out, &stMotorNow->e_iq_pid);
+    // stMotorNow->e_id_out = 0;
+    // float modAlpha = 0.0f;
+    // float modBeta = 0.0f;
+    // inverse_park(stMotorNow->e_id_out , stMotorNow->e_iq_out, stMotorNow->theta, &modAlpha, &modBeta);
+    // stMotorNow->modAlpha = modAlpha;
+    // stMotorNow->modBeta = modBeta;
+    // ULONG sector;
+    // svm_hqd(modAlpha, modBeta, vBus, TIM1->ARR, &stMotorNow->duty1, &stMotorNow->duty2, &stMotorNow->duty3, &sector);
+    // TIMER_UPDATE_DUTY_M1(stMotorNow->duty1, stMotorNow->duty2, stMotorNow->duty3);
+
 	return;
 }
 

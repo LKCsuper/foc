@@ -65,14 +65,14 @@ VOID Duty_ControlTask(VOID *argument)
         TIMER_UPDATE_DUTY_M1(HW_PWM1_TIM->ARR / 10, 0, 0);
         TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 
-        osDelay(50);
+        osDelay(pdMS_TO_TICKS(50));
         TIMER_UPDATE_DUTY_M1(0, HW_PWM1_TIM->ARR / 10, 0);
         TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
         
-        osDelay(50);
+        osDelay(pdMS_TO_TICKS(50));
         TIMER_UPDATE_DUTY_M1(0, 0, HW_PWM1_TIM->ARR / 10);
         TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-        osDelay(50);
+        osDelay(pdMS_TO_TICKS(50));
     }
 }
 

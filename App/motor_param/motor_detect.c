@@ -39,7 +39,7 @@ ULONG DETECT_Offset(BOOL cal_undriven)
 {
 	PRINTF("detect\n");
 
-	osDelay(1000);
+	osDelay(pdMS_TO_TICKS(1000));
 	int cnt = 0;
 
 	// TODO 看门狗时间必须延长 
@@ -62,12 +62,12 @@ ULONG DETECT_Offset(BOOL cal_undriven)
 	TIM_CCxNCmd(TIM1, 	 TIM_Channel_1, TIM_CCxN_Enable);
 	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 
-	osDelay(1);
+	osDelay(pdMS_TO_TICKS(1));
 
 	for (float i = 0;i < samples;i++) {
-		current_sum[0] += motor.currentAdc[0];
-		voltage_sum[0] += motor.voltAdc[0];
-		osDelay(1);
+		current_sum[0] += GET_CURRENT1();
+		voltage_sum[0] += ADC_VOLTS(ADC_IND_SENS1);
+		osDelay(pdMS_TO_TICKS(1));
 	}
 
 	// Start PWM on phase 2
@@ -78,12 +78,12 @@ ULONG DETECT_Offset(BOOL cal_undriven)
 	TIM_CCxNCmd(TIM1, 	 TIM_Channel_2, TIM_CCxN_Enable);
 	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 
-	osDelay(1);
+	osDelay(pdMS_TO_TICKS(1));
 
 	for (float i = 0;i < samples;i++) {
-		current_sum[1] += motor.currentAdc[1];
-		voltage_sum[1] += motor.voltAdc[1];
-		osDelay(1);
+		current_sum[1] += GET_CURRENT2();
+		voltage_sum[1] += ADC_VOLTS(ADC_IND_SENS2);
+		osDelay(pdMS_TO_TICKS(1));
 	}
 
 	// Start PWM on phase 3
@@ -94,12 +94,12 @@ ULONG DETECT_Offset(BOOL cal_undriven)
 	TIM_CCxNCmd(TIM1, 	 TIM_Channel_3, TIM_CCxN_Enable);
 	TIM_GenerateEvent(	 TIM1, TIM_EventSource_COM);
 
-	osDelay(1);
+	osDelay(pdMS_TO_TICKS(1));
 
 	for (float i = 0;i < samples;i++) {
-		current_sum[2] += motor.currentAdc[2];
-		voltage_sum[2] += motor.voltAdc[2];
-		osDelay(1);
+		current_sum[2] += GET_CURRENT3();
+		voltage_sum[2] += ADC_VOLTS(ADC_IND_SENS3);
+		osDelay(pdMS_TO_TICKS(1));
 	}
 
 	Bsp_Tim_StopPwm(MOTOR1);
@@ -120,14 +120,15 @@ ULONG DETECT_Offset(BOOL cal_undriven)
 	// 为什么这里加打印,命令行调用和卡死串口
 	// 但是如果是在外设初始化完成后,这里有打印没问题
 	// !已解决，因为打印浮点数，这个任务栈不够用了
-	// PRINTF("Current Offset [%f] [%f] [%f] \n", motor.currentOffset[0], motor.currentOffset[1], motor.currentOffset[2]);
-	// PRINTF("Volt Offset [%f] [%f] [%f] \n", motor.voltOffset[0], motor.voltOffset[1], motor.voltOffset[2]);
+	PRINTF("ADC_RAW [%d] [%d] [%d]\r\n", (int)GET_CURRENT1(), (int)GET_CURRENT2(), (int)GET_CURRENT3());
+	PRINTF("Current Offset [%f] [%f] [%f]\r\n", motor.currentOffset[0], motor.currentOffset[1], motor.currentOffset[2]);
+	PRINTF("Volt Offset [%f] [%f] [%f]\r\n", motor.voltOffset[0], motor.voltOffset[1], motor.voltOffset[2]);
 
 #if 1
 	// Measure undriven offsets
 	// 有无负载
 	if (cal_undriven) {
-		osDelay(10);
+		osDelay(pdMS_TO_TICKS(10));
 
 		voltage_sum[0] = 0.0; voltage_sum[1] = 0.0; voltage_sum[2] = 0.0;
 
@@ -136,7 +137,7 @@ ULONG DETECT_Offset(BOOL cal_undriven)
 			voltage_sum[0] += ADC_VOLTS(ADC_IND_SENS1) - v_avg;
 			voltage_sum[1] += ADC_VOLTS(ADC_IND_SENS2) - v_avg;
 			voltage_sum[2] += ADC_VOLTS(ADC_IND_SENS3) - v_avg;
-			osDelay(1);
+			osDelay(pdMS_TO_TICKS(1));
 		}
 		Bsp_Tim_StopPwm(MOTOR1);
 
