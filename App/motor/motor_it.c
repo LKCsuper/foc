@@ -96,61 +96,48 @@ void Motor_DmaInt(void *p, uint32_t flags)
     /* 获取电流 电压参数 */
     Motor_It_ParamCal();
 
-    // float Ialpha = 0.0f;
-    // float Ibeta = 0.0f;
-    // float Id = 0.0f;
-    // float Iq = 0.0f;
-    // float va = 0.0f;
-    // float vb = 0.0f;
-    // float vc = 0.0f;
-    // float ia = 0.0f;
-    // float ib = 0.0f;
-    // float ic = 0.0f;
-    // float vBus = 0.0f;
-    // static float Theta = 0;
+    /*
+     * ============================================================
+     *  开环 FOC（电压模式）
+     *  - 虚拟角度自动递增，无需传感器
+     *  - 固定 Vd=0, Vq=OPEN_LOOP_VQ（单位：伏特）→ 逆Park → SVPWM
+     *  - 调参：
+     *    · THETA_STEP 控制转速（步长越大转越快）
+     *    · OPEN_LOOP_VQ 控制电压幅度（V），越大越有力，过大会过流
+     *    · 电机抖 → 减小 THETA_STEP 或增大 OPEN_LOOP_VQ
+     *    · 电机卡 → 增大 OPEN_LOOP_VQ 或减小 THETA_STEP
+     *    · 参考：24V 母线，Vq=2V 约 8% 调制，Vq=12V 约 50%
+     * ============================================================
+     */
+    #define OPEN_LOOP_VQ   5.0f       /* Vq 电压幅度 (V)，不是标幺值 */
+    #define THETA_STEP     0.001f     /* 每步角度增量（rad，控制转速） */
 
-    // ia = stMotorNow->ia;
-    // ib = stMotorNow->ib;
-    // ic = stMotorNow->ic;
+    float modAlpha = 0.0f;
+    float modBeta  = 0.0f;
+    float vBus = stMotorNow->v_bus;
+    ULONG sector;
 
-    // va = stMotorNow->va;
-    // vb = stMotorNow->vb;
-    // vc = stMotorNow->vc;
+    /* 母线电压未就绪时跳过，避免除零或过调制 */
+    if (vBus < 1.0f)
+    {
+        return;
+    }
 
-    // vBus = stMotorNow->v_bus;
+    /* 虚拟角度递增 */
+    stMotorNow->theta += THETA_STEP;
+    if (stMotorNow->theta > M_2PI)
+    {
+        stMotorNow->theta -= M_2PI;
+    }
 
-    // float modD = 0;
+    /* 逆 Park：固定 Vd=0, Vq=OPEN_LOOP_VQ（单位 V，与母线电压同量纲） */
+    inverse_park(0.0f, OPEN_LOOP_VQ, stMotorNow->theta, &modAlpha, &modBeta);
 
-    // stMotorNow->theta += 0.005;
-    // if (stMotorNow->theta > (M_2PI))
-    // {
-    //     stMotorNow->theta -= (M_2PI);
-    // }
-
-    // /* clarke 变换 */
-    // clarke_transform(ia, ib, ic, &Ialpha, &Ibeta);
-    // stMotorNow->Ialpha = Ialpha;
-    // stMotorNow->Ibeta = Ibeta;
-    // park_transform(Ialpha, Ibeta, stMotorNow->theta, &Id, &Iq);
-    // stMotorNow->Id = Id;
-    // stMotorNow->Iq = Iq;
-    // stMotorNow->e_iq_pid.Max_Output = 16.0f;
-    // stMotorNow->e_iq_pid.Min_Output = -16.0f;
-    // stMotorNow->e_iq_pid.B_Gain = 15.0f;
-    // stMotorNow->e_iq_pid.I_Gain = 450.0f;
-    // stMotorNow->e_iq_pid.P_Gain = 0.64167f  ;
-    // stMotorNow->e_iq_set = 0.5f;
-    // stMotorNow->e_id_set = 0.0f;
-    // Current_PID_Calc(stMotorNow->e_iq_set, stMotorNow->Iq, &stMotorNow->e_iq_out, &stMotorNow->e_iq_pid);
-    // stMotorNow->e_id_out = 0;
-    // float modAlpha = 0.0f;
-    // float modBeta = 0.0f;
-    // inverse_park(stMotorNow->e_id_out , stMotorNow->e_iq_out, stMotorNow->theta, &modAlpha, &modBeta);
-    // stMotorNow->modAlpha = modAlpha;
-    // stMotorNow->modBeta = modBeta;
-    // ULONG sector;
-    // svm_hqd(modAlpha, modBeta, vBus, TIM1->ARR, &stMotorNow->duty1, &stMotorNow->duty2, &stMotorNow->duty3, &sector);
-    // TIMER_UPDATE_DUTY_M1(stMotorNow->duty1, stMotorNow->duty2, stMotorNow->duty3);
+    /* SVPWM 输出 */
+    svm_hqd(modAlpha, modBeta, vBus, TIM1->ARR,
+            &stMotorNow->duty1, &stMotorNow->duty2, &stMotorNow->duty3, &sector);
+    TIMER_UPDATE_DUTY_M1(stMotorNow->duty1, stMotorNow->duty2, stMotorNow->duty3);
+    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 
 	return;
 }
