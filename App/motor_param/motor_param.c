@@ -43,6 +43,18 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotorCfg->foc_motor_flux_linkage = 12.13;       /* mWB */
     gpstMotorDefault->e_iq_set = 2.0f;
 
+    /* 开环 V/F 默认参数 — 24V 母线 / 7 对极 / 额定 4000RPM */
+    gpstMotorDefault->ol_enable      = true;
+    gpstMotorDefault->ol_target_rpm  = 80.0f;    /* 目标转速 RPM — 改这一个 */
+    gpstMotorDefault->ol_max_rpm     = 800.0f;   /* 开环目标转速上限 */
+    gpstMotorDefault->ol_v_boost     = 3.0f;    /* 启动补偿 V */
+    gpstMotorDefault->ol_kv_f        = 0.15f;   /* V/Hz */
+    gpstMotorDefault->ol_ramp_rpm_s  = 10.0f;   /* 软启动速率 — 越慢越稳 */
+    gpstMotorDefault->ol_vq_limit    = 18.0f;   /* 最大 75% 调制 */
+    gpstMotorDefault->ol_foc_freq    = 30000.0f; /* FOC 控制频率 Hz */
+    gpstMotorDefault->ol_pole_pairs  = 4.0f;     /* 电机极对数 */
+    gpstMotorDefault->ol_min_rpm     = 30.0f;    /* 最低转速地板 RPM */
+
     size_t saved_value_len;
 
     /* 如果保存的环境变量大小不一致 */
@@ -58,6 +70,19 @@ VOID MOTOR_Param_Init(VOID)
         ef_save_env();
         PRINTF("Default Flash Param\r\n");
     }
+
+    // TODO：调试使用
+    /* 开发阶段：V/F 参数始终从代码默认值覆盖，改 motor_param.c 即可生效 */
+    gpstMotor->ol_enable      = gpstMotorDefault->ol_enable;
+    gpstMotor->ol_target_rpm  = gpstMotorDefault->ol_target_rpm;
+    gpstMotor->ol_max_rpm     = gpstMotorDefault->ol_max_rpm;
+    gpstMotor->ol_v_boost     = gpstMotorDefault->ol_v_boost;
+    gpstMotor->ol_kv_f        = gpstMotorDefault->ol_kv_f;
+    gpstMotor->ol_ramp_rpm_s  = gpstMotorDefault->ol_ramp_rpm_s;
+    gpstMotor->ol_vq_limit    = gpstMotorDefault->ol_vq_limit;
+    gpstMotor->ol_foc_freq    = gpstMotorDefault->ol_foc_freq;
+    gpstMotor->ol_pole_pairs  = gpstMotorDefault->ol_pole_pairs;
+    gpstMotor->ol_min_rpm     = gpstMotorDefault->ol_min_rpm;
 
     PRINTF("Motor iq set [%f]\r\n", gpstMotor->e_iq_set);
 

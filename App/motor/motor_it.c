@@ -20,6 +20,15 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+static void Motor_OpenLoopSafeOutput(MOTOR_PARAM_S *stMotorNow)
+{
+    stMotorNow->duty1 = TIM1->ARR / 2;
+    stMotorNow->duty2 = TIM1->ARR / 2;
+    stMotorNow->duty3 = TIM1->ARR / 2;
+    TIMER_UPDATE_DUTY_M1(stMotorNow->duty1, stMotorNow->duty2, stMotorNow->duty3);
+    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+}
+
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -92,48 +101,103 @@ void Motor_DmaInt(void *p, uint32_t flags)
 
     /* 创建电机结构体 */
     MOTOR_PARAM_S *stMotorNow = &motor; 
-    motor_all_state_t *motor = &m_motor_1;
     /* 获取电流 电压参数 */
     Motor_It_ParamCal();
 
     /*
      * ============================================================
-     *  开环 FOC（电压模式）
-     *  - 虚拟角度自动递增，无需传感器
-     *  - 固定 Vd=0, Vq=OPEN_LOOP_VQ（单位：伏特）→ 逆Park → SVPWM
-     *  - 调参：
-     *    · THETA_STEP 控制转速（步长越大转越快）
-     *    · OPEN_LOOP_VQ 控制电压幅度（V），越大越有力，过大会过流
-     *    · 电机抖 → 减小 THETA_STEP 或增大 OPEN_LOOP_VQ
-     *    · 电机卡 → 增大 OPEN_LOOP_VQ 或减小 THETA_STEP
-     *    · 参考：24V 母线，Vq=2V 约 8% 调制，Vq=12V 约 50%
+     *  开环 FOC（V/F 电压模式）
+     *  - 只需设置 motor.ol_target_rpm（目标转速），即可运转
+     *  - 角度自动递增，转速自动斜坡，Vq 由 V/F 曲线自动计算
+     *  - 调参（shell 运行时修改）：
+     *    ol_target_rpm  → 目标转速，电机应平稳转动（默认 500）
+     *    ol_v_boost     → 电机卡/不转时增大（默认 2V）
+     *    ol_kv_f        → 高速无力时增大（默认 0.05 V/Hz）
+     *    ol_ramp_rpm_s  → 启动失步时减小（默认 500 RPM/s）
+     *    ol_vq_limit    → 过流时减小（默认 18V）
      * ============================================================
      */
-    #define OPEN_LOOP_VQ   5.0f       /* Vq 电压幅度 (V)，不是标幺值 */
-    #define THETA_STEP     0.001f     /* 每步角度增量（rad，控制转速） */
-
     float modAlpha = 0.0f;
     float modBeta  = 0.0f;
     float vBus = stMotorNow->v_bus;
     ULONG sector;
 
-    /* 母线电压未就绪时跳过，避免除零或过调制 */
     if (vBus < 1.0f)
     {
+        stMotorNow->ol_current_rpm = 0.0f;
+        Motor_OpenLoopSafeOutput(stMotorNow);
         return;
     }
 
-    /* 虚拟角度递增 */
-    stMotorNow->theta += THETA_STEP;
-    if (stMotorNow->theta > M_2PI)
+    float foc_freq   = stMotorNow->ol_foc_freq;    /* FOC 控制频率 Hz */
+    float pole_pairs = stMotorNow->ol_pole_pairs;  /* 电机极对数 */
+    float min_rpm    = stMotorNow->ol_min_rpm;     /* 最低转速地板 */
+
+    if (!stMotorNow->ol_enable || stMotorNow->ol_target_rpm <= 0.0f)
     {
-        stMotorNow->theta -= M_2PI;
+        stMotorNow->ol_target_rpm = 0.0f;
+        stMotorNow->ol_current_rpm = 0.0f;
+        Motor_OpenLoopSafeOutput(stMotorNow);
+        return;
     }
 
-    /* 逆 Park：固定 Vd=0, Vq=OPEN_LOOP_VQ（单位 V，与母线电压同量纲） */
-    inverse_park(0.0f, OPEN_LOOP_VQ, stMotorNow->theta, &modAlpha, &modBeta);
+    if (foc_freq <= 1.0f) foc_freq = 1.0f;
+    if (pole_pairs < 1.0f) pole_pairs = 1.0f;
+    if (min_rpm < 0.0f) min_rpm = 0.0f;
+    if (stMotorNow->ol_ramp_rpm_s < 0.0f) stMotorNow->ol_ramp_rpm_s = 0.0f;
+    if (stMotorNow->ol_v_boost < 0.0f) stMotorNow->ol_v_boost = 0.0f;
+    if (stMotorNow->ol_kv_f < 0.0f) stMotorNow->ol_kv_f = 0.0f;
+    if (stMotorNow->ol_vq_limit < 0.0f) stMotorNow->ol_vq_limit = 0.0f;
+    if (stMotorNow->ol_max_rpm <= 0.0f) stMotorNow->ol_max_rpm = 1.0f;
+    if (stMotorNow->ol_target_rpm > stMotorNow->ol_max_rpm) stMotorNow->ol_target_rpm = stMotorNow->ol_max_rpm;
 
-    /* SVPWM 输出 */
+    float vq_limit = stMotorNow->ol_vq_limit;
+    if (vq_limit > vBus * 0.75f) vq_limit = vBus * 0.75f;
+
+    /* ---- 软启动斜坡 ---- */
+    {
+        float dt = 1.0f / foc_freq;
+        float step = stMotorNow->ol_ramp_rpm_s * dt;
+        float target = stMotorNow->ol_target_rpm;
+
+        /* 首次运行跳变到最低转速，避免从 0 起步导致抖而不转 */
+        if (stMotorNow->ol_current_rpm < min_rpm && target > 0.0f)
+        {
+            stMotorNow->ol_current_rpm = min_rpm;
+        }
+
+        if (stMotorNow->ol_current_rpm < target)
+        {
+            stMotorNow->ol_current_rpm += step;
+            if (stMotorNow->ol_current_rpm > target) stMotorNow->ol_current_rpm = target;
+        }
+        else if (stMotorNow->ol_current_rpm > target)
+        {
+            stMotorNow->ol_current_rpm -= step;
+            if (stMotorNow->ol_current_rpm < target) stMotorNow->ol_current_rpm = target;
+        }
+    }
+
+    /* ---- 角度递增（低于地板转速时，用地板值算角度，保证磁场一直转） ---- */
+    {
+        float rpm_for_angle = stMotorNow->ol_current_rpm;
+        if (rpm_for_angle < min_rpm) rpm_for_angle = min_rpm;
+
+        float elec_rad_s = RPM2RADPS_f(rpm_for_angle) * pole_pairs;
+        stMotorNow->ol_theta += elec_rad_s / foc_freq;
+        if (stMotorNow->ol_theta > M_2PI)  stMotorNow->ol_theta -= M_2PI;
+        if (stMotorNow->ol_theta < 0.0f)   stMotorNow->ol_theta += M_2PI;
+    }
+
+    /* ---- V/F 曲线：Vq = V_boost + Kv_f × f_electrical（用实际转速） ---- */
+    float vq;
+    {
+        float f_elec = stMotorNow->ol_current_rpm / 60.0f * pole_pairs;
+        vq = stMotorNow->ol_v_boost + stMotorNow->ol_kv_f * f_elec;
+        if (vq > vq_limit) vq = vq_limit;
+    }
+
+    inverse_park(0.0f, vq, stMotorNow->ol_theta, &modAlpha, &modBeta);
     svm_hqd(modAlpha, modBeta, vBus, TIM1->ARR,
             &stMotorNow->duty1, &stMotorNow->duty2, &stMotorNow->duty3, &sector);
     TIMER_UPDATE_DUTY_M1(stMotorNow->duty1, stMotorNow->duty2, stMotorNow->duty3);

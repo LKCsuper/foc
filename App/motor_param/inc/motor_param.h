@@ -265,6 +265,20 @@ typedef struct motor_param
 	float voltOffset[3];			/* 电压偏移 */
 	float voltundrivenOffset[3]; 	/* 电压无负载偏移 */
 
+	/* 开环 V/F 控制：设 ol_target_rpm 即可，其余自动计算 */
+	bool ol_enable;					/* open-loop enable */
+	float ol_target_rpm;			/* 目标转速 RPM */
+	float ol_max_rpm;				/* max target speed RPM */
+	float ol_current_rpm;			/* 当前斜坡转速 RPM */
+	float ol_v_boost;				/* V/F 启动补偿 V（默认 2V） */
+	float ol_kv_f;					/* V/F 斜率 V/Hz */
+	float ol_ramp_rpm_s;			/* 软启动速率 RPM/s */
+	float ol_vq_limit;				/* Vq 上限 V */
+	float ol_theta;					/* 开环电角度 rad */
+	float ol_foc_freq;				/* FOC 控制频率 Hz（默认 30000） */
+	float ol_pole_pairs;			/* 电机极对数 */
+	float ol_min_rpm;				/* 最低转速地板 RPM */
+
 }MOTOR_PARAM_S;
 //#pragma pack ()
 
