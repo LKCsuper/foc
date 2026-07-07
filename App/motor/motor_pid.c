@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: 电流 PI 控制器
  * @Date: 2023-02-18 23:29:37
  * @LastEditTime: 2023-10-06 10:30:31
  * @FilePath: \foc\App\motor\utils.c
@@ -15,78 +15,81 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-void Current_PID_Calc(real32_T ref_temp, real32_T fdb_temp, real32_T* out_temp, CURRENT_PID_DEF* current_pid_temp)
-{
-	real32_T error;
-	real32_T temp;
-	current_pid_temp->Err = ref_temp - fdb_temp;										/* 差值 */
-	current_pid_temp->Cal_Out = current_pid_temp->P_Gain * current_pid_temp->Err + current_pid_temp->I_Sum;
-	
-    current_pid_temp->Max_Output = 5;
-
-	if (current_pid_temp->Cal_Out > current_pid_temp->Max_Output) 
-	{
-		*out_temp = current_pid_temp->Max_Output;
-	} 
-	else if (current_pid_temp->Cal_Out < current_pid_temp->Min_Output) 
-	{
-		*out_temp = current_pid_temp->Min_Output;
-	} 
-	else 
-	{
-		*out_temp = current_pid_temp->Cal_Out;
-	}
-
-	current_pid_temp->I_Sum += ((*out_temp - current_pid_temp->Cal_Out) * current_pid_temp->B_Gain + current_pid_temp->I_Gain * current_pid_temp->Err) * 0.000067;
-}
 
 /**
- * @description: 电流环
- * @detail: 
- * @return {*}
- * @author: lkc
+ * @description: 单轴电流 PI 控制器（d/q 轴通用）
+ * @detail:   参考 VESC mcpwm_foc.c 的电流环实现。
+ *            PI 并行形式: v_out = v_int + Ierr * kp
+ *                        v_int += Ierr * ki * dt
+ *            电机绕组是一阶系统 (tf = 1/(Ls+R))，不需要 D 项。
+ * @param target:    目标电流 (A)
+ * @param measured:  实测电流 (A)
+ * @param v_int:     PI 积分项指针
+ * @param kp:        比例增益
+ * @param ki:        积分增益
+ * @param dt:        控制周期 (s)
+ * @param v_limit:   输出电压限幅绝对值 (V)
+ * @return:          输出电压 (V)，已限幅
  */
-VOID MOTOR_Pid_Electric(VOID)
+float Motor_Current_PI_Run(float target, float measured, float *v_int,
+                           float kp, float ki, float dt, float v_limit)
 {
-	volatile motor_state_t *state_m = &m_motor_1.m_motor_state;
-	volatile mc_configuration *conf_now = m_motor_1.m_conf;
-    float ki = conf_now->foc_current_ki;                /* 电流ki */
-    float dt;                                           /* 时间差 */
+    // 电流误差 = 目标电流 - 实测电流
+    float Ierr = target - measured;
 
-    /* 最大占空比.fabsf取绝对值，最大的占空比其实就是自己设置的占空比 */
-    float max_duty = fabsf(state_m->max_duty);
+    /* 积分累加 */
+    *v_int += Ierr * ki * dt;
 
-    /* d轴增益范围 */
-	float d_gain_scale = 1.0;
-	if (conf_now->foc_d_gain_scale_start < 0.99) {
-        /* 0.5 / 0.6 */
-		float max_mod_norm = fabsf(state_m->duty_now / max_duty);
-		/* 如果最大占空比很小 */
-        if (max_duty < 0.01) {
-			max_mod_norm = 1.0;
-		}
-		if (max_mod_norm > conf_now->foc_d_gain_scale_start) {
-			d_gain_scale = utils_map(max_mod_norm, conf_now->foc_d_gain_scale_start, 1.0,
-					1.0, conf_now->foc_d_gain_scale_max_mod);
-			if (d_gain_scale < conf_now->foc_d_gain_scale_max_mod) {
-				d_gain_scale = conf_now->foc_d_gain_scale_max_mod;
-			}
-		}
-	}
+    /* PI 输出 = 积分 + 比例 */
+    float v_out = *v_int + Ierr * kp;
 
-    /* 求误差，目标值与实际值的差值 */
-	float Ierr_d = state_m->id_target - state_m->id;
-	float Ierr_q = state_m->iq_target - state_m->iq;
+    /* 输出限幅 + 积分抗饱和（clamping） */
+    if (v_out > v_limit)
+    {
+        v_out = v_limit;
+        /* 限幅时回退积分，防止 windup */
+        *v_int = v_limit - Ierr * kp;
+    }
+    else if (v_out < -v_limit)
+    {
+        v_out = -v_limit;
+        *v_int = -v_limit - Ierr * kp;
+    }
 
-	state_m->vd_int += Ierr_d * (ki * d_gain_scale * dt);
-	state_m->vq_int += Ierr_q * (ki * dt);
-
-	// Feedback (PI controller). No D action needed because the plant is a first order system (tf = 1/(Ls+R))
-	state_m->vd = state_m->vd_int + Ierr_d * conf_now->foc_current_kp * d_gain_scale;
-	state_m->vq = state_m->vq_int + Ierr_q * conf_now->foc_current_kp;
-
-    return;
+    return v_out;
 }
+
+/* ============================== 旧接口保留 ============================== */
+
+/**
+ * @description: 旧版 PID（保留兼容，建议新代码用 Motor_Current_PI_Run）
+ */
+void Current_PID_Calc(real32_T ref_temp, real32_T fdb_temp, real32_T* out_temp, CURRENT_PID_DEF* current_pid_temp)
+{
+    current_pid_temp->Err = ref_temp - fdb_temp;
+    current_pid_temp->Cal_Out = current_pid_temp->P_Gain * current_pid_temp->Err + current_pid_temp->I_Sum;
+
+    /* 硬编码限幅 — FIXME: 应从外部设置 Max_Output */
+    current_pid_temp->Max_Output = 5;
+
+    if (current_pid_temp->Cal_Out > current_pid_temp->Max_Output)
+    {
+        *out_temp = current_pid_temp->Max_Output;
+    }
+    else if (current_pid_temp->Cal_Out < current_pid_temp->Min_Output)
+    {
+        *out_temp = current_pid_temp->Min_Output;
+    }
+    else
+    {
+        *out_temp = current_pid_temp->Cal_Out;
+    }
+
+    /* FIXME: 0.000067 是写死的 dt (1/15000)，应该传参 */
+    current_pid_temp->I_Sum += ((*out_temp - current_pid_temp->Cal_Out) * current_pid_temp->B_Gain
+                                + current_pid_temp->I_Gain * current_pid_temp->Err) * 0.000067;
+}
+
 #ifdef __cplusplus
 }
 #endif

@@ -45,6 +45,7 @@ VOID MOTOR_Param_Init(VOID)
 
     /* 开环 V/F 默认参数 — 24V 母线 / 7 对极 / 额定 4000RPM */
     gpstMotorDefault->ol_enable      = true;
+    gpstMotorDefault->ol_mode        = 1;       /* 0=V/F, 1=角度开环+电流闭环 */
     gpstMotorDefault->ol_target_rpm  = 80.0f;    /* 目标转速 RPM — 改这一个 */
     gpstMotorDefault->ol_max_rpm     = 800.0f;   /* 开环目标转速上限 */
     gpstMotorDefault->ol_v_boost     = 3.0f;    /* 启动补偿 V */
@@ -54,6 +55,12 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotorDefault->ol_foc_freq    = 30000.0f; /* FOC 控制频率 Hz */
     gpstMotorDefault->ol_pole_pairs  = 4.0f;     /* 电机极对数 */
     gpstMotorDefault->ol_min_rpm     = 30.0f;    /* 最低转速地板 RPM */
+    /* 开环电流模式参数 */
+    gpstMotorDefault->ol_iq_set      = 1.0f;     /* 目标 Iq 电流 A */
+    gpstMotorDefault->ol_id_set      = 0.0f;     /* 目标 Id 电流 A */
+    gpstMotorDefault->ol_current_kp  = 0.5f;     /* 电流环 Kp */
+    gpstMotorDefault->ol_current_ki  = 100.0f;   /* 电流环 Ki */
+    gpstMotorDefault->ol_start_phase_boost = M_PI / 2.0f; /* 启动 90° 相位补偿 */
 
     size_t saved_value_len;
 
@@ -72,8 +79,9 @@ VOID MOTOR_Param_Init(VOID)
     }
 
     // TODO：调试使用
-    /* 开发阶段：V/F 参数始终从代码默认值覆盖，改 motor_param.c 即可生效 */
+    /* 开发阶段：开环参数始终从代码默认值覆盖，改 motor_param.c 即可生效 */
     gpstMotor->ol_enable      = gpstMotorDefault->ol_enable;
+    gpstMotor->ol_mode        = gpstMotorDefault->ol_mode;
     gpstMotor->ol_target_rpm  = gpstMotorDefault->ol_target_rpm;
     gpstMotor->ol_max_rpm     = gpstMotorDefault->ol_max_rpm;
     gpstMotor->ol_v_boost     = gpstMotorDefault->ol_v_boost;
@@ -83,6 +91,12 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotor->ol_foc_freq    = gpstMotorDefault->ol_foc_freq;
     gpstMotor->ol_pole_pairs  = gpstMotorDefault->ol_pole_pairs;
     gpstMotor->ol_min_rpm     = gpstMotorDefault->ol_min_rpm;
+    /* 开环电流模式参数 */
+    gpstMotor->ol_iq_set      = gpstMotorDefault->ol_iq_set;
+    gpstMotor->ol_id_set      = gpstMotorDefault->ol_id_set;
+    gpstMotor->ol_current_kp  = gpstMotorDefault->ol_current_kp;
+    gpstMotor->ol_current_ki  = gpstMotorDefault->ol_current_ki;
+    gpstMotor->ol_start_phase_boost = gpstMotorDefault->ol_start_phase_boost;
 
     PRINTF("Motor iq set [%f]\r\n", gpstMotor->e_iq_set);
 
