@@ -14,6 +14,16 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* 串口接收buff大小 */
 #define USART_RX_BUF_SIZE                  (128U)
+
+#if (4 == USART_NUM)
+#define DEBUG_USART_RX_DMA_STREAM          DMA1_Stream2
+#define DEBUG_USART_RX_DMA_CHANNEL         DMA_Channel_4
+#define DEBUG_USART_RX_DMA_FLAGS           (DMA_FLAG_TCIF2 | DMA_FLAG_FEIF2 | DMA_FLAG_DMEIF2 | DMA_FLAG_TEIF2 | DMA_FLAG_HTIF2)
+#else
+#define DEBUG_USART_RX_DMA_STREAM          DMA1_Stream1
+#define DEBUG_USART_RX_DMA_CHANNEL         DMA_Channel_4
+#define DEBUG_USART_RX_DMA_FLAGS           (DMA_FLAG_TCIF1 | DMA_FLAG_FEIF1 | DMA_FLAG_DMEIF1 | DMA_FLAG_TEIF1 | DMA_FLAG_HTIF1)
+#endif
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/

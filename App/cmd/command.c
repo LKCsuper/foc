@@ -76,8 +76,6 @@ void Cmd_Task(void *argument)
     STATIC ULONG ulRxDataLen;
     ULONG i = 0;
     /* 创建队列用于接收DMA */
-    queueCmdHandle = osMessageQueueNew(CMD_QUEUE_LENGTH, CMD_QUEUE_SIZE, NULL);
-
     while (1)
     {
         /* 等待队列 */
@@ -99,6 +97,11 @@ void Cmd_Task(void *argument)
  */
 void Command_Init(void)
 {
+    if (queueCmdHandle == NULL)
+    {
+        queueCmdHandle = osMessageQueueNew(CMD_QUEUE_LENGTH, CMD_QUEUE_SIZE, NULL);
+    }
+
     osThreadNew(Cmd_Task, NULL, &taskCmdAttr);
     
     return;

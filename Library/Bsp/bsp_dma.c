@@ -167,7 +167,7 @@ VOID Bsp_Dma_AdcSample(VOID)
 VOID Bsp_Dma1_Init(VOID)
 {
 	/* 复位 DMA1 Stream1 至默认状态 */
-	DMA_DeInit(DMA1_Stream1);
+	DMA_DeInit(DEBUG_USART_RX_DMA_STREAM);
 	/* 使能 DMA1 时钟（AHB1总线） */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA1, ENABLE);
 
@@ -175,9 +175,9 @@ VOID Bsp_Dma1_Init(VOID)
 	DMA_StructInit(&DMA_InitStructure);
 	/* 等待上一次 DMA 配置彻底关闭，超时约 1ms 后强制退出，防止死循环 */
 	volatile uint32_t dma_timeout = 100000;
-	while (DMA_GetCmdStatus(DMA1_Stream1) != DISABLE && --dma_timeout) {}
+	while (DMA_GetCmdStatus(DEBUG_USART_RX_DMA_STREAM) != DISABLE && --dma_timeout) {}
 	/* 通道4 → 对应 USART1_RX DMA 请求 */
-	DMA_InitStructure.DMA_Channel = DMA_Channel_4;
+	DMA_InitStructure.DMA_Channel = DEBUG_USART_RX_DMA_CHANNEL;
 	/* 外设地址：串口数据寄存器 DR */
 	DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(DEBUG_USART->DR);
 	/* 内存地址：接收缓冲区 gucURxBuf */
@@ -206,7 +206,7 @@ VOID Bsp_Dma1_Init(VOID)
 	DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
 	/* 外设突发传输：单次 */
 	DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
-	DMA_Init(DMA1_Stream1, &DMA_InitStructure);
+	DMA_Init(DEBUG_USART_RX_DMA_STREAM, &DMA_InitStructure);
 
 	return;
 }
@@ -229,9 +229,9 @@ VOID Bsp_Dma_UsartRx(VOID)
 	Bsp_Dma1_Init();
 
 	/* 设置 DMA 传输数据量 = 接收缓冲区大小 */
-	DMA_SetCurrDataCounter(DMA1_Stream1, USART_RX_BUF_SIZE);
+	DMA_SetCurrDataCounter(DEBUG_USART_RX_DMA_STREAM, USART_RX_BUF_SIZE);
 	/* 使能 DMA1 Stream1，开始监听 USART DMA 请求 */
-	DMA_Cmd(DMA1_Stream1, ENABLE);
+	DMA_Cmd(DEBUG_USART_RX_DMA_STREAM, ENABLE);
 
 	/* 使能 USART 接收 DMA：串口每收到一个字节，自动触发一次 DMA 搬运
 	 * 必须在 DMA_Cmd 之后才使能，否则 DMA 不响应 */

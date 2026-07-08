@@ -54,19 +54,21 @@ VOID Bsp_Usart_Handler(VOID)
 		/* 清空空闲中断 */
 		USART_ClearITPendingBit(DEBUG_USART, USART_IT_IDLE);
 		/* 关闭dma */
-		DMA_Cmd(DMA1_Stream1, DISABLE);
+		DMA_Cmd(DEBUG_USART_RX_DMA_STREAM, DISABLE);
 		/* 本帧数据长度=DMA准备的接收数据长度-DMA已接收数据长度 */
-		ulRxLen = USART_RX_BUF_SIZE - DMA_GetCurrDataCounter(DMA1_Stream1); 
+		ulRxLen = USART_RX_BUF_SIZE - DMA_GetCurrDataCounter(DEBUG_USART_RX_DMA_STREAM); 
 
 		/* 此时知道接收的长度以及Buf,直接传一个队列 */
-		osMessageQueuePut(queueCmdHandle, &ulRxLen, NULL, 0);
+		if (queueCmdHandle != NULL && ulRxLen > 0)
+		{
+			osMessageQueuePut(queueCmdHandle, &ulRxLen, NULL, 0);
+		}
 		/* modify:codex 原因：这里操作的是 DMA1 Stream1，必须清 IF1 标志；原来清 IF4 会留下 Stream1 pending 标志。 */
-		DMA_ClearFlag(DMA1_Stream1, DMA_FLAG_TCIF1 | DMA_FLAG_FEIF1 | DMA_FLAG_DMEIF1 |
-				DMA_FLAG_TEIF1 | DMA_FLAG_HTIF1);
-		IS_TIME_OUT(DMA_GetCmdStatus(DMA1_Stream1) != DISABLE);
+		DMA_ClearFlag(DEBUG_USART_RX_DMA_STREAM, DEBUG_USART_RX_DMA_FLAGS);
+		IS_TIME_OUT(DMA_GetCmdStatus(DEBUG_USART_RX_DMA_STREAM) != DISABLE);
 		
-		DMA_SetCurrDataCounter(DMA1_Stream1, USART_RX_BUF_SIZE);
-		DMA_Cmd(DMA1_Stream1, ENABLE);
+		DMA_SetCurrDataCounter(DEBUG_USART_RX_DMA_STREAM, USART_RX_BUF_SIZE);
+		DMA_Cmd(DEBUG_USART_RX_DMA_STREAM, ENABLE);
 	}
 	
 	return;
