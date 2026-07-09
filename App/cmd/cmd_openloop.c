@@ -6,7 +6,7 @@
  * @LastEditors: lkc
  * @LastEditTime: 2023-10-24 23:29:19
  * @detail:
- *   olspeed <rpm>     设置目标转速
+ *   olspeed <rpm>     设置目标转速，负数为反转
  *   olspeed            查看当前开环状态
  *   olboost <V>        设置 V/F 启动补偿电压
  *   olkvf <V/Hz>       设置 V/F 斜率
@@ -78,7 +78,7 @@ static void ol_print_status(void)
         PRINTF("  Kv_f       : %.4f V/Hz\n", motor.ol_kv_f);
         PRINTF("  Vq limit   : %.1f V\n", motor.ol_vq_limit);
 
-        float f_elec = motor.ol_current_rpm / 60.0f * motor.ol_pole_pairs;
+        float f_elec = fabsf(motor.ol_current_rpm) / 60.0f * motor.ol_pole_pairs;
         float vq_est = motor.ol_v_boost + motor.ol_kv_f * f_elec;
         if (vq_est > motor.ol_vq_limit) vq_est = motor.ol_vq_limit;
         float mod = 0.0f;
@@ -98,15 +98,22 @@ int Cmd_OlSpeed(int argc, char *argv[])
     if (argc < 2)
     {
         ol_print_status();
-        PRINTF("Usage: olspeed <rpm>  — set target speed\n");
+        PRINTF("Usage: olspeed <rpm>  — set target speed, negative for reverse\n");
         return 0;
     }
 
     float rpm = atof(argv[1]);
-    if (rpm < 0.0f) rpm = 0.0f;
-    if (motor.ol_max_rpm > 0.0f && rpm > motor.ol_max_rpm) rpm = motor.ol_max_rpm;
+
+    if (motor.ol_max_rpm > 0.0f) {
+        if (rpm > motor.ol_max_rpm) {
+            rpm = motor.ol_max_rpm;
+        } else if (rpm < -motor.ol_max_rpm) {
+            rpm = -motor.ol_max_rpm;
+        }
+    }
+
     motor.ol_target_rpm = rpm;
-    motor.ol_enable = (rpm > 0.0f);
+    motor.ol_enable = (rpm != 0.0f);
     if (!motor.ol_enable) motor.ol_current_rpm = 0.0f;
     if (motor.ol_enable) Bsp_Tim_StartPwm(MOTOR1);
     PRINTF("Target RPM set to %.0f\n", rpm);
@@ -188,6 +195,7 @@ int Cmd_OlMaxSpeed(int argc, char *argv[])
     motor.ol_max_rpm = atof(argv[1]);
     if (motor.ol_max_rpm < 1.0f) motor.ol_max_rpm = 1.0f;
     if (motor.ol_target_rpm > motor.ol_max_rpm) motor.ol_target_rpm = motor.ol_max_rpm;
+    if (motor.ol_target_rpm < -motor.ol_max_rpm) motor.ol_target_rpm = -motor.ol_max_rpm;
     PRINTF("Max RPM set to %.0f\n", motor.ol_max_rpm);
     return 0;
 }
@@ -215,13 +223,17 @@ int Cmd_OlStart(int argc, char *argv[])
     (void)argc;
     (void)argv;
 
-    if (motor.ol_target_rpm <= 0.0f)
+    if (motor.ol_target_rpm == 0.0f)
     {
         motor.ol_target_rpm = motor.ol_min_rpm;
     }
     if (motor.ol_max_rpm > 0.0f && motor.ol_target_rpm > motor.ol_max_rpm)
     {
         motor.ol_target_rpm = motor.ol_max_rpm;
+    }
+    else if (motor.ol_max_rpm > 0.0f && motor.ol_target_rpm < -motor.ol_max_rpm)
+    {
+        motor.ol_target_rpm = -motor.ol_max_rpm;
     }
 
     motor.ol_enable = true;
