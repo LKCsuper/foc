@@ -45,7 +45,7 @@ VOID MOTOR_Param_Init(VOID)
 
     /* 开环 V/F 默认参数 — 24V 母线 / 4 对极 / 额定 3000RPM */
     gpstMotorDefault->ol_enable      = true;
-    gpstMotorDefault->ol_mode        = 1;       /* 0=V/F, 1=角度开环+电流闭环 */
+    gpstMotorDefault->ol_mode        = MOTOR_OL_MODE_IF;
     gpstMotorDefault->ol_target_rpm  = 300.0f;    /* 目标转速 RPM — 改这一个 */
     gpstMotorDefault->ol_max_rpm     = 3000.0f;   /* 开环目标转速上限 */
     gpstMotorDefault->ol_v_boost     = 1.0f;    /* 启动补偿 V */
@@ -56,10 +56,10 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotorDefault->ol_pole_pairs  = 2.0f;     /* 电机极对数 */
     gpstMotorDefault->ol_min_rpm     = 30.0f;    /* 最低转速地板 RPM */
     /* 开环电流模式参数 */
-    gpstMotorDefault->ol_iq_set      = 1.5f;     /* 目标 Iq 电流 A */
+    gpstMotorDefault->ol_iq_set      = 1.0f;     /* 目标 Iq 电流 A */
     gpstMotorDefault->ol_id_set      = 0.0f;     /* 目标 Id 电流 A */
-    gpstMotorDefault->ol_current_kp  = 0.5f;     /* 电流环 Kp */
-    gpstMotorDefault->ol_current_ki  = 100.0f;   /* 电流环 Ki */
+    gpstMotorDefault->ol_current_kp  = 0.2f;     /* 电流环 Kp */
+    gpstMotorDefault->ol_current_ki  = 30.0f;   /* 电流环 Ki */
     gpstMotorDefault->ol_start_phase_boost = M_PI / 2.0f; /* 启动 90° 相位补偿 */
 
     size_t saved_value_len;

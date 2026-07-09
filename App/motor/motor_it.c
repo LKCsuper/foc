@@ -18,9 +18,6 @@ extern "C" {
 
 #include "includes.h"
 
-#define MOTOR_OL_MODE_VF              (0)
-#define MOTOR_OL_MODE_CURRENT         (1)
-
 /* 电流零点正常应在 ADC 中点附近。flash 没校准或读出异常时，用默认值兜底。 */
 #define MOTOR_CURRENT_OFFSET_MIN      (1000.0f)
 #define MOTOR_CURRENT_OFFSET_MAX      (3000.0f)
@@ -32,7 +29,7 @@ typedef struct {
     float vq; /* Q 轴电压 (转矩分量) */
 } motor_dq_voltage_t;
 
-/* 起步阶段统一状态，由 Motor_OpenLoop_Startup 维护，供下游函数消费。 */
+/* 起步阶段统一状态，由 Motor_OpenLoop_StartupVf / StartupIf 维护，供下游函数消费。 */
 static struct {
     bool  was_stopped;       /* 上次处于停止状态，启动第一拍触发相位补偿 */
     float angle_rpm;         /* 角度积分用转速 */
@@ -47,18 +44,39 @@ static struct {
 
 /*
  * 计算开环 FOC 的控制周期 dt。
- * dt = FOC_CONTROL_LOOP_FREQ_DIVIDER / ol_foc_freq
- * ol_foc_freq 为用户设定的 FOC 执行频率，最小钳位到 1Hz。
+ * 优先从 TIM1 当前 ARR/PSC 反推 ADC-DMA 控制触发频率，再按
+ * FOC_CONTROL_LOOP_FREQ_DIVIDER 放大到实际控制周期。
  */
 static float Motor_OpenLoop_GetDt(MOTOR_PARAM_S *m)
 {
-    if (m->ol_foc_freq <= 1.0f) {
-        m->ol_foc_freq = 1.0f;
+    uint32_t arr = TIM1->ARR;
+    uint32_t psc = TIM1->PSC + 1U;
+    float foc_freq;
+
+    /*
+     * VESC style: derive dt from the real timer rate that drives ADC/DMA.
+     * In this project TIM1->ARR is configured as SYSTEM_CORE_CLOCK / f_zv,
+     * and TIM1 update events are used as the control-loop trigger source.
+     */
+    if (arr > 0U && psc > 0U) {
+        foc_freq = (float)SYSTEM_CORE_CLOCK / ((float)arr * (float)psc);
+        m->ol_foc_freq = foc_freq;
+    } else {
+        foc_freq = m->ol_foc_freq;
+        if (foc_freq <= 1.0f) {
+            foc_freq = 1.0f;
+            m->ol_foc_freq = foc_freq;
+        }
     }
 
-    return (float)FOC_CONTROL_LOOP_FREQ_DIVIDER / m->ol_foc_freq;
+    return (float)FOC_CONTROL_LOOP_FREQ_DIVIDER / foc_freq;
 }
 
+/*
+ * 获取电压限幅值。
+ * 取用户配置 ol_vq_limit 与母线电压 75% 的较小值，
+ * 防止过调制导致电流环 PI 积分饱和。
+ */
 static float Motor_OpenLoop_GetVoltageLimit(MOTOR_PARAM_S *m, float v_bus)
 {
     float limit = m->ol_vq_limit;
@@ -178,31 +196,27 @@ static void Motor_OpenLoop_NormalizeConfig(MOTOR_PARAM_S *m)
 }
 
 /*
- * 起步阶段统一处理。
- * 每个 FOC 周期在 UpdateSpeed 之后调用一次，统一整理本拍派生状态。
+ * 角度积分转速整理。
+ * 每个 FOC 周期在 Startup 之后调用一次，统一整理本拍派生状态。
  *
  * 处理内容：
- *   1. V/F 最低转速跳转 — 目标转速超过 ol_min_rpm 时，当前 |rpm| 不低于 ol_min_rpm
- *   2. 角度积分转速   — 写入 s_ol_startup.angle_rpm，目标较低时允许低于 ol_min_rpm
- *   3. 启动相位补偿   — 运行第一拍按目标方向补一次相位
- *   4. Iq 缩放系数    — 低速时按 |rpm|/min_rpm 比例写入 s_ol_startup.iq_scale
+ *   1. 最低转速跳转 — 目标转速超过 ol_min_rpm 但当前 |rpm| 不足时，
+ *      angle_rpm 直接跳到 SIGN(target)*ol_min_rpm，保证角度积分有最低频率。
+ *   2. 否则 angle_rpm 直接取当前转速 ol_current_rpm。
  *
- * 角度积分转速和 Iq 缩放通过 s_ol_startup 传递给 UpdateTheta / CurrentTarget_Get 消费。
+ * 注意：相位补偿和 Iq 缩放已移到 Motor_OpenLoop_StartupIf 中处理，
+ * 本函数只负责角度积分转速，由 UpdateTheta 消费。
  */
-static void Motor_OpenLoop_Startup(MOTOR_PARAM_S *m)
+static void Motor_OpenLoop_UpdateAngleRpm(MOTOR_PARAM_S *m)
 {
     float target = m->ol_target_rpm;
     float rpm = m->ol_current_rpm;
 
-    /* ---- 1. V/F 最低转速跳转 ---- */
-    if (m->ol_mode != MOTOR_OL_MODE_CURRENT &&
-        fabsf(rpm) < m->ol_min_rpm &&
-        fabsf(target) >= m->ol_min_rpm) {
-        rpm = SIGN(target) * m->ol_min_rpm;
-        m->ol_current_rpm = rpm;
-    }
-
-    /* ---- 2. 角度积分转速 ---- */
+    /*
+     * 1. 最低转速跳转 — 目标超过 min_rpm 但当前 |rpm| 不足时，
+     *    angle_rpm 跳到 SIGN(target)*min_rpm，保证角度积分有最低频率。
+     * 2. 否则 angle_rpm = 当前转速 (目标较低时允许低于 min_rpm)。
+     */
     if (fabsf(target) >= m->ol_min_rpm &&
         fabsf(rpm) < m->ol_min_rpm) {
         s_ol_startup.angle_rpm = SIGN(target) * m->ol_min_rpm;
@@ -210,19 +224,58 @@ static void Motor_OpenLoop_Startup(MOTOR_PARAM_S *m)
         s_ol_startup.angle_rpm = rpm;
     }
 
-    /* ---- 3. 启动相位补偿（仅电流模式） ---- */
+    /*
+     * 3. 启动相位补偿 — 由 Motor_OpenLoop_StartupIf 在电流模式下处理，
+     *    通过 s_ol_startup.phase_boost 写入，Motor_CurrentLoop_GetTheta 消费。
+     * 4. 低速 Iq 缩放   — 由 Motor_OpenLoop_StartupIf 在电流模式下处理，
+     *    通过 s_ol_startup.iq_scale 写入，Motor_CurrentTarget_Get 消费。
+     */
+}
+
+/*
+ * V/F 模式起步处理：
+ *   目标转速超过 ol_min_rpm 时，直接将当前转速跳到 ol_min_rpm，
+ *   避免低速段电压不足无法起转。然后委托 UpdateAngleRpm 整理角度积分转速。
+ *   V/F 模式不需要相位补偿和 Iq 缩放，直接置为默认值。
+ */
+static void Motor_OpenLoop_StartupVf(MOTOR_PARAM_S *m)
+{
+    float target = m->ol_target_rpm;
+    float rpm = m->ol_current_rpm;
+
     s_ol_startup.phase_boost = 0.0f;
-    if (m->ol_mode == MOTOR_OL_MODE_CURRENT) {
-        if (s_ol_startup.was_stopped && target != 0.0f) {
-            s_ol_startup.phase_boost = SIGN(target) * m->ol_start_phase_boost;
-            s_ol_startup.was_stopped = false;
-        }
+    s_ol_startup.iq_scale = 1.0f;
+
+    if (fabsf(rpm) < m->ol_min_rpm &&
+        fabsf(target) >= m->ol_min_rpm) {
+        m->ol_current_rpm = SIGN(target) * m->ol_min_rpm;
     }
 
-    /* ---- 4. 低速 Iq 缩放系数（仅电流模式） ---- */
+    Motor_OpenLoop_UpdateAngleRpm(m);
+}
+
+/*
+ * 电流闭环 (I/F) 模式起步处理：
+ *   1. 停机后首次启动时，按目标方向补偿一次相位 (phase_boost)，
+ *      帮助电流矢量快速对准转子位置，避免起步反转发抖。
+ *   2. 低速时按 |rpm|/ol_min_rpm 比例缩放 Iq 目标值 (不低于 10%)，
+ *      防止低速反电动势不足时过流。
+ *   3. 委托 UpdateAngleRpm 整理角度积分转速 — 电流模式下不跳 ol_current_rpm，
+ *      但角度积分转速不低于 ol_min_rpm，保证电流矢量以最低频率旋转。
+ */
+static void Motor_OpenLoop_StartupIf(MOTOR_PARAM_S *m)
+{
+    float target = m->ol_target_rpm;
+    float rpm = m->ol_current_rpm;
+
+    s_ol_startup.phase_boost = 0.0f;
+    if (s_ol_startup.was_stopped && target != 0.0f) {
+        s_ol_startup.phase_boost = SIGN(target) * m->ol_start_phase_boost;
+        s_ol_startup.was_stopped = false;
+    }
+
     s_ol_startup.iq_scale = 1.0f;
-    if (m->ol_mode == MOTOR_OL_MODE_CURRENT &&
-        fabsf(rpm) < m->ol_min_rpm &&
+    if (fabsf(rpm) < m->ol_min_rpm &&
         m->ol_min_rpm > 0.0f) {
         float scale = fabsf(rpm) / m->ol_min_rpm;
         if (scale < 0.1f) {
@@ -230,8 +283,16 @@ static void Motor_OpenLoop_Startup(MOTOR_PARAM_S *m)
         }
         s_ol_startup.iq_scale = scale;
     }
+
+    Motor_OpenLoop_UpdateAngleRpm(m);
 }
 
+/*
+ * 转速斜坡更新：
+ *   按 ol_ramp_rpm_s 速率逼近目标转速，支持正向/反向双向斜坡。
+ *   ramp 为 0 时直接跳到目标转速 (无斜坡)。
+ *   到达目标后保持。
+ */
 static void Motor_OpenLoop_UpdateSpeed(MOTOR_PARAM_S *m, float dt)
 {
     float target = m->ol_target_rpm;
@@ -259,6 +320,11 @@ static void Motor_OpenLoop_UpdateSpeed(MOTOR_PARAM_S *m, float dt)
     }
 }
 
+/*
+ * 电角度积分更新：
+ *   用 Startup 提供的 angle_rpm 换算为电角速度，累加到 ol_theta。
+ *   乘以极对数是因为电角度 = 机械角度 × 极对数。
+ */
 static void Motor_OpenLoop_UpdateTheta(MOTOR_PARAM_S *m, float dt)
 {
     /* 角度积分转速由 Startup 提供。 */
@@ -314,10 +380,15 @@ static void Motor_OpenLoop_RunVf(MOTOR_PARAM_S *m, float v_bus)
     Motor_Foc_OutputVoltage(m, 0.0f, vq, m->ol_theta, v_bus);
 }
 
-/* 获取电流环使用的电角度，叠加 Startup 提供的一次性相位补偿。 */
+/*
+ * 获取电流环使用的电角度。
+ * 在开环积分角度的基础上叠加一次性相位补偿 (仅启动第一拍非零)，
+ * 帮助 I/F 起步时电流矢量尽快对准转子，避免失步。
+ * 补偿值由 ol_start_phase_boost 配置，典型值 PI/2 (90°)。
+ */
 static float Motor_CurrentLoop_GetTheta(MOTOR_PARAM_S *m)
 {
-    float theta = m->ol_theta + s_ol_startup.phase_boost;       // 第一次补偿90度
+    float theta = m->ol_theta + s_ol_startup.phase_boost;
 
     utils_norm_angle_rad(&theta);
     return theta;
@@ -334,6 +405,12 @@ static void Motor_CurrentFeedback_UpdateDq(MOTOR_PARAM_S *m, float theta)
     park_transform(m->Ialpha, m->Ibeta, theta, &m->Id, &m->Iq);
 }
 
+/*
+ * 获取电流环目标值：
+ *   Id 目标直接取用户配置 ol_id_set (通常为 0，仅控制励磁)。
+ *   Iq 目标取 ol_iq_set 并乘以 Startup 提供的低速缩放系数，
+ *   起步阶段逐步放开 Iq，避免电流冲击。
+ */
 static void Motor_CurrentTarget_Get(MOTOR_PARAM_S *m, float *id_target,
                                     float *iq_target)
 {
@@ -344,6 +421,12 @@ static void Motor_CurrentTarget_Get(MOTOR_PARAM_S *m, float *id_target,
     *iq_target *= s_ol_startup.iq_scale;
 }
 
+/*
+ * 电压矢量限幅 + 积分抗饱和 (Anti-Windup)：
+ *   对 vd/vq 合成矢量做幅值限制，超限时按比例整体缩放，
+ *   并回退 PI 积分项，防止输出饱和后积分继续累积导致退饱和超调。
+ *   id_err/iq_err 用于反算 PI 的 P 项贡献，精确回退到限幅边界。
+ */
 static void Motor_CurrentLoop_LimitVoltage(MOTOR_PARAM_S *m,
                                            motor_dq_voltage_t *v,
                                            float id_err,
@@ -385,7 +468,14 @@ static motor_dq_voltage_t Motor_CurrentLoop_RunPi(MOTOR_PARAM_S *m,
     return v;
 }
 
-static void Motor_OpenLoop_RunCurrent(MOTOR_PARAM_S *m, float v_bus, float dt)
+/*
+ * I/F 电流闭环模式主流程：
+ *   获取补偿后的电角度 → Clarke/Park 变换得到 Id/Iq 反馈 →
+ *   获取目标电流 (含 Iq 缩放) → PI 闭环计算 vd/vq →
+ *   矢量限幅 → 反 Park + SVPWM 输出。
+ *   此模式下电流闭环跟踪目标，角度仍为开环积分产生。
+ */
+static void Motor_OpenLoop_RunIf(MOTOR_PARAM_S *m, float v_bus, float dt)
 {
     float id_target;
     float iq_target;
@@ -433,12 +523,13 @@ static void Motor_OpenLoop_Run(MOTOR_PARAM_S *m, float v_bus)
     /* 先得到本拍转速，再基于本拍转速计算角度、Iq缩放和相位补偿。 */
     Motor_OpenLoop_NormalizeConfig(m);
     Motor_OpenLoop_UpdateSpeed(m, dt);
-    Motor_OpenLoop_Startup(m);
-    Motor_OpenLoop_UpdateTheta(m, dt);
-
-    if (m->ol_mode == MOTOR_OL_MODE_CURRENT) {
-        Motor_OpenLoop_RunCurrent(m, v_bus, dt);
+    if (m->ol_mode == MOTOR_OL_MODE_IF) {
+        Motor_OpenLoop_StartupIf(m);
+        Motor_OpenLoop_UpdateTheta(m, dt);
+        Motor_OpenLoop_RunIf(m, v_bus, dt);
     } else {
+        Motor_OpenLoop_StartupVf(m);
+        Motor_OpenLoop_UpdateTheta(m, dt);
         Motor_OpenLoop_RunVf(m, v_bus);
     }
 }
@@ -491,6 +582,12 @@ VOID Motor_It_ParamCal(VOID)
     m->ib = (m->currentAdc[1] - current_offset1) * FAC_CURRENT;
     m->ic = (m->currentAdc[2] - current_offset2) * FAC_CURRENT;
 
+    /*
+     * 注意 ADC 通道与相序的映射不是线性的：
+     *   va ← ADC_IND_SENS1 (offset[0])
+     *   vb ← ADC_IND_SENS3 (offset[2]) — 交换
+     *   vc ← ADC_IND_SENS2 (offset[1]) — 交换
+     */
     m->va = (ADC_VOLTS(ADC_IND_SENS1) - m->voltundrivenOffset[0]) *
             ((VIN_R1 + VIN_R2) / VIN_R2) * ADC_VOLTS_PH_FACTOR;
     m->vb = (ADC_VOLTS(ADC_IND_SENS3) - m->voltundrivenOffset[2]) *

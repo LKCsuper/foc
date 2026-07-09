@@ -267,7 +267,9 @@ typedef struct motor_param
 
 	/* 开环控制：设 ol_target_rpm 即可，其余自动计算 */
 	bool ol_enable;					/* open-loop enable */
-	int  ol_mode;					/* 0=V/F电压模式, 1=角度开环+电流闭环(VESC style) */
+#define MOTOR_OL_MODE_VF   (0)  /* V/F 电压开环 */
+#define MOTOR_OL_MODE_IF   (1)  /* 角度开环 + 电流闭环 (I/F) */
+	int  ol_mode;					/* MOTOR_OL_MODE_VF 或 MOTOR_OL_MODE_IF */
 	float ol_target_rpm;			/* 目标转速 RPM */
 	float ol_max_rpm;				/* max target speed RPM */
 	float ol_current_rpm;			/* 当前斜坡转速 RPM */

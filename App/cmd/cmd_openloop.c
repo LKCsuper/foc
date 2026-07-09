@@ -49,7 +49,7 @@ static void ol_print_status(void)
     PRINTF("\n===== Open-Loop Status =====\n");
     PRINTF("  Enable     : %s\n", motor.ol_enable ? "ON" : "OFF");
     PRINTF("  Mode       : %d (%s)\n", motor.ol_mode,
-           motor.ol_mode == 1 ? "Current-loop VESC style" : "V/F voltage");
+           motor.ol_mode == MOTOR_OL_MODE_IF ? "I/F current-loop" : "V/F voltage");
     PRINTF("  Target RPM : %.0f\n", motor.ol_target_rpm);
     PRINTF("  Max RPM    : %.0f\n", motor.ol_max_rpm);
     PRINTF("  Current RPM: %.0f\n", motor.ol_current_rpm);
@@ -57,7 +57,7 @@ static void ol_print_status(void)
     PRINTF("  Ramp       : %.0f RPM/s\n", motor.ol_ramp_rpm_s);
     PRINTF("  V_bus      : %.1f V\n", motor.v_bus);
 
-    if (motor.ol_mode == 1)
+    if (motor.ol_mode == MOTOR_OL_MODE_IF)
     {
         /* 电流模式 */
         PRINTF("  Iq set     : %.2f A\n", motor.ol_iq_set);
@@ -260,22 +260,22 @@ int Cmd_OlStop(int argc, char *argv[])
 
 /**
  * @description: olmode 命令 — 切换开环模式
- * @usage: olmode <0|1>  (0=V/F, 1=角度开环+电流闭环)
+ * @usage: olmode <0|1>  (0=V/F, 1=I/F)
  */
 int Cmd_OlMode(int argc, char *argv[])
 {
     if (argc < 2)
     {
         PRINTF("Open-loop mode = %d (%s)\n", motor.ol_mode,
-               motor.ol_mode == 1 ? "Current-loop" : "V/F voltage");
+               motor.ol_mode == MOTOR_OL_MODE_IF ? "I/F current-loop" : "V/F voltage");
         PRINTF("Usage: olmode <0|1>\n");
         PRINTF("  0 = V/F voltage mode\n");
-        PRINTF("  1 = Angle open-loop + current closed-loop (VESC style)\n");
+        PRINTF("  1 = I/F current closed-loop\n");
         return 0;
     }
 
     int mode = atoi(argv[1]);
-    if (mode != 0 && mode != 1)
+    if (mode != MOTOR_OL_MODE_VF && mode != MOTOR_OL_MODE_IF)
     {
         PRINTF("Invalid mode, use 0 or 1\n");
         return -1;

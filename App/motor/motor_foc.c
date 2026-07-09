@@ -398,8 +398,8 @@ void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcm
     uint32_t Tcmp2 = 0.0f;
     uint32_t Tcmp3 = 0.0f;
     uint32_t sector = 0;
-    float T1;
-    float T2;
+    float T1 = 0.0f;
+    float T2 = 0.0f;
 
     if (Vref1 > 0)
     {
@@ -456,15 +456,11 @@ void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcm
             break;
     }
 
-    if (T1+T2 > Tpwm)
+    if (T1 + T2 > Tpwm)
     {
-        T1 = T1/(T1+T2);
-        T2 = T2/(T1+T2);
-    }
-    else
-    {
-        T1 = T1;
-        T2 = T2;
+        float t_sum = T1 + T2;
+        T1 = T1 * (float)Tpwm / t_sum;
+        T2 = T2 * (float)Tpwm / t_sum;
     }
 
     ta = (Tpwm-(T1+T2))/4.0;
