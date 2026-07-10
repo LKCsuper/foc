@@ -605,6 +605,8 @@ VOID Motor_It_ParamCal(VOID)
  */
 void Motor_DmaInt(void *p, uint32_t flags)
 {
+    float dt;
+
     (void)p;
     (void)flags;
 
@@ -613,6 +615,13 @@ void Motor_DmaInt(void *p, uint32_t flags)
     }
 
     Motor_It_ParamCal();
+    dt = Motor_OpenLoop_GetDt(&motor);
+    /* 保护位于采样换算之后、FOC 输出之前；故障后清 PI 并保持安全电平。 */
+    if (Motor_Protect_Run(&motor, dt)) {
+        Motor_OpenLoop_ResetRuntime(&motor);
+        Motor_OpenLoop_OutputSafe(&motor);
+        return;
+    }
     Motor_OpenLoop_Run(&motor, motor.v_bus);
 }
 

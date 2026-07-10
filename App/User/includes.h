@@ -99,6 +99,7 @@ extern "C" {
 #include "motor_task.h"
 #include "motor_it.h"
 #include "motor_pid.h"
+#include "motor_protect.h"
 #include "motor_tim.h"
 #include "motor_ctrl.h"
 #include "motor_detect.h"

@@ -56,6 +56,8 @@ static void ol_print_status(void)
     PRINTF("  Min RPM    : %.0f\n", motor.ol_min_rpm);
     PRINTF("  Ramp       : %.0f RPM/s\n", motor.ol_ramp_rpm_s);
     PRINTF("  V_bus      : %.1f V\n", motor.v_bus);
+    PRINTF("  Fault      : %d (%s)\n", Motor_Protect_GetFault(),
+           Motor_Protect_IsFaultLatched() ? "LATCHED" : "NONE");
 
     if (motor.ol_mode == MOTOR_OL_MODE_IF)
     {
@@ -258,6 +260,30 @@ int Cmd_OlStop(int argc, char *argv[])
     return 0;
 }
 
+int Cmd_OlFault(int argc, char *argv[])
+{
+    /* 不带 clear 参数时只查询，避免误操作解除保护。 */
+    if (argc < 2 || strcmp(argv[1], "clear") != 0)
+    {
+        PRINTF("Fault = %d (%s)\n", Motor_Protect_GetFault(),
+               Motor_Protect_IsFaultLatched() ? "LATCHED" : "NONE");
+        PRINTF("Usage: olfault clear\n");
+        return 0;
+    }
+
+    /* 先撤销运行命令并清空 PI，防止解除锁存后立即带载重启。 */
+    motor.ol_enable = false;
+    motor.ol_target_rpm = 0.0f;
+    motor.ol_current_rpm = 0.0f;
+    motor.ol_vd_int = 0.0f;
+    motor.ol_vq_int = 0.0f;
+    TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, TIM1->ARR / 2, TIM1->ARR / 2);
+    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    Motor_Protect_ClearFault();
+    PRINTF("Motor fault cleared; use olstart to restart\n");
+    return 0;
+}
+
 /**
  * @description: olmode 命令 — 切换开环模式
  * @usage: olmode <0|1>  (0=V/F, 1=I/F)
@@ -386,6 +412,8 @@ SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
                 olstart, Cmd_OlStart, openloop start);
 SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
                 olstop, Cmd_OlStop, openloop stop);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                olfault, Cmd_OlFault, show or clear latched motor fault);
 SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
                 olmode, Cmd_OlMode, openloop mode 0=VF 1=current);
 SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),

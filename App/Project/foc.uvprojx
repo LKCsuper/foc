@@ -1021,6 +1021,11 @@
               <FilePath>..\motor\motor_pid.c</FilePath>
             </File>
             <File>
+              <FileName>motor_protect.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_protect.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_task.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_task.c</FilePath>
