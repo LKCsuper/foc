@@ -424,8 +424,8 @@ void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcm
     }
 
     X = ONE_BY_SQRT3 * Vbeta * Tpwm/ Udc;
-    Y = Tpwm / Udc * (3 / 2 * Valpha + ONE_BY_SQRT3 / 2 * Vbeta);
-    Z = Tpwm / Udc * (-3 / 2 * Valpha + ONE_BY_SQRT3 / 2 * Vbeta);	         
+    Y = (float)Tpwm / Udc * (1.5f * Valpha + 0.5f * ONE_BY_SQRT3 * Vbeta);
+    Z = (float)Tpwm / Udc * (-1.5f * Valpha + 0.5f * ONE_BY_SQRT3 * Vbeta);
 
     switch (sector)
     {

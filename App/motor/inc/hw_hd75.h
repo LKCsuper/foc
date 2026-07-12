@@ -31,9 +31,13 @@
 #define HW_HAS_PHASE_FILTERS
 
 // TODO: Figure out what the correct settings are
-#define DRV8323S_CUSTOM_SETTINGS()		drv8323s_set_current_amp_gain(CURRENT_AMP_GAIN); \
-										drv8323s_write_reg(3,0x3af); \
-										drv8323s_write_reg(4,0x7af);
+/*
+ * The current firmware does not compile or initialize a DRV8323S SPI driver,
+ * therefore the CSA remains at its reset gain (5 V/V). Keep the software
+ * conversion below matched to that real hardware state. Do not set this to
+ * 20 until the driver is added and the CSA_GAIN register is read back.
+ */
+#define DRV8323S_CUSTOM_SETTINGS()
 
 // Macros
 #define ENABLE_GATE()			palSetPad(GPIOB, GPIO_Pin_5)
@@ -121,7 +125,7 @@
 #define VIN_R2					2200.0f
 #endif
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN		20.0f
+#define CURRENT_AMP_GAIN		5.0f
 #endif
 #ifndef CURRENT_SHUNT_RES
 #define CURRENT_SHUNT_RES		0.0005f
