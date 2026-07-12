@@ -615,7 +615,8 @@ static void Motor_Detect_RunInductanceStep(MOTOR_PARAM_S *motor, float dt)
 
 /* ========================================================================
  * 磁链检测：用刚测得的 R/L 临时计算 PI，在指定电气转速下开环旋转。
- * 稳态窗口内反算 λ = (|V| - R*|I|)/ωe - L*|I|。
+ * 使用三相端电压采样做 Clarke/Park，并按稳态 q 轴方程反算磁链：
+ * λ = |(Vq - R*Iq)/ωe - L*Id|。
  * ======================================================================== */
 static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 {
@@ -668,18 +669,26 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 
 	if (rotation_time >
 		(MOTOR_DETECT_FLUX_RAMP_S + MOTOR_DETECT_FLUX_SETTLE_S)) {
-		float voltage_mag = NORM2_f(s_detect_control.vd, s_detect_control.vq);
-		float current_mag = NORM2_f(motor->Id, motor->Iq);
+		float v_alpha;
+		float v_beta;
+		float vd_measured;
+		float vq_measured;
 		float omega_e = RPM2RADPS_f(s_detect_control.electrical_rpm_target);
 
-		/* 磁链公式中的 R 使用配置值，避免死区误差在低速时被 1/ωe 放大。 */
-		float linkage = (voltage_mag -
-			motor->sensorless_motor_r * current_mag) /
-			omega_e - s_detect_result.inductance_h * current_mag;
+		clarke_transform(motor->va, motor->vb, motor->vc,
+			&v_alpha, &v_beta);
+		park_transform(v_alpha, v_beta, s_detect_control.theta,
+			&vd_measured, &vq_measured);
+
+		/* 使用本轮刚拟合出的相电阻，而不是旧的 sensorless 配置值。 */
+		float linkage = fabsf((vq_measured -
+			s_detect_result.resistance_ohm * motor->Iq) / omega_e -
+			s_detect_result.inductance_h * motor->Id);
 
 		if (linkage > MOTOR_DETECT_FLUX_MIN_WB &&
 			linkage < MOTOR_DETECT_FLUX_MAX_WB) {
 			s_detect_control.accum_a += linkage;
+			s_detect_control.accum_b += fabsf(vq_measured);
 			s_detect_control.samples++;
 		}
 	}
@@ -692,6 +701,8 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 
 		s_detect_result.flux_linkage_wb =
 			s_detect_control.accum_a / (float)s_detect_control.samples;
+		s_detect_control.resistance_voltage_avg =
+			s_detect_control.accum_b / (float)s_detect_control.samples;
 		s_detect_result.flux_valid = true;
 		Motor_Detect_FinishFromIsr(true, MOTOR_DETECT_ERROR_NONE);
 	}
@@ -943,6 +954,10 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 	}
 	PRINTF("Detect motor: flux=%.4f mWb\r\n",
 		s_detect_result.flux_linkage_wb * 1000.0f);
+	PRINTF("Detect motor: measured |Vq|=%.4fV, Ke=%.3f V/krpm line-line RMS (%.0f pole pairs)\r\n",
+		s_detect_control.resistance_voltage_avg,
+		128.25498f * motor.ol_pole_pairs * s_detect_result.flux_linkage_wb,
+		motor.ol_pole_pairs);
 	PRINTF("Detect motor: if you can measure the mechanical RPM now, run:\r\n");
 	PRINTF("  detect poles %.0f <measured_mechanical_rpm>\r\n",
 		electrical_rpm);
