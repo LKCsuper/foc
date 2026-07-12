@@ -107,12 +107,61 @@ static void ol_status_append(size_t *used, const char *format, ...)
     }
 }
 
+static const char *ol_sensorless_state_name(motor_sensorless_state_t state)
+{
+    switch (state) {
+        case MOTOR_SENSORLESS_LOCKING:
+            return "LOCKING";
+        case MOTOR_SENSORLESS_CLOSED:
+            return "CLOSED";
+        case MOTOR_SENSORLESS_OPEN_LOOP:
+        default:
+            return "OPEN_LOOP";
+    }
+}
+
+/*
+ * 当用户要求的 I/F 转速高于安全上限时，解释控制器接下来会怎么做。
+ * 这里只打印提示，不偷偷替用户打开无感接管或速度 PI，避免观测器参数
+ * 尚未确认时突然切入闭环。真正的转速限制在 Motor_OpenLoop_UpdateSpeed()。
+ */
+static void ol_print_high_speed_guard_notice(float target_rpm)
+{
+    bool high_speed_request =
+        motor.ol_mode == MOTOR_OL_MODE_IF &&
+        motor.sensorless_openloop_max_rpm > 0.0f &&
+        fabsf(target_rpm) > motor.sensorless_openloop_max_rpm;
+
+    if (!high_speed_request) {
+        return;
+    }
+
+    PRINTF("I/F safety hold: %.0f RPM until sensorless takeover is 100%% complete\n",
+           motor.sensorless_openloop_max_rpm);
+
+    if (!motor.sensorless_enable ||
+        !motor.sensorless_takeover ||
+        !motor.speed_enable) {
+        PRINTF("High-speed closed loop is not fully armed; run olstop first, then:\n");
+        if (!motor.sensorless_enable) {
+            PRINTF("  slenable 1\n");
+        }
+        if (!motor.sensorless_takeover) {
+            PRINTF("  sltakeover 1\n");
+        }
+        if (!motor.speed_enable) {
+            PRINTF("  spenable 1\n");
+        }
+    }
+}
+
 /**
  * @description: 打印开环当前状态
  */
 static void ol_print_status(void)
 {
     const char *sensorless_state;
+    motor_sensorless_diagnostics_t sensorless_diagnostics;
     size_t used = 0U;
     mc_fault_code fault;
     float adc_frequency_hz;
@@ -129,20 +178,10 @@ static void ol_print_status(void)
     }
     format_start = Bsp_Tim_DtNow();
 
-    switch (Motor_Sensorless_GetState()) {
-        case MOTOR_SENSORLESS_LOCKING:
-            sensorless_state = "LOCKING";
-            break;
-        case MOTOR_SENSORLESS_CLOSED:
-            sensorless_state = "CLOSED";
-            break;
-        case MOTOR_SENSORLESS_OPEN_LOOP:
-        default:
-            sensorless_state = "OPEN_LOOP";
-            break;
-    }
+    sensorless_state = ol_sensorless_state_name(Motor_Sensorless_GetState());
 
     fault = Motor_Protect_GetFault();
+    Motor_Sensorless_GetDiagnostics(&sensorless_diagnostics);
     adc_frequency_hz = Motor_DmaInt_GetAdcFrequencyHz();
     foc_frequency_hz = Motor_DmaInt_GetControlFrequencyHz();
     foc_average_us = Motor_DmaInt_GetAverageRuntimeUs();
@@ -201,6 +240,22 @@ static void ol_print_status(void)
                          motor.sensorless_enable ? "ENABLED" : "DISABLED");
         ol_status_append(&used, "  SL takeover: %s\n",
                          motor.sensorless_takeover ? "ARMED" : "BLOCKED");
+        ol_status_append(&used,
+                         "  SL checks  : F=%d S=%d D=%d P=%d lock=%.3fs blend=%.2f V=%.2fV\n",
+                         sensorless_diagnostics.flux_ok,
+                         sensorless_diagnostics.speed_ok,
+                         sensorless_diagnostics.direction_ok,
+                         sensorless_diagnostics.phase_ok,
+                         sensorless_diagnostics.lock_timer,
+                         sensorless_diagnostics.blend,
+                         sensorless_diagnostics.applied_voltage);
+        ol_status_append(&used,
+                         "  SL limits  : trans=%.0f fallback=%.0f OLmax=%.0f phase=%.2frad blend=%.2fs\n",
+                         motor.sensorless_transition_rpm,
+                         motor.sensorless_fallback_rpm,
+                         motor.sensorless_openloop_max_rpm,
+                         motor.sensorless_phase_tolerance,
+                         motor.sensorless_blend_time);
         ol_status_append(&used, "  Observer RPM: %.1f\n",
                          Motor_Sensorless_GetMechanicalRpm());
         ol_status_append(&used, "  Flux       : %.6f Wb\n",
@@ -271,6 +326,7 @@ int Cmd_OlSpeed(int argc, char *argv[])
     if (!motor.ol_enable) motor.ol_current_rpm = 0.0f;
     if (motor.ol_enable) Bsp_Tim_StartPwm(MOTOR1);
     PRINTF("Target RPM set to %.0f\n", rpm);
+    ol_print_high_speed_guard_notice(rpm);
     return 0;
 }
 
@@ -393,6 +449,7 @@ int Cmd_OlStart(int argc, char *argv[])
     motor.ol_enable = true;
     Bsp_Tim_StartPwm(MOTOR1);
     PRINTF("Open-loop started, target %.0f RPM\n", motor.ol_target_rpm);
+    ol_print_high_speed_guard_notice(motor.ol_target_rpm);
     return 0;
 }
 
@@ -475,6 +532,19 @@ int Cmd_OlFault(int argc, char *argv[])
             } else {
                 PRINTF("At fault: measured speed unavailable (I/F open-loop)\n");
             }
+            PRINTF("At fault: Id=%.3fA Iq=%.3fA IqCmd=%.3fA VdInt=%.2fV VqInt=%.2fV Vout=%.2fV\n",
+                   snapshot.id, snapshot.iq, snapshot.iq_command,
+                   snapshot.vd_integrator, snapshot.vq_integrator,
+                   snapshot.applied_voltage);
+            PRINTF("At fault: SL=%s obs=%.1fRPM flux=%.6fWb phase=%.3frad lock=%.3fs blend=%.2f\n",
+                   ol_sensorless_state_name(
+                       (motor_sensorless_state_t)snapshot.sensorless_state),
+                   snapshot.observer_rpm, snapshot.flux,
+                   snapshot.phase_error, snapshot.lock_timer, snapshot.blend);
+            PRINTF("At fault: SL checks F=%d S=%d D=%d P=%d takeover=%d speedPI=%d\n",
+                   snapshot.flux_ok, snapshot.observer_speed_ok,
+                   snapshot.direction_ok, snapshot.phase_ok,
+                   snapshot.sensorless_takeover, snapshot.speed_loop_enabled);
         }
         PRINTF("Usage: olfault clear\n");
         return 0;
@@ -746,6 +816,73 @@ int Cmd_SensorlessRpm(int argc, char *argv[])
     return 0;
 }
 
+/*
+ * slguard <openloop_max_rpm> <phase_tolerance_rad> <blend_time_s>
+ *
+ * 三个参数共同约束从 I/F 到无感闭环的危险过渡区：
+ *   1. openloop_max_rpm：观测角未完全接管前，I/F 最多强拖到多少机械 RPM；
+ *   2. phase_tolerance：接管前观测角与 I/F 角允许相差多少弧度；
+ *   3. blend_time_s：从 I/F 角平滑切到观测角所用时间。
+ *
+ * 运行中修改会复位观测器并导致角度参考突变，所以只允许停机时设置。
+ */
+int Cmd_SensorlessGuard(int argc, char *argv[])
+{
+    float open_loop_max_rpm;
+    float phase_tolerance;
+    float blend_time;
+
+    if (argc < 4) {
+        PRINTF("Sensorless guard: OLmax=%.0fRPM phase=%.2frad blend=%.2fs\n",
+               motor.sensorless_openloop_max_rpm,
+               motor.sensorless_phase_tolerance,
+               motor.sensorless_blend_time);
+        PRINTF("Usage: slguard <openloop_max_rpm> <phase_tolerance_rad> <blend_s>\n");
+        return 0;
+    }
+
+    if (motor.ol_enable) {
+        PRINTF("Stop motor before changing sensorless guard: olstop\n");
+        return -1;
+    }
+
+    open_loop_max_rpm = fabsf((float)atof(argv[1]));
+    phase_tolerance = fabsf((float)atof(argv[2]));
+    blend_time = fabsf((float)atof(argv[3]));
+
+    /* 非零 I/F 上限必须覆盖接管门槛，否则永远到不了允许接管的转速。 */
+    if (open_loop_max_rpm > 0.0f &&
+        open_loop_max_rpm < motor.sensorless_transition_rpm) {
+        open_loop_max_rpm = motor.sensorless_transition_rpm;
+    }
+    if (motor.ol_max_rpm > 0.0f && open_loop_max_rpm > motor.ol_max_rpm) {
+        open_loop_max_rpm = motor.ol_max_rpm;
+    }
+
+    /* 小于 0.10rad 很难在有负载时锁定；大于 1.50rad 已接近危险的 90°。 */
+    if (phase_tolerance < 0.10f) phase_tolerance = 0.10f;
+    if (phase_tolerance > 1.50f) phase_tolerance = 1.50f;
+
+    /* Shell 调试不允许瞬间切角，也不让过渡时间长到明显拖慢控制。 */
+    if (blend_time < 0.05f) blend_time = 0.05f;
+    if (blend_time > 1.00f) blend_time = 1.00f;
+
+    motor.sensorless_openloop_max_rpm = open_loop_max_rpm;
+    motor.sensorless_phase_tolerance = phase_tolerance;
+    motor.sensorless_blend_time = blend_time;
+    Motor_Sensorless_Reset();
+    Motor_SpeedLoop_Reset();
+
+    PRINTF("Sensorless guard set: OLmax=%.0fRPM phase=%.2frad blend=%.2fs\n",
+           motor.sensorless_openloop_max_rpm,
+           motor.sensorless_phase_tolerance,
+           motor.sensorless_blend_time);
+    if (motor.sensorless_openloop_max_rpm == 0.0f) {
+        PRINTF("WARNING: I/F high-speed guard is disabled\n");
+    }
+    return 0;
+}
+
 /* slmotor <R_ohm> <L_mH> <flux_mWb>：设置无感电机模型并换算到 SI 单位。 */
 int Cmd_SensorlessMotor(int argc, char *argv[])
 {
@@ -924,6 +1061,8 @@ SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
                 sltakeover, Cmd_SensorlessTakeover, allow observer angle takeover);
 SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
                 slrpm, Cmd_SensorlessRpm, set sensorless transition rpm);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                slguard, Cmd_SensorlessGuard, set I/F ceiling and takeover guard);
 SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
                 slmotor, Cmd_SensorlessMotor, set sensorless motor model);
 SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),

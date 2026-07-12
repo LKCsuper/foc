@@ -108,19 +108,53 @@ static bool Motor_Protect_Debounce(bool condition, float dt, float delay, float 
 static void Motor_Protect_LatchFault(mc_fault_code fault, const MOTOR_PARAM_S *motor)
 {
     if (!s_state.fault_latched) {
+        motor_sensorless_diagnostics_t sensorless_diagnostics;
+
         /*
          * 必须先保存快照再置 fault_latched。下一次 FOC 中断看到锁存后会
          * 立即输出安全状态，届时电流已经下降，无法再还原真正触发值。
          */
+        Motor_Sensorless_GetDiagnostics(&sensorless_diagnostics);
         s_state.snapshot.current_peak = Motor_Protect_CurrentPeak(motor);
         s_state.snapshot.bus_voltage = motor->v_bus;
         s_state.snapshot.target_rpm = motor->ol_target_rpm;
         s_state.snapshot.ramp_rpm = motor->ol_current_rpm;
         s_state.snapshot.measured_rpm = s_state.speed_rpm;
+        s_state.snapshot.observer_rpm = Motor_Sensorless_GetMechanicalRpm();
+        s_state.snapshot.flux = Motor_Sensorless_GetFluxMagnitude();
+        s_state.snapshot.phase_error = Motor_Sensorless_GetPhaseError();
+        s_state.snapshot.id = motor->Id;
+        s_state.snapshot.iq = motor->Iq;
+        s_state.snapshot.iq_command =
+            motor->speed_enable && Motor_SpeedLoop_IsFeedbackValid() ?
+            Motor_SpeedLoop_GetIqTarget() : motor->ol_iq_set;
+        s_state.snapshot.vd_integrator = motor->ol_vd_int;
+        s_state.snapshot.vq_integrator = motor->ol_vq_int;
+        s_state.snapshot.applied_voltage = sensorless_diagnostics.applied_voltage;
+        s_state.snapshot.lock_timer = sensorless_diagnostics.lock_timer;
+        s_state.snapshot.blend = sensorless_diagnostics.blend;
+        s_state.snapshot.sensorless_state = (int)Motor_Sensorless_GetState();
         s_state.snapshot.speed_valid = s_state.speed_valid;
+        s_state.snapshot.sensorless_takeover = motor->sensorless_takeover;
+        s_state.snapshot.speed_loop_enabled = motor->speed_enable;
+        s_state.snapshot.flux_ok = sensorless_diagnostics.flux_ok;
+        s_state.snapshot.observer_speed_ok = sensorless_diagnostics.speed_ok;
+        s_state.snapshot.direction_ok = sensorless_diagnostics.direction_ok;
+        s_state.snapshot.phase_ok = sensorless_diagnostics.phase_ok;
         s_state.fault = fault;
         s_state.fault_latched = true;
     }
+}
+
+void Motor_Protect_TriggerFault(mc_fault_code fault, const MOTOR_PARAM_S *motor)
+{
+    /* NONE 不是故障；空指针也无法生成可靠快照，因此直接忽略。 */
+    if (fault == FAULT_CODE_NONE || motor == NULL) {
+        return;
+    }
+
+    /* 仍由统一锁存函数保存“第一次”故障，后续故障不会覆盖根因。 */
+    Motor_Protect_LatchFault(fault, motor);
 }
 
 /*

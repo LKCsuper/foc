@@ -26,6 +26,21 @@ typedef enum {
     MOTOR_SENSORLESS_CLOSED,
 } motor_sensorless_state_t;
 
+/*
+ * 无感接管条件快照。
+ * olstatus/olfault 使用它直接显示究竟是磁链、速度、方向还是相位阻止接管，
+ * 避免只看到 OPEN_LOOP 却不知道失败在哪一项。
+ */
+typedef struct {
+    bool flux_ok;             /* 估算磁链是否在额定磁链允许范围内 */
+    bool speed_ok;            /* 观测转速是否达到并跟随 I/F 转速 */
+    bool direction_ok;        /* 观测方向是否与目标方向一致 */
+    bool phase_ok;            /* 观测角与 I/F 角的误差是否在容差内 */
+    float lock_timer;         /* 四项条件连续成立的时间，单位 s */
+    float blend;              /* 角度接管比例，0=I/F，1=观测角 */
+    float applied_voltage;    /* 实际下发的 α/β 电压矢量模长，单位 V */
+} motor_sensorless_diagnostics_t;
+
 /* 上电初始化运行时状态；MOTOR_Param_Init() 完成参数赋值后调用一次。 */
 void Motor_Sensorless_Init(void);
 
@@ -68,8 +83,17 @@ float Motor_Sensorless_GetMechanicalRpm(void);
 /* 返回 PLL 角与 I/F 强制角的最短角度差，单位 rad。 */
 float Motor_Sensorless_GetPhaseError(void);
 
+/* 获取四项接管条件、锁定计时、接管比例和实际输出电压。 */
+void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_t *diagnostics);
+
 /* true 表示观测角已经接管，而不只是观测器处于启用状态。 */
 bool Motor_Sensorless_IsClosedLoop(void);
+
+/*
+ * true 表示已经进入 CLOSED，并且开环角到观测角的渐变比例已经达到 100%。
+ * 启动 I/F 最高转速保护使用本函数，防止角度仍在渐变时提前继续升速。
+ */
+bool Motor_Sensorless_IsTakeoverComplete(void);
 
 #ifdef __cplusplus
 }

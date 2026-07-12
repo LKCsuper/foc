@@ -318,6 +318,7 @@ typedef struct motor_param
 	float sensorless_pll_ki;		/* 角度 PLL 积分增益 */
 	float sensorless_transition_rpm;/* 高于该机械转速才尝试无感接管 */
 	float sensorless_fallback_rpm;	/* 低于该机械转速持续一段时间后回退 I/F */
+	float sensorless_openloop_max_rpm;/* 未闭环时 I/F 允许强拖的最高机械转速 */
 	float sensorless_lock_time;		/* 锁定条件持续时间 s */
 	float sensorless_loss_time;		/* 失锁条件持续时间 s */
 	float sensorless_blend_time;		/* 开环角度渐变到观测角度的时间 s */

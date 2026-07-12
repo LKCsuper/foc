@@ -292,11 +292,22 @@ static void Motor_OpenLoop_NormalizeConfig(MOTOR_PARAM_S *m)
     if (m->sensorless_fallback_rpm > m->sensorless_transition_rpm) {
         m->sensorless_fallback_rpm = m->sensorless_transition_rpm;
     }
+    if (m->sensorless_openloop_max_rpm < 0.0f) {
+        m->sensorless_openloop_max_rpm = -m->sensorless_openloop_max_rpm;
+    }
+    if (m->sensorless_openloop_max_rpm > 0.0f &&
+        m->sensorless_openloop_max_rpm < m->sensorless_transition_rpm) {
+        m->sensorless_openloop_max_rpm = m->sensorless_transition_rpm;
+    }
+    if (m->sensorless_openloop_max_rpm > m->ol_max_rpm) {
+        m->sensorless_openloop_max_rpm = m->ol_max_rpm;
+    }
     if (m->sensorless_lock_time < 0.0f) m->sensorless_lock_time = 0.0f;
     if (m->sensorless_loss_time < 0.0f) m->sensorless_loss_time = 0.0f;
     if (m->sensorless_blend_time < 0.0f) m->sensorless_blend_time = 0.0f;
     if (m->sensorless_phase_tolerance < 0.0f) m->sensorless_phase_tolerance = 0.0f;
-    if (m->sensorless_phase_tolerance > M_PI) m->sensorless_phase_tolerance = M_PI;
+    /* 接管相位差必须小于 90°，否则电流坐标可能跨过最大转矩点。 */
+    if (m->sensorless_phase_tolerance > 1.50f) m->sensorless_phase_tolerance = 1.50f;
     if (m->sensorless_speed_filter < 0.0f) m->sensorless_speed_filter = 0.0f;
     if (m->sensorless_speed_filter > 1.0f) m->sensorless_speed_filter = 1.0f;
 }
@@ -489,6 +500,19 @@ static void Motor_OpenLoop_UpdateSpeed(MOTOR_PARAM_S *m, float dt)
 {
     float target = m->ol_target_rpm;
     float step = m->ol_ramp_rpm_s * dt;
+
+    /*
+     * 无感尚未 CLOSED 时，I/F 只是启动手段，不能无限强拖到目标高速。
+     * 默认最多走到 800RPM 并保持，等待观测器四项条件锁定且角度渐变完成；
+     * 只有 100% 使用观测角后才继续向 2000RPM 加速。将上限设为 0 可显式
+     * 关闭此保护，但调试阶段不建议这样做。
+     */
+    if (m->ol_mode == MOTOR_OL_MODE_IF &&
+        !Motor_Sensorless_IsTakeoverComplete() &&
+        m->sensorless_openloop_max_rpm > 0.0f &&
+        fabsf(target) > m->sensorless_openloop_max_rpm) {
+        target = SIGN(target) * m->sensorless_openloop_max_rpm;
+    }
 
     /*
      * ramp 为 0 时直接跳到目标转速。
@@ -904,6 +928,16 @@ void Motor_DmaInt(void *p, uint32_t flags)
     }
 
     Motor_OpenLoop_Run(&motor, motor.v_bus);
+
+    /*
+     * 无感观测器可能在本次 FOC 中确认“高速失锁”并直接锁存故障。
+     * 再检查一次可在退出本次 DMA 中断前覆盖为安全占空比，而不是等到
+     * 下一次 ADC 回调；普通过流/欠压仍由上面的 30kHz 保护入口判断。
+     */
+    if (Motor_Protect_IsFaultLatched()) {
+        Motor_OpenLoop_ResetRuntime(&motor);
+        Motor_OpenLoop_OutputSafe(&motor);
+    }
     Motor_DmaInt_RecordRuntime(runtime_start);
 }
 

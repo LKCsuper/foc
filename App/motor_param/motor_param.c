@@ -91,10 +91,13 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotorDefault->sensorless_pll_ki           = 30000.0f;
     gpstMotorDefault->sensorless_transition_rpm  = 500.0f;
     gpstMotorDefault->sensorless_fallback_rpm    = 300.0f;
+    /* 观测器未锁定时禁止 I/F 继续强拖到失步区；闭环后自动解除该上限。 */
+    gpstMotorDefault->sensorless_openloop_max_rpm = 800.0f;
     gpstMotorDefault->sensorless_lock_time        = 0.10f;
     gpstMotorDefault->sensorless_loss_time        = 0.10f;
-    gpstMotorDefault->sensorless_blend_time       = 0.10f;
-    gpstMotorDefault->sensorless_phase_tolerance = M_PI / 3.0f;
+    gpstMotorDefault->sensorless_blend_time       = 0.20f;
+    /* 允许最大约 80° 的 I/F 负载角，但仍禁止接近/超过 90° 的危险接管。 */
+    gpstMotorDefault->sensorless_phase_tolerance = 1.40f;
     gpstMotorDefault->sensorless_phase_offset     = 0.0f;
     gpstMotorDefault->sensorless_speed_filter     = 0.10f;
 
@@ -154,6 +157,7 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotor->sensorless_pll_ki           = gpstMotorDefault->sensorless_pll_ki;
     gpstMotor->sensorless_transition_rpm  = gpstMotorDefault->sensorless_transition_rpm;
     gpstMotor->sensorless_fallback_rpm    = gpstMotorDefault->sensorless_fallback_rpm;
+    gpstMotor->sensorless_openloop_max_rpm = gpstMotorDefault->sensorless_openloop_max_rpm;
     gpstMotor->sensorless_lock_time        = gpstMotorDefault->sensorless_lock_time;
     gpstMotor->sensorless_loss_time        = gpstMotorDefault->sensorless_loss_time;
     gpstMotor->sensorless_blend_time       = gpstMotorDefault->sensorless_blend_time;

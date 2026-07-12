@@ -58,6 +58,10 @@ static struct {
     float loss_timer;             /* 闭环后失锁条件连续满足的累计时间。 */
     float blend;                  /* 角度接管比例：0=全开环，1=全观测角。 */
     float control_angle;          /* 最终送入 Park 变换的电角度，单位 rad。 */
+    bool flux_ok;                 /* 磁链接管条件。 */
+    bool speed_ok;                /* 转速接管条件。 */
+    bool direction_ok;            /* 方向接管条件。 */
+    bool phase_ok;                /* 相位接管条件。 */
     bool initialized;             /* false 表示磁链积分器还没有用开环角度初始化。 */
     motor_sensorless_state_t state; /* OPEN_LOOP、LOCKING 或 CLOSED。 */
 } s_sensorless;
@@ -218,6 +222,9 @@ void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
     /* 极对数用于电角速度/机械速度换算；speed_alpha 是 RPM 低通系数。 */
     float pole_pairs;
     float speed_alpha;
+    float open_loop_rpm_abs;
+    float observer_rpm_abs;
+    float speed_error_limit;
 
     /* 四个锁定条件，必须全部为 true 才开始累计 lock_timer。 */
     bool flux_ok;
@@ -363,9 +370,18 @@ void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
     flux_ok = s_sensorless.flux_magnitude > flux * 0.5f &&
               s_sensorless.flux_magnitude < flux * 1.5f;
 
-    /* 条件 2：机械转速达到接管门槛，低速时反电动势不足，不能接管。 */
-    speed_ok = fabsf(s_sensorless.filtered_rpm) >=
-               motor->sensorless_transition_rpm;
+    /*
+     * 条件 2：不仅要超过接管门槛，还必须与 I/F 当前斜坡速度大致一致。
+     * 只判断“观测值大于 500RPM”可能把噪声或错误极对数当成有效转速。
+     * 这里允许 25% 或至少 100RPM 的偏差，兼顾启动负载角和低速抖动；
+     * 偏差再大说明转子很可能已经明显落后，不应冒险切入观测角。
+     */
+    open_loop_rpm_abs = fabsf(motor->ol_current_rpm);
+    observer_rpm_abs = fabsf(s_sensorless.filtered_rpm);
+    speed_error_limit = fmaxf(open_loop_rpm_abs * 0.25f, 100.0f);
+    speed_ok = open_loop_rpm_abs >= motor->sensorless_transition_rpm &&
+               observer_rpm_abs >= motor->sensorless_transition_rpm &&
+               fabsf(observer_rpm_abs - open_loop_rpm_abs) <= speed_error_limit;
 
     /* 条件 3：观测转速方向必须和 I/F 当前方向一致。零速时暂不检查方向。 */
     direction_ok = motor->ol_current_rpm == 0.0f ||
@@ -374,6 +390,12 @@ void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
     /* 条件 4：观测角与强制角足够接近，避免接管时 Park 角度突然跳变。 */
     phase_ok = fabsf(s_sensorless.phase_error) <=
                motor->sensorless_phase_tolerance;
+
+    /* 保存每项判断结果，Shell 和首发故障快照可以直接指出阻塞原因。 */
+    s_sensorless.flux_ok = flux_ok;
+    s_sensorless.speed_ok = speed_ok;
+    s_sensorless.direction_ok = direction_ok;
+    s_sensorless.phase_ok = phase_ok;
 
     /* 四项同时成立才是一次有效锁定候选，但仍需连续保持 lock_time。 */
     lock_candidate = flux_ok && speed_ok && direction_ok && phase_ok;
@@ -424,10 +446,26 @@ void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
         /* 短暂噪声不会立刻回退，只有失锁条件连续超过 loss_time 才处理。 */
         s_sensorless.loss_timer = lost ? s_sensorless.loss_timer + dt : 0.0f;
         if (s_sensorless.loss_timer >= motor->sensorless_loss_time) {
+            bool above_safe_open_loop_speed =
+                motor->sensorless_openloop_max_rpm > 0.0f &&
+                fabsf(motor->ol_current_rpm) >
+                motor->sensorless_openloop_max_rpm;
+
             /*
-             * 回退到 OPEN_LOOP，并撤销速度有效标志。由于下面每周期都把
-             * ol_theta 同步到 control_angle，所以回退起点仍是当前角度，
-             * 不会跳回接管前保存的旧开环角度。
+             * 低速失锁时允许回退到 I/F，因为当前强制转速仍在启动安全区内。
+             * 但高速时绝不能回退：旧逻辑会让 I/F 从当前高速慢慢降到上限，
+             * 这段时间转子可能已跟不上强制角，正是“跑一会突然过流停机”的
+             * 另一条路径。因此高于 I/F 安全上限时先锁存失速故障，下一次
+             * 保护入口（最迟一个 ADC 周期）会关闭输出。
+             */
+            if (above_safe_open_loop_speed) {
+                Motor_Protect_TriggerFault(FAULT_CODE_MOTOR_SPEED_LOSS, motor);
+            }
+
+            /*
+             * 无论低速回退还是等待故障停机，都撤销观测角和速度有效标志。
+             * ol_theta 在 CLOSED 时一直同步到 control_angle，因此切回 I/F
+             * 不会跳回接管前的旧角度。
              */
             s_sensorless.state = MOTOR_SENSORLESS_OPEN_LOOP;
             s_sensorless.lock_timer = 0.0f;
@@ -521,10 +559,33 @@ float Motor_Sensorless_GetPhaseError(void)
     return s_sensorless.phase_error;
 }
 
+void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_t *diagnostics)
+{
+    if (diagnostics == NULL) {
+        return;
+    }
+
+    diagnostics->flux_ok = s_sensorless.flux_ok;
+    diagnostics->speed_ok = s_sensorless.speed_ok;
+    diagnostics->direction_ok = s_sensorless.direction_ok;
+    diagnostics->phase_ok = s_sensorless.phase_ok;
+    diagnostics->lock_timer = s_sensorless.lock_timer;
+    diagnostics->blend = s_sensorless.blend;
+    diagnostics->applied_voltage =
+        NORM2_f(s_sensorless.applied_v_alpha, s_sensorless.applied_v_beta);
+}
+
 bool Motor_Sensorless_IsClosedLoop(void)
 {
     /* true 表示观测角已经获准参与 Park 变换，不能只理解为“观测器已开启”。 */
     return s_sensorless.state == MOTOR_SENSORLESS_CLOSED;
+}
+
+bool Motor_Sensorless_IsTakeoverComplete(void)
+{
+    /* blend 经过 Clamp 后会精确到 1.0，达到该值才算完全使用观测角。 */
+    return s_sensorless.state == MOTOR_SENSORLESS_CLOSED &&
+           s_sensorless.blend >= 1.0f;
 }
 
 #ifdef __cplusplus
