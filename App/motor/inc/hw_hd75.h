@@ -124,6 +124,8 @@
 #ifndef VIN_R2
 #define VIN_R2					2200.0f
 #endif
+#define PHASE_VOLTAGE_R1		39000.0f
+#define PHASE_VOLTAGE_R2		2200.0f
 #ifndef CURRENT_AMP_GAIN
 #define CURRENT_AMP_GAIN		5.0f
 #endif
