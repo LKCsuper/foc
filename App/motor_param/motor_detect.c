@@ -55,7 +55,8 @@ static volatile bool s_detect_abort_requested = false;
 #define MOTOR_DETECT_INDUCTANCE_MIN_SLOPE   (1.0f)
 #define MOTOR_DETECT_INDUCTANCE_MIN_H       (5.0e-6f)
 #define MOTOR_DETECT_INDUCTANCE_MAX_H       (0.05f)
-#define MOTOR_DETECT_INDUCTANCE_SCALE       (0.9f)  /* 略微低估 L，观测器更稳定 */
+#define MOTOR_DETECT_INDUCTANCE_DQ_FACTOR   (2.0f)  /* 脉冲半量 -> FOC dq 相电感 */
+#define MOTOR_DETECT_INDUCTANCE_STABILITY_SCALE (0.9f) /* 略低估，观测器更稳定 */
 
 /* ---- 磁链检测 ---- */
 #define MOTOR_DETECT_FLUX_ALIGN_S           (1.0f)
@@ -603,7 +604,8 @@ static void Motor_Detect_RunInductanceStep(MOTOR_PARAM_S *motor, float dt)
 			return;
 		}
 
-		float inductance = MOTOR_DETECT_INDUCTANCE_SCALE *
+		float inductance = MOTOR_DETECT_INDUCTANCE_DQ_FACTOR *
+			MOTOR_DETECT_INDUCTANCE_STABILITY_SCALE *
 			s_detect_control.accum_a / (float)s_detect_control.valid_pulses;
 		s_detect_result.inductance_h = inductance;
 		s_detect_result.inductance_valid = true;
