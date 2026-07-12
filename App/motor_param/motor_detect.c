@@ -61,8 +61,6 @@ static volatile bool s_detect_abort_requested = false;
 /* ---- 磁链检测 ---- */
 #define MOTOR_DETECT_FLUX_ALIGN_S           (1.0f)
 #define MOTOR_DETECT_FLUX_RAMP_S            (8.0f)
-#define MOTOR_DETECT_FLUX_SETTLE_S          (3.0f)
-#define MOTOR_DETECT_FLUX_SAMPLE_S          (2.0f)
 #define MOTOR_DETECT_FLUX_ID_IQ_TRANSITION_S (1.0f)
 #define MOTOR_DETECT_FLUX_MIN_CURRENT_A     (1.5f)
 #define MOTOR_DETECT_FLUX_MIN_RUN_DUTY      (0.03f)
@@ -71,6 +69,10 @@ static volatile bool s_detect_abort_requested = false;
 #define MOTOR_DETECT_FLUX_MIN_SAMPLES       (1000U)
 #define MOTOR_DETECT_FLUX_MIN_WB            (1.0e-4f)
 #define MOTOR_DETECT_FLUX_MAX_WB            (0.2f)
+#define MOTOR_DETECT_FLUX_COAST_SETTLE_S    (0.01f)
+#define MOTOR_DETECT_FLUX_COAST_SAMPLE_S    (0.50f)
+#define MOTOR_DETECT_FLUX_COAST_MIN_ERPM    (100.0f)
+#define MOTOR_DETECT_FLUX_OMEGA_FILTER      (0.02f)
 
 /* ---- 通用 ---- */
 #define MOTOR_DETECT_PWM_COOLDOWN_MS        (50U)  /* PWM 关断后等待功率级彻底进入高阻 */
@@ -135,6 +137,9 @@ typedef struct {
 	float flux_duty_still;
 	float flux_duty_now;
 	float flux_duty_max;
+	float flux_coast_elapsed;
+	float flux_bemf_angle_last;
+	float flux_omega_e;
 	uint32_t samples;
 	uint32_t pulse_position;
 	uint32_t pulse_count;
@@ -142,6 +147,8 @@ typedef struct {
 	float pulse_start_current;
 	bool pulse_started;
 	bool rotation_started;
+	bool flux_coast_started;
+	bool flux_bemf_angle_valid;
 } motor_detect_control_t;
 
 static motor_detect_control_t s_detect_control;
@@ -621,15 +628,11 @@ static void Motor_Detect_RunInductanceStep(MOTOR_PARAM_S *motor, float dt)
 }
 
 /* ========================================================================
- * 磁链检测：用刚测得的 R/L 临时计算 PI，在指定电气转速下开环旋转。
- * 使用三相端电压采样做 Clarke/Park，并按稳态 q 轴方程反算磁链：
- * λ = |(Vq - R*Iq)/ωe - L*Id|。
+ * 磁链检测：先开环加速，随后关闭六管，在自由滑行窗口中由三相
+ * 反电势矢量的幅值和真实角速度计算 λ = |Vαβ| / |ωe|。
  * ======================================================================== */
 static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 {
-	float total_rotation_time = MOTOR_DETECT_FLUX_RAMP_S +
-		MOTOR_DETECT_FLUX_SETTLE_S + MOTOR_DETECT_FLUX_SAMPLE_S;
-
 	s_detect_control.elapsed += dt;
 
 	/* 阶段 1：固定 Id 预对齐 */
@@ -657,6 +660,75 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 	}
 
 	float rotation_time = s_detect_control.elapsed - MOTOR_DETECT_FLUX_ALIGN_S;
+
+	/* Stage 3: all MOSFETs are off. Derive both voltage and true electrical
+	 * speed from the freely-decaying back-EMF vector. */
+	if (s_detect_control.flux_coast_started) {
+		float v_alpha;
+		float v_beta;
+		float voltage_mag;
+		float bemf_angle;
+		float delta_angle;
+		float omega_instant;
+		float linkage;
+
+		s_detect_control.flux_coast_elapsed += dt;
+		clarke_transform(motor->va, motor->vb, motor->vc,
+			&v_alpha, &v_beta);
+		voltage_mag = NORM2_f(v_alpha, v_beta);
+		bemf_angle = utils_fast_atan2(v_beta, v_alpha);
+
+		if (!s_detect_control.flux_bemf_angle_valid) {
+			s_detect_control.flux_bemf_angle_last = bemf_angle;
+			s_detect_control.flux_bemf_angle_valid = true;
+			return;
+		}
+
+		delta_angle = bemf_angle - s_detect_control.flux_bemf_angle_last;
+		while (delta_angle > M_PI) delta_angle -= 2.0f * M_PI;
+		while (delta_angle < -M_PI) delta_angle += 2.0f * M_PI;
+		s_detect_control.flux_bemf_angle_last = bemf_angle;
+		omega_instant = delta_angle / dt;
+
+		if (fabsf(s_detect_control.flux_omega_e) < 1.0e-6f) {
+			s_detect_control.flux_omega_e = omega_instant;
+		} else {
+			s_detect_control.flux_omega_e += MOTOR_DETECT_FLUX_OMEGA_FILTER *
+				(omega_instant - s_detect_control.flux_omega_e);
+		}
+		s_detect_control.electrical_rpm_now =
+			fabsf(RADPS2RPM_f(s_detect_control.flux_omega_e));
+
+		if (s_detect_control.flux_coast_elapsed >
+			MOTOR_DETECT_FLUX_COAST_SETTLE_S &&
+			s_detect_control.electrical_rpm_now >
+			MOTOR_DETECT_FLUX_COAST_MIN_ERPM) {
+			linkage = voltage_mag / fabsf(s_detect_control.flux_omega_e);
+			if (linkage > MOTOR_DETECT_FLUX_MIN_WB &&
+				linkage < MOTOR_DETECT_FLUX_MAX_WB) {
+				s_detect_control.accum_a += linkage;
+				s_detect_control.accum_b += voltage_mag;
+				s_detect_control.samples++;
+			}
+		}
+
+		if (s_detect_control.flux_coast_elapsed >=
+			MOTOR_DETECT_FLUX_COAST_SAMPLE_S) {
+			if (s_detect_control.samples < MOTOR_DETECT_FLUX_MIN_SAMPLES) {
+				Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FLUX);
+				return;
+			}
+			s_detect_result.flux_linkage_wb =
+				s_detect_control.accum_a / (float)s_detect_control.samples;
+			s_detect_control.resistance_voltage_avg =
+				s_detect_control.accum_b / (float)s_detect_control.samples;
+			s_detect_result.flux_valid = true;
+			Motor_Detect_FinishFromIsr(true, MOTOR_DETECT_ERROR_NONE);
+		}
+		return;
+	}
+
+	/* Stage 2: accelerate the rotating current vector. */
 	float transition = Motor_Detect_Clamp(
 		rotation_time / MOTOR_DETECT_FLUX_ID_IQ_TRANSITION_S, 0.0f, 1.0f);
 	float speed_ramp = Motor_Detect_Clamp(
@@ -686,8 +758,8 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 		return;
 	}
 
-	/* VESC-style open-loop validation: duty must rise above the locked-rotor
-	 * value and must not collapse after reaching its peak. */
+	/* Require clear evidence that the rotor produced more than locked-rotor
+	 * winding drop before disconnecting the bridge for coast sampling. */
 	if (rotation_time >= MOTOR_DETECT_FLUX_RAMP_S) {
 		float minimum_run_duty = fmaxf(MOTOR_DETECT_FLUX_MIN_RUN_DUTY,
 			s_detect_control.flux_duty_still *
@@ -699,46 +771,16 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 			Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FLUX);
 			return;
 		}
-	}
 
-	if (rotation_time >
-		(MOTOR_DETECT_FLUX_RAMP_S + MOTOR_DETECT_FLUX_SETTLE_S)) {
-		float v_alpha;
-		float v_beta;
-		float vd_measured;
-		float vq_measured;
-		float omega_e = RPM2RADPS_f(s_detect_control.electrical_rpm_target);
-
-		clarke_transform(motor->va, motor->vb, motor->vc,
-			&v_alpha, &v_beta);
-		park_transform(v_alpha, v_beta, s_detect_control.theta,
-			&vd_measured, &vq_measured);
-
-		/* 使用本轮刚拟合出的相电阻，而不是旧的 sensorless 配置值。 */
-		float linkage = fabsf((vq_measured -
-			s_detect_result.resistance_ohm * motor->Iq) / omega_e -
-			s_detect_result.inductance_h * motor->Id);
-
-		if (linkage > MOTOR_DETECT_FLUX_MIN_WB &&
-			linkage < MOTOR_DETECT_FLUX_MAX_WB) {
-			s_detect_control.accum_a += linkage;
-			s_detect_control.accum_b += fabsf(vq_measured);
-			s_detect_control.samples++;
-		}
-	}
-
-	if (rotation_time >= total_rotation_time) {
-		if (s_detect_control.samples < MOTOR_DETECT_FLUX_MIN_SAMPLES) {
-			Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FLUX);
-			return;
-		}
-
-		s_detect_result.flux_linkage_wb =
-			s_detect_control.accum_a / (float)s_detect_control.samples;
-		s_detect_control.resistance_voltage_avg =
-			s_detect_control.accum_b / (float)s_detect_control.samples;
-		s_detect_result.flux_valid = true;
-		Motor_Detect_FinishFromIsr(true, MOTOR_DETECT_ERROR_NONE);
+		Bsp_Tim_StopPwm(MOTOR1);
+		PHASE_FILTER_ON();
+		s_detect_control.flux_coast_started = true;
+		s_detect_control.flux_coast_elapsed = 0.0f;
+		s_detect_control.flux_bemf_angle_valid = false;
+		s_detect_control.flux_omega_e = 0.0f;
+		s_detect_control.accum_a = 0.0f;
+		s_detect_control.accum_b = 0.0f;
+		s_detect_control.samples = 0U;
 	}
 }
 
@@ -822,6 +864,9 @@ static bool Motor_Detect_RunStage(motor_detect_stage_t stage,
 	s_detect_control.flux_duty_still         = 0.0f;
 	s_detect_control.flux_duty_now           = 0.0f;
 	s_detect_control.flux_duty_max           = 0.0f;
+	s_detect_control.flux_coast_elapsed      = 0.0f;
+	s_detect_control.flux_bemf_angle_last    = 0.0f;
+	s_detect_control.flux_omega_e            = 0.0f;
 	s_detect_control.samples                = 0U;
 	s_detect_control.pulse_position         = 0U;
 	s_detect_control.pulse_count            = 0U;
@@ -829,6 +874,8 @@ static bool Motor_Detect_RunStage(motor_detect_stage_t stage,
 	s_detect_control.pulse_start_current    = 0.0f;
 	s_detect_control.pulse_started          = false;
 	s_detect_control.rotation_started       = false;
+	s_detect_control.flux_coast_started      = false;
+	s_detect_control.flux_bemf_angle_valid   = false;
 
 	Motor_DetectControl_Reset(&motor);
 
@@ -982,9 +1029,9 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 	PRINTF("Detect motor: L=%.3f uH\r\n",
 		s_detect_result.inductance_h * 1000000.0f);
 
-	PRINTF("Detect motor: spinning at %.0f electrical RPM for flux (%.2fA, %.1fs ramp, %.1fs settle)\r\n",
+	PRINTF("Detect motor: accelerating to %.0f electrical RPM for coast BEMF (%.2fA, %.1fs ramp)\r\n",
 		electrical_rpm, flux_current_a,
-		MOTOR_DETECT_FLUX_RAMP_S, MOTOR_DETECT_FLUX_SETTLE_S);
+		MOTOR_DETECT_FLUX_RAMP_S);
 	/* VESC 使用约 1.5ms 电流环时间常数进行磁链检测，结束后恢复用户参数。 */
 	motor.ol_current_kp = s_detect_result.inductance_h /
 		MOTOR_DETECT_VESC_CURRENT_TC_S;
@@ -993,16 +1040,18 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 	motor.ol_vq_limit = MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V;
 	if (!Motor_Detect_RunStage(MOTOR_DETECT_STAGE_FLUX,
 		flux_current_a, electrical_rpm, MOTOR_DETECT_TIMEOUT_FLUX_MS)) {
-		PRINTF("Detect motor: flux spin invalid duty still=%.4f now=%.4f max=%.4f\r\n",
+		PRINTF("Detect motor: flux invalid duty still=%.4f now=%.4f max=%.4f coast=%.1f eRPM\r\n",
 			s_detect_control.flux_duty_still,
 			s_detect_control.flux_duty_now,
-			s_detect_control.flux_duty_max);
+			s_detect_control.flux_duty_max,
+			s_detect_control.electrical_rpm_now);
 		goto detect_done;
 	}
 	PRINTF("Detect motor: flux=%.4f mWb\r\n",
 		s_detect_result.flux_linkage_wb * 1000.0f);
-	PRINTF("Detect motor: measured |Vq|=%.4fV, Ke=%.3f V/krpm line-line RMS (%.0f pole pairs)\r\n",
+	PRINTF("Detect motor: coast |Bemf|=%.4fV at %.1f eRPM, Ke=%.3f V/krpm line-line RMS (%.0f pole pairs)\r\n",
 		s_detect_control.resistance_voltage_avg,
+		s_detect_control.electrical_rpm_now,
 		128.25498f * motor.ol_pole_pairs * s_detect_result.flux_linkage_wb,
 		motor.ol_pole_pairs);
 	PRINTF("Detect motor: flux duty still=%.4f run=%.4f max=%.4f\r\n",
