@@ -43,7 +43,6 @@ void Task_Init(void *argument)
 	bool startup_run_enable;
 	float startup_target_rpm;
 
-	// osDelay(pdMS_TO_TICKS(5000));
     Bsp_Init();             // 初始化硬件
     MOTOR_Param_Init();     // easyflash初始化，先加载Flash参数
 

@@ -1198,8 +1198,7 @@ unsigned int shellRunCommand(Shell *shell, ShellCommand *command)
                                                  shell->parser.param);
         if (!command->attr.attrs.disableReturn)
         {
-			/* 命令内的 printf 可能还有最后一个字符正在发送，先等它发完再打印 Return，避免两段文本交叉。 */
-			Bsp_Usart_Flush();
+            /* printf 和 Shell 共用同一个发送队列，入队顺序就是终端显示顺序，无需阻塞等待。 */
             shellWriteReturnValue(shell, returnValue);
         }
     }
@@ -1211,8 +1210,7 @@ unsigned int shellRunCommand(Shell *shell, ShellCommand *command)
                                   shell->parser.param);
         if (!command->attr.attrs.disableReturn)
         {
-			/* 同上：保证命令输出与 Shell 返回值按顺序到达终端。 */
-			Bsp_Usart_Flush();
+            /* 异步 DMA 会在后台继续发送，Shell 可以立即恢复接收下一条命令。 */
             shellWriteReturnValue(shell, returnValue);
         }
     }

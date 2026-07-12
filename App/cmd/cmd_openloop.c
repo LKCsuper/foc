@@ -18,6 +18,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#include <stdarg.h>
 /* Private typedef -----------------------------------------------------------*/
 typedef enum
 {
@@ -30,8 +31,13 @@ typedef enum
     OPEN_LOOP_NUM,
 }OPEN_LOOP_TYPE;
 /* Private macro -------------------------------------------------------------*/
+#define OL_STATUS_BUFFER_SIZE             (2048U)
 /* Private variables ---------------------------------------------------------*/
 STATIC TaskHandle_t taskPlotHandle;
+/* olstatus 先在 RAM 中完成格式化，再一次性交给 UART DMA，避免逐行 printf。 */
+STATIC char sgcOlStatusBuffer[OL_STATUS_BUFFER_SIZE];
+/* 防止用户开启后台 openloop 状态任务后，与手动 olstatus 同时改写静态缓冲区。 */
+STATIC volatile bool sgbOlStatusBusy = false;
 
 STATIC const osThreadAttr_t taskDutyAttr =
 {
@@ -41,12 +47,87 @@ STATIC const osThreadAttr_t taskDutyAttr =
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
+static bool ol_status_try_lock(void)
+{
+    uint32_t primask = __get_PRIMASK();
+    bool locked;
+
+    __disable_irq();
+    locked = !sgbOlStatusBusy;
+    if (locked) {
+        sgbOlStatusBusy = true;
+    }
+    if (0U == primask) {
+        __enable_irq();
+    }
+
+    return locked;
+}
+
+static void ol_status_unlock(void)
+{
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+    sgbOlStatusBusy = false;
+    if (0U == primask) {
+        __enable_irq();
+    }
+}
+
+/*
+ * 向状态页尾部追加一段格式化文字。
+ * vsnprintf 只写 RAM，不会像 printf 那样每生成一个字符就进入串口驱动。
+ */
+static void ol_status_append(size_t *used, const char *format, ...)
+{
+    size_t remaining;
+    int written;
+    va_list arguments;
+
+    if (*used >= (OL_STATUS_BUFFER_SIZE - 1U)) {
+        return;
+    }
+
+    remaining = OL_STATUS_BUFFER_SIZE - *used;
+    va_start(arguments, format);
+    written = vsnprintf(&sgcOlStatusBuffer[*used], remaining, format, arguments);
+    va_end(arguments);
+
+    if (written < 0) {
+        return;
+    }
+
+    if ((size_t)written >= remaining) {
+        /* 保留字符串结尾，避免异常参数导致后续发送越过缓冲区。 */
+        *used = OL_STATUS_BUFFER_SIZE - 1U;
+        sgcOlStatusBuffer[*used] = '\0';
+    } else {
+        *used += (size_t)written;
+    }
+}
+
 /**
  * @description: 打印开环当前状态
  */
 static void ol_print_status(void)
 {
     const char *sensorless_state;
+    size_t used = 0U;
+    mc_fault_code fault;
+    float adc_frequency_hz;
+    float foc_frequency_hz;
+    float foc_average_us;
+    float foc_maximum_us;
+    float foc_load_percent;
+    uint32_t format_start;
+    uint32_t format_elapsed_us;
+
+    if (!ol_status_try_lock()) {
+        PRINTF("Status output is already running\n");
+        return;
+    }
+    format_start = Bsp_Tim_DtNow();
 
     switch (Motor_Sensorless_GetState()) {
         case MOTOR_SENSORLESS_LOCKING:
@@ -61,69 +142,104 @@ static void ol_print_status(void)
             break;
     }
 
-    PRINTF("\n===== Open-Loop Status =====\n");
-    PRINTF("  Enable     : %s\n", motor.ol_enable ? "ON" : "OFF");
-    PRINTF("  Mode       : %d (%s)\n", motor.ol_mode,
-           motor.ol_mode == MOTOR_OL_MODE_IF ? "I/F current-loop" : "V/F voltage");
-    PRINTF("  Target RPM : %.0f\n", motor.ol_target_rpm);
-    PRINTF("  Max RPM    : %.0f\n", motor.ol_max_rpm);
-    PRINTF("  Current RPM: %.0f\n", motor.ol_current_rpm);
-    PRINTF("  Min RPM    : %.0f\n", motor.ol_min_rpm);
-    PRINTF("  Ramp       : %.0f RPM/s\n", motor.ol_ramp_rpm_s);
-    PRINTF("  Pole pairs : %.0f\n", motor.ol_pole_pairs);
-    PRINTF("  V_bus      : %.1f V\n", motor.v_bus);
-    PRINTF("  Fault      : %d %s (%s)\n", Motor_Protect_GetFault(),
-           Motor_Protect_GetFaultName(Motor_Protect_GetFault()),
-           Motor_Protect_IsFaultLatched() ? "LATCHED" : "CLEAR");
+    fault = Motor_Protect_GetFault();
+    adc_frequency_hz = Motor_DmaInt_GetAdcFrequencyHz();
+    foc_frequency_hz = Motor_DmaInt_GetControlFrequencyHz();
+    foc_average_us = Motor_DmaInt_GetAverageRuntimeUs();
+    foc_maximum_us = Motor_DmaInt_GetMaximumRuntimeUs();
+    /* 平均耗时包含轻/重两种 ADC 回调，所以乘 30kHz ADC 频率才是总 ISR 占用。 */
+    foc_load_percent = foc_average_us * adc_frequency_hz / 10000.0f;
+
+    ol_status_append(&used, "\n===== Open-Loop Status =====\n");
+    ol_status_append(&used, "  Enable     : %s\n", motor.ol_enable ? "ON" : "OFF");
+    ol_status_append(&used, "  Mode       : %d (%s)\n", motor.ol_mode,
+                     motor.ol_mode == MOTOR_OL_MODE_IF ?
+                     "I/F current-loop" : "V/F voltage");
+    ol_status_append(&used, "  Target RPM : %.0f\n", motor.ol_target_rpm);
+    ol_status_append(&used, "  Max RPM    : %.0f\n", motor.ol_max_rpm);
+    ol_status_append(&used, "  Current RPM: %.0f\n", motor.ol_current_rpm);
+    ol_status_append(&used, "  Min RPM    : %.0f\n", motor.ol_min_rpm);
+    ol_status_append(&used, "  Ramp       : %.0f RPM/s\n", motor.ol_ramp_rpm_s);
+    ol_status_append(&used, "  Pole pairs : %.0f\n", motor.ol_pole_pairs);
+    ol_status_append(&used, "  V_bus      : %.1f V\n", motor.v_bus);
+    ol_status_append(&used, "  Fault      : %d %s (%s)\n", fault,
+                     Motor_Protect_GetFaultName(fault),
+                     Motor_Protect_IsFaultLatched() ? "LATCHED" : "CLEAR");
+    ol_status_append(&used,
+                     "  FOC loop   : %.0f Hz adc=%.0f div=%d avg=%.1fus max=%.1fus load=%.0f%%\n",
+                     foc_frequency_hz, adc_frequency_hz,
+                     FOC_CONTROL_LOOP_FREQ_DIVIDER,
+                     foc_average_us, foc_maximum_us, foc_load_percent);
+    ol_status_append(&used, "  UART TX    : %s @ %lu baud\n",
+                     Bsp_Usart_TxDmaIsReady() ? "DMA" : "POLLING",
+                     (unsigned long)DEBUG_USART_BAUD);
 
     if (motor.ol_mode == MOTOR_OL_MODE_IF)
     {
         /* 电流模式 */
-        PRINTF("  Iq set     : %.2f A\n", motor.ol_iq_set);
-        PRINTF("  Id set     : %.2f A\n", motor.ol_id_set);
-        PRINTF("  Current Kp : %.4f\n", motor.ol_current_kp);
-        PRINTF("  Current Ki : %.2f\n", motor.ol_current_ki);
-        PRINTF("  Vq limit   : %.1f V\n", motor.ol_vq_limit);
-        PRINTF("  Start Phs  : %.2f rad\n", motor.ol_start_phase_boost);
-        PRINTF("  Align cfg  : %s Id=%.2fA time=%.2fs angle=%.2frad\n",
-               motor.ol_align_enable ? "ON" : "OFF",
-               motor.ol_align_current, motor.ol_align_time, motor.ol_align_angle);
-        PRINTF("  Align run  : %s elapsed=%.3fs\n",
-               Motor_OpenLoop_IsAligning() ? "ALIGNING" : "RAMP/IDLE",
-               Motor_OpenLoop_GetAlignElapsed());
-        PRINTF("  Ia,Ib,Ic   : %.3f %.3f %.3f A\n",
-               motor.ia, motor.ib, motor.ic);
-        PRINTF("  Id, Iq     : %.3f %.3f A\n", motor.Id, motor.Iq);
-        PRINTF("  Vd, Vq int : %.3f %.3f\n", motor.ol_vd_int, motor.ol_vq_int);
-        PRINTF("  Speed loop : %s\n", motor.speed_enable ? "ON" : "OFF");
-        PRINTF("  Sensorless : %s (%s)\n", sensorless_state,
-               motor.sensorless_enable ? "ENABLED" : "DISABLED");
-        PRINTF("  SL takeover: %s\n", motor.sensorless_takeover ? "ARMED" : "BLOCKED");
-        PRINTF("  Observer RPM: %.1f\n", Motor_Sensorless_GetMechanicalRpm());
-        PRINTF("  Flux       : %.6f Wb\n", Motor_Sensorless_GetFluxMagnitude());
-        PRINTF("  Phase err  : %.3f rad\n", Motor_Sensorless_GetPhaseError());
-        PRINTF("  Meas RPM   : %.1f\n", Motor_SpeedLoop_GetMeasuredRpm());
-        PRINTF("  Speed err  : %.1f RPM\n", Motor_SpeedLoop_GetError());
-        PRINTF("  Speed Iq   : %.3f A\n", Motor_SpeedLoop_GetIqTarget());
-        PRINTF("  Speed PI   : Kp=%.5f Ki=%.5f Limit=%.2fA @ %.0fHz\n",
-               motor.speed_kp, motor.speed_ki,
-               motor.speed_iq_limit, motor.speed_loop_hz);
+        ol_status_append(&used, "  Iq set     : %.2f A\n", motor.ol_iq_set);
+        ol_status_append(&used, "  Id set     : %.2f A\n", motor.ol_id_set);
+        ol_status_append(&used, "  Current Kp : %.4f\n", motor.ol_current_kp);
+        ol_status_append(&used, "  Current Ki : %.2f\n", motor.ol_current_ki);
+        ol_status_append(&used, "  Vq limit   : %.1f V\n", motor.ol_vq_limit);
+        ol_status_append(&used, "  Start Phs  : %.2f rad\n", motor.ol_start_phase_boost);
+        ol_status_append(&used,
+                         "  Align cfg  : %s Id=%.2fA time=%.2fs angle=%.2frad\n",
+                         motor.ol_align_enable ? "ON" : "OFF",
+                         motor.ol_align_current, motor.ol_align_time,
+                         motor.ol_align_angle);
+        ol_status_append(&used, "  Align run  : %s elapsed=%.3fs\n",
+                         Motor_OpenLoop_IsAligning() ? "ALIGNING" : "RAMP/IDLE",
+                         Motor_OpenLoop_GetAlignElapsed());
+        ol_status_append(&used, "  Ia,Ib,Ic   : %.3f %.3f %.3f A\n",
+                         motor.ia, motor.ib, motor.ic);
+        ol_status_append(&used, "  Id, Iq     : %.3f %.3f A\n", motor.Id, motor.Iq);
+        ol_status_append(&used, "  Vd, Vq int : %.3f %.3f\n",
+                         motor.ol_vd_int, motor.ol_vq_int);
+        ol_status_append(&used, "  Speed loop : %s\n", motor.speed_enable ? "ON" : "OFF");
+        ol_status_append(&used, "  Sensorless : %s (%s)\n", sensorless_state,
+                         motor.sensorless_enable ? "ENABLED" : "DISABLED");
+        ol_status_append(&used, "  SL takeover: %s\n",
+                         motor.sensorless_takeover ? "ARMED" : "BLOCKED");
+        ol_status_append(&used, "  Observer RPM: %.1f\n",
+                         Motor_Sensorless_GetMechanicalRpm());
+        ol_status_append(&used, "  Flux       : %.6f Wb\n",
+                         Motor_Sensorless_GetFluxMagnitude());
+        ol_status_append(&used, "  Phase err  : %.3f rad\n",
+                         Motor_Sensorless_GetPhaseError());
+        ol_status_append(&used, "  Meas RPM   : %.1f\n",
+                         Motor_SpeedLoop_GetMeasuredRpm());
+        ol_status_append(&used, "  Speed err  : %.1f RPM\n",
+                         Motor_SpeedLoop_GetError());
+        ol_status_append(&used, "  Speed Iq   : %.3f A\n",
+                         Motor_SpeedLoop_GetIqTarget());
+        ol_status_append(&used,
+                         "  Speed PI   : Kp=%.5f Ki=%.5f Limit=%.2fA @ %.0fHz\n",
+                         motor.speed_kp, motor.speed_ki,
+                         motor.speed_iq_limit, motor.speed_loop_hz);
     }
     else
     {
         /* V/F 模式 */
-        PRINTF("  V_boost    : %.2f V\n", motor.ol_v_boost);
-        PRINTF("  Kv_f       : %.4f V/Hz\n", motor.ol_kv_f);
-        PRINTF("  Vq limit   : %.1f V\n", motor.ol_vq_limit);
+        ol_status_append(&used, "  V_boost    : %.2f V\n", motor.ol_v_boost);
+        ol_status_append(&used, "  Kv_f       : %.4f V/Hz\n", motor.ol_kv_f);
+        ol_status_append(&used, "  Vq limit   : %.1f V\n", motor.ol_vq_limit);
 
         float f_elec = fabsf(motor.ol_current_rpm) / 60.0f * motor.ol_pole_pairs;
         float vq_est = motor.ol_v_boost + motor.ol_kv_f * f_elec;
         if (vq_est > motor.ol_vq_limit) vq_est = motor.ol_vq_limit;
         float mod = 0.0f;
         if (motor.v_bus > 1.0f) mod = vq_est / motor.v_bus * 100.0f;
-        PRINTF("  Est Vq     : %.2f V (%.0f%% mod)\n", vq_est, mod);
+        ol_status_append(&used, "  Est Vq     : %.2f V (%.0f%% mod)\n", vq_est, mod);
     }
-    PRINTF("=============================\n\n");
+    /* 统计从状态快照到 RAM 格式化完成的墙钟时间，其中也包含 FOC 中断抢占时间。 */
+    format_elapsed_us = Bsp_Tim_DtNow() - format_start;
+    ol_status_append(&used, "  Status fmt : %lu us (RAM)\n",
+                     (unsigned long)format_elapsed_us);
+    ol_status_append(&used, "=============================\n\n");
+
+    Bsp_Usart_PutBuf((const UCHAR *)sgcOlStatusBuffer, (ULONG)used);
+    ol_status_unlock();
 }
 
 /**

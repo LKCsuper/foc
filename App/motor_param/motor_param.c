@@ -56,7 +56,7 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotorDefault->ol_kv_f        = 0.057f;   /* V/Hz */
     gpstMotorDefault->ol_ramp_rpm_s  = 50.0f;    /* 软启动速率 — 越慢越稳 */
     gpstMotorDefault->ol_vq_limit    = 18.0f;   /* 最大 75% 调制 */
-    gpstMotorDefault->ol_foc_freq    = 30000.0f; /* FOC 控制频率 Hz */
+    gpstMotorDefault->ol_foc_freq    = 30000.0f; /* ADC-DMA 基准频率；实际 FOC 频率还要除以分频系数 */
     gpstMotorDefault->ol_pole_pairs  = 2.0f;     /* 电机极对数 */
     gpstMotorDefault->ol_min_rpm     = 30.0f;    /* 最低转速地板 RPM */
     /* 开环电流模式参数 */

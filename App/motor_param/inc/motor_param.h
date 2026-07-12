@@ -278,7 +278,7 @@ typedef struct motor_param
 	float ol_ramp_rpm_s;			/* 软启动速率 RPM/s */
 	float ol_vq_limit;				/* Vq 上限 V */
 	float ol_theta;					/* 开环电角度 rad */
-	float ol_foc_freq;				/* FOC 控制频率 Hz（默认 30000） */
+	float ol_foc_freq;				/* ADC-DMA 基准频率 Hz（默认 30000，实际 FOC 还要除以分频系数） */
 	float ol_pole_pairs;			/* 电机极对数 */
 	float ol_min_rpm;				/* 最低转速地板 RPM */
 	/* 开环电流模式（ol_mode=1）：角度开环 + PI 电流闭环，参考 VESC */

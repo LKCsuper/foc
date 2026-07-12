@@ -136,6 +136,31 @@ void DMA2_Stream4_IRQHandler(void)
     return;
 }
 
+/*
+ * 调试串口发送 DMA 中断。
+ *
+ * UART4_TX 对应 DMA1 Stream4。一次连续内存块发送结束后进入这里，
+ * BSP 会释放已发送的数据，并自动启动环形缓冲区中的下一段数据。
+ * 这个中断每一段数据只触发一次，而不是每发送一个字符触发一次，
+ * 因此对 30kHz FOC 中断的额外 CPU 占用很小。
+ */
+#if (4 == USART_NUM)
+void DMA1_Stream4_IRQHandler(void)
+{
+    Bsp_Usart_TxDmaHandler();
+}
+#elif (3 == USART_NUM)
+void DMA1_Stream3_IRQHandler(void)
+{
+    Bsp_Usart_TxDmaHandler();
+}
+#elif (1 == USART_NUM)
+void DMA2_Stream7_IRQHandler(void)
+{
+    Bsp_Usart_TxDmaHandler();
+}
+#endif
+
 /**
  * @description: foc用不到
  * @detail: 

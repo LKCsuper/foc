@@ -253,8 +253,14 @@ VOID Bsp_Dma_Init(VOID)
 {
 	/* DMA2 Stream4：ADC 数据搬运 + 中断配置 */
 	Bsp_Dma_AdcSample();
-	/* DMA1 Stream1：串口接收数据搬运 */
+	/* DMA1 Stream2：UART4 接收数据搬运。 */
 	Bsp_Dma_UsartRx();
+	/*
+	 * UART4 发送使用独立的 DMA1 Stream4。
+	 * 初始化完成后，printf/Letter Shell 只负责把字符放入软件环形缓冲区，
+	 * DMA 在后台连续发送，不再让命令任务逐字节轮询 TXE。
+	 */
+	Bsp_Usart_TxDmaInit();
 
 	return;
 }

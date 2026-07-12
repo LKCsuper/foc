@@ -54,11 +54,42 @@ static struct {
 };
 
 /*
- * 计算开环 FOC 的控制周期 dt。
- * 优先从 TIM1 当前 ARR/PSC 反推 ADC-DMA 控制触发频率，再按
- * FOC_CONTROL_LOOP_FREQ_DIVIDER 放大到实际控制周期。
+ * ADC-DMA 中断执行时间统计。
+ * TIM5 在 BSP 中配置为 1MHz，所以计数差值直接等于微秒数。分频为 2 时中断
+ * 路径交替为“采样+保护”和“采样+保护+完整 FOC”，平均值因此可以直接乘以
+ * 30000Hz 回调频率估算总 CPU 占用；最大值用于观察完整 FOC 的最慢一次。
  */
-static float Motor_OpenLoop_GetDt(MOTOR_PARAM_S *m)
+static volatile float s_foc_runtime_average_us = 0.0f;
+static volatile float s_foc_runtime_maximum_us = 0.0f;
+
+static void Motor_DmaInt_RecordRuntime(uint32_t start_time)
+{
+    uint32_t elapsed_us = Bsp_Tim_DtNow() - start_time;
+    float elapsed = (float)elapsed_us;
+
+    /* 调试器暂停或 TIM5 尚未初始化时可能得到异常大值，不把它污染到统计中。 */
+    if (elapsed_us > 1000U) {
+        return;
+    }
+
+    if (s_foc_runtime_average_us <= 0.0f) {
+        s_foc_runtime_average_us = elapsed;
+    } else {
+        s_foc_runtime_average_us +=
+            0.02f * (elapsed - s_foc_runtime_average_us);
+    }
+
+    if (elapsed > s_foc_runtime_maximum_us) {
+        s_foc_runtime_maximum_us = elapsed;
+    }
+}
+
+/*
+ * 计算 ADC-DMA 相邻两次回调的基础周期。
+ * TIM1 是中心对齐 PWM，计数顶部和底部各产生一次触发，所以
+ * SYSTEM_CORE_CLOCK / ARR 正好是 30000Hz ADC-DMA 回调频率。
+ */
+static float Motor_OpenLoop_GetAdcDt(MOTOR_PARAM_S *m)
 {
     uint32_t arr = TIM1->ARR;
     uint32_t psc = TIM1->PSC + 1U;
@@ -80,7 +111,14 @@ static float Motor_OpenLoop_GetDt(MOTOR_PARAM_S *m)
         }
     }
 
-    return (float)FOC_CONTROL_LOOP_FREQ_DIVIDER / foc_freq;
+    return 1.0f / foc_freq;
+}
+
+/* 完整 FOC 只在分频计数满足时运行，因此它的 dt 等于基础 ADC 周期乘分频数。 */
+static float Motor_OpenLoop_GetDt(MOTOR_PARAM_S *m)
+{
+    return Motor_OpenLoop_GetAdcDt(m) *
+           (float)FOC_CONTROL_LOOP_FREQ_DIVIDER;
 }
 
 /*
@@ -723,6 +761,39 @@ float Motor_OpenLoop_GetAlignElapsed(void)
     return s_ol_startup.align_elapsed;
 }
 
+float Motor_DmaInt_GetAverageRuntimeUs(void)
+{
+    return s_foc_runtime_average_us;
+}
+
+float Motor_DmaInt_GetMaximumRuntimeUs(void)
+{
+    return s_foc_runtime_maximum_us;
+}
+
+float Motor_DmaInt_GetAdcFrequencyHz(void)
+{
+    uint32_t arr = TIM1->ARR;
+    uint32_t psc = TIM1->PSC + 1U;
+    float adc_trigger_hz;
+
+    if (arr > 0U && psc > 0U) {
+        /* 中心对齐 PWM 在计数顶部和底部各产生一次 ADC 触发。 */
+        adc_trigger_hz = (float)SYSTEM_CORE_CLOCK /
+                         ((float)arr * (float)psc);
+    } else {
+        adc_trigger_hz = motor.ol_foc_freq;
+    }
+
+    return adc_trigger_hz;
+}
+
+float Motor_DmaInt_GetControlFrequencyHz(void)
+{
+    return Motor_DmaInt_GetAdcFrequencyHz() /
+           (float)FOC_CONTROL_LOOP_FREQ_DIVIDER;
+}
+
 /*
  * 分频控制：DMA 中断每次都会进来，但 FOC 算法不需要每拍都跑。
  * 通过静态计数器 skip 做 FOC_CONTROL_LOOP_FREQ_DIVIDER 分频，
@@ -794,7 +865,8 @@ VOID Motor_It_ParamCal(VOID)
  */
 void Motor_DmaInt(void *p, uint32_t flags)
 {
-    float dt;
+    float protection_dt;
+    uint32_t runtime_start;
 
     (void)p;
     (void)flags;
@@ -809,19 +881,30 @@ void Motor_DmaInt(void *p, uint32_t flags)
         return;
     }
 
-    if (!Motor_DmaInt_ShouldRun()) {
+    runtime_start = Bsp_Tim_DtNow();
+
+    /*
+     * 采样换算和保护每个 30kHz ADC 回调都执行，不受 FOC 分频影响。
+     * 这样软件绝对过流、欠压等保护仍保持约 33us 的检查间隔。
+     */
+    Motor_It_ParamCal();
+    protection_dt = Motor_OpenLoop_GetAdcDt(&motor);
+    /* 保护位于采样换算之后、FOC 输出之前；故障后清 PI 并保持安全电平。 */
+    if (Motor_Protect_Run(&motor, protection_dt)) {
+        Motor_OpenLoop_ResetRuntime(&motor);
+        Motor_OpenLoop_OutputSafe(&motor);
+        Motor_DmaInt_RecordRuntime(runtime_start);
         return;
     }
 
-    Motor_It_ParamCal();
-    dt = Motor_OpenLoop_GetDt(&motor);
-    /* 保护位于采样换算之后、FOC 输出之前；故障后清 PI 并保持安全电平。 */
-    if (Motor_Protect_Run(&motor, dt)) {
-        Motor_OpenLoop_ResetRuntime(&motor);
-        Motor_OpenLoop_OutputSafe(&motor);
+    /* 只有电流环、无感观测器、速度环和 SVPWM 使用 2 分频降到 15kHz。 */
+    if (!Motor_DmaInt_ShouldRun()) {
+        Motor_DmaInt_RecordRuntime(runtime_start);
         return;
     }
+
     Motor_OpenLoop_Run(&motor, motor.v_bus);
+    Motor_DmaInt_RecordRuntime(runtime_start);
 }
 
 #ifdef __cplusplus
