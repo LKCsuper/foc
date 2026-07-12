@@ -1198,6 +1198,8 @@ unsigned int shellRunCommand(Shell *shell, ShellCommand *command)
                                                  shell->parser.param);
         if (!command->attr.attrs.disableReturn)
         {
+			/* 命令内的 printf 可能还有最后一个字符正在发送，先等它发完再打印 Return，避免两段文本交叉。 */
+			Bsp_Usart_Flush();
             shellWriteReturnValue(shell, returnValue);
         }
     }
@@ -1209,6 +1211,8 @@ unsigned int shellRunCommand(Shell *shell, ShellCommand *command)
                                   shell->parser.param);
         if (!command->attr.attrs.disableReturn)
         {
+			/* 同上：保证命令输出与 Shell 返回值按顺序到达终端。 */
+			Bsp_Usart_Flush();
             shellWriteReturnValue(shell, returnValue);
         }
     }

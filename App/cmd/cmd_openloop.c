@@ -46,6 +46,21 @@ STATIC const osThreadAttr_t taskDutyAttr =
  */
 static void ol_print_status(void)
 {
+    const char *sensorless_state;
+
+    switch (Motor_Sensorless_GetState()) {
+        case MOTOR_SENSORLESS_LOCKING:
+            sensorless_state = "LOCKING";
+            break;
+        case MOTOR_SENSORLESS_CLOSED:
+            sensorless_state = "CLOSED";
+            break;
+        case MOTOR_SENSORLESS_OPEN_LOOP:
+        default:
+            sensorless_state = "OPEN_LOOP";
+            break;
+    }
+
     PRINTF("\n===== Open-Loop Status =====\n");
     PRINTF("  Enable     : %s\n", motor.ol_enable ? "ON" : "OFF");
     PRINTF("  Mode       : %d (%s)\n", motor.ol_mode,
@@ -55,9 +70,11 @@ static void ol_print_status(void)
     PRINTF("  Current RPM: %.0f\n", motor.ol_current_rpm);
     PRINTF("  Min RPM    : %.0f\n", motor.ol_min_rpm);
     PRINTF("  Ramp       : %.0f RPM/s\n", motor.ol_ramp_rpm_s);
+    PRINTF("  Pole pairs : %.0f\n", motor.ol_pole_pairs);
     PRINTF("  V_bus      : %.1f V\n", motor.v_bus);
-    PRINTF("  Fault      : %d (%s)\n", Motor_Protect_GetFault(),
-           Motor_Protect_IsFaultLatched() ? "LATCHED" : "NONE");
+    PRINTF("  Fault      : %d %s (%s)\n", Motor_Protect_GetFault(),
+           Motor_Protect_GetFaultName(Motor_Protect_GetFault()),
+           Motor_Protect_IsFaultLatched() ? "LATCHED" : "CLEAR");
 
     if (motor.ol_mode == MOTOR_OL_MODE_IF)
     {
@@ -68,10 +85,29 @@ static void ol_print_status(void)
         PRINTF("  Current Ki : %.2f\n", motor.ol_current_ki);
         PRINTF("  Vq limit   : %.1f V\n", motor.ol_vq_limit);
         PRINTF("  Start Phs  : %.2f rad\n", motor.ol_start_phase_boost);
+        PRINTF("  Align cfg  : %s Id=%.2fA time=%.2fs angle=%.2frad\n",
+               motor.ol_align_enable ? "ON" : "OFF",
+               motor.ol_align_current, motor.ol_align_time, motor.ol_align_angle);
+        PRINTF("  Align run  : %s elapsed=%.3fs\n",
+               Motor_OpenLoop_IsAligning() ? "ALIGNING" : "RAMP/IDLE",
+               Motor_OpenLoop_GetAlignElapsed());
         PRINTF("  Ia,Ib,Ic   : %.3f %.3f %.3f A\n",
                motor.ia, motor.ib, motor.ic);
         PRINTF("  Id, Iq     : %.3f %.3f A\n", motor.Id, motor.Iq);
         PRINTF("  Vd, Vq int : %.3f %.3f\n", motor.ol_vd_int, motor.ol_vq_int);
+        PRINTF("  Speed loop : %s\n", motor.speed_enable ? "ON" : "OFF");
+        PRINTF("  Sensorless : %s (%s)\n", sensorless_state,
+               motor.sensorless_enable ? "ENABLED" : "DISABLED");
+        PRINTF("  SL takeover: %s\n", motor.sensorless_takeover ? "ARMED" : "BLOCKED");
+        PRINTF("  Observer RPM: %.1f\n", Motor_Sensorless_GetMechanicalRpm());
+        PRINTF("  Flux       : %.6f Wb\n", Motor_Sensorless_GetFluxMagnitude());
+        PRINTF("  Phase err  : %.3f rad\n", Motor_Sensorless_GetPhaseError());
+        PRINTF("  Meas RPM   : %.1f\n", Motor_SpeedLoop_GetMeasuredRpm());
+        PRINTF("  Speed err  : %.1f RPM\n", Motor_SpeedLoop_GetError());
+        PRINTF("  Speed Iq   : %.3f A\n", Motor_SpeedLoop_GetIqTarget());
+        PRINTF("  Speed PI   : Kp=%.5f Ki=%.5f Limit=%.2fA @ %.0fHz\n",
+               motor.speed_kp, motor.speed_ki,
+               motor.speed_iq_limit, motor.speed_loop_hz);
     }
     else
     {
@@ -254,19 +290,76 @@ int Cmd_OlStop(int argc, char *argv[])
     motor.ol_current_rpm = 0.0f;
     motor.ol_vd_int = 0.0f;
     motor.ol_vq_int = 0.0f;
+    Motor_SpeedLoop_Reset();
     TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, TIM1->ARR / 2, TIM1->ARR / 2);
     TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
     PRINTF("Open-loop stopped\n");
     return 0;
 }
 
+/*
+ * olstatus：手动打印一次开环、电流环、无感和保护状态。
+ * 原有 ol_print_status() 只被后台 openloop 任务调用；导出这个 Shell 包装
+ * 函数后，调试时无需启动后台任务也能随时查询 Ia/Ib/Ic 与故障状态。
+ */
+int Cmd_OlStatus(int argc, char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    ol_print_status();
+    return 0;
+}
+
+/* sltakeover <0|1>：单独授权观测器接管角度，默认关闭便于安全观察。 */
+int Cmd_SensorlessTakeover(int argc, char *argv[])
+{
+    int enable;
+
+    if (argc < 2) {
+        PRINTF("Sensorless takeover = %s  (usage: sltakeover <0|1>)\n",
+               motor.sensorless_takeover ? "ARMED" : "BLOCKED");
+        return 0;
+    }
+    enable = atoi(argv[1]);
+    if (enable != 0 && enable != 1) {
+        PRINTF("Invalid value, use 0 or 1\n");
+        return -1;
+    }
+    if (enable && !motor.sensorless_enable) {
+        PRINTF("Enable observer first: slenable 1\n");
+        return -1;
+    }
+
+    motor.sensorless_takeover = (enable != 0);
+    Motor_Sensorless_Reset();
+    Motor_SpeedLoop_Reset();
+    PRINTF("Sensorless takeover %s\n",
+           motor.sensorless_takeover ? "armed" : "blocked");
+    return 0;
+}
+
 int Cmd_OlFault(int argc, char *argv[])
 {
+    motor_protect_snapshot_t snapshot;
+
     /* 不带 clear 参数时只查询，避免误操作解除保护。 */
     if (argc < 2 || strcmp(argv[1], "clear") != 0)
     {
-        PRINTF("Fault = %d (%s)\n", Motor_Protect_GetFault(),
-               Motor_Protect_IsFaultLatched() ? "LATCHED" : "NONE");
+        PRINTF("Fault = %d %s (%s)\n", Motor_Protect_GetFault(),
+               Motor_Protect_GetFaultName(Motor_Protect_GetFault()),
+               Motor_Protect_IsFaultLatched() ? "LATCHED" : "CLEAR");
+        if (Motor_Protect_IsFaultLatched()) {
+            Motor_Protect_GetSnapshot(&snapshot);
+            PRINTF("At fault: Ipeak=%.3fA Vbus=%.2fV target=%.0fRPM ramp=%.0fRPM\n",
+                   snapshot.current_peak, snapshot.bus_voltage,
+                   snapshot.target_rpm, snapshot.ramp_rpm);
+            if (snapshot.speed_valid) {
+                PRINTF("At fault: measured=%.1fRPM (valid)\n", snapshot.measured_rpm);
+            } else {
+                PRINTF("At fault: measured speed unavailable (I/F open-loop)\n");
+            }
+        }
         PRINTF("Usage: olfault clear\n");
         return 0;
     }
@@ -277,6 +370,7 @@ int Cmd_OlFault(int argc, char *argv[])
     motor.ol_current_rpm = 0.0f;
     motor.ol_vd_int = 0.0f;
     motor.ol_vq_int = 0.0f;
+    Motor_SpeedLoop_Reset();
     TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, TIM1->ARR / 2, TIM1->ARR / 2);
     TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
     Motor_Protect_ClearFault();
@@ -310,6 +404,7 @@ int Cmd_OlMode(int argc, char *argv[])
     motor.ol_mode = mode;
     motor.ol_vd_int = 0.0f;
     motor.ol_vq_int = 0.0f;
+    Motor_SpeedLoop_Reset();
     PRINTF("Open-loop mode set to %d (%s)\n", mode,
            mode == 1 ? "Current-loop" : "V/F voltage");
     return 0;
@@ -394,8 +489,275 @@ int Cmd_OlPhase(int argc, char *argv[])
     return 0;
 }
 
+/*
+ * olalign <0|1> <Id_A> <time_s> [angle_rad]
+ *
+ * 设置 I/F 启动前的固定 D 轴预对齐。参数只能在停止状态修改，避免运行中
+ * 突然把旋转磁场切换成固定磁场。
+ */
+int Cmd_OlAlign(int argc, char *argv[])
+{
+    int enable;
+
+    if (argc < 4) {
+        PRINTF("Align: %s Id=%.2fA time=%.3fs angle=%.3frad\n",
+               motor.ol_align_enable ? "ON" : "OFF",
+               motor.ol_align_current, motor.ol_align_time, motor.ol_align_angle);
+        PRINTF("Usage: olalign <0|1> <Id_A> <time_s> [angle_rad]\n");
+        return 0;
+    }
+
+    if (motor.ol_enable) {
+        PRINTF("Stop motor before changing alignment parameters\n");
+        return -1;
+    }
+
+    enable = atoi(argv[1]);
+    if (enable != 0 && enable != 1) {
+        PRINTF("Invalid enable value, use 0 or 1\n");
+        return -1;
+    }
+
+    motor.ol_align_enable = (enable != 0);
+    motor.ol_align_current = fabsf(atof(argv[2]));
+    motor.ol_align_time = fabsf(atof(argv[3]));
+    if (argc >= 5) {
+        motor.ol_align_angle = atof(argv[4]);
+        utils_norm_angle_rad(&motor.ol_align_angle);
+    }
+
+    Motor_Sensorless_Reset();
+    Motor_SpeedLoop_Reset();
+    PRINTF("Align set: %s Id=%.2fA time=%.3fs angle=%.3frad\n",
+           motor.ol_align_enable ? "ON" : "OFF",
+           motor.ol_align_current, motor.ol_align_time, motor.ol_align_angle);
+    return 0;
+}
+
+/* speed 命令：查看速度反馈、速度误差、PI 参数和 Iq 输出。 */
+int Cmd_SpeedStatus(int argc, char *argv[])
+{
+    (void)argc;
+    (void)argv;
+    ol_print_status();
+    return 0;
+}
+
+/* spenable <0|1>：切换手动 Iq 和速度 PI，不自动修改目标转速。 */
+int Cmd_SpeedEnable(int argc, char *argv[])
+{
+    int enable;
+
+    if (argc < 2) {
+        PRINTF("Speed loop = %s  (usage: spenable <0|1>)\n",
+               motor.speed_enable ? "ON" : "OFF");
+        return 0;
+    }
+
+    enable = atoi(argv[1]);
+    if (enable != 0 && enable != 1) {
+        PRINTF("Invalid value, use 0 or 1\n");
+        return -1;
+    }
+    if (enable && motor.ol_mode != MOTOR_OL_MODE_IF) {
+        PRINTF("Speed loop requires I/F mode; run: olmode 1\n");
+        return -1;
+    }
+    if (enable && Motor_Protect_IsFaultLatched()) {
+        PRINTF("Clear motor fault before enabling speed loop\n");
+        return -1;
+    }
+    if (enable && !motor.sensorless_enable) {
+        PRINTF("Enable sensorless observer first: slenable 1\n");
+        return -1;
+    }
+
+    Motor_SpeedLoop_Reset();
+    motor.speed_enable = (enable != 0);
+    PRINTF("Speed loop %s\n", motor.speed_enable ? "enabled" : "disabled");
+    if (motor.speed_enable && !Motor_SpeedLoop_IsFeedbackValid()) {
+        PRINTF("I/F startup Iq is used until the sensorless observer locks\n");
+    }
+    return 0;
+}
+
+/* slenable <0|1>：启停无感观测器；关闭时只保留原来的 I/F 开环。 */
+int Cmd_SensorlessEnable(int argc, char *argv[])
+{
+    int enable;
+
+    if (argc < 2) {
+        PRINTF("Sensorless observer = %s  (usage: slenable <0|1>)\n",
+               motor.sensorless_enable ? "ON" : "OFF");
+        return 0;
+    }
+    enable = atoi(argv[1]);
+    if (enable != 0 && enable != 1) {
+        PRINTF("Invalid value, use 0 or 1\n");
+        return -1;
+    }
+
+    motor.sensorless_enable = (enable != 0);
+    if (!motor.sensorless_enable) {
+        motor.speed_enable = false;
+        motor.sensorless_takeover = false;
+    }
+    Motor_Sensorless_Reset();
+    Motor_SpeedLoop_Reset();
+    PRINTF("Sensorless observer %s\n",
+           motor.sensorless_enable ? "enabled" : "disabled");
+    return 0;
+}
+
+/* slrpm <transition> <fallback>：设置开环接管和失锁回退机械转速。 */
+int Cmd_SensorlessRpm(int argc, char *argv[])
+{
+    if (argc < 3) {
+        PRINTF("Sensorless transition/fallback = %.0f/%.0f RPM\n",
+               motor.sensorless_transition_rpm, motor.sensorless_fallback_rpm);
+        PRINTF("Usage: slrpm <transition_rpm> <fallback_rpm>\n");
+        return 0;
+    }
+
+    motor.sensorless_transition_rpm = fabsf(atof(argv[1]));
+    motor.sensorless_fallback_rpm = fabsf(atof(argv[2]));
+    if (motor.sensorless_fallback_rpm > motor.sensorless_transition_rpm) {
+        motor.sensorless_fallback_rpm = motor.sensorless_transition_rpm;
+    }
+    Motor_Sensorless_Reset();
+    PRINTF("Sensorless transition/fallback set to %.0f/%.0f RPM\n",
+           motor.sensorless_transition_rpm, motor.sensorless_fallback_rpm);
+    return 0;
+}
+
+/* slmotor <R_ohm> <L_mH> <flux_mWb>：设置无感电机模型并换算到 SI 单位。 */
+int Cmd_SensorlessMotor(int argc, char *argv[])
+{
+    if (argc < 4) {
+        PRINTF("Sensorless motor: R=%.4f ohm L=%.4f mH Flux=%.4f mWb\n",
+               motor.sensorless_motor_r,
+               motor.sensorless_motor_l * 1000.0f,
+               motor.sensorless_flux_linkage * 1000.0f);
+        PRINTF("Usage: slmotor <R_ohm> <L_mH> <flux_mWb>\n");
+        return 0;
+    }
+
+    motor.sensorless_motor_r = fabsf(atof(argv[1]));
+    motor.sensorless_motor_l = fabsf(atof(argv[2])) * 0.001f;
+    motor.sensorless_flux_linkage = fabsf(atof(argv[3])) * 0.001f;
+    Motor_Sensorless_Reset();
+    PRINTF("Sensorless motor set: R=%.4f ohm L=%.4f mH Flux=%.4f mWb\n",
+           motor.sensorless_motor_r,
+           motor.sensorless_motor_l * 1000.0f,
+           motor.sensorless_flux_linkage * 1000.0f);
+    return 0;
+}
+
+/* slobs <gain> <pll_kp> <pll_ki>：设置观测器收敛增益和 PLL 增益。 */
+int Cmd_SensorlessObserver(int argc, char *argv[])
+{
+    if (argc < 4) {
+        PRINTF("Observer gain=%.1f PLL Kp=%.1f Ki=%.1f\n",
+               motor.sensorless_observer_gain,
+               motor.sensorless_pll_kp,
+               motor.sensorless_pll_ki);
+        PRINTF("Usage: slobs <observer_gain> <pll_kp> <pll_ki>\n");
+        return 0;
+    }
+
+    motor.sensorless_observer_gain = fabsf(atof(argv[1]));
+    motor.sensorless_pll_kp = fabsf(atof(argv[2]));
+    motor.sensorless_pll_ki = fabsf(atof(argv[3]));
+    Motor_Sensorless_Reset();
+    PRINTF("Observer gain=%.1f PLL Kp=%.1f Ki=%.1f\n",
+           motor.sensorless_observer_gain,
+           motor.sensorless_pll_kp,
+           motor.sensorless_pll_ki);
+    return 0;
+}
+
+/* slphase <rad>：补偿观测器固定电角度偏差，调试前保持 0。 */
+int Cmd_SensorlessPhase(int argc, char *argv[])
+{
+    if (argc < 2) {
+        PRINTF("Sensorless phase offset = %.4f rad  (usage: slphase <rad>)\n",
+               motor.sensorless_phase_offset);
+        return 0;
+    }
+    motor.sensorless_phase_offset = atof(argv[1]);
+    Motor_Sensorless_Reset();
+    PRINTF("Sensorless phase offset set to %.4f rad\n",
+           motor.sensorless_phase_offset);
+    return 0;
+}
+
+/* spkp <A/RPM>：设置速度环比例增益。 */
+int Cmd_SpeedKp(int argc, char *argv[])
+{
+    if (argc < 2) {
+        PRINTF("Speed Kp = %.6f A/RPM  (usage: spkp <value>)\n", motor.speed_kp);
+        return 0;
+    }
+    motor.speed_kp = atof(argv[1]);
+    if (motor.speed_kp < 0.0f) motor.speed_kp = 0.0f;
+    Motor_SpeedLoop_Reset();
+    PRINTF("Speed Kp set to %.6f A/RPM\n", motor.speed_kp);
+    return 0;
+}
+
+/* spki <A/(RPM*s)>：设置速度环积分增益。 */
+int Cmd_SpeedKi(int argc, char *argv[])
+{
+    if (argc < 2) {
+        PRINTF("Speed Ki = %.6f A/(RPM*s)  (usage: spki <value>)\n", motor.speed_ki);
+        return 0;
+    }
+    motor.speed_ki = atof(argv[1]);
+    if (motor.speed_ki < 0.0f) motor.speed_ki = 0.0f;
+    Motor_SpeedLoop_Reset();
+    PRINTF("Speed Ki set to %.6f A/(RPM*s)\n", motor.speed_ki);
+    return 0;
+}
+
+/* spiq <A>：设置速度 PI 可以请求的最大转矩电流。 */
+int Cmd_SpeedIqLimit(int argc, char *argv[])
+{
+    if (argc < 2) {
+        PRINTF("Speed Iq limit = %.3f A  (usage: spiq <amps>)\n",
+               motor.speed_iq_limit);
+        return 0;
+    }
+    motor.speed_iq_limit = fabsf(atof(argv[1]));
+    Motor_SpeedLoop_Reset();
+    PRINTF("Speed Iq limit set to %.3f A\n", motor.speed_iq_limit);
+    return 0;
+}
+
+/* spbrake <0|1>：是否允许速度 PI 输出与目标方向相反的制动电流。 */
+int Cmd_SpeedBrake(int argc, char *argv[])
+{
+    int enable;
+
+    if (argc < 2) {
+        PRINTF("Speed braking = %s  (usage: spbrake <0|1>)\n",
+               motor.speed_allow_braking ? "ON" : "OFF");
+        return 0;
+    }
+    enable = atoi(argv[1]);
+    if (enable != 0 && enable != 1) {
+        PRINTF("Invalid value, use 0 or 1\n");
+        return -1;
+    }
+    motor.speed_allow_braking = (enable != 0);
+    Motor_SpeedLoop_Reset();
+    PRINTF("Speed braking %s\n", motor.speed_allow_braking ? "enabled" : "disabled");
+    return 0;
+}
+
 SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
                 olspeed, Cmd_OlSpeed, openloop V/F speed set);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                olstatus, Cmd_OlStatus, show openloop current and fault status);
 SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
                 olboost, Cmd_OlBoost, openloop V/F boost voltage);
 SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
@@ -426,6 +788,32 @@ SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
                 olki, Cmd_OlKi, openloop current Ki);
 SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
                 olphase, Cmd_OlPhase, openloop start phase boost);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                olalign, Cmd_OlAlign, startup rotor alignment configuration);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                speed, Cmd_SpeedStatus, show speed loop status);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                spenable, Cmd_SpeedEnable, enable speed PI loop);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                spkp, Cmd_SpeedKp, set speed PI Kp);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                spki, Cmd_SpeedKi, set speed PI Ki);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                spiq, Cmd_SpeedIqLimit, set speed PI Iq limit);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                spbrake, Cmd_SpeedBrake, allow speed loop braking);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                slenable, Cmd_SensorlessEnable, enable sensorless observer);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                sltakeover, Cmd_SensorlessTakeover, allow observer angle takeover);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                slrpm, Cmd_SensorlessRpm, set sensorless transition rpm);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                slmotor, Cmd_SensorlessMotor, set sensorless motor model);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                slobs, Cmd_SensorlessObserver, set observer and PLL gains);
+SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
+                slphase, Cmd_SensorlessPhase, set observer phase offset);
 
 /**
  * @description: 原 openloop 任务（保留兼容）

@@ -44,6 +44,16 @@ extern "C" {
 /* 如果\n有前缀,例如windows是\r\n */
 #define ENTER_PRI                           '\r'
 
+/*
+ * 调试串口波特率。
+ *
+ * 115200 在输出 olstatus 这种长状态页时需要较长时间，
+ * 会让 Shell 命令交互显得卡顿。UART4 及常见的 USB-串口模块都支持
+ * 460800，可以将输出时间缩短为原来的约 1/4。下载固件后，上位机也必须设为
+ * 460800、8N1、无流控。如果转接模块不支持，只需将此值改回 115200U。
+ */
+#define DEBUG_USART_BAUD                    460800U
+
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
@@ -52,6 +62,7 @@ VOID  Bsp_Usart_DebugInit(ULONG ulBound);
 VOID  Bsp_Usart_PutString(const CHAR *cStr);
 ULONG Bsp_Usart_GetChar(UCHAR* cKey);
 VOID  Bsp_Usart_PutChar(UCHAR cKey);
+VOID  Bsp_Usart_Flush(VOID);
 VOID  Bsp_Usart_Handler(VOID);
 VOID Bsp_Usart_PutBuf(const UCHAR *cStr, ULONG ulLen);
 ULONG Bsp_Usart_GetBuf(UCHAR *ucBuf, ULONG ulLen);

@@ -13,6 +13,12 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+/*
+ * 检测函数和 FOC 中断都会访问 TIM1。检测期间置位该标志，让 FOC 的 DMA
+ * 回调立即返回，不运行保护、观测器、PI 或 SVPWM，避免双方抢写 TIM1。
+ * ADC-DMA 搬运由硬件完成，不执行 FOC 回调也能持续更新 ADC_Value[]。
+ */
+static volatile bool s_detect_active = false;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /* 检测电流偏移*/
@@ -37,66 +43,67 @@ extern "C" {
  */
 ULONG DETECT_Offset(BOOL cal_undriven)
 {
-	PRINTF("detect\n");
+	uint32_t sample_index;
+	const uint32_t samples = 1000U;
+	float current_sum[3] = {0.0f, 0.0f, 0.0f};
+	float voltage_sum[3] = {0.0f, 0.0f, 0.0f};
+
+	/*
+	 * 第一步必须先置位互斥标志。标志置位后，下一次 DMA 中断只会清除
+	 * 中断标志并返回，不再改写 PWM。然后撤销运行命令并关闭三相输出。
+	 */
+	s_detect_active = true;
+	motor.ol_enable = false;
+	motor.ol_target_rpm = 0.0f;
+	motor.ol_current_rpm = 0.0f;
+	motor.ol_vd_int = 0.0f;
+	motor.ol_vq_int = 0.0f;
+	Motor_SpeedLoop_Reset();
+	Motor_Sensorless_Reset();
+	Bsp_Tim_StopPwm(MOTOR1);
+	PRINTF("Detect offset: begin\r\n");
 
 	osDelay(pdMS_TO_TICKS(1000));
-	int cnt = 0;
 
 	// TODO 看门狗时间必须延长 
 
-	const float samples = 1000.0;
-	float current_sum[3] = {0.0, 0.0, 0.0};
-	float voltage_sum[3] = {0.0, 0.0, 0.0};
-
-	/* 更新占空比 */
+	/* 按 VESC 的偏移校准时序：50% 占空比后依次使能 A/B/C 相。 */
 	TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, TIM1->ARR / 2, TIM1->ARR / 2);
 
-	// Start PWM on phase 1
 	Bsp_Tim_StopPwm(MOTOR1);
-
-	// TODO 开启过滤
-	//PHASE_FILTER_ON();
-	// 下边很显然是开启pwm
 	TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_OCMode_PWM1);
-	TIM_CCxCmd(TIM1, 	 TIM_Channel_1, TIM_CCx_Enable);
-	TIM_CCxNCmd(TIM1, 	 TIM_Channel_1, TIM_CCxN_Enable);
+	TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable);
+	TIM_CCxNCmd(TIM1, TIM_Channel_1, TIM_CCxN_Enable);
 	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-
 	osDelay(pdMS_TO_TICKS(1));
-
-	for (float i = 0;i < samples;i++) {
+	PRINTF("Detect offset: phase A\r\n");
+	for (sample_index = 0U; sample_index < samples; sample_index++) {
 		current_sum[0] += GET_CURRENT1();
 		voltage_sum[0] += ADC_VOLTS(ADC_IND_SENS1);
 		osDelay(pdMS_TO_TICKS(1));
 	}
 
-	// Start PWM on phase 2
 	Bsp_Tim_StopPwm(MOTOR1);
-
 	TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_OCMode_PWM1);
-	TIM_CCxCmd(TIM1, 	 TIM_Channel_2, TIM_CCx_Enable);
-	TIM_CCxNCmd(TIM1, 	 TIM_Channel_2, TIM_CCxN_Enable);
+	TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
+	TIM_CCxNCmd(TIM1, TIM_Channel_2, TIM_CCxN_Enable);
 	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-
 	osDelay(pdMS_TO_TICKS(1));
-
-	for (float i = 0;i < samples;i++) {
+	PRINTF("Detect offset: phase B\r\n");
+	for (sample_index = 0U; sample_index < samples; sample_index++) {
 		current_sum[1] += GET_CURRENT2();
 		voltage_sum[1] += ADC_VOLTS(ADC_IND_SENS2);
 		osDelay(pdMS_TO_TICKS(1));
 	}
 
-	// Start PWM on phase 3
 	Bsp_Tim_StopPwm(MOTOR1);
-
 	TIM_SelectOCxM(TIM1, TIM_Channel_3, TIM_OCMode_PWM1);
-	TIM_CCxCmd(TIM1, 	 TIM_Channel_3, TIM_CCx_Enable);
-	TIM_CCxNCmd(TIM1, 	 TIM_Channel_3, TIM_CCxN_Enable);
-	TIM_GenerateEvent(	 TIM1, TIM_EventSource_COM);
-
+	TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
+	TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
+	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 	osDelay(pdMS_TO_TICKS(1));
-
-	for (float i = 0;i < samples;i++) {
+	PRINTF("Detect offset: phase C\r\n");
+	for (sample_index = 0U; sample_index < samples; sample_index++) {
 		current_sum[2] += GET_CURRENT3();
 		voltage_sum[2] += ADC_VOLTS(ADC_IND_SENS3);
 		osDelay(pdMS_TO_TICKS(1));
@@ -128,11 +135,12 @@ ULONG DETECT_Offset(BOOL cal_undriven)
 	// Measure undriven offsets
 	// 有无负载
 	if (cal_undriven) {
+		PRINTF("Detect offset: undriven voltage\r\n");
 		osDelay(pdMS_TO_TICKS(10));
 
 		voltage_sum[0] = 0.0; voltage_sum[1] = 0.0; voltage_sum[2] = 0.0;
 
-		for (float i = 0;i < samples;i++) {
+		for (sample_index = 0U; sample_index < samples; sample_index++) {
 			v_avg = (ADC_VOLTS(ADC_IND_SENS1) + ADC_VOLTS(ADC_IND_SENS2) + ADC_VOLTS(ADC_IND_SENS3)) / 3.0;
 			voltage_sum[0] += ADC_VOLTS(ADC_IND_SENS1) - v_avg;
 			voltage_sum[1] += ADC_VOLTS(ADC_IND_SENS2) - v_avg;
@@ -153,7 +161,19 @@ ULONG DETECT_Offset(BOOL cal_undriven)
 	// TODO: Make sure that offsets are no more than e.g. 5%, as larger values indicate hardware problems.
 	// TODO 看门狗时间恢复
 #endif
+	/*
+	 * 先确认三相输出已经关闭，再释放互斥标志。检测后保持停机，避免
+	 * 使用刚测完的参数自动起转；后续必须由 olspeed/olstart 明确启动。
+	 */
+	Bsp_Tim_StopPwm(MOTOR1);
+	s_detect_active = false;
+	PRINTF("Detect offset: done\r\n");
 	return 1;
+}
+
+bool Motor_Detect_IsActive(void)
+{
+	return s_detect_active;
 }
 
 #if 0

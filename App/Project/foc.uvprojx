@@ -1026,6 +1026,16 @@
               <FilePath>..\motor\motor_protect.c</FilePath>
             </File>
             <File>
+              <FileName>motor_speed.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_speed.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_sensorless.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_sensorless.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_task.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_task.c</FilePath>

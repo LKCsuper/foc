@@ -288,7 +288,42 @@ typedef struct motor_param
 	float ol_current_ki;			/* 开环电流环 Ki */
 	float ol_vd_int;				/* d轴积分项 */
 	float ol_vq_int;				/* q轴积分项 */
-	float ol_start_phase_boost;		/* 启动相位 boost rad（默认 π/2） */
+	float ol_start_phase_boost;		/* 兼容旧启动方式的一拍相位补偿 rad；启用预对齐时不使用 */
+	/*
+	 * 无位置传感器起步预对齐参数。
+	 * 启动时先把定子磁场固定在 ol_align_angle，并施加 ol_align_current 的 Id
+	 * 一段时间，让静止转子被吸到已知电角位置；之后才开始 I/F 旋转磁场。
+	 */
+	bool  ol_align_enable;			/* true=每次 I/F 启动前执行预对齐 */
+	float ol_align_current;			/* 对齐 D 轴电流 Id，单位 A，建议从 0.3~0.5A 起调 */
+	float ol_align_time;				/* 固定磁场保持时间，单位 s，建议 0.2~0.5s */
+	float ol_align_angle;				/* 固定对齐电角度，单位 rad；默认 0 */
+
+	/* 速度外环：霍尔机械转速 -> PI -> Iq 目标；默认关闭，调试确认后再开启 */
+	bool speed_enable;				/* true=速度 PI 接管 Iq，false=继续使用 ol_iq_set */
+	bool speed_allow_braking;		/* true=允许反向 Iq 主动制动，false=超速时仅撤掉转矩 */
+	float speed_kp;					/* 速度环比例增益，单位 A/RPM */
+	float speed_ki;					/* 速度环积分增益，单位 A/(RPM*s) */
+	float speed_iq_limit;			/* 速度环输出的 |Iq| 上限，单位 A */
+	float speed_loop_hz;				/* 速度环执行频率，单位 Hz，推荐 500~1000 */
+
+	/* 无感 Ortega 磁链观测器与开环切闭环参数，全部使用 SI 单位 */
+	bool sensorless_enable;			/* true=后台运行观测器；是否接管由 sensorless_takeover 决定 */
+	bool sensorless_takeover;		/* true=允许观测器满足锁定条件后真正接管角度 */
+	float sensorless_motor_r;		/* 相电阻 Ω */
+	float sensorless_motor_l;		/* 相电感 H */
+	float sensorless_flux_linkage;	/* 永磁体磁链 Wb */
+	float sensorless_observer_gain;	/* Ortega 观测器增益 */
+	float sensorless_pll_kp;		/* 角度 PLL 比例增益 */
+	float sensorless_pll_ki;		/* 角度 PLL 积分增益 */
+	float sensorless_transition_rpm;/* 高于该机械转速才尝试无感接管 */
+	float sensorless_fallback_rpm;	/* 低于该机械转速持续一段时间后回退 I/F */
+	float sensorless_lock_time;		/* 锁定条件持续时间 s */
+	float sensorless_loss_time;		/* 失锁条件持续时间 s */
+	float sensorless_blend_time;		/* 开环角度渐变到观测角度的时间 s */
+	float sensorless_phase_tolerance;/* 接管前允许的最大相位误差 rad */
+	float sensorless_phase_offset;	/* 观测角度固定补偿 rad */
+	float sensorless_speed_filter;	/* PLL 机械转速低通系数 0~1 */
 
 }MOTOR_PARAM_S;
 //#pragma pack ()

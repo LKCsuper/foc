@@ -30,21 +30,34 @@ typedef enum tagDetectType
  * @return {*}
  * @author: lkc
  */
-VOID Cmd_Detect(ULONG ulDetectType)
+int Cmd_Detect(int argc, char *argv[])
 {
-    if (ulDetectType < 1)
-    {
-        PRINTF("Param less\n");
+    ULONG detect_type = DETECT_OFFSET;
+    ULONG result = 0U;
+
+    /*
+     * Letter Shell 的 SHELL_TYPE_CMD_MAIN 会传入 argc/argv。旧代码把它导出为
+     * SHELL_TYPE_CMD_FUNC，导致第一个参数被当成“检测类型”，出现随机的 51 并跳过了真正的校准。
+     * 不带参数时默认检测电流/电压零点；传入 1 也表示同一个功能。
+     */
+    if (argc >= 2) {
+        detect_type = (ULONG)atoi(argv[1]);
     }
+
+    if (detect_type != DETECT_OFFSET && detect_type != DETECT_HALL) {
+        PRINTF("Usage: detect [1=offset | 2=hall]\n");
+        return -1;
+    }
+
     PRINTF("\n==================================================\n");
     PRINTF("Detect Start: ");
 
-    switch (ulDetectType)
+    switch (detect_type)
     {
         case DETECT_OFFSET:
         {
             PRINTF("Detect Offset\n");
-            DETECT_Offset(FALSE);
+            result = DETECT_Offset(FALSE);
             break;
         }
         case DETECT_HALL:
@@ -60,12 +73,12 @@ VOID Cmd_Detect(ULONG ulDetectType)
     PRINTF("Detect End\n");
     PRINTF("==================================================\n");
 
-    return;
+    return (result == 1U || detect_type == DETECT_HALL) ? 0 : -1;
 }
 
 
 SHELL_EXPORT_CMD(
-SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_FUNC),
+SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
 detect, 
 Cmd_Detect, 
 detect 1 : current and volt offset 电流电压偏移

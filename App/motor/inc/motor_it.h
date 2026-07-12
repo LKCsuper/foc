@@ -30,6 +30,10 @@ extern "C" {
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 void Motor_DmaInt(void *p, uint32_t flags);
+
+/* 供 Shell 状态显示预对齐是否仍在进行，以及已经保持了多长时间。 */
+bool Motor_OpenLoop_IsAligning(void);
+float Motor_OpenLoop_GetAlignElapsed(void);
 #ifdef __cplusplus
 }
 #endif

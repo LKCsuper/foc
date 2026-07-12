@@ -126,7 +126,7 @@ VOID Bsp_Init(VOID)
 	Bsp_Gpio_Init();
 
 	/* 串口初始化 */
-	Bsp_Usart_DebugInit(115200);
+	Bsp_Usart_DebugInit(DEBUG_USART_BAUD);
 
 	/* 初始化定时器1 pwm */
 	// TODO 注意: 如果初始化顺序 Tim Adc Dma 如果tim和dma中断中间没有加打印,串口就会死掉

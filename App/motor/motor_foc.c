@@ -28,10 +28,17 @@ extern "C" {
  */
 void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
 {
-#if 0
-	*Ialpha = Ia;
-	*Ibeta  = (Ib - Ic) * ONE_BY_SQRT3;
-#else // vesc
+	/*
+	 * VESC 在三电阻(HW_HAS_3_SHUNTS) 模式下使用完整 Clarke 变换。
+	 * 它同时使用三相采样，如果三相上有同向的小偏置，它会在
+	 * 变换中相互抵消。旧实现只用 Ia/Ib，导致 Ic 虽然被采集却不参与
+	 * D/Q 电流计算，对低电流起步特别敏感。
+	 */
+#ifdef HW_HAS_3_SHUNTS
+	*Ialpha = (2.0f / 3.0f) * Ia - (1.0f / 3.0f) * Ib - (1.0f / 3.0f) * Ic;
+	*Ibeta = (Ib - Ic) * ONE_BY_SQRT3;
+#else
+	/* 两电阻硬件没有可信的 Ic，按 Ia/Ib 假设三相平衡。 */
 	*Ialpha = Ia;
 	*Ibeta = ONE_BY_SQRT3 * Ia + TWO_BY_SQRT3 * Ib;
 #endif

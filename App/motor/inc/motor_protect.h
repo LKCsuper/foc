@@ -29,6 +29,22 @@ typedef struct {
 } motor_protect_config_t;
 
 /*
+ * 首发故障发生瞬间的数据快照。
+ *
+ * 电机停机以后，实时电流和母线电压会立即变化，只看 olstatus 往往已经
+ * 看不到真正的触发条件。因此在第一次锁存故障时保存以下数据，直到执行
+ * olfault clear 才清除。
+ */
+typedef struct {
+    float current_peak; /* 故障瞬间 max(|Ia|,|Ib|,|Ic|)，单位 A */
+    float bus_voltage;  /* 故障瞬间母线电压，单位 V */
+    float target_rpm;   /* 用户下发的目标机械转速，单位 RPM */
+    float ramp_rpm;     /* I/F 软件斜坡当时走到的转速，单位 RPM，不是真实反馈 */
+    float measured_rpm; /* 有效传感器/观测器反馈，单位 RPM */
+    bool speed_valid;   /* measured_rpm 在故障瞬间是否可信 */
+} motor_protect_snapshot_t;
+
+/*
  * 初始化保护模块。
  * @param config 自定义保护参数；传 NULL 表示继续使用源文件中的默认参数。
  * @note  调用后会清除故障码、锁存标志、所有计时器和速度反馈状态。
@@ -69,6 +85,12 @@ bool Motor_Protect_IsFaultLatched(void);
 
 /* 获取锁存的首发故障码；没有故障时返回 FAULT_CODE_NONE。 */
 mc_fault_code Motor_Protect_GetFault(void);
+
+/* 把故障码转换成可读名称，便于 Shell 直接显示原因。 */
+const char *Motor_Protect_GetFaultName(mc_fault_code fault);
+
+/* 获取首发故障快照；snapshot=NULL 时不执行任何操作。 */
+void Motor_Protect_GetSnapshot(motor_protect_snapshot_t *snapshot);
 
 #ifdef __cplusplus
 }

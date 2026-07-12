@@ -161,7 +161,18 @@ void Bsp_Usart_PutChar(UCHAR cKey)
 }
 
 /**
-  * @brief  Test to see if a ucKey has been pressed on the HyperTerminal
+ * @brief 等待调试串口最后一个字符完全从 TX 引脚发出。
+ *
+ * @note  普通 printf 的逐字符发送只等待 TXE，以免占用 CPU；只有在一条
+ *        命令结束、Shell 即将打印 Return 时才调用本函数，防止两段文本混排。
+ */
+VOID Bsp_Usart_Flush(VOID)
+{
+	IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TC) == RESET);
+}
+
+/**
+ * @brief  Test to see if a ucKey has been pressed on the HyperTerminal
   * @param  ucKey: The ucKey pressed
   * @retval 1: Correct
   *         0: Error
@@ -214,16 +225,26 @@ ULONG Bsp_Usart_GetBuf(UCHAR *ucBuf, ULONG ulLen)
  */
 int fputc(int ch, FILE *f)
 {
+	/* f 只是 printf 传入的标准输出句柄，本驱动并不需要使用它。 */
+	(void)f;
+
 #ifdef ENTER_PRI
-	/* 如果 */
+	/*
+	 * 终端需要 CR+LF 才能换行，因此在 LF 前补一个 CR。
+	 * 等待 TXE 表示“发送数据寄存器可写”，可以立即继续填入下一个字符。
+	 * 不能在每个字符后等待 TC：TC 表示整个字符已从 TX 引脚发出，
+	 * 会让 printf 在 115200/460800 下大量忙等，影响命令任务和电机控制任务。
+	 */
 	if ('\n' == ch)
 	{
+		IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET);
 		USART_SendData(DEBUG_USART, (u8)ENTER_PRI);
-		IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TC) == RESET);
 	}
 #endif
+
+	/* 等待数据寄存器空闲后立即写入，无需等待当前字符完整发送。 */
+	IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TXE) == RESET);
 	USART_SendData(DEBUG_USART, (u8)ch);
-	IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TC) == RESET);
 
     return ch;
 }

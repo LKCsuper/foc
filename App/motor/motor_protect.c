@@ -53,6 +53,7 @@ static struct {
     bool speed_was_reached;    /* 电机是否曾达到目标速度的 50% */
     bool fault_latched;        /* true 表示已经锁存故障，禁止自动恢复 */
     mc_fault_code fault;       /* 第一次触发的故障码 */
+    motor_protect_snapshot_t snapshot; /* 第一次故障发生时的数据，停机后仍保留 */
 } s_state;
 
 /*
@@ -104,9 +105,19 @@ static bool Motor_Protect_Debounce(bool condition, float dt, float delay, float 
  * 例如先发生过流，停机后母线电压又下降产生欠压，fault 仍保留过流，
  * 这样调试人员看到的是最可能的根本原因，而不是停机后的连锁现象。
  */
-static void Motor_Protect_LatchFault(mc_fault_code fault)
+static void Motor_Protect_LatchFault(mc_fault_code fault, const MOTOR_PARAM_S *motor)
 {
     if (!s_state.fault_latched) {
+        /*
+         * 必须先保存快照再置 fault_latched。下一次 FOC 中断看到锁存后会
+         * 立即输出安全状态，届时电流已经下降，无法再还原真正触发值。
+         */
+        s_state.snapshot.current_peak = Motor_Protect_CurrentPeak(motor);
+        s_state.snapshot.bus_voltage = motor->v_bus;
+        s_state.snapshot.target_rpm = motor->ol_target_rpm;
+        s_state.snapshot.ramp_rpm = motor->ol_current_rpm;
+        s_state.snapshot.measured_rpm = s_state.speed_rpm;
+        s_state.snapshot.speed_valid = s_state.speed_valid;
         s_state.fault = fault;
         s_state.fault_latched = true;
     }
@@ -249,13 +260,13 @@ bool Motor_Protect_Run(const MOTOR_PARAM_S *motor, float dt)
 
     /* 按危险程度检查；同一周期多个异常只保留优先级最高的故障。 */
     if (Motor_Protect_CheckOverCurrent(motor, dt)) {
-        Motor_Protect_LatchFault(FAULT_CODE_ABS_OVER_CURRENT);
+        Motor_Protect_LatchFault(FAULT_CODE_ABS_OVER_CURRENT, motor);
     } else if (Motor_Protect_CheckUnderVoltage(motor, dt)) {
-        Motor_Protect_LatchFault(FAULT_CODE_UNDER_VOLTAGE);
+        Motor_Protect_LatchFault(FAULT_CODE_UNDER_VOLTAGE, motor);
     } else if (Motor_Protect_CheckStall(motor, dt)) {
-        Motor_Protect_LatchFault(FAULT_CODE_MOTOR_STALL);
+        Motor_Protect_LatchFault(FAULT_CODE_MOTOR_STALL, motor);
     } else if (Motor_Protect_CheckSpeedLoss(motor, dt)) {
-        Motor_Protect_LatchFault(FAULT_CODE_MOTOR_SPEED_LOSS);
+        Motor_Protect_LatchFault(FAULT_CODE_MOTOR_SPEED_LOSS, motor);
     }
 
     return s_state.fault_latched;
@@ -282,6 +293,31 @@ bool Motor_Protect_IsFaultLatched(void)
 mc_fault_code Motor_Protect_GetFault(void)
 {
     return s_state.fault;
+}
+
+const char *Motor_Protect_GetFaultName(mc_fault_code fault)
+{
+    switch (fault) {
+        case FAULT_CODE_NONE:
+            return "NONE";
+        case FAULT_CODE_ABS_OVER_CURRENT:
+            return "ABS_OVER_CURRENT";
+        case FAULT_CODE_UNDER_VOLTAGE:
+            return "UNDER_VOLTAGE";
+        case FAULT_CODE_MOTOR_STALL:
+            return "MOTOR_STALL";
+        case FAULT_CODE_MOTOR_SPEED_LOSS:
+            return "MOTOR_SPEED_LOSS";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+void Motor_Protect_GetSnapshot(motor_protect_snapshot_t *snapshot)
+{
+    if (snapshot != NULL) {
+        *snapshot = s_state.snapshot;
+    }
 }
 
 #ifdef __cplusplus
