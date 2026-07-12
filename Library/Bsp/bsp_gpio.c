@@ -171,9 +171,14 @@ void Bsp_Gpio_Init(void)
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
 	GPIO_Init(HW_HALL_A_PORT, &GPIO_InitStructure);
 	
-	// /* phase filters */
-	// Bsp_Gpio_Mode(PHASE_FILTER_PORT, PHASE_FILTER_PIN, GPIO_Mode_OUT);
-	// PHASE_FILTER_OFF();
+	/*
+	 * Phase-voltage RC filter control. The ODR has no effect while this pin
+	 * remains in its reset/input mode, so configure it before first use.
+	 */
+#ifdef HW_HAS_PHASE_FILTERS
+	Bsp_Gpio_Mode(PHASE_FILTER_GPIO, PHASE_FILTER_PIN, GPIO_Mode_OUT);
+	PHASE_FILTER_OFF();
+#endif
 
 	// /* Fault */
 	// Bsp_Gpio_Mode(PHASE_FILTER_PORT, PHASE_FILTER_PIN, GPIO_Mode_IN);
