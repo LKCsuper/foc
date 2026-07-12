@@ -65,6 +65,9 @@ static volatile bool s_detect_abort_requested = false;
 #define MOTOR_DETECT_FLUX_SAMPLE_S          (2.0f)
 #define MOTOR_DETECT_FLUX_ID_IQ_TRANSITION_S (1.0f)
 #define MOTOR_DETECT_FLUX_MIN_CURRENT_A     (1.5f)
+#define MOTOR_DETECT_FLUX_MIN_RUN_DUTY      (0.03f)
+#define MOTOR_DETECT_FLUX_DUTY_RISE_FACTOR  (1.5f)
+#define MOTOR_DETECT_FLUX_DUTY_COLLAPSE_RATIO (0.70f)
 #define MOTOR_DETECT_FLUX_MIN_SAMPLES       (1000U)
 #define MOTOR_DETECT_FLUX_MIN_WB            (1.0e-4f)
 #define MOTOR_DETECT_FLUX_MAX_WB            (0.2f)
@@ -129,6 +132,9 @@ typedef struct {
 	float resistance_current_avg;
 	float max_phase_current;
 	float overcurrent_elapsed;
+	float flux_duty_still;
+	float flux_duty_now;
+	float flux_duty_max;
 	uint32_t samples;
 	uint32_t pulse_position;
 	uint32_t pulse_count;
@@ -633,7 +639,12 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 			0.0f, 1.0f);
 		Motor_DetectControl_RunCurrent(motor, 0.0f,
 			s_detect_control.current_a * ramp, 0.0f,
-			MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V, dt, NULL, NULL);
+			MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V, dt,
+			&s_detect_control.vd, &s_detect_control.vq);
+		if (motor->v_bus > 1.0f && ramp > 0.9f) {
+			s_detect_control.flux_duty_still =
+				NORM2_f(s_detect_control.vd, s_detect_control.vq) / motor->v_bus;
+		}
 		return;
 	}
 
@@ -662,10 +673,32 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 	Motor_DetectControl_RunCurrent(motor, s_detect_control.theta,
 		id_target, iq_target, MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V, dt,
 		&s_detect_control.vd, &s_detect_control.vq);
+	if (motor->v_bus > 1.0f) {
+		s_detect_control.flux_duty_now =
+			NORM2_f(s_detect_control.vd, s_detect_control.vq) / motor->v_bus;
+		if (s_detect_control.flux_duty_now > s_detect_control.flux_duty_max) {
+			s_detect_control.flux_duty_max = s_detect_control.flux_duty_now;
+		}
+	}
 
 	if (Motor_Detect_CurrentTooHigh(motor, dt)) {
 		Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_CURRENT);
 		return;
+	}
+
+	/* VESC-style open-loop validation: duty must rise above the locked-rotor
+	 * value and must not collapse after reaching its peak. */
+	if (rotation_time >= MOTOR_DETECT_FLUX_RAMP_S) {
+		float minimum_run_duty = fmaxf(MOTOR_DETECT_FLUX_MIN_RUN_DUTY,
+			s_detect_control.flux_duty_still *
+			MOTOR_DETECT_FLUX_DUTY_RISE_FACTOR);
+		if (s_detect_control.flux_duty_now < minimum_run_duty ||
+			(s_detect_control.flux_duty_max > minimum_run_duty &&
+			 s_detect_control.flux_duty_now < s_detect_control.flux_duty_max *
+			 MOTOR_DETECT_FLUX_DUTY_COLLAPSE_RATIO)) {
+			Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FLUX);
+			return;
+		}
 	}
 
 	if (rotation_time >
@@ -786,6 +819,9 @@ static bool Motor_Detect_RunStage(motor_detect_stage_t stage,
 	s_detect_control.resistance_current_avg  = 0.0f;
 	s_detect_control.max_phase_current       = 0.0f;
 	s_detect_control.overcurrent_elapsed     = 0.0f;
+	s_detect_control.flux_duty_still         = 0.0f;
+	s_detect_control.flux_duty_now           = 0.0f;
+	s_detect_control.flux_duty_max           = 0.0f;
 	s_detect_control.samples                = 0U;
 	s_detect_control.pulse_position         = 0U;
 	s_detect_control.pulse_count            = 0U;
@@ -957,6 +993,10 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 	motor.ol_vq_limit = MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V;
 	if (!Motor_Detect_RunStage(MOTOR_DETECT_STAGE_FLUX,
 		flux_current_a, electrical_rpm, MOTOR_DETECT_TIMEOUT_FLUX_MS)) {
+		PRINTF("Detect motor: flux spin invalid duty still=%.4f now=%.4f max=%.4f\r\n",
+			s_detect_control.flux_duty_still,
+			s_detect_control.flux_duty_now,
+			s_detect_control.flux_duty_max);
 		goto detect_done;
 	}
 	PRINTF("Detect motor: flux=%.4f mWb\r\n",
@@ -965,6 +1005,10 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 		s_detect_control.resistance_voltage_avg,
 		128.25498f * motor.ol_pole_pairs * s_detect_result.flux_linkage_wb,
 		motor.ol_pole_pairs);
+	PRINTF("Detect motor: flux duty still=%.4f run=%.4f max=%.4f\r\n",
+		s_detect_control.flux_duty_still,
+		s_detect_control.flux_duty_now,
+		s_detect_control.flux_duty_max);
 	PRINTF("Detect motor: if you can measure the mechanical RPM now, run:\r\n");
 	PRINTF("  detect poles %.0f <measured_mechanical_rpm>\r\n",
 		electrical_rpm);
