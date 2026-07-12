@@ -727,6 +727,73 @@ static void Motor_OpenLoop_RunIf(MOTOR_PARAM_S *m, float v_bus, float dt)
     Motor_Foc_OutputVoltage(m, voltage.vd, voltage.vq, theta, v_bus);
 }
 
+void Motor_DetectControl_Reset(MOTOR_PARAM_S *m)
+{
+    m->ol_vd_int = 0.0f;
+    m->ol_vq_int = 0.0f;
+    m->Id = 0.0f;
+    m->Iq = 0.0f;
+    Motor_SpeedLoop_Reset();
+    Motor_Sensorless_Reset();
+}
+
+void Motor_DetectControl_RunCurrent(MOTOR_PARAM_S *m,
+                                    float theta,
+                                    float id_target,
+                                    float iq_target,
+                                    float voltage_limit,
+                                    float dt,
+                                    float *vd,
+                                    float *vq)
+{
+    motor_dq_voltage_t voltage;
+    float safe_limit = m->v_bus * 0.75f;
+
+    if (voltage_limit < safe_limit) {
+        safe_limit = voltage_limit;
+    }
+    if (safe_limit < 0.0f) {
+        safe_limit = 0.0f;
+    }
+
+    Motor_CurrentFeedback_UpdateDq(m, theta);
+    voltage = Motor_CurrentLoop_RunPi(m, id_target, iq_target, dt, safe_limit);
+    Motor_Foc_OutputVoltage(m, voltage.vd, voltage.vq, theta, m->v_bus);
+
+    if (vd != NULL) {
+        *vd = voltage.vd;
+    }
+    if (vq != NULL) {
+        *vq = voltage.vq;
+    }
+}
+
+void Motor_DetectControl_RunVoltage(MOTOR_PARAM_S *m,
+                                    float theta,
+                                    float vd,
+                                    float vq,
+                                    float voltage_limit)
+{
+    float safe_limit = m->v_bus * 0.75f;
+
+    if (voltage_limit < safe_limit) {
+        safe_limit = voltage_limit;
+    }
+    if (safe_limit < 0.0f) {
+        safe_limit = 0.0f;
+    }
+
+    Motor_CurrentFeedback_UpdateDq(m, theta);
+    utils_saturate_vector_2d(&vd, &vq, safe_limit);
+    Motor_Foc_OutputVoltage(m, vd, vq, theta, m->v_bus);
+}
+
+void Motor_DetectControl_OutputSafe(MOTOR_PARAM_S *m)
+{
+    Motor_DetectControl_Reset(m);
+    Motor_OpenLoop_OutputSafe(m);
+}
+
 /*
  * 开环运行主状态机 (每个 FOC 控制周期调用一次)：
  *   1. 欠压 → 复位 + 安全输出；
@@ -902,6 +969,27 @@ void Motor_DmaInt(void *p, uint32_t flags)
      * TIM1，严重时高频中断还会让 Detect_Init 所在任务一直得不到运行。
      */
     if (Motor_Detect_IsActive()) {
+        /* 偏置校准由任务直接切换三相桥臂，DMA 只负责更新 ADC 原始数组。 */
+        if (!Motor_Detect_ControlIsActive()) {
+            return;
+        }
+
+        runtime_start = Bsp_Tim_DtNow();
+        Motor_It_ParamCal();
+        protection_dt = Motor_OpenLoop_GetAdcDt(&motor);
+
+        /* 参数检测也保留 30kHz 绝对过流保护，不能因检测模式绕过功率级安全。 */
+        if (Motor_Protect_Run(&motor, protection_dt)) {
+            Motor_Detect_AbortFromIsr(Motor_Protect_GetFault());
+            Motor_DetectControl_OutputSafe(&motor);
+            Motor_DmaInt_RecordRuntime(runtime_start);
+            return;
+        }
+
+        if (Motor_DmaInt_ShouldRun()) {
+            Motor_Detect_DmaStep(&motor, Motor_OpenLoop_GetDt(&motor));
+        }
+        Motor_DmaInt_RecordRuntime(runtime_start);
         return;
     }
 

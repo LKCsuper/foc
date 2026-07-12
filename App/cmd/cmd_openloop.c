@@ -458,6 +458,8 @@ int Cmd_OlStop(int argc, char *argv[])
     (void)argc;
     (void)argv;
 
+    /* detect motor 在后台运行时，olstop 同时作为人工紧急中止命令。 */
+    DETECT_Abort();
     motor.ol_enable = false;
     motor.ol_target_rpm = 0.0f;
     motor.ol_current_rpm = 0.0f;

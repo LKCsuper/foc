@@ -165,6 +165,8 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotor->sensorless_phase_offset     = gpstMotorDefault->sensorless_phase_offset;
     gpstMotor->sensorless_speed_filter     = gpstMotorDefault->sensorless_speed_filter;
 
+    /* 若用户执行过 detect apply，检测值在这里覆盖代码中的示例电机参数。 */
+    Motor_Detect_LoadStoredParameters();
     Motor_Speed_Init();
     Motor_Sensorless_Init();
 
