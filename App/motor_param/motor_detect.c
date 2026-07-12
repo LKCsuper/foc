@@ -60,10 +60,11 @@ static volatile bool s_detect_abort_requested = false;
 
 /* ---- 磁链检测 ---- */
 #define MOTOR_DETECT_FLUX_ALIGN_S           (1.0f)
-#define MOTOR_DETECT_FLUX_RAMP_S            (4.0f)
-#define MOTOR_DETECT_FLUX_SETTLE_S          (1.0f)
-#define MOTOR_DETECT_FLUX_SAMPLE_S          (1.0f)
-#define MOTOR_DETECT_FLUX_ID_IQ_TRANSITION_S (0.5f)
+#define MOTOR_DETECT_FLUX_RAMP_S            (8.0f)
+#define MOTOR_DETECT_FLUX_SETTLE_S          (3.0f)
+#define MOTOR_DETECT_FLUX_SAMPLE_S          (2.0f)
+#define MOTOR_DETECT_FLUX_ID_IQ_TRANSITION_S (1.0f)
+#define MOTOR_DETECT_FLUX_MIN_CURRENT_A     (1.5f)
 #define MOTOR_DETECT_FLUX_MIN_SAMPLES       (1000U)
 #define MOTOR_DETECT_FLUX_MIN_WB            (1.0e-4f)
 #define MOTOR_DETECT_FLUX_MAX_WB            (0.2f)
@@ -84,7 +85,7 @@ static volatile bool s_detect_abort_requested = false;
 /* ---- 各阶段超时 ---- */
 #define MOTOR_DETECT_TIMEOUT_RESISTANCE_MS  (4000U)
 #define MOTOR_DETECT_TIMEOUT_INDUCTANCE_MS  (5000U)
-#define MOTOR_DETECT_TIMEOUT_FLUX_MS        (10000U)
+#define MOTOR_DETECT_TIMEOUT_FLUX_MS        (18000U)
 
 /* ---- 偏置校准 ---- */
 #define MOTOR_DETECT_OFFSET_SAMPLES         (1000U)
@@ -844,6 +845,7 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 	float resistance_fit = 0.0f;
 	float inverter_voltage_offset = 0.0f;
 	float resistance_fit_r2 = 0.0f;
+	float flux_current_a;
 
 	if (s_detect_active) {
 		s_detect_result.error = MOTOR_DETECT_ERROR_BUSY;
@@ -871,6 +873,10 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 
 	current_a = Motor_Detect_Clamp(fabsf(current_a),
 		MOTOR_DETECT_MIN_CURRENT_A, MOTOR_DETECT_MAX_CURRENT_A);
+	flux_current_a = current_a;
+	if (flux_current_a < MOTOR_DETECT_FLUX_MIN_CURRENT_A) {
+		flux_current_a = MOTOR_DETECT_FLUX_MIN_CURRENT_A;
+	}
 	electrical_rpm = Motor_Detect_Clamp(fabsf(electrical_rpm),
 		MOTOR_DETECT_MIN_ELECTRICAL_RPM, MOTOR_DETECT_MAX_ELECTRICAL_RPM);
 	memset(&s_detect_result, 0, sizeof(s_detect_result));
@@ -940,8 +946,9 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 	PRINTF("Detect motor: L=%.3f uH\r\n",
 		s_detect_result.inductance_h * 1000000.0f);
 
-	PRINTF("Detect motor: spinning at %.0f electrical RPM for flux\r\n",
-		electrical_rpm);
+	PRINTF("Detect motor: spinning at %.0f electrical RPM for flux (%.2fA, %.1fs ramp, %.1fs settle)\r\n",
+		electrical_rpm, flux_current_a,
+		MOTOR_DETECT_FLUX_RAMP_S, MOTOR_DETECT_FLUX_SETTLE_S);
 	/* VESC 使用约 1.5ms 电流环时间常数进行磁链检测，结束后恢复用户参数。 */
 	motor.ol_current_kp = s_detect_result.inductance_h /
 		MOTOR_DETECT_VESC_CURRENT_TC_S;
@@ -949,7 +956,7 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 		MOTOR_DETECT_VESC_CURRENT_TC_S;
 	motor.ol_vq_limit = MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V;
 	if (!Motor_Detect_RunStage(MOTOR_DETECT_STAGE_FLUX,
-		current_a, electrical_rpm, MOTOR_DETECT_TIMEOUT_FLUX_MS)) {
+		flux_current_a, electrical_rpm, MOTOR_DETECT_TIMEOUT_FLUX_MS)) {
 		goto detect_done;
 	}
 	PRINTF("Detect motor: flux=%.4f mWb\r\n",
