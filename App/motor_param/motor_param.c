@@ -36,7 +36,8 @@ mc_configuration *gpstMotorCfg = &motorCfg;
  */
 VOID MOTOR_Param_Init(VOID)
 {
-    easyflash_init();
+    motor_detect_result_t detect_buf;
+
     /* 电阻 电感 磁链 */
     gpstMotorCfg->foc_motor_r = 0.4f;                  /* 400mΩ = 0.4Ω */
     gpstMotorCfg->foc_motor_l = 0.0008f;               /* 800uH = 0.0008H */
@@ -101,19 +102,17 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotorDefault->sensorless_phase_offset     = 0.0f;
     gpstMotorDefault->sensorless_speed_filter     = 0.10f;
 
-    size_t saved_value_len;
-
-    /* 如果保存的环境变量大小不一致 */
-    if (sizeof(MOTOR_PARAM_S) != ef_get_env_blob("flash_param", gpstMotor, sizeof(MOTOR_PARAM_S), &saved_value_len))
+    /* 尝试从 Flash 加载已保存的电机参数和检测结果 */
+    if (!FlashStorage_Load(gpstMotor, &detect_buf))
     {
-        EfErrCode err = ef_set_env_blob("flash_param", gpstMotorDefault, sizeof(MOTOR_PARAM_S));
+        /* 首次上电或数据损坏：以代码默认值初始化并写入 Flash */
+        memset(&detect_buf, 0, sizeof(detect_buf));
+        detect_buf.version = MOTOR_DETECT_RESULT_VERSION;
 
-        if (EF_NO_ERR != err)
+        if (!FlashStorage_Save(gpstMotorDefault, &detect_buf))
         {
-            ERROR("Write Flash Param Err[%d] Size[%d]\r\n", err, sizeof(MOTOR_PARAM_S));
+            ERROR("FlashStorage: save defaults failed\r\n");
         }
-
-        ef_save_env();
         PRINTF("Default Flash Param\r\n");
     }
 
@@ -166,7 +165,7 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotor->sensorless_speed_filter     = gpstMotorDefault->sensorless_speed_filter;
 
     /* 若用户执行过 detect apply，检测值在这里覆盖代码中的示例电机参数。 */
-    Motor_Detect_LoadStoredParameters();
+    Motor_Detect_ApplyStoredResult(&detect_buf);
     Motor_Speed_Init();
     Motor_Sensorless_Init();
 

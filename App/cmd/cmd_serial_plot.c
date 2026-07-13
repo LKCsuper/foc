@@ -1,126 +1,72 @@
 /*
- * @Description: 
+ * @Description: 串口绘图命令
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-09-24 13:23:11
- * @FilePath: \foc\Library\Bsp\bsp_dma.c
+ * @LastEditTime: 2025-07-13
  */
 #ifdef __cplusplus
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
-/* Private typedef -----------------------------------------------------------*/
-/* Private define ------------------------------------------------------------*/
-
-/* 参数1 */
-typedef enum
-{
-    PLOT_NONE,
-    PLOT_CREATE,                        /* 创建 */
-    PLOT_DESTORY,                       /* 销毁 */
-    PLOT_NUM,
-}PLOT_TYPE;
-
-/* 参数2,显示类型 */
-typedef enum
-{
-    PLOT_CREATE_NONE,
-    PLOT_CURRENT,                       /* 电流 */
-    PLOT_CREATE_NUM,
-}PLOT_CREATE_TYPE;
-
-/* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-/* 任务栈 */
 STATIC TaskHandle_t taskPlotHandle;
-/*
-STATIC StackType_t taskPlotStack[128];
-STATIC StaticTask_t taskPlotTcb; //CreateAppTask任务控制块 
-*/
-const osThreadAttr_t taskPlotAttr = 
+
+const osThreadAttr_t taskPlotAttr =
 {
     .name = "Task Plot",
-    /* 注意如果超出这个中断最大,任务将创建失败 */
     .priority = PRI_INIT,
-/* 当前任务为动态创建 */
-/*
-    .cb_mem = &taskPlotTcb,
-    .cb_size = sizeof(taskPlotTcb),
-    .stack_mem = &taskPlotStack,
-    .stack_size = sizeof(taskPlotStack),
-*/
 };
-/* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-
 /**
- * @description: 串口绘画任务初始化
- * @detail: 
- * @return {*}
- * @author: lkc
+ * @description: 串口绘图任务（当前仅占位，具体数据在循环内填入）
  */
 VOID Serial_PlotCurentTask(VOID *argument)
 {
+    (void)argument;
     PRINTF("\n");
-    float a = 1.1f;
-    float b = 3.3f;
-
     while (1)
     {
-        // 绘图
+        /* 绘图数据输出 */
         //TEXT_PLOT(current, "%f, %f, %f, %f", motor.ia, motor.ib, motor.ic, motor.v_bus);
         //TEXT_PLOT(voltage, "%f, %f, %f", motor.va, motor.vb, motor.vc);
-
-//        TEXT_PLOT(voltage, "%f, %f, %f, %f, %f",rtU.theta, rtY.Valpha, rtY.Vbeta, rtU.Vd, rtU.Vq);
-        //printf("{%f,%f}\n",rtY.Valpha, rtY.Vbeta);
     }
 }
 
 /**
- * @description: Cmd_Serial_Plot
- * @detail: 
- * @param {char} cTaskStat 任务状态
- * @param {char} cPlotStat 绘画状态
- * @return {*}
- * @author: lkc
+ * @description: 串口绘图控制
+ *   plot create current   创建电流绘图任务
+ *   plot destory          销毁绘图任务
  */
-VOID Cmd_Serial_Plot(UCHAR cTaskStat, UCHAR cPlotStat)
+int Cmd_Serial_Plot(int argc, char *argv[])
 {
-    /* 销毁和创建任务 */
-    switch (cTaskStat)
-    {
-        case PLOT_CREATE:
-            /* 打印不同格式的任务 */
-            switch (cPlotStat)
-            {
-                case PLOT_CURRENT:
-                    PRINTF("电流 显示 任务\n");
-                    taskPlotHandle = osThreadNew(Serial_PlotCurentTask, NULL, &taskPlotAttr);
-                    break;
-                default:
-                    break;
-            }
-            break;
-        case PLOT_DESTORY:
-            PRINTF("电流 销毁 任务 ");
-            if (osOK == osThreadTerminate(taskPlotHandle))
-            {
-                PRINTF("success \n");
-            } 
-            else
-            {
-                PRINTF("err \n");
-            }
-            break;
-        default:
-            break;
+    if (argc < 2) {
+        PRINTF("usage: plot create current | plot destory\r\n");
+        return -1;
     }
 
-    return;
+    if (strcmp(argv[1], "create") == 0) {
+        if (argc >= 3 && strcmp(argv[2], "current") == 0) {
+            PRINTF("plot: create current task\r\n");
+            taskPlotHandle = osThreadNew(Serial_PlotCurentTask, NULL, &taskPlotAttr);
+        } else {
+            PRINTF("usage: plot create current\r\n");
+            return -1;
+        }
+    } else if (strcmp(argv[1], "destory") == 0) {
+        PRINTF("plot: destory task ");
+        if (osOK == osThreadTerminate(taskPlotHandle)) {
+            PRINTF("success\r\n");
+        } else {
+            PRINTF("err\r\n");
+        }
+    } else {
+        PRINTF("unknown: %s\r\n", argv[1]);
+        return -1;
+    }
+    return 0;
 }
 
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_FUNC),
-                plot, Cmd_Serial_Plot, plot task);
+/* Cmd_Serial_Plot 注册在 command.c 命令表中 */
 #ifdef __cplusplus
 }
 #endif

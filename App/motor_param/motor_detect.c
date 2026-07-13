@@ -21,7 +21,6 @@ extern "C" {
 static volatile bool s_detect_active = false;
 static volatile bool s_detect_abort_requested = false;
 
-#define MOTOR_DETECT_FLASH_KEY              "motor_detect_result"
 #define MOTOR_DETECT_CURRENT_LIMIT_A        (4.0f)
 #define MOTOR_DETECT_RESISTANCE_RAMP_S      (0.8f)
 #define MOTOR_DETECT_RESISTANCE_SETTLE_S    (0.2f)
@@ -775,26 +774,25 @@ bool DETECT_ApplyResult(bool save)
 	Motor_Sensorless_Reset();
 	Motor_SpeedLoop_Reset();
 	if (save) {
-		EfErrCode error = ef_set_env_blob(MOTOR_DETECT_FLASH_KEY,
-			&s_detect_result, sizeof(s_detect_result));
-		if (error != EF_NO_ERR) {
+		if (!FlashStorage_Save(&motor, &s_detect_result)) {
 			return false;
 		}
-		ef_save_env();
 	}
 	return true;
 }
 
-void Motor_Detect_LoadStoredParameters(void)
+/**
+ * @description: 从已加载的 Flash 数据中恢复检测结果（替代原 EasyFlash 读取版本）
+ * @param stored: FlashStorage 加载时得到的 detect 数据（可为 NULL）
+ */
+void Motor_Detect_ApplyStoredResult(const motor_detect_result_t *stored)
 {
-	motor_detect_result_t stored;
-	size_t saved_length = 0U;
+	if (stored == NULL) {
+		return;
+	}
 
-	if (ef_get_env_blob(MOTOR_DETECT_FLASH_KEY, &stored, sizeof(stored),
-		&saved_length) == sizeof(stored) &&
-		saved_length == sizeof(stored) &&
-		Motor_Detect_ResultParametersValid(&stored)) {
-		s_detect_result = stored;
+	if (Motor_Detect_ResultParametersValid(stored)) {
+		s_detect_result = *stored;
 		Motor_Detect_ApplyRuntime(&s_detect_result);
 		PRINTF("Loaded detected motor: R=%.6f L=%.3fuH flux=%.4fmWb\r\n",
 			s_detect_result.resistance_ohm,

@@ -1,8 +1,11 @@
 /*
- * @Description: 
- * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-09 20:33:15
- * @FilePath: \foc\Library\Bsp\bsp_dma.c
+ * @Description: 精简命令行框架
+ * @Version: 2.0
+ * @Author: lkc
+ * @Date: 2025-07-13
+ * @detail:
+ *   命令集（39 条）全部汇总在这一张静态表里，不带 linker section 魔法。
+ *   新增命令时在这里加一行 extern + 表项即可。
  */
 #ifdef __cplusplus
 extern "C" {
@@ -11,100 +14,211 @@ extern "C" {
 #include "includes.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+#define CMD_BUF_SIZE        128U        /* 输入缓冲大小 */
+#define CMD_MAX_ARGS        8U          /* 最多参数个数（含命令名） */
 /* Private macro -------------------------------------------------------------*/
-/* Private variables ---------------------------------------------------------*/
-/* 任务栈 */
+/* -- 前向声明：所有命令函数统一签名 int func(int argc, char *argv[]) ----------*/
+
+/* cmd_detect.c       */ extern int Cmd_Detect(int argc, char *argv[]);
+/* cmd_env.c          */ extern int Cmd_Saveparam(int argc, char *argv[]);
+/* cmd_misc.c         */ extern int CMD_Reset(int argc, char *argv[]);
+/* cmd_show_param.c   */ extern int Cmd_Show(int argc, char *argv[]);
+/* cmd_task.c         */ extern int Cmd_Task_Show(int argc, char *argv[]);
+/* cmd_duty.c         */ extern int Cmd_Motor_Duty(int argc, char *argv[]);
+/* cmd_encoder.c      */ extern int Cmd_Motor_Encoder(int argc, char *argv[]);
+/* cmd_serial_plot.c  */ extern int Cmd_Serial_Plot(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_Motor_OpenLoop(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlSpeed(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlStatus(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlBoost(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlKvf(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlRamp(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlVlimit(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlMaxSpeed(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlMinSpeed(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlStart(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlStop(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlFault(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlMode(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlIq(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlId(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlKp(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlKi(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlPhase(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlAlign(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SpeedStatus(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SpeedEnable(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SpeedKp(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SpeedKi(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SpeedIqLimit(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SpeedBrake(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SensorlessEnable(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SensorlessTakeover(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SensorlessRpm(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SensorlessGuard(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SensorlessMotor(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SensorlessObserver(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SensorlessPhase(int argc, char *argv[]);
+
+/* -- 命令表 ----------------------------------------------------------------*/
+static const cmd_entry_t s_cmd_table[] = {
+    /* 电机检测 */
+    { "detect",     Cmd_Detect,             "detect offset/hall/motor/show/apply/poles/abort" },
+    /* Flash 存储 */
+    { "saveparam",  Cmd_Saveparam,          "save motor params and detect result to Flash" },
+    /* 开环 V/F 控制 */
+    { "olspeed",    Cmd_OlSpeed,            "openloop V/F speed set <rpm>" },
+    { "olstatus",   Cmd_OlStatus,           "show openloop current and fault status" },
+    { "olboost",    Cmd_OlBoost,            "openloop V/F boost voltage <V>" },
+    { "olkvf",      Cmd_OlKvf,              "openloop V/F slope <V/Hz>" },
+    { "olramp",     Cmd_OlRamp,             "openloop V/F ramp rate <rpm/s>" },
+    { "olvlimit",   Cmd_OlVlimit,           "openloop Vq limit <V>" },
+    { "olmax",      Cmd_OlMaxSpeed,         "openloop max speed <rpm>" },
+    { "olmin",      Cmd_OlMinSpeed,         "openloop min speed <rpm>" },
+    { "olstart",    Cmd_OlStart,            "openloop start" },
+    { "olstop",     Cmd_OlStop,             "openloop stop" },
+    { "olfault",    Cmd_OlFault,            "show or clear latched motor fault" },
+    { "olmode",     Cmd_OlMode,             "openloop mode 0=VF 1=current" },
+    { "oliq",       Cmd_OlIq,               "openloop current Iq target <A>" },
+    { "olid",       Cmd_OlId,               "openloop current Id target <A>" },
+    { "olkp",       Cmd_OlKp,               "openloop current Kp" },
+    { "olki",       Cmd_OlKi,               "openloop current Ki" },
+    { "olphase",    Cmd_OlPhase,            "openloop start phase boost <deg>" },
+    { "olalign",    Cmd_OlAlign,            "startup rotor alignment config" },
+    /* 速度环 */
+    { "speed",      Cmd_SpeedStatus,        "show speed loop status" },
+    { "spenable",   Cmd_SpeedEnable,        "enable speed PI loop <0/1>" },
+    { "spkp",       Cmd_SpeedKp,            "set speed PI Kp" },
+    { "spki",       Cmd_SpeedKi,            "set speed PI Ki" },
+    { "spiq",       Cmd_SpeedIqLimit,       "set speed PI Iq limit <A>" },
+    { "spbrake",    Cmd_SpeedBrake,         "allow speed loop braking <0/1>" },
+    /* 无感观测器 */
+    { "slenable",   Cmd_SensorlessEnable,   "enable sensorless observer <0/1>" },
+    { "sltakeover", Cmd_SensorlessTakeover, "allow observer angle takeover <0/1>" },
+    { "slrpm",      Cmd_SensorlessRpm,      "set sensorless transition rpm" },
+    { "slguard",    Cmd_SensorlessGuard,    "set I/F ceiling and takeover guard" },
+    { "slmotor",    Cmd_SensorlessMotor,    "set sensorless motor model" },
+    { "slobs",      Cmd_SensorlessObserver, "set observer and PLL gains" },
+    { "slphase",    Cmd_SensorlessPhase,    "set observer phase offset <deg>" },
+    /* 杂项 */
+    { "show",       Cmd_Show,               "show hall sensor state" },
+    { "task",       Cmd_Task_Show,          "show FreeRTOS task stats" },
+    { "reset",      CMD_Reset,              "software reset MCU" },
+    { "duty",       Cmd_Motor_Duty,         "duty cycle control: create/destory/set/start/stop" },
+    { "encoder",    Cmd_Motor_Encoder,      "encoder detect" },
+    { "plot",       Cmd_Serial_Plot,        "serial plot: create/destory" },
+    { "openloop",   Cmd_Motor_OpenLoop,     "openloop background task create" },
+};
+
+static const unsigned int s_cmd_count = sizeof(s_cmd_table) / sizeof(s_cmd_table[0]);
+
+/* -- 命令任务 ---------------------------------------------------------------*/
 static StackType_t  taskCmdStack[2048];
-static StaticTask_t taskCmdTcb; //CreateAppTask任务控制块 
-const osThreadAttr_t taskCmdAttr = 
-{
-    .name = "Task Init",
-    /* 注意如果超出这个中断最大,任务将创建失败 */
-    .priority = PRI_CMD,
-    .cb_mem = &taskCmdTcb,
-    .cb_size = sizeof(taskCmdTcb),
-    .stack_mem = &taskCmdStack,
+static StaticTask_t taskCmdTcb;
+const osThreadAttr_t taskCmdAttr = {
+    .name       = "Task Cmd",
+    .priority   = PRI_CMD,
+    .cb_mem     = &taskCmdTcb,
+    .cb_size    = sizeof(taskCmdTcb),
+    .stack_mem  = &taskCmdStack,
     .stack_size = sizeof(taskCmdStack),
 };
 
 QueueHandle_t queueCmdHandle;
-typedef ULONG CMD_QUEUE_ITEM;								//队列项目定义类型
-#define CMD_QUEUE_LENGTH	1								//队列项目长度
-#define CMD_QUEUE_SIZE		sizeof(CMD_QUEUE_ITEM)		    //队列项目字节数
+#define CMD_QUEUE_LENGTH    2
+#define CMD_QUEUE_SIZE      sizeof(CMD_QUEUE_ITEM)
 
-extern UCHAR gucURxBuf[USART_RX_BUF_SIZE];
-/* Private function prototypes -----------------------------------------------*/
-/* Private functions ---------------------------------------------------------*/
-
-/**
- * @description: 获取字符
- * @detail: 
- * @param {uint8_t} *ch
- * @return {*}
- * @author: lkc
- */
-int cmd_get_char(uint8_t *ch)
+/* -- 解析 & 分发 ------------------------------------------------------------*/
+static void cmd_dispatch(char *line)
 {
-    return Bsp_Usart_GetChar(ch);
+    int   argc = 0;
+    char *argv[CMD_MAX_ARGS];
+    char *token;
+    unsigned int i;
+
+    token = strtok(line, " \t\r\n");
+    while (token != NULL && argc < (int)CMD_MAX_ARGS) {
+        argv[argc++] = token;
+        token = strtok(NULL, " \t\r\n");
+    }
+    if (argc == 0) return;
+
+    for (i = 0; i < s_cmd_count; i++) {
+        if (strcmp(argv[0], s_cmd_table[i].name) == 0) {
+            s_cmd_table[i].func(argc, argv);
+            return;
+        }
+    }
+
+    printf("unknown: %s (try 'help')\r\n", argv[0]);
 }
 
-/**
- * @description: 输出字符
- * @detail: 
- * @param {uint8_t} ch
- * @return {*}
- * @author: lkc
- */
-int cmd_put_char(uint8_t ch)
+/* -- 回显 & 编辑支持 --------------------------------------------------------*/
+static char     s_cmd_buf[CMD_BUF_SIZE];
+static uint8_t  s_cmd_len;
+
+static void cmd_putc(char c)
 {
-    Bsp_Usart_PutChar(ch);
-    return 1;
+    Bsp_Usart_PutChar((uint8_t)c);
 }
 
-/**
- * @description: 命令行任务
- * @detail: 
- * @return {*}
- * @author: lkc
- */
-extern Shell shell;
+static void cmd_handle_char(char c)
+{
+    if (c == '\r' || c == '\n') {
+        cmd_putc('\r');
+        cmd_putc('\n');
+        if (s_cmd_len > 0) {
+            s_cmd_buf[s_cmd_len] = '\0';
+            if (strcmp(s_cmd_buf, "help") == 0) {
+                unsigned int i;
+                printf("Commands:\r\n");
+                for (i = 0; i < s_cmd_count; i++) {
+                    printf("  %-12s - %s\r\n", s_cmd_table[i].name, s_cmd_table[i].desc);
+                }
+            } else {
+                cmd_dispatch(s_cmd_buf);
+            }
+            s_cmd_len = 0;
+        }
+    } else if (c == '\b' || c == 0x7F) {
+        if (s_cmd_len > 0) {
+            s_cmd_len--;
+            cmd_putc('\b');
+            cmd_putc(' ');
+            cmd_putc('\b');
+        }
+    } else if (c >= ' ' && s_cmd_len < CMD_BUF_SIZE - 1) {
+        s_cmd_buf[s_cmd_len++] = c;
+        cmd_putc(c);
+    }
+}
+
 void Cmd_Task(void *argument)
 {
+    STATIC CMD_QUEUE_ITEM rx_item;
+    ULONG i;
+
+    (void)argument;
     PRINTF("Cmd Task Init\r\n");
-    userShellInit();
+    PRINTF("Type 'help' for command list\r\n");
 
-    STATIC ULONG ulRxDataLen;
-    ULONG i = 0;
-    /* 创建队列用于接收DMA */
-    while (1)
-    {
-        /* 等待队列 */
-        osMessageQueueGet(queueCmdHandle, &ulRxDataLen, NULL, portMAX_DELAY);
+    while (1) {
+        osMessageQueueGet(queueCmdHandle, &rx_item, NULL, portMAX_DELAY);
 
-        for (i = 0; i < ulRxDataLen; i++)
-        {
-            /* 这个地方为调用字符处理的地方 */
-            shellHandler(&shell, gucURxBuf[i]);
+        for (i = 0; i < rx_item.len; i++) {
+            cmd_handle_char((char)rx_item.data[i]);
         }
     }
 }
 
-/**
- * @description: 命令调试初始化
- * @detail: 
- * @return {*}
- * @author: lkc
- */
+/* -- 初始化 ----------------------------------------------------------------*/
 void Command_Init(void)
 {
-    if (queueCmdHandle == NULL)
-    {
+    if (queueCmdHandle == NULL) {
         queueCmdHandle = osMessageQueueNew(CMD_QUEUE_LENGTH, CMD_QUEUE_SIZE, NULL);
     }
 
     osThreadNew(Cmd_Task, NULL, &taskCmdAttr);
-    
-    return;
 }
 
 #ifdef __cplusplus

@@ -41,8 +41,8 @@ VOID Bsp_Tim3_IRQ(VOID)
  * @return {*}
  * @author: lkc
  */
-extern QueueHandle_t queueCmdHandle;
 ULONG ulRxLen = 0;
+static CMD_QUEUE_ITEM rx_item;
 VOID Bsp_Usart_Handler(VOID)
 {
     if (RESET != USART_GetITStatus(DEBUG_USART, USART_IT_IDLE))
@@ -61,7 +61,9 @@ VOID Bsp_Usart_Handler(VOID)
 		/* 此时知道接收的长度以及Buf,直接传一个队列 */
 		if (queueCmdHandle != NULL && ulRxLen > 0)
 		{
-			osMessageQueuePut(queueCmdHandle, &ulRxLen, NULL, 0);
+			rx_item.len = ulRxLen;
+			memcpy(rx_item.data, gucURxBuf, ulRxLen);
+			osMessageQueuePut(queueCmdHandle, &rx_item, NULL, 0);
 		}
 		/* modify:codex 原因：这里操作的是 DMA1 Stream1，必须清 IF1 标志；原来清 IF4 会留下 Stream1 pending 标志。 */
 		DMA_ClearFlag(DEBUG_USART_RX_DMA_STREAM, DEBUG_USART_RX_DMA_FLAGS);

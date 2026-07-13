@@ -15,6 +15,9 @@ extern "C" {
 /* 串口接收缓冲区大小 */
 #define USART_RX_BUF_SIZE                  (128U)
 
+/* USART RX DMA destination buffer, defined in bsp_dma.c. */
+extern UCHAR gucURxBuf[USART_RX_BUF_SIZE];
+
 /*
  * 串口发送软件缓冲区大小。
  *
