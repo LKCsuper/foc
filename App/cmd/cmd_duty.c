@@ -1,8 +1,7 @@
 /*
- * @Description: 
+ * @Description: duty 占空比控制命令
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-08-30 10:36:23
- * @FilePath: \foc\Library\Bsp\bsp_dma.c
+ * @LastEditTime: 2025-07-13
  */
 #ifdef __cplusplus
 extern "C" {
@@ -11,64 +10,34 @@ extern "C" {
 #include "includes.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-
-/* 参数1 */
-typedef enum
-{
-    DUTY_NONE,
-    DUTY_CREATE,                        /* 创建 */
-    DUTY_DESTORY,                       /* 销毁 */
-    DUTY_SET,                           /* 设置占空比 */
-    DUTY_START,
-    DUTY_STOP,
-    PLOT_NUM,
-}PLOT_TYPE;
-
-/* 参数2,显示类型 */
-typedef enum
-{
-    PLOT_CREATE_NONE,
-    PLOT_CURRENT,                       /* 电流 */
-    PLOT_CREATE_NUM,
-}PLOT_CREATE_TYPE;
-
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-/* 任务栈 */
 STATIC TaskHandle_t taskPlotHandle;
-/*
-STATIC StackType_t taskPlotStack[128];
-STATIC StaticTask_t taskPlotTcb; //CreateAppTask任务控制块 
-*/
-STATIC const osThreadAttr_t taskDutyAttr = 
+
+STATIC const osThreadAttr_t taskDutyAttr =
 {
     .name = "Task Plot",
-    /* 注意如果超出这个中断最大,任务将创建失败 */
     .priority = PRI_INIT,
 };
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /**
- * @description: 串口绘画任务初始化
- * @detail: 
- * @return {*}
- * @author: lkc
+ * @description: 占空比循环翻转任务
  */
 VOID Duty_ControlTask(VOID *argument)
 {
+    (void)argument;
     PRINTF("\n");
-    /* 开启pwm */
-	Bsp_Tim_StartPwm(false);
+    Bsp_Tim_StartPwm(false);
     while (1)
     {
-        //更新到影子寄存器
         TIMER_UPDATE_DUTY_M1(HW_PWM1_TIM->ARR / 10, 0, 0);
         TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 
         osDelay(pdMS_TO_TICKS(50));
         TIMER_UPDATE_DUTY_M1(0, HW_PWM1_TIM->ARR / 10, 0);
         TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-        
+
         osDelay(pdMS_TO_TICKS(50));
         TIMER_UPDATE_DUTY_M1(0, 0, HW_PWM1_TIM->ARR / 10);
         TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
@@ -77,62 +46,63 @@ VOID Duty_ControlTask(VOID *argument)
 }
 
 /**
- * @description: 
- * @detail: 
- * @param {UCHAR} cTaskStat 任务状态
- * @param {UCHAR} cContStat 控制状态
- * @param {UCHAR} cPrecentage 百分比
- * @return {*}
- * @author: lkc
+ * @description: duty 命令
+ *   duty create       创建占空比翻转任务
+ *   duty destory      销毁任务并停 PWM
+ *   duty set <pct>    设置占空比百分比
+ *   duty start        启动 PWM
+ *   duty stop         停止 PWM
  */
-VOID Cmd_Motor_Duty(int cTaskStat, int cPrecentage)
+int Cmd_Motor_Duty(int argc, char *argv[])
 {
-    /* 销毁和创建任务 */
-    switch (cTaskStat)
-    {
-        case DUTY_CREATE:
-            PRINTF("占空比 创建 任务 \n");
-            /* 打印不同格式的任务 */
-            taskPlotHandle = osThreadNew(Duty_ControlTask, NULL, &taskDutyAttr);
-            break;
-        case DUTY_DESTORY:
-            // TODO 创建任务之后 再运行这里Bsp_Tim_StopPwm会导致卡死
-            PRINTF("占空比 销毁 任务 \n");
-            Bsp_Tim_StopPwm(false);
-            if (osOK == osThreadTerminate(taskPlotHandle))
-            {
-                PRINTF("success \n");
-            } 
-            else
-            {
-                PRINTF("err \n");
-            }
-            break;
-        case DUTY_SET:
-            PRINTF("占空比 百分比[%d]\n", cPrecentage);
-            TIMER_UPDATE_DUTY_M1((HW_PWM1_TIM->ARR / 100) * cPrecentage, \
-            (HW_PWM1_TIM->ARR / 100) * cPrecentage, (HW_PWM1_TIM->ARR / 100) * cPrecentage);
-            TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-            break;
-        case DUTY_START:
-            PRINTF("Duty Start\n");
-            TIMER_UPDATE_DUTY_M1(HW_PWM1_TIM->ARR / 5, HW_PWM1_TIM->ARR / 5, HW_PWM1_TIM->ARR / 5);
-            Bsp_Tim_StartPwm(false);
-            TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-            break;
-        case DUTY_STOP:
-            //PRINTF("Duty Stop\n");
-            Bsp_Tim_StopPwm(false);
-            break;
-        default:
-            break;
+    int pct;
+
+    if (argc < 2) {
+        PRINTF("usage: duty create|destory|set <pct>|start|stop\r\n");
+        return -1;
     }
 
-    return;
+    if (strcmp(argv[1], "create") == 0) {
+        PRINTF("duty task create\r\n");
+        taskPlotHandle = osThreadNew(Duty_ControlTask, NULL, &taskDutyAttr);
+    } else if (strcmp(argv[1], "destory") == 0) {
+        PRINTF("duty task destory\r\n");
+        Bsp_Tim_StopPwm(false);
+        if (osOK == osThreadTerminate(taskPlotHandle)) {
+            PRINTF("success\r\n");
+        } else {
+            PRINTF("err\r\n");
+        }
+    } else if (strcmp(argv[1], "set") == 0) {
+        if (argc < 3) {
+            PRINTF("usage: duty set <0..100>\r\n");
+            return -1;
+        }
+        pct = atoi(argv[2]);
+        if (pct < 0 || pct > 100) {
+            PRINTF("duty percent must be 0..100\r\n");
+            return -1;
+        }
+        PRINTF("duty set [%d%%]\r\n", pct);
+        TIMER_UPDATE_DUTY_M1((HW_PWM1_TIM->ARR / 100) * pct,
+                             (HW_PWM1_TIM->ARR / 100) * pct,
+                             (HW_PWM1_TIM->ARR / 100) * pct);
+        TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    } else if (strcmp(argv[1], "start") == 0) {
+        PRINTF("duty start\r\n");
+        TIMER_UPDATE_DUTY_M1(HW_PWM1_TIM->ARR / 5, HW_PWM1_TIM->ARR / 5, HW_PWM1_TIM->ARR / 5);
+        Bsp_Tim_StartPwm(false);
+        TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    } else if (strcmp(argv[1], "stop") == 0) {
+        Bsp_Tim_StopPwm(false);
+    } else {
+        PRINTF("unknown: %s\r\n", argv[1]);
+        return -1;
+    }
+    return 0;
 }
 
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_FUNC),
-                duty, Cmd_Motor_Duty, duty task);
+/* Cmd_Motor_Duty 注册在 command.c 命令表中 */
 #ifdef __cplusplus
 }
 #endif

@@ -1009,68 +1009,7 @@ int Cmd_SpeedBrake(int argc, char *argv[])
     return 0;
 }
 
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olspeed, Cmd_OlSpeed, openloop V/F speed set);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olstatus, Cmd_OlStatus, show openloop current and fault status);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olboost, Cmd_OlBoost, openloop V/F boost voltage);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olkvf, Cmd_OlKvf, openloop V/F slope);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olramp, Cmd_OlRamp, openloop V/F ramp rate);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olvlimit, Cmd_OlVlimit, openloop Vq limit);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olmax, Cmd_OlMaxSpeed, openloop max speed);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olmin, Cmd_OlMinSpeed, openloop min speed);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olstart, Cmd_OlStart, openloop start);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olstop, Cmd_OlStop, openloop stop);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olfault, Cmd_OlFault, show or clear latched motor fault);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olmode, Cmd_OlMode, openloop mode 0=VF 1=current);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                oliq, Cmd_OlIq, openloop current Iq target);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olid, Cmd_OlId, openloop current Id target);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olkp, Cmd_OlKp, openloop current Kp);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olki, Cmd_OlKi, openloop current Ki);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olphase, Cmd_OlPhase, openloop start phase boost);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                olalign, Cmd_OlAlign, startup rotor alignment configuration);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                speed, Cmd_SpeedStatus, show speed loop status);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                spenable, Cmd_SpeedEnable, enable speed PI loop);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                spkp, Cmd_SpeedKp, set speed PI Kp);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                spki, Cmd_SpeedKi, set speed PI Ki);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                spiq, Cmd_SpeedIqLimit, set speed PI Iq limit);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                spbrake, Cmd_SpeedBrake, allow speed loop braking);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                slenable, Cmd_SensorlessEnable, enable sensorless observer);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                sltakeover, Cmd_SensorlessTakeover, allow observer angle takeover);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                slrpm, Cmd_SensorlessRpm, set sensorless transition rpm);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                slguard, Cmd_SensorlessGuard, set I/F ceiling and takeover guard);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                slmotor, Cmd_SensorlessMotor, set sensorless motor model);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                slobs, Cmd_SensorlessObserver, set observer and PLL gains);
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                slphase, Cmd_SensorlessPhase, set observer phase offset);
+/* 以下命令均注册在 command.c 命令表中 */
 
 /**
  * @description: 原 openloop 任务（保留兼容）
@@ -1087,22 +1026,22 @@ VOID Openloop_ControlTask(VOID *argument)
     }
 }
 
-VOID Cmd_Motor_OpenLoop(int cTaskStat, int cPrecentage)
+/**
+ * @description: 后台 openloop 状态打印任务（兼容旧接口）
+ *   openloop create   创建后台打印任务
+ */
+int Cmd_Motor_OpenLoop(int argc, char *argv[])
 {
-    switch (cTaskStat)
-    {
-        case OPEN_LOOP_CREATE:
-            PRINTF("OpenLoop task create\n");
-            taskPlotHandle = osThreadNew(Openloop_ControlTask, NULL, &taskDutyAttr);
-            break;
-        default:
-            break;
+    if (argc >= 2 && strcmp(argv[1], "create") == 0) {
+        PRINTF("OpenLoop task create\r\n");
+        taskPlotHandle = osThreadNew(Openloop_ControlTask, NULL, &taskDutyAttr);
+        return 0;
     }
-    return;
+    PRINTF("usage: openloop create\r\n");
+    return -1;
 }
 
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_FUNC),
-                openloop, Cmd_Motor_OpenLoop, open loop task);
+/* Cmd_Motor_OpenLoop 注册在 command.c 命令表中 */
 #ifdef __cplusplus
 }
 #endif

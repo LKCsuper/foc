@@ -68,7 +68,7 @@ void DETECT_Abort(void);
 void DETECT_ClearAbortRequest(void);
 
 /* 参数初始化末尾调用：若 Flash 中有合法检测结果，则覆盖代码示例值。 */
-void Motor_Detect_LoadStoredParameters(void);
+void Motor_Detect_ApplyStoredResult(const motor_detect_result_t *stored);
 /*
  * 查询偏移检测是否正在运行。
  * 返回 true 时，检测代码正在独占 TIM1/PWM；FOC 中断必须立即退出，

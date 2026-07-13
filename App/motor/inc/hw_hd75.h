@@ -124,8 +124,16 @@
 #ifndef VIN_R2
 #define VIN_R2					2200.0f
 #endif
-#define PHASE_VOLTAGE_R1		39000.0f
+/* BM75 phase-voltage divider (BM60 uses 39k/2.2k). Keep this separate
+ * from the DC-bus divider so board variants cannot be mixed accidentally. */
+#ifndef PHASE_VOLTAGE_R1
+#define PHASE_VOLTAGE_R1		56000.0f
+#endif
+#ifndef PHASE_VOLTAGE_R2
 #define PHASE_VOLTAGE_R2		2200.0f
+#endif
+#define PHASE_VOLTAGE_DIVIDER_GAIN \
+	((PHASE_VOLTAGE_R1 + PHASE_VOLTAGE_R2) / PHASE_VOLTAGE_R2)
 #ifndef CURRENT_AMP_GAIN
 #define CURRENT_AMP_GAIN		5.0f
 #endif

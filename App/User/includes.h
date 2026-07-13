@@ -54,7 +54,8 @@ extern "C" {
 /* fal */
 #include <fal.h>
 
-#include "easyflash.h"
+/* easyflash — replaced by flash_storage.h (direct struct flash R/W) */
+/* #include "easyflash.h" */
 
 /* flashdb */
 #include "flashdb.h"
@@ -105,13 +106,10 @@ extern "C" {
 #include "motor_tim.h"
 #include "motor_ctrl.h"
 #include "motor_detect.h"
+#include "flash_storage.h"
 #include "motor.h"
 
 #include "motor_simple_includes.h"
-
-/* letter shell */
-#include "shell.h"
-#include "shell_port.h"
 
 /* cmd */
 #include "command.h"

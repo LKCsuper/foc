@@ -1,25 +1,40 @@
 /*
- * @Description: 
- * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-04 18:56:01
- * @FilePath: \foc\Library\Bsp\inc\bsp_adc.h
+ * @Description: 精简命令行框架 — 替代 letter-shell
+ * @Version: 2.0
+ * @Author: lkc
+ * @Date: 2025-07-13
+ * @detail:
+ *   静态命令表 + 最简 tokenizer + 串口回显，去掉 linker section 自动发现、
+ *   历史记录、Tab 补全、用户认证等嵌入式调试用不上的功能，约 200 行。
  */
 #ifndef _COMMAND_H
 #define _COMMAND_H
 #ifdef __cplusplus
 extern "C" {
 #endif
-/* Includes ------------------------------------------------------------------*/
-/* Private typedef -----------------------------------------------------------*/
-/* Private define ------------------------------------------------------------*/
-/* Private macro -------------------------------------------------------------*/
-/* Private variables ---------------------------------------------------------*/
-/* Private function prototypes -----------------------------------------------*/
-/* Private functions ---------------------------------------------------------*/
+
+#include <stdint.h>
+
+/* 命令函数统一签名：argc/argv 风格，返回 0 表示成功 */
+typedef int (*cmd_func_t)(int argc, char *argv[]);
+
+/* 命令表条目 */
+typedef struct {
+    const char *name;
+    cmd_func_t  func;
+    const char *desc;
+} cmd_entry_t;
 
 void Command_Init(void);
+
+typedef struct {
+    ULONG len;
+    UCHAR data[USART_RX_BUF_SIZE];
+} CMD_QUEUE_ITEM;
+
+extern QueueHandle_t queueCmdHandle;
+
 #ifdef __cplusplus
 }
 #endif
-
 #endif

@@ -1,11 +1,11 @@
 /*
- * @Description: 
+ * @Description: Flash 参数存储相关 Shell 命令（替代 EasyFlash 版本）
  * @Version: 1.0
  * @Author: lkc
  * @Date: 2023-10-06 17:43:41
  * @LastEditors: lkc
- * @LastEditTime: 2023-10-06 18:05:48
- * @detail: 
+ * @LastEditTime: 2025-07-13
+ * @detail: 基于 flash_storage 直接结构体读写，不再依赖 EasyFlash
  */
 #ifdef __cplusplus
 extern "C" {
@@ -18,102 +18,30 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+
 /**
- * @description: 设置环境变量
- * @detail: 
+ * @description: 保存当前电机参数和检测结果到 Flash
+ * @detail: 写入 Sector 10/11 A/B 槽，无需先 setenv 再 saveenv
  * @param {uint8_t} argc
  * @param {char} *
  * @return {*}
  * @author: lkc
  */
-static int Cmd_Setenv(uint8_t argc, char **argv) {
-    uint8_t i;
-    if (argc > 3) {
-        /* environment variable value string together */
-        for (i = 0; i < argc - 2; i++) {
-            argv[2 + i][strlen(argv[2 + i])] = ' ';
-        }
-    }
-    if (argc == 1) {
-        printf("Please input: setenv <key> [value]\n");
-    } else if (argc == 2) {
-        ef_set_env(argv[1], NULL);
-    } else {
-        ef_set_env(argv[1], argv[2]);
-    }
-    return 0;
-}
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                setenv, Cmd_Setenv, setenv);
-
-/**
- * @description: 打印环境变量
- * @detail: 
- * @param {uint8_t} argc
- * @param {char} *
- * @return {*}
- * @author: lkc
- */
-static int Cmd_Printenv(uint8_t argc, char **argv) {
-    ef_print_env();
-    return 0;
-}
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                printenv, Cmd_Printenv, printenv);
-
-/**
- * @description: 保存环境变量
- * @detail: 
- * @param {uint8_t} argc
- * @param {char} *
- * @return {*}
- * @author: lkc
- */
-static int Cmd_Saveenv(uint8_t argc, char **argv) {
-    ef_save_env();
-    return 0;
-}
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                saveenv, Cmd_Saveenv, saveenv);
-
-/**
- * @description: 获取值
- * @detail: 
- * @param {uint8_t} argc
- * @param {char} *
- * @return {*}
- * @author: lkc
- */
-static int Cmd_Getvalue(uint8_t argc, char **argv) {
-    char *value = NULL;
-    value = ef_get_env(argv[1]);
-    if (value) {
-        printf("The %s value is %s.\n", argv[1], value);
-    } else {
-        printf("Can't find %s.\n", argv[1]);
-    }
-    return 0;
-}
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                getvalue, Cmd_Getvalue, getvalue);
-
-
-/**
- * @description: Reset environment variables to default values
- * @detail: 
- * @param {uint8_t} argc
- * @param {char} *
- * @return {*}
- * @author: lkc
- */
-static int Cmd_Resetenv(uint8_t argc, char **argv) 
+int Cmd_Saveparam(int argc, char **argv)
 {
-    ef_env_set_default();
+    motor_detect_result_t detect;
 
+    DETECT_GetResult(&detect);
+
+    if (FlashStorage_Save(&motor, &detect)) {
+        printf("Parameters saved to Flash A/B slots.\r\n");
+    } else {
+        printf("Save failed!\r\n");
+    }
     return 0;
 }
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-                resetenv, Cmd_Resetenv, resetenv);
+/* Cmd_Saveparam 注册在 command.c 命令表中 */
+
 #ifdef __cplusplus
 }
 #endif

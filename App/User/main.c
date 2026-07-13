@@ -44,7 +44,7 @@ void Task_Init(void *argument)
 	float startup_target_rpm;
 
     Bsp_Init();             // 初始化硬件
-    MOTOR_Param_Init();     // easyflash初始化，先加载Flash参数
+    MOTOR_Param_Init();     // 初始化Flash参数（直接结构体读写，无需EasyFlash）
 
 	/*
 	 * 偏移检测必须临时撤销运行命令，否则 FOC 中断会和检测代码同时操作

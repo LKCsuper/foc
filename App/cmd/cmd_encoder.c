@@ -1,59 +1,34 @@
-﻿/*
- * @Description: 
+/*
+ * @Description: 编码器检测命令
  * @Version: 1.0
  * @Author: lkc
  * @Date: 2023-09-07 21:13:14
  * @LastEditors: lkc
- * @LastEditTime: 2023-09-07 21:14:45
- * @detail: 
+ * @LastEditTime: 2025-07-13
  */
-#ifndef _INCLUDES_H
-#define _INCLUDES_H
 #ifdef __cplusplus
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-/* Private define ------------------------------------------------------------*/
-/* Private typedef -----------------------------------------------------------*/
-typedef enum
-{
-    OPEN_ENC_NONE,
-    OPEN_ENC_DETECT,
-    OPEN_ENC_NUM,
-}OPEN_LOOP_TYPE;
-/* Private macro -------------------------------------------------------------*/
-/* Private variables ---------------------------------------------------------*/
-/* Private function prototypes -----------------------------------------------*/
+#include "includes.h"
 /* Private functions ---------------------------------------------------------*/
 /**
- * @description: 
- * @detail: 
- * @param {UCHAR} cTaskStat 任务状态
- * @param {UCHAR} cContStat 控制状态
- * @param {UCHAR} cPrecentage 百分比
- * @return {*}
- * @author: lkc
+ * @description: 编码器检测
+ *   encoder detect   执行编码器检测
  */
-VOID Cmd_Motor_Encoder(int cTaskStat)
+int Cmd_Motor_Encoder(int argc, char *argv[])
 {
-    /* 销毁和创建任务 */
-    switch (cTaskStat)
-    {
-        case OPEN_ENC_DETECT:
-        {
-            
-            break;
-        }
-        default:
-            break;
+    if (argc >= 2 && strcmp(argv[1], "detect") == 0) {
+        /* TODO: 编码器检测逻辑 */
+        PRINTF("encoder detect (TODO)\r\n");
+    } else {
+        PRINTF("usage: encoder detect\r\n");
+        return -1;
     }
-
-    return;
+    return 0;
 }
 
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_FUNC),
-                encoder, Cmd_Motor_Encoder, encoder task);
+/* Cmd_Motor_Encoder 注册在 command.c 命令表中 */
 #ifdef __cplusplus
 }
-#endif
 #endif

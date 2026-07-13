@@ -1,36 +1,30 @@
 /*
- * @Description: 
+ * @Description: 系统复位命令
  * @Version: 1.0
  * @Author: lkc
  * @Date: 2023-10-06 17:37:56
  * @LastEditors: lkc
- * @LastEditTime: 2023-10-06 17:41:58
- * @detail: 
+ * @LastEditTime: 2025-07-13
  */
 #ifdef __cplusplus
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
-/* Private define ------------------------------------------------------------*/
-/* Private typedef -----------------------------------------------------------*/
-/* Private macro -------------------------------------------------------------*/
-/* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /**
- * @description: 重启设备
- * @detail: 
- * @return {*}
- * @author: lkc
+ * @description: 软件复位 MCU
  */
-VOID CMD_Reset(VOID)
+int CMD_Reset(int argc, char *argv[])
 {
+    (void)argc;
+    (void)argv;
     Bsp_Misc_Reset();
-    return;
+    return 0;
 }
-SHELL_EXPORT_CMD(SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_FUNC),
-                reset, CMD_Reset, reset);
+
+/* CMD_Reset 注册在 command.c 命令表中 */
 #ifdef __cplusplus
 }
 #endif

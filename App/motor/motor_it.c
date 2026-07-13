@@ -940,14 +940,11 @@ VOID Motor_It_ParamCal(VOID)
      *   vc ← ADC_IND_SENS2 (offset[1]) — 交换
      */
     m->va = (ADC_VOLTS(ADC_IND_SENS1) - m->voltundrivenOffset[0]) *
-            ((PHASE_VOLTAGE_R1 + PHASE_VOLTAGE_R2) / PHASE_VOLTAGE_R2) *
-            ADC_VOLTS_PH_FACTOR;
+            PHASE_VOLTAGE_DIVIDER_GAIN * ADC_VOLTS_PH_FACTOR;
     m->vb = (ADC_VOLTS(ADC_IND_SENS3) - m->voltundrivenOffset[2]) *
-            ((PHASE_VOLTAGE_R1 + PHASE_VOLTAGE_R2) / PHASE_VOLTAGE_R2) *
-            ADC_VOLTS_PH_FACTOR;
+            PHASE_VOLTAGE_DIVIDER_GAIN * ADC_VOLTS_PH_FACTOR;
     m->vc = (ADC_VOLTS(ADC_IND_SENS2) - m->voltundrivenOffset[1]) *
-            ((PHASE_VOLTAGE_R1 + PHASE_VOLTAGE_R2) / PHASE_VOLTAGE_R2) *
-            ADC_VOLTS_PH_FACTOR;
+            PHASE_VOLTAGE_DIVIDER_GAIN * ADC_VOLTS_PH_FACTOR;
 
     UTILS_LP_FAST(m->v_bus, GET_INPUT_VOLTAGE(), 0.1f);
 }

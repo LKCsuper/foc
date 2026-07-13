@@ -238,12 +238,7 @@ int Cmd_Detect(int argc, char *argv[])
 }
 
 
-SHELL_EXPORT_CMD(
-SHELL_CMD_PERMISSION(0)|SHELL_CMD_TYPE(SHELL_TYPE_CMD_MAIN),
-detect, 
-Cmd_Detect, 
-detect offset/hall/motor/show/apply/poles/abort
-);
+/* Cmd_Detect 注册在 command.c 命令表中 */
 
 #ifdef __cplusplus
 }
