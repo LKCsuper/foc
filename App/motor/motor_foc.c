@@ -95,8 +95,8 @@ void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float
 {
 	float s = sin_f32(Theta);
 	float c = cos_f32(Theta);
-	*mod_alpha = -(mod_d * c - mod_q * s);
-	*mod_beta  = -(mod_d * s + mod_q * c);
+	*mod_alpha = mod_d * c - mod_q * s;
+	*mod_beta  = mod_d * s + mod_q * c;
 	
 	return;
 }
@@ -392,139 +392,70 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
  */
 void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcmp1, uint32_t *pTcmp2, uint32_t *pTcmp3, uint32_t *pSector)
 {
-    float Vref1 = Vbeta;							                   
-    float Vref2 = (ONE_BY_SQRT3 * Valpha - Vbeta) / 2; 				    
-    float Vref3 = (-ONE_BY_SQRT3 * Valpha - Vbeta)/2;	
-    float ta;
-    float tb;
-    float tc;
-    float X;
-    float Y;
-    float Z;	
-    uint32_t Tcmp1 = 0.0f; 
-    uint32_t Tcmp2 = 0.0f;
-    uint32_t Tcmp3 = 0.0f;
-    uint32_t sector = 0;
-    float T1 = 0.0f;
-    float T2 = 0.0f;
+    float va;
+    float vb;
+    float vc;
+    float v_max;
+    float v_min;
+    float v_span;
+    float scale = 1.0f;
+    float v_common;
+    float duty_a;
+    float duty_b;
+    float duty_c;
+    uint32_t sector;
 
-    if (Vref1 > 0)
-    {
-        sector = 1;
+    if (Udc <= 0.0f || Tpwm == 0U) {
+        *pTcmp1 = 0U;
+        *pTcmp2 = 0U;
+        *pTcmp3 = 0U;
+        *pSector = 0U;
+        return;
     }
 
-    if (Vref2 > 0)
-    {
-        sector = sector + 2;
+    /* Alpha/beta voltage vector -> three phase-to-neutral voltages. */
+    va = Valpha;
+    vb = -0.5f * Valpha + SQRT3_BY_2 * Vbeta;
+    vc = -0.5f * Valpha - SQRT3_BY_2 * Vbeta;
+
+    v_max = fmaxf(va, fmaxf(vb, vc));
+    v_min = fminf(va, fminf(vb, vc));
+    v_span = v_max - v_min;
+    if (v_span > Udc) {
+        scale = Udc / v_span;
+        va *= scale;
+        vb *= scale;
+        vc *= scale;
+        v_max *= scale;
+        v_min *= scale;
     }
 
-    if (Vref3 > 0)
-    {
-        sector = sector + 4 ;
+    /* Min/max common-mode injection centres all duties around 50%. */
+    v_common = -0.5f * (v_max + v_min);
+    duty_a = 0.5f + (va + v_common) / Udc;
+    duty_b = 0.5f + (vb + v_common) / Udc;
+    duty_c = 0.5f + (vc + v_common) / Udc;
+    utils_truncate_number(&duty_a, 0.0f, 1.0f);
+    utils_truncate_number(&duty_b, 0.0f, 1.0f);
+    utils_truncate_number(&duty_c, 0.0f, 1.0f);
+
+    if (Vbeta >= 0.0f) {
+        if (Valpha >= 0.0f) {
+            sector = (ONE_BY_SQRT3 * Vbeta > Valpha) ? 2U : 1U;
+        } else {
+            sector = (-ONE_BY_SQRT3 * Vbeta > Valpha) ? 3U : 2U;
+        }
+    } else {
+        if (Valpha >= 0.0f) {
+            sector = (-ONE_BY_SQRT3 * Vbeta > Valpha) ? 5U : 6U;
+        } else {
+            sector = (ONE_BY_SQRT3 * Vbeta > Valpha) ? 4U : 5U;
+        }
     }
 
-    X = ONE_BY_SQRT3 * Vbeta * Tpwm/ Udc;
-    Y = (float)Tpwm / Udc * (1.5f * Valpha + 0.5f * ONE_BY_SQRT3 * Vbeta);
-    Z = (float)Tpwm / Udc * (-1.5f * Valpha + 0.5f * ONE_BY_SQRT3 * Vbeta);
-
-    switch (sector)
-    {
-        case 1:
-        {
-            T1 = Z; T2 = Y; 
-            break;
-        }
-        case 2:
-        {
-            T1 = Y; T2 = -X; 
-            break;
-        }
-        case 3:
-        {
-            T1 = -Z; T2 = X; 
-            break;
-        }
-        case 4:
-        {
-            T1 = -X; T2 = Z;
-            break;
-        }
-        case 5:
-        {
-            T1 = X; T2 = -Y;
-            break;
-        }
-        case 6:
-        {
-            T1 = -Y; T2 = -Z;
-            break;
-        }
-        default:
-            break;
-    }
-
-    if (T1 + T2 > Tpwm)
-    {
-        float t_sum = T1 + T2;
-        T1 = T1 * (float)Tpwm / t_sum;
-        T2 = T2 * (float)Tpwm / t_sum;
-    }
-
-    ta = (Tpwm-(T1+T2))/4.0;
-    tb = ta+T1/2;
-    tc = tb+T2/2;
-
-    switch (sector)
-    {
-        case 1:
-        {
-            Tcmp1=tb;
-            Tcmp2=ta;
-            Tcmp3=tc; 
-            break;
-        }
-        case 2:
-        {
-            Tcmp1=ta;
-            Tcmp2=tc;
-            Tcmp3=tb; 
-            break;
-        }
-        case 3:
-        {
-            Tcmp1=ta;
-            Tcmp2=tb;
-            Tcmp3=tc; 
-            break;
-        }
-        case 4:
-        {
-            Tcmp1=tc;
-            Tcmp2=tb;
-            Tcmp3=ta;
-            break;
-        }
-        case 5:
-        {
-            Tcmp1=tc;
-            Tcmp2=ta;
-            Tcmp3=tb;
-            break;
-        }
-        case 6:
-        {
-            Tcmp1=tb;
-            Tcmp2=tc;
-            Tcmp3=ta;
-            break;
-        }
-        default:
-            break;
-    }
-
-    *pTcmp1 = Tcmp1;
-    *pTcmp2 = Tcmp2;
-    *pTcmp3 = Tcmp3;
+    *pTcmp1 = (uint32_t)(duty_a * (float)Tpwm);
+    *pTcmp2 = (uint32_t)(duty_b * (float)Tpwm);
+    *pTcmp3 = (uint32_t)(duty_c * (float)Tpwm);
     *pSector = sector;
 
     return;

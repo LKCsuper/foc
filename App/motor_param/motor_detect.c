@@ -53,7 +53,7 @@ static volatile bool s_detect_abort_requested = false;
 #define MOTOR_DETECT_INDUCTANCE_MIN_SLOPE   (1.0f)
 #define MOTOR_DETECT_INDUCTANCE_MIN_H       (5.0e-6f)
 #define MOTOR_DETECT_INDUCTANCE_MAX_H       (0.05f)
-#define MOTOR_DETECT_INDUCTANCE_DQ_FACTOR   (2.0f)  /* 脉冲半量 -> FOC dq 相电感 */
+#define MOTOR_DETECT_INDUCTANCE_DQ_FACTOR   (1.0f)  /* 脉冲已是 FOC dq 相电感 */
 #define MOTOR_DETECT_INDUCTANCE_STABILITY_SCALE (0.9f) /* 略低估，观测器更稳定 */
 
 /* ---- 磁链检测 ---- */
@@ -70,7 +70,6 @@ static volatile bool s_detect_abort_requested = false;
 #define MOTOR_DETECT_FLUX_COAST_SETTLE_S    (0.01f)
 #define MOTOR_DETECT_FLUX_COAST_SAMPLE_S    (0.50f)
 #define MOTOR_DETECT_FLUX_COAST_MIN_ERPM    (100.0f)
-#define MOTOR_DETECT_FLUX_OMEGA_FILTER      (0.02f)
 #define MOTOR_DETECT_FLUX_MIN_BEMF_V        (0.20f)
 
 /* ---- 通用 ---- */
@@ -668,8 +667,6 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 		float voltage_mag;
 		float bemf_angle;
 		float delta_angle;
-		float omega_instant;
-		float linkage;
 
 		s_detect_control.flux_coast_elapsed += dt;
 		clarke_transform(motor->va, motor->vb, motor->vc,
@@ -687,41 +684,49 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 		while (delta_angle > M_PI) delta_angle -= 2.0f * M_PI;
 		while (delta_angle < -M_PI) delta_angle += 2.0f * M_PI;
 		s_detect_control.flux_bemf_angle_last = bemf_angle;
-		omega_instant = delta_angle / dt;
 
-		if (fabsf(s_detect_control.flux_omega_e) < 1.0e-6f) {
-			s_detect_control.flux_omega_e = omega_instant;
-		} else {
-			s_detect_control.flux_omega_e += MOTOR_DETECT_FLUX_OMEGA_FILTER *
-				(omega_instant - s_detect_control.flux_omega_e);
-		}
-		s_detect_control.electrical_rpm_now =
-			fabsf(RADPS2RPM_f(s_detect_control.flux_omega_e));
-
+		/* A single-sample angle derivative is dominated by ADC noise at low
+		 * speed. Accumulate unwrapped angle, voltage and exact sample time over
+		 * the complete coast window, then form one average omega and flux. */
 		if (s_detect_control.flux_coast_elapsed >
-			MOTOR_DETECT_FLUX_COAST_SETTLE_S &&
-			s_detect_control.electrical_rpm_now >
-			MOTOR_DETECT_FLUX_COAST_MIN_ERPM &&
-			voltage_mag > MOTOR_DETECT_FLUX_MIN_BEMF_V) {
-			linkage = voltage_mag / fabsf(s_detect_control.flux_omega_e);
-			if (linkage > MOTOR_DETECT_FLUX_MIN_WB &&
-				linkage < MOTOR_DETECT_FLUX_MAX_WB) {
-				s_detect_control.accum_a += linkage;
-				s_detect_control.accum_b += voltage_mag;
-				s_detect_control.samples++;
-			}
+			MOTOR_DETECT_FLUX_COAST_SETTLE_S) {
+			s_detect_control.flux_omega_e += delta_angle;
+			s_detect_control.accum_a += voltage_mag;
+			s_detect_control.accum_b += dt;
+			s_detect_control.samples++;
 		}
 
 		if (s_detect_control.flux_coast_elapsed >=
 			MOTOR_DETECT_FLUX_COAST_SAMPLE_S) {
-			if (s_detect_control.samples < MOTOR_DETECT_FLUX_MIN_SAMPLES) {
+			float omega_average = 0.0f;
+			float voltage_average = 0.0f;
+			float linkage = 0.0f;
+
+			if (s_detect_control.samples > 0U &&
+				s_detect_control.accum_b > 0.0f) {
+				omega_average = s_detect_control.flux_omega_e /
+					s_detect_control.accum_b;
+				voltage_average = s_detect_control.accum_a /
+					(float)s_detect_control.samples;
+			}
+			s_detect_control.flux_omega_e = omega_average;
+			s_detect_control.electrical_rpm_now =
+				fabsf(RADPS2RPM_f(omega_average));
+			s_detect_control.resistance_voltage_avg = voltage_average;
+			if (fabsf(omega_average) > 1.0e-6f) {
+				linkage = voltage_average / fabsf(omega_average);
+			}
+
+			if (s_detect_control.samples < MOTOR_DETECT_FLUX_MIN_SAMPLES ||
+				s_detect_control.electrical_rpm_now <
+					MOTOR_DETECT_FLUX_COAST_MIN_ERPM ||
+				voltage_average < MOTOR_DETECT_FLUX_MIN_BEMF_V ||
+				linkage < MOTOR_DETECT_FLUX_MIN_WB ||
+				linkage > MOTOR_DETECT_FLUX_MAX_WB) {
 				Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FLUX);
 				return;
 			}
-			s_detect_result.flux_linkage_wb =
-				s_detect_control.accum_a / (float)s_detect_control.samples;
-			s_detect_control.resistance_voltage_avg =
-				s_detect_control.accum_b / (float)s_detect_control.samples;
+			s_detect_result.flux_linkage_wb = linkage;
 			s_detect_result.flux_valid = true;
 			Motor_Detect_FinishFromIsr(true, MOTOR_DETECT_ERROR_NONE);
 		}
@@ -1043,11 +1048,13 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 	motor.ol_vq_limit = MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V;
 	if (!Motor_Detect_RunStage(MOTOR_DETECT_STAGE_FLUX,
 		flux_current_a, electrical_rpm, MOTOR_DETECT_TIMEOUT_FLUX_MS)) {
-		PRINTF("Detect motor: flux invalid duty still=%.4f now=%.4f max=%.4f coast=%.1f eRPM\r\n",
+		PRINTF("Detect motor: flux invalid duty still=%.4f now=%.4f max=%.4f coast=%.1f eRPM Bemf=%.4fV samples=%lu\r\n",
 			s_detect_control.flux_duty_still,
 			s_detect_control.flux_duty_now,
 			s_detect_control.flux_duty_max,
-			s_detect_control.electrical_rpm_now);
+			s_detect_control.electrical_rpm_now,
+			s_detect_control.resistance_voltage_avg,
+			(unsigned long)s_detect_control.samples);
 		goto detect_done;
 	}
 	PRINTF("Detect motor: flux=%.4f mWb\r\n",
