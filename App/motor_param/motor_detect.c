@@ -72,8 +72,6 @@ static volatile bool s_detect_abort_requested = false;
 #define MOTOR_DETECT_FLUX_COAST_MIN_ERPM    (100.0f)
 #define MOTOR_DETECT_FLUX_OMEGA_FILTER      (0.02f)
 #define MOTOR_DETECT_FLUX_MIN_BEMF_V        (0.20f)
-#define MOTOR_DETECT_FLUX_VF_BOOST_V        (1.0f)
-#define MOTOR_DETECT_FLUX_VF_V_PER_HZ       (0.057f)
 
 /* ---- 通用 ---- */
 #define MOTOR_DETECT_PWM_COOLDOWN_MS        (50U)  /* PWM 关断后等待功率级彻底进入高阻 */
@@ -742,15 +740,14 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 		RPM2RADPS_f(s_detect_control.electrical_rpm_now) * dt;
 	utils_norm_angle_rad(&s_detect_control.theta);
 
-	/* V/F acceleration is more tolerant of temporary angle error than the
-	 * q-axis current loop and is sufficient for unloaded coast-down testing. */
-	float electrical_hz = s_detect_control.electrical_rpm_now / 60.0f;
-	float vq_target = (MOTOR_DETECT_FLUX_VF_BOOST_V +
-		MOTOR_DETECT_FLUX_VF_V_PER_HZ * electrical_hz) * transition;
-	s_detect_control.vd = 0.0f;
-	s_detect_control.vq = vq_target;
-	Motor_DetectControl_RunVoltage(motor, s_detect_control.theta,
-		0.0f, vq_target, MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V);
+	/* Keep the stator field magnitude constant while rotating it. With the
+	 * BM75's real INA240A1 gain this produces the requested torque current;
+	 * the old 5 V/V software setting made this current four times too small. */
+	float id_target = s_detect_control.current_a * (1.0f - transition);
+	float iq_target = s_detect_control.current_a * transition;
+	Motor_DetectControl_RunCurrent(motor, s_detect_control.theta,
+		id_target, iq_target, MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V, dt,
+		&s_detect_control.vd, &s_detect_control.vq);
 	if (motor->v_bus > 1.0f) {
 		s_detect_control.flux_duty_now =
 			NORM2_f(s_detect_control.vd, s_detect_control.vq) / motor->v_bus;

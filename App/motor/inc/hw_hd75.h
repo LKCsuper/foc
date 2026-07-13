@@ -17,25 +17,21 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
     */
 
-#ifndef HW_HD_H_
-#define HW_HD_H_
+#ifndef HW_BM75_H_
+#define HW_BM75_H_
 /* my definition */
 //#define MCCONF_FOC_F_ZV         1000
 /* my definition */
 
-#define HW_NAME					"HD75"
+#define HW_NAME					"BM75"
 
 // HW properties
-#define HW_HAS_DRV8323S
 #define HW_HAS_3_SHUNTS
 #define HW_HAS_PHASE_FILTERS
 
-// TODO: Figure out what the correct settings are
 /*
- * The current firmware does not compile or initialize a DRV8323S SPI driver,
- * therefore the CSA remains at its reset gain (5 V/V). Keep the software
- * conversion below matched to that real hardware state. Do not set this to
- * 20 until the driver is added and the CSA_GAIN register is read back.
+ * BM75 uses an FD6288Q gate driver and three external INA240A1 current-sense
+ * amplifiers. There is no programmable DRV8323S on this board.
  */
 #define DRV8323S_CUSTOM_SETTINGS()
 
@@ -124,7 +120,7 @@
 #ifndef VIN_R2
 #define VIN_R2					2200.0f
 #endif
-/* BM75 phase-voltage divider (BM60 uses 39k/2.2k). Keep this separate
+/* BM75 phase-voltage divider is 56k/2.2k. Keep this separate
  * from the DC-bus divider so board variants cannot be mixed accidentally. */
 #ifndef PHASE_VOLTAGE_R1
 #define PHASE_VOLTAGE_R1		56000.0f
@@ -135,7 +131,8 @@
 #define PHASE_VOLTAGE_DIVIDER_GAIN \
 	((PHASE_VOLTAGE_R1 + PHASE_VOLTAGE_R2) / PHASE_VOLTAGE_R2)
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN		5.0f
+/* INA240A1 is the fixed 20 V/V gain variant on the BM75 schematic. */
+#define CURRENT_AMP_GAIN		20.0f
 #endif
 #ifndef CURRENT_SHUNT_RES
 #define CURRENT_SHUNT_RES		0.0005f
@@ -328,4 +325,4 @@
 // Functions
 bool hw_sample_shutdown_button(void);
 
-#endif /* HW_UAVC_QCUBE_H_ */
+#endif /* HW_BM75_H_ */
