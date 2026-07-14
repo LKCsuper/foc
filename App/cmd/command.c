@@ -162,6 +162,12 @@ static void cmd_putc(char c)
     Bsp_Usart_PutChar((uint8_t)c);
 }
 
+static void cmd_put_prompt(void)
+{
+    cmd_putc('$');
+    cmd_putc(' ');
+}
+
 static void cmd_handle_char(char c)
 {
     if (c == '\r' || c == '\n') {
@@ -180,6 +186,7 @@ static void cmd_handle_char(char c)
             }
             s_cmd_len = 0;
         }
+        cmd_put_prompt();
     } else if (c == '\b' || c == 0x7F) {
         if (s_cmd_len > 0) {
             s_cmd_len--;
@@ -199,8 +206,9 @@ void Cmd_Task(void *argument)
     ULONG i;
 
     (void)argument;
-    PRINTF("Cmd Task Init\r\n");
-    PRINTF("Type 'help' for command list\r\n");
+    printf("Cmd Task Init\r\n");
+    printf("Type 'help' for command list\r\n");
+    cmd_put_prompt();
 
     while (1) {
         osMessageQueueGet(queueCmdHandle, &rx_item, NULL, portMAX_DELAY);

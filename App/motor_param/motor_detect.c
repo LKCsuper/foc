@@ -59,7 +59,6 @@ static volatile bool s_detect_abort_requested = false;
 /* ---- 磁链检测 ---- */
 #define MOTOR_DETECT_FLUX_ALIGN_S           (1.0f)
 #define MOTOR_DETECT_FLUX_RAMP_S            (8.0f)
-#define MOTOR_DETECT_FLUX_ID_IQ_TRANSITION_S (1.0f)
 #define MOTOR_DETECT_FLUX_MIN_CURRENT_A     (1.5f)
 #define MOTOR_DETECT_FLUX_MIN_RUN_DUTY      (0.03f)
 #define MOTOR_DETECT_FLUX_DUTY_RISE_FACTOR  (1.5f)
@@ -77,7 +76,7 @@ static volatile bool s_detect_abort_requested = false;
 #define MOTOR_DETECT_VESC_CURRENT_TC_S      (0.0015f)  /* VESC 1.5ms 电流环时间常数 */
 #define MOTOR_DETECT_MIN_CURRENT_A          (0.3f)
 #define MOTOR_DETECT_MAX_CURRENT_A          (2.0f)
-#define MOTOR_DETECT_MIN_ELECTRICAL_RPM     (600.0f)
+#define MOTOR_DETECT_MIN_ELECTRICAL_RPM     (200.0f)
 #define MOTOR_DETECT_MAX_ELECTRICAL_RPM     (3000.0f)
 
 /* ---- 极对数计算 ---- */
@@ -734,8 +733,6 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 	}
 
 	/* Stage 2: accelerate the rotating current vector. */
-	float transition = Motor_Detect_Clamp(
-		rotation_time / MOTOR_DETECT_FLUX_ID_IQ_TRANSITION_S, 0.0f, 1.0f);
 	float speed_ramp = Motor_Detect_Clamp(
 		rotation_time / MOTOR_DETECT_FLUX_RAMP_S, 0.0f, 1.0f);
 
@@ -745,11 +742,11 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 		RPM2RADPS_f(s_detect_control.electrical_rpm_now) * dt;
 	utils_norm_angle_rad(&s_detect_control.theta);
 
-	/* Keep the stator field magnitude constant while rotating it. With the
-	 * BM75's real INA240A1 gain this produces the requested torque current;
-	 * the old 5 V/V software setting made this current four times too small. */
-	float id_target = s_detect_control.current_a * (1.0f - transition);
-	float iq_target = s_detect_control.current_a * transition;
+	/* Keep the same D-axis alignment field and rotate it slowly. The rotor is
+	 * pulled along by the moving field without the extra 90-degree field jump
+	 * caused by an Id-to-Iq transition at startup. */
+	float id_target = s_detect_control.current_a;
+	float iq_target = 0.0f;
 	Motor_DetectControl_RunCurrent(motor, s_detect_control.theta,
 		id_target, iq_target, MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V, dt,
 		&s_detect_control.vd, &s_detect_control.vq);
@@ -1037,7 +1034,7 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 	PRINTF("Detect motor: L=%.3f uH\r\n",
 		s_detect_result.inductance_h * 1000000.0f);
 
-	PRINTF("Detect motor: accelerating to %.0f electrical RPM for coast BEMF (%.2fA, %.1fs ramp)\r\n",
+	PRINTF("Detect motor: rotating Id field to %.0f electrical RPM for coast BEMF (%.2fA, %.1fs ramp)\r\n",
 		electrical_rpm, flux_current_a,
 		MOTOR_DETECT_FLUX_RAMP_S);
 	/* VESC 使用约 1.5ms 电流环时间常数进行磁链检测，结束后恢复用户参数。 */
@@ -1048,10 +1045,11 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 	motor.ol_vq_limit = MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V;
 	if (!Motor_Detect_RunStage(MOTOR_DETECT_STAGE_FLUX,
 		flux_current_a, electrical_rpm, MOTOR_DETECT_TIMEOUT_FLUX_MS)) {
-		PRINTF("Detect motor: flux invalid duty still=%.4f now=%.4f max=%.4f coast=%.1f eRPM Bemf=%.4fV samples=%lu\r\n",
+		PRINTF("Detect motor: flux invalid duty still=%.4f now=%.4f max=%.4f peak=%.3fA coast=%.1f eRPM Bemf=%.4fV samples=%lu\r\n",
 			s_detect_control.flux_duty_still,
 			s_detect_control.flux_duty_now,
 			s_detect_control.flux_duty_max,
+			s_detect_control.max_phase_current,
 			s_detect_control.electrical_rpm_now,
 			s_detect_control.resistance_voltage_avg,
 			(unsigned long)s_detect_control.samples);
