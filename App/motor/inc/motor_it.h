@@ -40,6 +40,10 @@ void Motor_DmaInt(void *p, uint32_t flags);
 /* 供 Shell 状态显示预对齐是否仍在进行，以及已经保持了多长时间。 */
 bool Motor_OpenLoop_IsAligning(void);
 float Motor_OpenLoop_GetAlignElapsed(void);
+bool Motor_HfiStart_IsRunning(void);
+bool Motor_HfiStart_Succeeded(void);
+float Motor_HfiStart_GetAngle(void);
+float Motor_HfiStart_GetConfidence(void);
 
 /* FOC 中断耗时统计，供 olstatus 判断 CPU 是否被实时控制占满。 */
 float Motor_DmaInt_GetAverageRuntimeUs(void);

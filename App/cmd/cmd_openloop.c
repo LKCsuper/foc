@@ -230,6 +230,13 @@ static void ol_print_status(void)
         ol_status_append(&used, "  Align run  : %s elapsed=%.3fs\n",
                          Motor_OpenLoop_IsAligning() ? "ALIGNING" : "RAMP/IDLE",
                          Motor_OpenLoop_GetAlignElapsed());
+        ol_status_append(&used,
+                         "  HFI start   : %s V=%.2f cycles=%u min=%.2f run=%d ok=%d angle=%.3f conf=%.3f\n",
+                         motor.hfi_start_enable ? "ON" : "OFF",
+                         motor.hfi_start_voltage, motor.hfi_start_cycles,
+                         motor.hfi_start_min_confidence,
+                         Motor_HfiStart_IsRunning(), Motor_HfiStart_Succeeded(),
+                         Motor_HfiStart_GetAngle(), Motor_HfiStart_GetConfidence());
         ol_status_append(&used, "  Ia,Ib,Ic   : %.3f %.3f %.3f A\n",
                          motor.ia, motor.ib, motor.ic);
         ol_status_append(&used, "  Id, Iq     : %.3f %.3f A\n", motor.Id, motor.Iq);
@@ -719,6 +726,49 @@ int Cmd_OlAlign(int argc, char *argv[])
     PRINTF("Align set: %s Id=%.2fA time=%.3fs angle=%.3frad\n",
            motor.ol_align_enable ? "ON" : "OFF",
            motor.ol_align_current, motor.ol_align_time, motor.ol_align_angle);
+    return 0;
+}
+
+/* hfistart <0|1> <voltage_V> <cycles_per_axis> [min_confidence] */
+int Cmd_HfiStart(int argc, char *argv[])
+{
+    int enable;
+    int cycles;
+
+    if (argc < 4) {
+        PRINTF("HFI start: %s V=%.2f cycles=%u min_conf=%.3f\n",
+               motor.hfi_start_enable ? "ON" : "OFF",
+               motor.hfi_start_voltage, motor.hfi_start_cycles,
+               motor.hfi_start_min_confidence);
+        PRINTF("Usage: hfistart <0|1> <voltage_V> <cycles_per_axis> [min_confidence]\n");
+        return 0;
+    }
+    if (motor.ol_enable) {
+        PRINTF("Stop motor before changing HFI parameters\n");
+        return -1;
+    }
+
+    enable = atoi(argv[1]);
+    cycles = atoi(argv[3]);
+    if ((enable != 0 && enable != 1) || cycles < 2 || cycles > 32) {
+        PRINTF("Invalid value: enable=0/1, cycles=2..32\n");
+        return -1;
+    }
+
+    motor.hfi_start_enable = (enable != 0);
+    motor.hfi_start_voltage = fabsf(atof(argv[2]));
+    motor.hfi_start_cycles = (uint16_t)cycles;
+    if (argc >= 5) {
+        motor.hfi_start_min_confidence = atof(argv[4]);
+        if (motor.hfi_start_min_confidence < 0.0f)
+            motor.hfi_start_min_confidence = 0.0f;
+        if (motor.hfi_start_min_confidence > 1.0f)
+            motor.hfi_start_min_confidence = 1.0f;
+    }
+    PRINTF("HFI start set: %s V=%.2f cycles=%u min_conf=%.3f\n",
+           motor.hfi_start_enable ? "ON" : "OFF",
+           motor.hfi_start_voltage, motor.hfi_start_cycles,
+           motor.hfi_start_min_confidence);
     return 0;
 }
 

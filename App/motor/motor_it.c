@@ -17,6 +17,9 @@ extern "C" {
 #endif
 
 #include "includes.h"
+#include "motor_alignment.h"
+#include "motor_hfi_start.h"
+#include "motor_if_start.h"
 
 /* 电流零点正常应在 ADC 中点附近。flash 没校准或读出异常时，用默认值兜底。 */
 #define MOTOR_CURRENT_OFFSET_MIN      (1000.0f)
@@ -29,28 +32,18 @@ typedef struct {
     float vq; /* Q 轴电压 (转矩分量) */
 } motor_dq_voltage_t;
 
-/*
- * I/F 起步运行时状态。
- *
- * 对齐阶段的目标是先把转子吸到一个已知的电角位置，而不是让磁场立刻旋转。
- * 完成对齐后才允许 angle_rpm 参与电角度积分，避免“定子场在转、转子只摆动”。
- */
-static struct {
-    bool  was_stopped;       /* 上次处于停止状态，下次 I/F 启动需要决定是否预对齐 */
-    bool  aligning;          /* true=固定角度 + Id 预对齐尚未完成 */
-    bool  alignment_done;    /* 本次启动已完成预对齐，可直接给起转 Iq */
-    float align_elapsed;     /* 本次预对齐已保持的时间，单位 s */
-    float angle_rpm;         /* 角度积分用转速 */
-    float iq_scale;          /* Iq 缩放系数（1.0 = 全量，<1.0 = 低速收小） */
-    float phase_boost;       /* 兼容旧启动方式的一拍相位补偿；预对齐时保持 0 */
-} s_ol_startup = {
-    .was_stopped = true,
-    .aligning    = false,
-    .alignment_done = false,
-    .align_elapsed = 0.0f,
-    .angle_rpm   = 0.0f,
-    .iq_scale    = 1.0f,
-    .phase_boost = 0.0f,
+static motor_hfi_start_t s_hfi_start;
+static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq,
+                                    float theta, float v_bus);
+
+/* I/F 启动算法实例；算法本身位于可独立移植的 motor_if_start 模块。 */
+static motor_if_start_t s_if_start = {
+    .first_cycle = true,
+    .iq_scale = 1.0f
+};
+
+static motor_alignment_t s_alignment = {
+    .stopped = true
 };
 
 /*
@@ -189,13 +182,9 @@ static void Motor_OpenLoop_ResetRuntime(MOTOR_PARAM_S *m)
     m->ol_vq_int = 0.0f;
     Motor_SpeedLoop_Reset();
     Motor_Sensorless_Reset();
-    s_ol_startup.was_stopped = true;
-    s_ol_startup.aligning = false;
-    s_ol_startup.alignment_done = false;
-    s_ol_startup.align_elapsed = 0.0f;
-    s_ol_startup.angle_rpm = 0.0f;
-    s_ol_startup.iq_scale = 1.0f;
-    s_ol_startup.phase_boost = 0.0f;
+    MotorAlignment_Reset(&s_alignment);
+    MotorIfStart_Reset(&s_if_start);
+    MotorHfiStart_Reset(&s_hfi_start);
 }
 
 /*
@@ -248,13 +237,26 @@ static void Motor_OpenLoop_NormalizeConfig(MOTOR_PARAM_S *m)
     }
 
     /* 对齐电流/时间为 0 时视为关闭预对齐，保留旧的一拍相位补偿作为回退。 */
-    if (m->ol_align_current < 0.0f) {
-        m->ol_align_current = 0.0f;
-    }
-    if (m->ol_align_time < 0.0f) {
-        m->ol_align_time = 0.0f;
+    {
+        motor_alignment_config_t alignment_config = {
+            m->ol_align_enable, m->ol_align_current,
+            m->ol_align_time, m->ol_align_angle
+        };
+        MotorAlignment_NormalizeConfig(&alignment_config);
+        m->ol_align_current = alignment_config.current;
+        m->ol_align_time = alignment_config.duration;
     }
     utils_norm_angle_rad(&m->ol_align_angle);
+    {
+        motor_hfi_start_config_t hfi_config = {
+            m->hfi_start_enable, m->hfi_start_voltage,
+            m->hfi_start_cycles, m->hfi_start_min_confidence, 0.20f
+        };
+        MotorHfiStart_NormalizeConfig(&hfi_config);
+        m->hfi_start_voltage = hfi_config.voltage;
+        m->hfi_start_cycles = hfi_config.cycles_per_axis;
+        m->hfi_start_min_confidence = hfi_config.min_confidence;
+    }
 
     if (m->ol_max_rpm <= 0.0f) {
         m->ol_max_rpm = 1.0f;
@@ -313,6 +315,51 @@ static void Motor_OpenLoop_NormalizeConfig(MOTOR_PARAM_S *m)
 }
 
 /*
+ * 在 0..PI 上扫描凸极轴。每拍交替施加正/负 d 轴电压，下一拍读取该轴电流；
+ * 电流增量最大的方向对应较小电感轴。正负响应的不对称用于区分磁极极性。
+ * 表贴式电机或采样噪声过大时凸极度不足，可信度检查会让流程回退到固定 Id 对齐。
+ */
+static bool Motor_HfiStart_Run(MOTOR_PARAM_S *m, float v_bus)
+{
+    motor_hfi_start_config_t config = {
+        m->hfi_start_enable, m->hfi_start_voltage, m->hfi_start_cycles,
+        m->hfi_start_min_confidence, 0.20f
+    };
+    motor_hfi_start_output_t output;
+    motor_hfi_start_result_t result;
+    bool starting;
+
+    if (!config.enabled || config.voltage <= 0.0f || s_hfi_start.attempted) {
+        return false;
+    }
+    starting = !s_hfi_start.running;
+
+    if (starting) {
+        m->ol_vd_int = 0.0f;
+        m->ol_vq_int = 0.0f;
+        Motor_SpeedLoop_Reset();
+        Motor_Sensorless_Reset();
+    }
+
+    clarke_transform(m->ia, m->ib, m->ic, &m->Ialpha, &m->Ibeta);
+    result = MotorHfiStart_Step(&s_hfi_start, &config, m->Ialpha, m->Ibeta,
+                                v_bus, &output);
+    if (result == MOTOR_HFI_START_RUNNING) {
+        Motor_Foc_OutputVoltage(m, output.vd, 0.0f, output.theta, v_bus);
+        return true;
+    }
+    if (result == MOTOR_HFI_START_FINISHED) {
+        Motor_OpenLoop_OutputSafe(m);
+        if (s_hfi_start.succeeded) {
+            m->ol_theta = s_hfi_start.angle;
+            MotorAlignment_MarkComplete(&s_alignment);
+            MotorIfStart_SetNeutral(&s_if_start);
+        }
+    }
+    return false;
+}
+
+/*
  * 角度积分转速整理。
  * 每个 FOC 周期在 Startup 之后调用一次，统一整理本拍派生状态。
  *
@@ -324,46 +371,10 @@ static void Motor_OpenLoop_NormalizeConfig(MOTOR_PARAM_S *m)
  * 注意：相位补偿和 Iq 缩放已移到 Motor_OpenLoop_StartupIf 中处理，
  * 本函数只负责角度积分转速，由 UpdateTheta 消费。
  */
-static void Motor_OpenLoop_UpdateAngleRpm(MOTOR_PARAM_S *m)
-{
-    float target = m->ol_target_rpm;
-    float rpm = m->ol_current_rpm;
-
-    /*
-     * 预对齐后转子已经在正确的初始位置。若此处仍把电角速度立即跳到
-     * ol_min_rpm( 默认 30RPM )，对于静摩擦较大的电机，转子来不及跟上旋转磁场，就只会来回摆动。
-     * 在已对齐路径下，应使用 olramp 从 0RPM 缓慢推进；Iq 由前面逻辑保持为全额，
-     * 负责提供克服静摩擦的起转转矩。
-     */
-    if (s_ol_startup.alignment_done) {
-        s_ol_startup.angle_rpm = rpm;
-        return;
-    }
-
-    /*
-     * 兼容未预对齐的旧行为：目标超过 min_rpm 但当前 |rpm| 不足时，
-     *    angle_rpm 跳到 SIGN(target)*min_rpm，保证角度积分有最低频率。
-     * 否则 angle_rpm = 当前转速 (目标较低时允许低于 min_rpm)。
-     */
-    if (fabsf(target) >= m->ol_min_rpm &&
-        fabsf(rpm) < m->ol_min_rpm) {
-        s_ol_startup.angle_rpm = SIGN(target) * m->ol_min_rpm;
-    } else {
-        s_ol_startup.angle_rpm = rpm;
-    }
-
-    /*
-     * 3. 启动相位补偿 — 由 Motor_OpenLoop_StartupIf 在电流模式下处理，
-     *    通过 s_ol_startup.phase_boost 写入，Motor_CurrentLoop_GetTheta 消费。
-     * 4. 低速 Iq 缩放   — 由 Motor_OpenLoop_StartupIf 在电流模式下处理，
-     *    通过 s_ol_startup.iq_scale 写入，Motor_CurrentTarget_Get 消费。
-     */
-}
-
 /*
  * V/F 模式起步处理：
  *   目标转速超过 ol_min_rpm 时，直接将当前转速跳到 ol_min_rpm，
- *   避免低速段电压不足无法起转。然后委托 UpdateAngleRpm 整理角度积分转速。
+ *   避免低速段电压不足无法起转，然后把实际转速交给启动模块用于角度积分。
  *   V/F 模式不需要相位补偿和 Iq 缩放，直接置为默认值。
  */
 static void Motor_OpenLoop_StartupVf(MOTOR_PARAM_S *m)
@@ -371,15 +382,12 @@ static void Motor_OpenLoop_StartupVf(MOTOR_PARAM_S *m)
     float target = m->ol_target_rpm;
     float rpm = m->ol_current_rpm;
 
-    s_ol_startup.phase_boost = 0.0f;
-    s_ol_startup.iq_scale = 1.0f;
-
     if (fabsf(rpm) < m->ol_min_rpm &&
         fabsf(target) >= m->ol_min_rpm) {
         m->ol_current_rpm = SIGN(target) * m->ol_min_rpm;
     }
 
-    Motor_OpenLoop_UpdateAngleRpm(m);
+    MotorIfStart_SetVfRpm(&s_if_start, m->ol_current_rpm);
 }
 
 /*
@@ -398,22 +406,16 @@ static void Motor_OpenLoop_StartupVf(MOTOR_PARAM_S *m)
  */
 static bool Motor_OpenLoop_RunAlignment(MOTOR_PARAM_S *m, float dt)
 {
-    if (s_ol_startup.was_stopped &&
-        m->ol_align_enable &&
-        m->ol_align_current > 0.0f &&
-        m->ol_align_time > 0.0f) {
-        /*
-         * 只在一次启动的第一拍进入这里。清 PI 和观测器可避免上一轮运行
-         * 的积分量或旧磁链影响固定对齐电流。
-         */
-        s_ol_startup.was_stopped = false;
-        s_ol_startup.aligning = true;
-        s_ol_startup.alignment_done = false;
-        s_ol_startup.align_elapsed = 0.0f;
-        s_ol_startup.angle_rpm = 0.0f;
-        s_ol_startup.iq_scale = 1.0f;
-        s_ol_startup.phase_boost = 0.0f;
-        m->ol_theta = m->ol_align_angle;
+    motor_alignment_config_t config = {
+        m->ol_align_enable, m->ol_align_current,
+        m->ol_align_time, m->ol_align_angle
+    };
+    motor_alignment_output_t output;
+    motor_alignment_result_t result =
+        MotorAlignment_Step(&s_alignment, &config, dt, &output);
+
+    if (result == MOTOR_ALIGNMENT_STARTED) {
+        MotorIfStart_SetNeutral(&s_if_start);
         m->ol_current_rpm = 0.0f;
         m->ol_vd_int = 0.0f;
         m->ol_vq_int = 0.0f;
@@ -421,33 +423,20 @@ static bool Motor_OpenLoop_RunAlignment(MOTOR_PARAM_S *m, float dt)
         Motor_Sensorless_Reset();
     }
 
-    if (!s_ol_startup.aligning) {
-        return false;
-    }
-
-    /* 对齐期间强制静止磁场：不允许最低转速逻辑把角度推进到 30RPM。 */
-    m->ol_theta = m->ol_align_angle;
-    m->ol_current_rpm = 0.0f;
-    s_ol_startup.angle_rpm = 0.0f;
-    s_ol_startup.iq_scale = 1.0f;
-    s_ol_startup.phase_boost = 0.0f;
-    s_ol_startup.align_elapsed += dt;
-
-    if (s_ol_startup.align_elapsed < m->ol_align_time) {
+    if (result == MOTOR_ALIGNMENT_STARTED ||
+        result == MOTOR_ALIGNMENT_RUNNING) {
+        m->ol_theta = output.angle;
+        m->ol_current_rpm = 0.0f;
+        MotorIfStart_SetNeutral(&s_if_start);
         return true;
     }
 
-    /*
-     * 对齐完成：从固定角开始 I/F 斜坡。再次清 PI/观测器，避免 D 轴对齐
-     * 阶段的积分量被误带到 Q 轴启动中。
-     */
-    s_ol_startup.aligning = false;
-    s_ol_startup.alignment_done = true;
-    s_ol_startup.align_elapsed = m->ol_align_time;
-    m->ol_vd_int = 0.0f;
-    m->ol_vq_int = 0.0f;
-    Motor_SpeedLoop_Reset();
-    Motor_Sensorless_Reset();
+    if (result == MOTOR_ALIGNMENT_FINISHED) {
+        m->ol_vd_int = 0.0f;
+        m->ol_vq_int = 0.0f;
+        Motor_SpeedLoop_Reset();
+        Motor_Sensorless_Reset();
+    }
     return false;
 }
 
@@ -456,38 +445,21 @@ static bool Motor_OpenLoop_RunAlignment(MOTOR_PARAM_S *m, float dt)
  *
  * 预对齐关闭时，为兼容旧行为保留“一拍 phase_boost”。预对齐开启时，
  * RunAlignment 已经把 was_stopped 清掉，因此这里不会再额外注入 90° 跳变。
- * 随后低速按比例放开 Iq，并整理角度积分转速。
+ * 随后由 motor_if_start 模块计算低速 Iq 比例和角度积分转速。
  */
 static void Motor_OpenLoop_StartupIf(MOTOR_PARAM_S *m)
 {
-    float target = m->ol_target_rpm;
-    float rpm = m->ol_current_rpm;
+    motor_if_start_config_t config = {
+        m->ol_min_rpm, m->ol_start_phase_boost, 0.1f
+    };
+    motor_if_start_input_t input = {
+        m->ol_target_rpm, m->ol_current_rpm, s_alignment.complete
+    };
 
-    s_ol_startup.phase_boost = 0.0f;
-    if (s_ol_startup.was_stopped && target != 0.0f) {
-        s_ol_startup.phase_boost = SIGN(target) * m->ol_start_phase_boost;
-        s_ol_startup.was_stopped = false;
+    MotorIfStart_Step(&s_if_start, &config, &input);
+    if (!s_alignment.complete && !s_if_start.first_cycle) {
+        MotorAlignment_MarkSkipped(&s_alignment);
     }
-
-    s_ol_startup.iq_scale = 1.0f;
-    /*
-     * 预对齐已把转子放到已知的电角度。这时候如果再把 Iq 按转速比例缩小，
-     * 例如 30RPM 起步第一拍会把 0.30A 缩成 0.03A，无法克服静摩擦，
-     * 转子就会留在原地而磁场已经走掉。因此对齐成功后立即使用用户设定的完整 Iq。
-     *
-     * 未开启预对齐的旧流程仍保留低速缩放，避免未知转子角度下的大电流冲击。
-     */
-    if (!s_ol_startup.alignment_done &&
-        fabsf(rpm) < m->ol_min_rpm &&
-        m->ol_min_rpm > 0.0f) {
-        float scale = fabsf(rpm) / m->ol_min_rpm;
-        if (scale < 0.1f) {
-            scale = 0.1f;
-        }
-        s_ol_startup.iq_scale = scale;
-    }
-
-    Motor_OpenLoop_UpdateAngleRpm(m);
 }
 
 /*
@@ -544,7 +516,7 @@ static void Motor_OpenLoop_UpdateSpeed(MOTOR_PARAM_S *m, float dt)
 static void Motor_OpenLoop_UpdateTheta(MOTOR_PARAM_S *m, float dt)
 {
     /* 角度积分转速由 Startup 提供。 */
-    m->ol_theta += RPM2RADPS_f(s_ol_startup.angle_rpm) * m->ol_pole_pairs * dt;
+    m->ol_theta += RPM2RADPS_f(s_if_start.angle_rpm) * m->ol_pole_pairs * dt;
     utils_norm_angle_rad(&m->ol_theta);
 }
 
@@ -606,7 +578,7 @@ static void Motor_OpenLoop_RunVf(MOTOR_PARAM_S *m, float v_bus)
  */
 static float Motor_CurrentLoop_GetTheta(MOTOR_PARAM_S *m)
 {
-    float theta = m->ol_theta + s_ol_startup.phase_boost;
+    float theta = m->ol_theta + s_if_start.phase_boost;
 
     utils_norm_angle_rad(&theta);
     return Motor_Sensorless_GetControlAngle(theta);
@@ -632,7 +604,7 @@ static void Motor_CurrentFeedback_UpdateDq(MOTOR_PARAM_S *m, float theta)
 static void Motor_CurrentTarget_Get(MOTOR_PARAM_S *m, float *id_target,
                                     float *iq_target)
 {
-    if (s_ol_startup.aligning) {
+    if (s_alignment.running) {
         /*
          * 对齐必须使用 D 轴电流而不是 Q 轴电流。Q 轴电流负责转矩，会让
          * 转子继续摆动；D 轴磁场固定后，转子会自行吸到已知电角位置。
@@ -649,7 +621,7 @@ static void Motor_CurrentTarget_Get(MOTOR_PARAM_S *m, float *id_target,
     } else {
         /* 观测器锁定前必须保留 I/F 启动电流，否则无感电机无法从零速起转。 */
         *iq_target = m->ol_iq_set;
-        *iq_target *= s_ol_startup.iq_scale;
+        *iq_target *= s_if_start.iq_scale;
     }
 }
 
@@ -727,6 +699,11 @@ static void Motor_OpenLoop_RunIf(MOTOR_PARAM_S *m, float v_bus, float dt)
     Motor_Foc_OutputVoltage(m, voltage.vd, voltage.vq, theta, v_bus);
 }
 
+/*
+ * 检测控制 — 复位 PI 积分、电流反馈和观测器状态。
+ * 每次进入新的检测阶段（电阻/电感/磁链）或双极性脉冲开始前调用，
+ * 避免上一阶段的 PI 累积值污染当前测量。
+ */
 void Motor_DetectControl_Reset(MOTOR_PARAM_S *m)
 {
     m->ol_vd_int = 0.0f;
@@ -737,6 +714,24 @@ void Motor_DetectControl_Reset(MOTOR_PARAM_S *m)
     Motor_Sensorless_Reset();
 }
 
+/*
+ * 检测控制 — 电流闭环模式。
+ *
+ * 这是检测 ISR 的核心输出函数：给定目标电角度和 Id/Iq 目标值，
+ * 完成 Clarke/Park 反馈 → PI 闭环 → 反 Park + SVPWM 输出的完整链路。
+ *
+ * voltage_limit 用于限制 PI 输出电压幅值，内部会与 v_bus*75% 取较小值，
+ * 防止过调制导致电流不受控。
+ *
+ * @param m              电机参数结构
+ * @param theta          电角度 (rad)，决定定子磁场方向
+ * @param id_target      D 轴目标电流 (A)，正值为励磁
+ * @param iq_target      Q 轴目标电流 (A)，正值为转矩
+ * @param voltage_limit  电压限幅 (V)，取该值与 v_bus*0.75 的较小值
+ * @param dt             控制周期 (s)
+ * @param vd [out]       可选，PI 输出的 D 轴电压；传 NULL 不返回
+ * @param vq [out]       可选，PI 输出的 Q 轴电压；传 NULL 不返回
+ */
 void Motor_DetectControl_RunCurrent(MOTOR_PARAM_S *m,
                                     float theta,
                                     float id_target,
@@ -749,6 +744,7 @@ void Motor_DetectControl_RunCurrent(MOTOR_PARAM_S *m,
     motor_dq_voltage_t voltage;
     float safe_limit = m->v_bus * 0.75f;
 
+    /* 限制电压上限，取调用者需求和硬件安全上限的较小值。 */
     if (voltage_limit < safe_limit) {
         safe_limit = voltage_limit;
     }
@@ -756,10 +752,12 @@ void Motor_DetectControl_RunCurrent(MOTOR_PARAM_S *m,
         safe_limit = 0.0f;
     }
 
+    /* 完整电流闭环：采样反馈 → PI 计算 → SVPWM 输出。 */
     Motor_CurrentFeedback_UpdateDq(m, theta);
     voltage = Motor_CurrentLoop_RunPi(m, id_target, iq_target, dt, safe_limit);
     Motor_Foc_OutputVoltage(m, voltage.vd, voltage.vq, theta, m->v_bus);
 
+    /* 可选返回 PI 输出电压，用于电阻检测的 V/I 计算和占空比监控。 */
     if (vd != NULL) {
         *vd = voltage.vd;
     }
@@ -768,6 +766,19 @@ void Motor_DetectControl_RunCurrent(MOTOR_PARAM_S *m,
     }
 }
 
+/*
+ * 检测控制 — 电压开环模式。
+ *
+ * 直接给定 vd/vq 电压指令，跳过 PI 闭环。
+ * 用于电感检测的双极性脉冲：电压是固定的 ±0.5V，不需要电流 PI 干预。
+ * 仅做矢量限幅保护，仍走 Clarke/Park 反馈链路以更新 Id/Iq 采样值。
+ *
+ * @param m              电机参数结构
+ * @param theta          电角度 (rad)
+ * @param vd             D 轴电压指令 (V)
+ * @param vq             Q 轴电压指令 (V)
+ * @param voltage_limit  电压限幅 (V)，取该值与 v_bus*0.75 的较小值
+ */
 void Motor_DetectControl_RunVoltage(MOTOR_PARAM_S *m,
                                     float theta,
                                     float vd,
@@ -783,11 +794,17 @@ void Motor_DetectControl_RunVoltage(MOTOR_PARAM_S *m,
         safe_limit = 0.0f;
     }
 
+    /* 仍更新电流反馈，让调用者可在下一拍读取 Id/Iq。 */
     Motor_CurrentFeedback_UpdateDq(m, theta);
+    /* 对给定电压矢量做限幅，但不回写 PI 积分项（此模式下没有 PI）。 */
     utils_saturate_vector_2d(&vd, &vq, safe_limit);
     Motor_Foc_OutputVoltage(m, vd, vq, theta, m->v_bus);
 }
 
+/*
+ * 检测控制 — 输出安全状态并复位。
+ * 检测结束时调用，确保三相输出回到 50% 中点电平。
+ */
 void Motor_DetectControl_OutputSafe(MOTOR_PARAM_S *m)
 {
     Motor_DetectControl_Reset(m);
@@ -822,6 +839,9 @@ static void Motor_OpenLoop_Run(MOTOR_PARAM_S *m, float v_bus)
 
     Motor_OpenLoop_NormalizeConfig(m);
     if (m->ol_mode == MOTOR_OL_MODE_IF) {
+        if (Motor_HfiStart_Run(m, v_bus)) {
+            return;
+        }
         if (!Motor_OpenLoop_RunAlignment(m, dt)) {
             /* 对齐结束后才允许转速斜坡和角度积分开始旋转磁场。 */
             Motor_OpenLoop_UpdateSpeed(m, dt);
@@ -844,13 +864,18 @@ static void Motor_OpenLoop_Run(MOTOR_PARAM_S *m, float v_bus)
 
 bool Motor_OpenLoop_IsAligning(void)
 {
-    return s_ol_startup.aligning;
+    return s_alignment.running;
 }
 
 float Motor_OpenLoop_GetAlignElapsed(void)
 {
-    return s_ol_startup.align_elapsed;
+    return s_alignment.elapsed;
 }
+
+bool Motor_HfiStart_IsRunning(void) { return s_hfi_start.running; }
+bool Motor_HfiStart_Succeeded(void) { return s_hfi_start.succeeded; }
+float Motor_HfiStart_GetAngle(void) { return s_hfi_start.angle; }
+float Motor_HfiStart_GetConfidence(void) { return s_hfi_start.confidence; }
 
 float Motor_DmaInt_GetAverageRuntimeUs(void)
 {
@@ -950,50 +975,42 @@ VOID Motor_It_ParamCal(VOID)
 }
 
 /*
- * DMA 传输完成中断回调 (ADC 采样由 DMA 搬运完成后触发)。
- *   分频判断 → 参数采样换算 → 开环 FOC 运算。
- * 这是整个 FOC 控制链的驱动入口，由 ADC-DMA-TIM 联动触发。
+ * 参数检测模式下的 ISR 路径。
+ * ParamCal + 30kHz 过流保护 + 分频后的 DmaStep。
+ * 由 Motor_DmaInt 调度，不直接注册到中断向量表。
  */
-void Motor_DmaInt(void *p, uint32_t flags)
+static void Motor_DmaInt_Detect(void)
 {
+    uint32_t runtime_start = Bsp_Tim_DtNow();
     float protection_dt;
-    uint32_t runtime_start;
 
-    (void)p;
-    (void)flags;
+    Motor_It_ParamCal();
+    protection_dt = Motor_OpenLoop_GetAdcDt(&motor);
 
-    /*
-     * DMA 进入本回调前，硬件已经把本次 ADC 结果搬入 ADC_Value[]。
-     * 参数检测会直接读取这个数组，因此检测期间不需要执行参数换算，
-     * 更不能运行保护、无感观测器、PI 和 SVPWM，否则会与检测代码抢写
-     * TIM1，严重时高频中断还会让 Detect_Init 所在任务一直得不到运行。
-     */
-    if (Motor_Detect_IsActive()) {
-        /* 偏置校准由任务直接切换三相桥臂，DMA 只负责更新 ADC 原始数组。 */
-        if (!Motor_Detect_ControlIsActive()) {
-            return;
-        }
-
-        runtime_start = Bsp_Tim_DtNow();
-        Motor_It_ParamCal();
-        protection_dt = Motor_OpenLoop_GetAdcDt(&motor);
-
-        /* 参数检测也保留 30kHz 绝对过流保护，不能因检测模式绕过功率级安全。 */
-        if (Motor_Protect_Run(&motor, protection_dt)) {
-            Motor_Detect_AbortFromIsr(Motor_Protect_GetFault());
-            Motor_DetectControl_OutputSafe(&motor);
-            Motor_DmaInt_RecordRuntime(runtime_start);
-            return;
-        }
-
-        if (Motor_DmaInt_ShouldRun()) {
-            Motor_Detect_DmaStep(&motor, Motor_OpenLoop_GetDt(&motor));
-        }
+    /* 参数检测也保留 30kHz 绝对过流保护，不能因检测模式绕过功率级安全。 */
+    if (Motor_Protect_Run(&motor, protection_dt)) {
+        Motor_Detect_AbortFromIsr(Motor_Protect_GetFault());
+        Motor_DetectControl_OutputSafe(&motor);
         Motor_DmaInt_RecordRuntime(runtime_start);
         return;
     }
 
-    runtime_start = Bsp_Tim_DtNow();
+    // DmaStep 只在分频拍触发，避免每拍都跑检测逻辑。
+    if (Motor_DmaInt_ShouldRun()) {
+        Motor_Detect_DmaStep(&motor, Motor_OpenLoop_GetDt(&motor));
+    }
+    Motor_DmaInt_RecordRuntime(runtime_start);
+}
+
+/*
+ * 正常 FOC 模式下的 ISR 路径。
+ * ParamCal + 30kHz 过流保护 + 分频后的开环 FOC 全流程。
+ * 由 Motor_DmaInt 调度，不直接注册到中断向量表。
+ */
+static void Motor_DmaInt_Foc(void)
+{
+    uint32_t runtime_start = Bsp_Tim_DtNow();
+    float protection_dt;
 
     /*
      * 采样换算和保护每个 30kHz ADC 回调都执行，不受 FOC 分频影响。
@@ -1001,6 +1018,7 @@ void Motor_DmaInt(void *p, uint32_t flags)
      */
     Motor_It_ParamCal();
     protection_dt = Motor_OpenLoop_GetAdcDt(&motor);
+
     /* 保护位于采样换算之后、FOC 输出之前；故障后清 PI 并保持安全电平。 */
     if (Motor_Protect_Run(&motor, protection_dt)) {
         Motor_OpenLoop_ResetRuntime(&motor);
@@ -1009,7 +1027,7 @@ void Motor_DmaInt(void *p, uint32_t flags)
         return;
     }
 
-    /* 只有电流环、无感观测器、速度环和 SVPWM 使用 2 分频降到 15kHz。 */
+    /* 只有电流环、无感观测器、速度环和 SVPWM 使用分频。 */
     if (!Motor_DmaInt_ShouldRun()) {
         Motor_DmaInt_RecordRuntime(runtime_start);
         return;
@@ -1018,7 +1036,7 @@ void Motor_DmaInt(void *p, uint32_t flags)
     Motor_OpenLoop_Run(&motor, motor.v_bus);
 
     /*
-     * 无感观测器可能在本次 FOC 中确认“高速失锁”并直接锁存故障。
+     * 无感观测器可能在本次 FOC 中确认”高速失锁”并直接锁存故障。
      * 再检查一次可在退出本次 DMA 中断前覆盖为安全占空比，而不是等到
      * 下一次 ADC 回调；普通过流/欠压仍由上面的 30kHz 保护入口判断。
      */
@@ -1027,6 +1045,30 @@ void Motor_DmaInt(void *p, uint32_t flags)
         Motor_OpenLoop_OutputSafe(&motor);
     }
     Motor_DmaInt_RecordRuntime(runtime_start);
+}
+
+/*
+ * DMA 传输完成中断回调 (ADC 采样由 DMA 搬运完成后触发)。
+ * 这是整个 FOC 控制链的驱动入口，由 ADC-DMA-TIM 联动触发。
+ *
+ * DMA 进入本回调前，硬件已经把本次 ADC 结果搬入 ADC_Value[]。
+ * 偏置校准由任务直接切换三相桥臂，DMA 只负责更新 ADC 原始数组，
+ * 因此当 Motor_Detect_ControlIsActive() 为 false 时 ISR 立即返回。
+ */
+void Motor_DmaInt(void *p, uint32_t flags)
+{
+    (void)p;
+    (void)flags;
+
+    if (Motor_Detect_IsActive()) {
+        if (!Motor_Detect_ControlIsActive()) {
+            return;
+        }
+        Motor_DmaInt_Detect();
+        return;
+    }
+
+    Motor_DmaInt_Foc();
 }
 
 #ifdef __cplusplus

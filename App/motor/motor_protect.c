@@ -293,13 +293,13 @@ bool Motor_Protect_Run(const MOTOR_PARAM_S *motor, float dt)
     }
 
     /* 按危险程度检查；同一周期多个异常只保留优先级最高的故障。 */
-    if (Motor_Protect_CheckOverCurrent(motor, dt)) {
+    if (Motor_Protect_CheckOverCurrent(motor, dt)) {                // 查看是否过流
         Motor_Protect_LatchFault(FAULT_CODE_ABS_OVER_CURRENT, motor);
-    } else if (Motor_Protect_CheckUnderVoltage(motor, dt)) {
+    } else if (Motor_Protect_CheckUnderVoltage(motor, dt)) {        // 是否欠压
         Motor_Protect_LatchFault(FAULT_CODE_UNDER_VOLTAGE, motor);
-    } else if (Motor_Protect_CheckStall(motor, dt)) {
+    } else if (Motor_Protect_CheckStall(motor, dt)) {               // 是否堵转
         Motor_Protect_LatchFault(FAULT_CODE_MOTOR_STALL, motor);
-    } else if (Motor_Protect_CheckSpeedLoss(motor, dt)) {
+    } else if (Motor_Protect_CheckSpeedLoss(motor, dt)) {           // 是否失速
         Motor_Protect_LatchFault(FAULT_CODE_MOTOR_SPEED_LOSS, motor);
     }
 

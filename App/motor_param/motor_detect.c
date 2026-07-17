@@ -18,80 +18,130 @@ extern "C" {
  * 回调立即返回，不运行保护、观测器、PI 或 SVPWM，避免双方抢写 TIM1。
  * ADC-DMA 搬运由硬件完成，不执行 FOC 回调也能持续更新 ADC_Value[]。
  */
-static volatile bool s_detect_active = false;
-static volatile bool s_detect_abort_requested = false;
+static volatile bool s_detect_active = false;         /* 检测互斥：置位期间 DMA 中断只刷 ADC、不运行 FOC */
+static volatile bool s_detect_abort_requested = false; /* 用户在串口请求中止当前检测 */
 
-/* ---- 电流与电压安全限幅 ---- */
-#define MOTOR_DETECT_CURRENT_LIMIT_A        (4.0f)
-#define MOTOR_DETECT_CURRENT_HARD_LIMIT_A   (8.0f)
-#define MOTOR_DETECT_CURRENT_TRIP_S         (0.001f)
-#define MOTOR_DETECT_MIN_BUS_VOLTAGE_V      (8.0f)
-#define MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V   (8.0f)
+/*
+ * ============================================================
+ * 电流与电压安全限幅
+ * ============================================================
+ *
+ * 电流保护分两级：
+ *   硬限幅 (8A)  — 任意一拍超过立即关断，零容忍
+ *   软限幅 (4A)  — 超过后需持续 trip_time (1ms) 才关断
+ *                   过滤 PWM/ADC 毛刺，避免误触发
+ */
+#define MOTOR_DETECT_CURRENT_LIMIT_A        (4.0f)   /* 软限幅阈值 (A)，超时后才触发 */
+#define MOTOR_DETECT_CURRENT_HARD_LIMIT_A   (8.0f)   /* 硬限幅阈值 (A)，一拍即触发 */
+#define MOTOR_DETECT_CURRENT_TRIP_S         (0.001f) /* 软限幅去抖时间 (s)，= 1ms */
+#define MOTOR_DETECT_MIN_BUS_VOLTAGE_V      (8.0f)   /* 检测最低母线电压 (V)，低于此值放弃检测 */
+#define MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V   (8.0f)   /* 磁链阶段电压限幅 (V) */
 
-/* ---- 电阻检测 ---- */
-#define MOTOR_DETECT_RESISTANCE_VOLTAGE_V   (3.0f)
-#define MOTOR_DETECT_RESISTANCE_RAMP_S      (0.8f)
-#define MOTOR_DETECT_RESISTANCE_SETTLE_S    (0.2f)
-#define MOTOR_DETECT_RESISTANCE_SAMPLE_S    (0.5f)
-#define MOTOR_DETECT_RESISTANCE_MIN_CURRENT_RATIO (0.25f)
-#define MOTOR_DETECT_RESISTANCE_MIN_SAMPLES (100U)
-#define MOTOR_DETECT_RESISTANCE_MIN_OHM     (0.005f)
-#define MOTOR_DETECT_RESISTANCE_MAX_OHM     (10.0f)
-#define MOTOR_DETECT_RESISTANCE_FIT_POINTS  (3U)
-#define MOTOR_DETECT_RESISTANCE_FIT_MIN_A   (0.8f)
-#define MOTOR_DETECT_RESISTANCE_FIT_MAX_A   (1.6f)
-#define MOTOR_DETECT_RESISTANCE_FIT_MIN_R2  (0.95f)
+/*
+ * ============================================================
+ * 电阻检测
+ * ============================================================
+ *
+ * 时序：ramp(0.8s) + settle(0.2s) + sample(0.5s) = 1.5s 总时长
+ * 固定 θ=0，Id 从 0 斜坡上升到 target，稳态后采样 |Vdq|/|Idq|
+ * 每个电流点跑一次，共跑 3 点（0.8A / 1.2A / 1.6A）做最小二乘拟合
+ */
+#define MOTOR_DETECT_RESISTANCE_VOLTAGE_V   (3.0f)   /* 电阻阶段电压限幅 (V) */
+#define MOTOR_DETECT_RESISTANCE_RAMP_S      (0.8f)   /* Id 斜坡上升时间 (s) */
+#define MOTOR_DETECT_RESISTANCE_SETTLE_S    (0.2f)   /* 稳态建立等待时间 (s)，不采样 */
+#define MOTOR_DETECT_RESISTANCE_SAMPLE_S    (0.5f)   /* 稳态采样窗口时长 (s) */
+#define MOTOR_DETECT_RESISTANCE_MIN_CURRENT_RATIO (0.25f) /* 最小采样电流比例：低于目标 25% 的样本丢弃 */
+#define MOTOR_DETECT_RESISTANCE_MIN_SAMPLES (100U)   /* 最少有效采样点数，不足视为失败 */
+#define MOTOR_DETECT_RESISTANCE_MIN_OHM     (0.005f) /* 合法电阻下限 (Ω)，5mΩ */
+#define MOTOR_DETECT_RESISTANCE_MAX_OHM     (10.0f)  /* 合法电阻上限 (Ω) */
+#define MOTOR_DETECT_RESISTANCE_FIT_POINTS  (3U)     /* 最小二乘拟合点数：0.8A / 1.2A / 1.6A */
+#define MOTOR_DETECT_RESISTANCE_FIT_MIN_A   (0.8f)   /* 拟合最小电流 (A) */
+#define MOTOR_DETECT_RESISTANCE_FIT_MAX_A   (1.6f)   /* 拟合最大电流 (A) */
+#define MOTOR_DETECT_RESISTANCE_FIT_MIN_R2  (0.95f)  /* 拟合 R² 最低要求，<0.95 视为线性度不足 */
 
-/* ---- 电感检测 ---- */
-#define MOTOR_DETECT_INDUCTANCE_ALIGN_V     (3.0f)
-#define MOTOR_DETECT_INDUCTANCE_ZERO_V      (2.0f)
-#define MOTOR_DETECT_INDUCTANCE_ALIGN_S     (0.8f)
-#define MOTOR_DETECT_INDUCTANCE_ZERO_S      (0.2f)
-#define MOTOR_DETECT_INDUCTANCE_PULSE_V     (0.5f)
-#define MOTOR_DETECT_INDUCTANCE_HALF_CYCLES (8U)
-#define MOTOR_DETECT_INDUCTANCE_TARGET_PULSES (120U)
-#define MOTOR_DETECT_INDUCTANCE_MIN_SLOPE   (1.0f)
-#define MOTOR_DETECT_INDUCTANCE_MIN_H       (5.0e-6f)
-#define MOTOR_DETECT_INDUCTANCE_MAX_H       (0.05f)
-#define MOTOR_DETECT_INDUCTANCE_DQ_FACTOR   (1.0f)  /* 脉冲已是 FOC dq 相电感 */
-#define MOTOR_DETECT_INDUCTANCE_STABILITY_SCALE (0.9f) /* 略低估，观测器更稳定 */
+/*
+ * ============================================================
+ * 电感检测
+ * ============================================================
+ *
+ * 时序：align(0.8s) + zero(0.2s) + 双极性脉冲直到收够有效样本
+ * D 轴预对齐吸住转子 → 零电流清零 → ±0.5V 脉冲，每半脉冲 8 个采样拍
+ * 按 V = R·I + L·dI/dt 反算 L，正负交替避免单向转矩累积
+ * 目标 120 个有效脉冲，最多尝试 360 个（3 倍），合格率 <50% 失败
+ */
+#define MOTOR_DETECT_INDUCTANCE_ALIGN_V     (3.0f)   /* 对齐阶段电压限幅 (V) */
+#define MOTOR_DETECT_INDUCTANCE_ZERO_V      (2.0f)   /* 零电流阶段电压限幅 (V) */
+#define MOTOR_DETECT_INDUCTANCE_ALIGN_S     (0.8f)   /* D 轴预对齐时间 (s) */
+#define MOTOR_DETECT_INDUCTANCE_ZERO_S      (0.2f)   /* 零电流清零时间 (s) */
+#define MOTOR_DETECT_INDUCTANCE_PULSE_V     (0.5f)   /* 双极性脉冲电压幅值 (V) */
+#define MOTOR_DETECT_INDUCTANCE_HALF_CYCLES (8U)     /* 每半脉冲采样拍数 (= 8 × 66.7μs ≈ 533μs) */
+#define MOTOR_DETECT_INDUCTANCE_TARGET_PULSES (120U) /* 目标有效脉冲数 */
+#define MOTOR_DETECT_INDUCTANCE_MIN_SLOPE   (1.0f)   /* di/dt 最小斜率 (A/s)，过滤无效脉冲 */
+#define MOTOR_DETECT_INDUCTANCE_MIN_H       (5.0e-6f) /* 合法电感下限 (H)，5μH */
+#define MOTOR_DETECT_INDUCTANCE_MAX_H       (0.05f)   /* 合法电感上限 (H)，50mH */
+#define MOTOR_DETECT_INDUCTANCE_DQ_FACTOR   (1.0f)    /* 脉冲施加在 D 轴，测得即为 dq 相电感，不需要 ×1.5 */
+#define MOTOR_DETECT_INDUCTANCE_STABILITY_SCALE (0.9f) /* 最终结果 ×0.9，略低估使观测器更稳定 */
 
-/* ---- 磁链检测 ---- */
-#define MOTOR_DETECT_FLUX_ALIGN_S           (1.0f)
-#define MOTOR_DETECT_FLUX_RAMP_S            (8.0f)
-#define MOTOR_DETECT_FLUX_MIN_CURRENT_A     (1.5f)
-#define MOTOR_DETECT_FLUX_MIN_RUN_DUTY      (0.03f)
-#define MOTOR_DETECT_FLUX_DUTY_RISE_FACTOR  (1.5f)
-#define MOTOR_DETECT_FLUX_DUTY_COLLAPSE_RATIO (0.70f)
-#define MOTOR_DETECT_FLUX_MIN_SAMPLES       (1000U)
-#define MOTOR_DETECT_FLUX_MIN_WB            (1.0e-4f)
-#define MOTOR_DETECT_FLUX_MAX_WB            (0.2f)
-#define MOTOR_DETECT_FLUX_COAST_SETTLE_S    (0.01f)
-#define MOTOR_DETECT_FLUX_COAST_SAMPLE_S    (0.50f)
-#define MOTOR_DETECT_FLUX_COAST_MIN_ERPM    (100.0f)
-#define MOTOR_DETECT_FLUX_MIN_BEMF_V        (0.20f)
+/*
+ * ============================================================
+ * 磁链检测
+ * ============================================================
+ *
+ * 时序：align(1.0s) + 旋转加速(8.0s) + coast(0.5s)
+ * D 轴固定电流 + 缓慢旋转 θ → 转子跟随 → 关六管滑行 → 测反电势
+ * λ = |Vαβ| / |ωe|，在滑行窗口内累加角度增量和电压后一次性计算
+ */
+#define MOTOR_DETECT_FLUX_ALIGN_S           (1.0f)   /* 预对齐时间 (s) */
+#define MOTOR_DETECT_FLUX_RAMP_S            (8.0f)   /* 转速斜坡时间 (s) */
+#define MOTOR_DETECT_FLUX_MIN_CURRENT_A     (1.5f)   /* 磁链阶段最低电流 (A)，需要足够转矩拖动转子 */
+#define MOTOR_DETECT_FLUX_MIN_RUN_DUTY      (0.03f)  /* 最小运行占空比 (3%)，低于此值视为未转动 */
+#define MOTOR_DETECT_FLUX_DUTY_RISE_FACTOR  (1.5f)   /* 运行占空比需 > 静止占空比 × 此系数 */
+#define MOTOR_DETECT_FLUX_DUTY_COLLAPSE_RATIO (0.70f) /* 占空比从峰值跌落超过 30% 视为失步/堵转 */
+#define MOTOR_DETECT_FLUX_MIN_SAMPLES       (1000U)  /* 滑行窗口最少采样点数 */
+#define MOTOR_DETECT_FLUX_MIN_WB            (1.0e-4f) /* 合法磁链下限 (Wb) */
+#define MOTOR_DETECT_FLUX_MAX_WB            (0.2f)    /* 合法磁链上限 (Wb) */
+#define MOTOR_DETECT_FLUX_COAST_SETTLE_S    (0.01f)   /* 滑行稳定时间 (s)，跳过关管瞬间的电压振铃 */
+#define MOTOR_DETECT_FLUX_COAST_SAMPLE_S    (0.50f)   /* 滑行采样窗口 (s) */
+#define MOTOR_DETECT_FLUX_COAST_MIN_ERPM    (100.0f)  /* 滑行最低电气转速 (RPM)，太慢测不准 */
+#define MOTOR_DETECT_FLUX_MIN_BEMF_V        (0.20f)   /* 最低反电势幅值 (V) */
 
-/* ---- 通用 ---- */
-#define MOTOR_DETECT_PWM_COOLDOWN_MS        (50U)  /* PWM 关断后等待功率级彻底进入高阻 */
-#define MOTOR_DETECT_VESC_CURRENT_TC_S      (0.0015f)  /* VESC 1.5ms 电流环时间常数 */
-#define MOTOR_DETECT_MIN_CURRENT_A          (0.3f)
-#define MOTOR_DETECT_MAX_CURRENT_A          (2.0f)
-#define MOTOR_DETECT_MIN_ELECTRICAL_RPM     (200.0f)
-#define MOTOR_DETECT_MAX_ELECTRICAL_RPM     (3000.0f)
+/*
+ * ============================================================
+ * 通用参数
+ * ============================================================
+ */
+#define MOTOR_DETECT_PWM_COOLDOWN_MS        (50U)     /* 阶段间 PWM 冷却时间 (ms)，防直通 */
+#define MOTOR_DETECT_VESC_CURRENT_TC_S      (0.0015f) /* VESC 电流环时间常数 (s)，用于磁链阶段 PI 整定 */
+#define MOTOR_DETECT_MIN_CURRENT_A          (0.3f)    /* 用户可指定的最小检测电流 (A) */
+#define MOTOR_DETECT_MAX_CURRENT_A          (2.0f)    /* 用户可指定的最大检测电流 (A) */
+#define MOTOR_DETECT_MIN_ELECTRICAL_RPM     (200.0f)  /* 用户可指定的最小电气转速 (RPM) */
+#define MOTOR_DETECT_MAX_ELECTRICAL_RPM     (3000.0f) /* 用户可指定的最大电气转速 (RPM) */
 
-/* ---- 极对数计算 ---- */
-#define MOTOR_DETECT_POLE_PAIRS_MIN         (1.0f)
-#define MOTOR_DETECT_POLE_PAIRS_MAX         (50.0f)
-#define MOTOR_DETECT_POLE_PAIRS_RATIO_TOL   (0.15f)
+/*
+ * ============================================================
+ * 极对数计算
+ * ============================================================
+ */
+#define MOTOR_DETECT_POLE_PAIRS_MIN         (1.0f)    /* 最小极对数 */
+#define MOTOR_DETECT_POLE_PAIRS_MAX         (50.0f)   /* 最大极对数 */
+#define MOTOR_DETECT_POLE_PAIRS_RATIO_TOL   (0.15f)   /* 极对数比例容差 (15%)，四舍五入后偏差超此值拒绝 */
 
-/* ---- 各阶段超时 ---- */
-#define MOTOR_DETECT_TIMEOUT_RESISTANCE_MS  (4000U)
-#define MOTOR_DETECT_TIMEOUT_INDUCTANCE_MS  (5000U)
-#define MOTOR_DETECT_TIMEOUT_FLUX_MS        (18000U)
+/*
+ * ============================================================
+ * 各阶段超时
+ * ============================================================
+ */
+#define MOTOR_DETECT_TIMEOUT_RESISTANCE_MS  (4000U)   /* 电阻单点超时 (ms)，斜坡+采样共 1.5s，留足余量 */
+#define MOTOR_DETECT_TIMEOUT_INDUCTANCE_MS  (5000U)   /* 电感阶段超时 (ms) */
+#define MOTOR_DETECT_TIMEOUT_FLUX_MS        (18000U)  /* 磁链阶段超时 (ms)，旋转加速需要较长时间 */
 
-/* ---- 偏置校准 ---- */
-#define MOTOR_DETECT_OFFSET_SAMPLES         (1000U)
-#define MOTOR_DETECT_OFFSET_MAX_PERCENT     (5.0f)  /* 偏移超过此比例提示硬件异常 */
+/*
+ * ============================================================
+ * 偏置校准
+ * ============================================================
+ */
+#define MOTOR_DETECT_OFFSET_SAMPLES         (1000U)   /* 每相采样次数 */
+#define MOTOR_DETECT_OFFSET_MAX_PERCENT     (5.0f)    /* 电流零点偏离 ADC 中点超过 5% 时打印警告 */
 
 typedef enum {
 	MOTOR_DETECT_STAGE_IDLE = 0,
@@ -102,50 +152,67 @@ typedef enum {
 } motor_detect_stage_t;
 
 /*
- * 检测控制结构。
+ * 检测控制结构 — 跨 ISR 和任务态共享的状态机上下文。
  *
  * ISR 会读写的成员加 volatile；仅任务态访问的成员不加。
+ *
  * accum_a / accum_b 在不同阶段含义不同：
- *   电阻阶段：accum_a = 累计 V, accum_b = 累计 I
- *   电感阶段：accum_a = 累计电感值(H), accum_b = 未使用
- *   磁链阶段：accum_a = 累计磁链(Wb), accum_b = 未使用
+ *   电阻阶段：accum_a = 累计 |Vdq|, accum_b = 累计 |Idq|
+ *   电感阶段：accum_a = 累计电感值(H), accum_b = 累计 dt (滑行窗口用)
+ *   磁链阶段：accum_a = 累计 |Vαβ|,   accum_b = 累计 dt (滑行窗口用)
+ *
+ * 每个阶段结束都通过 Motor_Detect_FinishFromIsr 写 done/success/error，
+ * 任务态 Motor_Detect_RunStage 轮询 done 后读取结果。
  */
 typedef struct {
-	/* ---- ISR 可读写 (volatile) ---- */
-	volatile motor_detect_stage_t stage;
-	volatile bool done;
-	volatile bool success;
-	volatile motor_detect_error_t error;
-	volatile mc_fault_code fault;
-	/* ---- 仅 ISR 或仅任务态，不同步访问 ---- */
-	float elapsed;
-	float current_a;
-	float electrical_rpm_target;
-	float electrical_rpm_now;
-	float theta;
-	float vd;
-	float vq;
+	/* ---- ISR 可读写 (volatile)：任务态轮询这些字段判断阶段结束 ---- */
+	volatile motor_detect_stage_t stage; /* 当前阶段，ISR 完成后切为 IDLE */
+	volatile bool done;                 /* ISR 置位 → 任务态退出轮询 */
+	volatile bool success;              /* 本阶段是否成功 */
+	volatile motor_detect_error_t error; /* 失败时的错误码 */
+	volatile mc_fault_code fault;       /* 硬件故障触发的故障码 */
+
+	/* ---- 通用（ISR 读写，任务态初始化） ---- */
+	float elapsed;                /* 本阶段已耗时 (s)，每个 ISR 步进累加 dt */
+	float current_a;              /* 本阶段目标电流幅值 (A) */
+	float electrical_rpm_target;  /* 磁链阶段目标电气转速 (RPM) */
+	float electrical_rpm_now;     /* 磁链阶段当前电气转速 (RPM) */
+	float theta;                  /* 磁链阶段旋转电角度 (rad) */
+	float vd;                     /* 最近一拍 PI 输出的 D 轴电压 (V) */
+	float vq;                     /* 最近一拍 PI 输出的 Q 轴电压 (V) */
+
+	/* ---- 累加器（各阶段复用，含义见结构体顶部注释） ---- */
 	float accum_a;
 	float accum_b;
-	float resistance_voltage_avg;
-	float resistance_current_avg;
-	float max_phase_current;
-	float overcurrent_elapsed;
-	float flux_duty_still;
-	float flux_duty_now;
-	float flux_duty_max;
-	float flux_coast_elapsed;
-	float flux_bemf_angle_last;
-	float flux_omega_e;
-	uint32_t samples;
-	uint32_t pulse_position;
-	uint32_t pulse_count;
-	uint32_t valid_pulses;
-	float pulse_start_current;
-	bool pulse_started;
-	bool rotation_started;
-	bool flux_coast_started;
-	bool flux_bemf_angle_valid;
+
+	/* ---- 电阻检测专用 ---- */
+	float resistance_voltage_avg;  /* 采样窗口平均 |Vdq| (V)，供三点拟合 */
+	float resistance_current_avg;  /* 采样窗口平均 |Idq| (A)，供三点拟合 */
+
+	/* ---- 电流保护专用 ---- */
+	float max_phase_current;       /* 本阶段记录到的相电流峰值 (A) */
+	float overcurrent_elapsed;     /* 持续超过软限幅的累计时间 (s) */
+
+	/* ---- 磁链检测专用 ---- */
+	float flux_duty_still;         /* 静止对齐时的占空比（用于区分堵转和转动） */
+	float flux_duty_now;           /* 当前占空比 */
+	float flux_duty_max;           /* 加速过程中占空比最大值 */
+	float flux_coast_elapsed;      /* 滑行阶段已耗时 (s) */
+	float flux_bemf_angle_last;    /* 上一拍的反电势矢量角度 (rad) */
+	float flux_omega_e;            /* 滑行窗口累计角度增量 (rad)，用于平均 ω */
+
+	/* ---- 采样计数 ---- */
+	uint32_t samples;              /* 有效样本数（电阻/磁链阶段复用） */
+
+	/* ---- 电感检测专用 ---- */
+	uint32_t pulse_position;       /* 当前半脉冲内已过的采样拍数 */
+	uint32_t pulse_count;          /* 已完成的半脉冲数（含正负） */
+	uint32_t valid_pulses;         /* 落在合法电感范围内的有效脉冲数 */
+	float pulse_start_current;     /* 当前半脉冲起始时刻的 Id (A) */
+	bool pulse_started;            /* 双极性脉冲序列已初始化 */
+	bool rotation_started;         /* 磁链阶段旋转已开始 */
+	bool flux_coast_started;       /* 已关断六管进入滑行采样 */
+	bool flux_bemf_angle_valid;    /* 上一拍角度已记录，可做差分 */
 } motor_detect_control_t;
 
 static motor_detect_control_t s_detect_control;
@@ -463,30 +530,52 @@ void Motor_Detect_AbortFromIsr(mc_fault_code fault)
 	Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FAULT);
 }
 
-/* ========================================================================
- * 电阻检测：固定电角度 θ=0，Id 从 0 斜坡上升到目标电流。
- * 在最后的稳态采样窗口内累计 V/I 矢量模长，R = avg(|V|)/avg(|I|)。
- * ======================================================================== */
+/*
+ * 电阻检测 ISR 步进 — 每个 15kHz 控制周期调用一次。
+ *
+ * 时序分为三个阶段（total_time = ramp + settle + sample）：
+ *   阶段 1 (ramp)：   Id 从 0 斜坡上升到目标电流 current_a。
+ *                     固定电角度 θ=0，只给 D 轴电流，转子不转。
+ *   阶段 2 (settle)： Id 保持在目标电流，等待电流环和 ADC 稳定。
+ *                     此阶段不采样，让 PI 和硬件充分建立稳态。
+ *   阶段 3 (sample)： 每个周期取 |Vdq| 和 |Idq| 矢量模长，
+ *                     分别累加到 accum_a / accum_b，最后
+ *                     R = avg(|V|) / avg(|I|)。
+ *
+ * 结束时只导出 avg V/I 供上层三点最小二乘拟合使用，
+ * 不做单点 V/I 除法——死区压降会使单点结果偏高。
+ *
+ * 前置条件：Motor_DmaInt 已调用 Motor_It_ParamCal 完成采样换算，
+ *           并已通过 Motor_Protect_Run 的 30kHz 绝对过流保护。
+ */
 static void Motor_Detect_RunResistanceStep(MOTOR_PARAM_S *motor, float dt)
 {
 	float total_time = MOTOR_DETECT_RESISTANCE_RAMP_S +
 		MOTOR_DETECT_RESISTANCE_SETTLE_S +
 		MOTOR_DETECT_RESISTANCE_SAMPLE_S;
 
+	/* 阶段 1：Id 电流斜坡上升。ramp 从 0 线性增长到 1，电流随之从 0 到目标值。 */
 	s_detect_control.elapsed += dt;
 	float ramp = Motor_Detect_Clamp(
 		s_detect_control.elapsed / MOTOR_DETECT_RESISTANCE_RAMP_S, 0.0f, 1.0f);
 	float id_target = s_detect_control.current_a * ramp;
 
+	/* θ=0，Id=target，Iq=0 — 定子磁场固定在 A 相方向，转子被吸住不动。 */
 	Motor_DetectControl_RunCurrent(motor, 0.0f, id_target, 0.0f,
 		MOTOR_DETECT_RESISTANCE_VOLTAGE_V, dt,
 		&s_detect_control.vd, &s_detect_control.vq);
 
+	/* 任意阶段电流超出硬限幅或软限幅超时，立即停止。 */
 	if (Motor_Detect_CurrentTooHigh(motor, dt)) {
 		Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_CURRENT);
 		return;
 	}
 
+	/*
+	 * 阶段 2+3：settle 完成后进入采样窗口。
+	 * 过滤掉电流未达到目标 25% 的样本（电流太小时死区压降占比大，
+	 * V/I 会严重偏高，反而污染平均值）。
+	 */
 	if (s_detect_control.elapsed >
 		(MOTOR_DETECT_RESISTANCE_RAMP_S + MOTOR_DETECT_RESISTANCE_SETTLE_S)) {
 		float current_mag = NORM2_f(motor->Id, motor->Iq);
@@ -499,6 +588,7 @@ static void Motor_Detect_RunResistanceStep(MOTOR_PARAM_S *motor, float dt)
 		}
 	}
 
+	/* 总时间到 — 验证样本数量和质量，导出平均值。 */
 	if (s_detect_control.elapsed >= total_time) {
 		if (s_detect_control.samples < MOTOR_DETECT_RESISTANCE_MIN_SAMPLES ||
 			s_detect_control.accum_b <= 0.0f) {
@@ -506,8 +596,14 @@ static void Motor_Detect_RunResistanceStep(MOTOR_PARAM_S *motor, float dt)
 			return;
 		}
 
+		/*
+		 * 单点 R = avg(|V|)/avg(|I|)，与死区压降耦合。
+		 * 上层 DETECT_MotorParameters 会用三个不同电流点的
+		 * 结果做最小二乘拟合，斜率才是真正的 R，截距就是死区补偿。
+		 */
 		float resistance = s_detect_control.accum_a /
 			s_detect_control.accum_b;
+		/* 保存平均值供上层拟合和串口打印使用。 */
 		s_detect_control.resistance_voltage_avg =
 			s_detect_control.accum_a / (float)s_detect_control.samples;
 		s_detect_control.resistance_current_avg =
@@ -518,6 +614,7 @@ static void Motor_Detect_RunResistanceStep(MOTOR_PARAM_S *motor, float dt)
 			return;
 		}
 
+		/* 本点合格，发布到 s_detect_result 供上层拟合消费。 */
 		s_detect_result.resistance_ohm = resistance;
 		s_detect_result.resistance_valid = true;
 		Motor_Detect_FinishFromIsr(true, MOTOR_DETECT_ERROR_NONE);
@@ -789,19 +886,38 @@ static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
 	}
 }
 
-/* ========================================================================
- * Motor_DmaInt() 中每个检测控制周期（15kHz）调用一次。
- * ======================================================================== */
+/*
+ * 检测状态机 ISR 步进 — 由 Motor_DmaInt 在 15kHz 控制周期中调用。
+ *
+ * 本函数在 ADC-DMA 中断上下文内执行，负责驱动参数检测的逐拍推进。
+ * 调用前 Motor_DmaInt 已完成 ParamCal + 绝对过流保护，因此这里只做
+ * 检测专用的前置检查：
+ *   1. 检测已结束或 dt 异常 → 安全退出
+ *   2. 用户通过串口请求中止    → 记录 USER_ABORT 并结束
+ *   3. 母线电压过低              → 记录 FAULT 并结束（防止低压误测）
+ *
+ * 三项检查通过后才按当前 stage 分发到对应子阶段：
+ *   RESISTANCE  — Id 斜坡 + V/I 采样，最小二乘拟合 R
+ *   INDUCTANCE  — D 轴预对齐后双极性脉冲，di/dt 反算 L
+ *   FLUX        — D 轴旋转开环加速 → 关管滑行 → 反电势测磁链
+ */
 void Motor_Detect_DmaStep(MOTOR_PARAM_S *motor, float dt)
 {
+	/* 检测已结束（stage 切回 IDLE）或 dt 为 0 / 负数时直接返回。 */
 	if (!Motor_Detect_ControlIsActive() || dt <= 0.0f) {
 		return;
 	}
+
+	/* 用户在串口输入了 abort，立即结束当前检测流程。 */
 	if (s_detect_abort_requested) {
 		Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_USER_ABORT);
 		return;
 	}
 
+	/*
+	 * 母线电压太低时测出的 R / L / 磁链不可靠——低电压下死区压降
+	 * 占比大，且电机可能根本没通电。直接放弃本次检测。
+	 */
 	if (motor->v_bus < MOTOR_DETECT_MIN_BUS_VOLTAGE_V) {
 		Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FAULT);
 		return;
@@ -818,6 +934,7 @@ void Motor_Detect_DmaStep(MOTOR_PARAM_S *motor, float dt)
 			Motor_Detect_RunFluxStep(motor, dt);
 			break;
 		default:
+			/* IDLE / OFFSET 阶段不应该通过 ControlIsActive 检查到达这里。 */
 			break;
 	}
 }

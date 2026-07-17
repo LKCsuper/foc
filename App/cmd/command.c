@@ -46,6 +46,7 @@ extern "C" {
 /* cmd_openloop.c     */ extern int Cmd_OlKi(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlPhase(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlAlign(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_HfiStart(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_SpeedStatus(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_SpeedEnable(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_SpeedKp(int argc, char *argv[]);
@@ -85,6 +86,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olki",       Cmd_OlKi,               "openloop current Ki" },
     { "olphase",    Cmd_OlPhase,            "openloop start phase boost <deg>" },
     { "olalign",    Cmd_OlAlign,            "startup rotor alignment config" },
+    { "hfistart",   Cmd_HfiStart,           "HFI startup: <0|1> <V> <cycles> [confidence]" },
     /* 速度环 */
     { "speed",      Cmd_SpeedStatus,        "show speed loop status" },
     { "spenable",   Cmd_SpeedEnable,        "enable speed PI loop <0/1>" },

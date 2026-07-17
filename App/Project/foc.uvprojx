@@ -991,6 +991,21 @@
               <FilePath>..\motor\motor_it.c</FilePath>
             </File>
             <File>
+              <FileName>motor_hfi_start.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_hfi_start.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_alignment.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_alignment.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_if_start.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_if_start.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_pid.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_pid.c</FilePath>

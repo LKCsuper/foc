@@ -298,6 +298,11 @@ typedef struct motor_param
 	float ol_align_current;			/* 对齐 D 轴电流 Id，单位 A，建议从 0.3~0.5A 起调 */
 	float ol_align_time;				/* 固定磁场保持时间，单位 s，建议 0.2~0.5s */
 	float ol_align_angle;				/* 固定对齐电角度，单位 rad；默认 0 */
+	/* 零速高频注入初始位置辨识；可信度不足时自动回退到上面的固定 Id 对齐。 */
+	bool  hfi_start_enable;			/* true=I/F 启动前先扫描转子凸极轴 */
+	float hfi_start_voltage;			/* 双极性注入电压幅值 V */
+	uint16_t hfi_start_cycles;		/* 每个测试轴的正/负脉冲对数 */
+	float hfi_start_min_confidence;	/* (最大响应-最小响应)/最大响应的最低可信度 */
 
 	/* 速度外环：霍尔机械转速 -> PI -> Iq 目标；默认关闭，调试确认后再开启 */
 	bool speed_enable;				/* true=速度 PI 接管 Iq，false=继续使用 ol_iq_set */
