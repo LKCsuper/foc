@@ -7,11 +7,26 @@ extern "C" {
 
 #define FLASH_STORAGE_SLOT_SIZE (128U * 1024U)
 
+/**
+ * @description: 按 32 位序号比较新旧，lhs 比 rhs 新则返回 true
+ * @detail: 采用有符号差值 (int32_t)(lhs-rhs) 判断，可正确处理序号回绕
+ * @param {uint32_t} lhs
+ * @param {uint32_t} rhs
+ * @return {*}
+ * @author: lkc
+ */
 static bool flash_storage_sequence_newer(uint32_t lhs, uint32_t rhs)
 {
     return (int32_t)(lhs - rhs) > 0;
 }
 
+/**
+ * @description: 校验 Flash 槽数据是否有效
+ * @detail: magic/格式版本/已提交标记匹配，且 motor+detect 区域 CRC32 与槽内记录一致
+ * @param {const flash_storage_t} *storage
+ * @return {*}
+ * @author: lkc
+ */
 static bool flash_storage_valid(const flash_storage_t *storage)
 {
     uint32_t crc;
@@ -27,6 +42,13 @@ static bool flash_storage_valid(const flash_storage_t *storage)
     return crc == storage->crc32;
 }
 
+/**
+ * @description: 擦除一个 Flash 扇区
+ * @detail: 失败时记录错误日志并返回 false
+ * @param {uint16_t} sector
+ * @return {*}
+ * @author: lkc
+ */
 static bool flash_storage_erase(uint16_t sector)
 {
     FLASH_Status status;
@@ -44,6 +66,15 @@ static bool flash_storage_erase(uint16_t sector)
     return true;
 }
 
+/**
+ * @description: 将 data 从 addr 起逐字节编程到 Flash
+ * @detail: 每字节写入后回读校验；任一步失败即锁定并返回 false
+ * @param {uint32_t} addr
+ * @param {const uint8_t} *data
+ * @param {uint32_t} size
+ * @return {*}
+ * @author: lkc
+ */
 static bool flash_storage_write_bytes(uint32_t addr, const uint8_t *data, uint32_t size)
 {
     uint32_t i;
@@ -66,6 +97,12 @@ static bool flash_storage_write_bytes(uint32_t addr, const uint8_t *data, uint32
     return true;
 }
 
+/**
+ * @description: 返回双槽中序号最新且校验有效的一侧
+ * @detail: 两侧都无效时返回 NULL
+ * @return {*}
+ * @author: lkc
+ */
 static const flash_storage_t *flash_storage_current(void)
 {
     const flash_storage_t *a = (const flash_storage_t *)FLASH_STORAGE_SLOT_A_ADDR;
@@ -81,6 +118,14 @@ static const flash_storage_t *flash_storage_current(void)
     return NULL;
 }
 
+/**
+ * @description: 从最新有效槽加载电机参数与检测结果到输出指针
+ * @detail: 无有效槽时返回 false，由调用方回退默认参数
+ * @param {MOTOR_PARAM_S} *motor
+ * @param {motor_detect_result_t} *detect
+ * @return {*}
+ * @author: lkc
+ */
 bool FlashStorage_Load(MOTOR_PARAM_S *motor, motor_detect_result_t *detect)
 {
     const flash_storage_t *storage;
@@ -98,6 +143,15 @@ bool FlashStorage_Load(MOTOR_PARAM_S *motor, motor_detect_result_t *detect)
     return true;
 }
 
+/**
+ * @description: 把电机参数与检测结果保存到当前未使用的一侧槽
+ * @detail: 双槽交替写入，天然防掉电损坏；填 magic/序号并计算 CRC，擦除后先写主体、
+ *          最后写 committed 提交字段，写毕回读整体校验
+ * @param {const MOTOR_PARAM_S} *motor
+ * @param {const motor_detect_result_t} *detect
+ * @return {*}
+ * @author: lkc
+ */
 bool FlashStorage_Save(const MOTOR_PARAM_S *motor, const motor_detect_result_t *detect)
 {
     const flash_storage_t *current;

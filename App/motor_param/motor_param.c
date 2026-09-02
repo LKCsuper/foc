@@ -51,7 +51,9 @@ mc_configuration *gpstMotorCfg = &motorCfg;
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 电机参数初始化
- * @detail: 
+ * @detail: 依次写入电机固定参数与开环/电流/速度/无感等运行默认值；尝试从 Flash
+ *          加载已保存参数，失败则以默认值写入 Flash；随后用代码默认值覆盖运行参数、
+ *          应用已保存的检测结果，并初始化速度环与无感观测器。
  * @return {*}
  * @author: lkc
  */

@@ -19,8 +19,12 @@ extern "C" {
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /**
- * @description: 
- * @detail: 这个tc vesc默认是1000，暂定
+ * @description: 按 VESC 电流环时间常数整定 FOC 电流环 Kp/Ki 与观测器增益
+ * @detail: tc 为电流环时间常数，vesc 默认 1000(us) 暂定。
+ *          带宽 bw = 1/(tc*1e-6)，kp = L*bw，ki = R*bw。
+ *          观测器增益按磁链平方折算：gain = 1e-3/λ²，写回时 *1e6。
+ *          mcconf 需含 foc_motor_r/l/flux_linkage，结果写回
+ *          foc_current_kp/ki 与 foc_observer_gain。
  * @param {mc_configuration} *mcconf
  * @param {float} tc
  * @return {*}
@@ -46,11 +50,8 @@ void VESC_Calc_Foc_cc_kp_ki_gain(mc_configuration *mcconf, float tc)
 
 
 /**
- * @description: 
- * @detail: 
- * 
- * 
- * 
+ * @description: 计算电机电气速度环 Kp/Ki 的预留接口
+ * @detail: 当前为空实现（占位），待补充整定公式。
  * @return {*}
  * @author: lkc
  */

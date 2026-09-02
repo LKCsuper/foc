@@ -143,12 +143,24 @@ static volatile bool s_detect_abort_requested = false; /* 用户在串口请求�
 #define MOTOR_DETECT_OFFSET_SAMPLES         (1000U)   /* 每相采样次数 */
 #define MOTOR_DETECT_OFFSET_MAX_PERCENT     (5.0f)    /* 电流零点偏离 ADC 中点超过 5% 时打印警告 */
 
+/*
+ * 电机参数检测的阶段状态机 — 说明当前正运行哪个检测步骤。
+ *
+ * RESISTANCE / INDUCTANCE / FLUX 三个阶段由 ISR 逐拍推进
+ * (Motor_Detect_DmaStep → Motor_Detect_RunXxxStep)，结束时把
+ * stage 切回 IDLE；任务态 Motor_Detect_RunStage 轮询 done 收尾。
+ * Motor_Detect_ControlIsActive() 仅对这三者返回 true。
+ *
+ * OFFSET 例外：DETECT_Offset 在任务态阻塞运行（osDelay 采样），
+ * ISR 不对其做任何推进，置 OFFSET 只是占用互斥标志，避免检测
+ * 期间其他命令/运行流程改写 PWM。
+ */
 typedef enum {
-	MOTOR_DETECT_STAGE_IDLE = 0,
-	MOTOR_DETECT_STAGE_OFFSET,
-	MOTOR_DETECT_STAGE_RESISTANCE,
-	MOTOR_DETECT_STAGE_INDUCTANCE,
-	MOTOR_DETECT_STAGE_FLUX,
+	MOTOR_DETECT_STAGE_IDLE = 0,   /* 空闲：无检测运行，DMA 步进直接返回 */
+	MOTOR_DETECT_STAGE_OFFSET,     /* 偏置校准：50% 占空比测电流/电压零点（任务态阻塞，非 ISR 状态机） */
+	MOTOR_DETECT_STAGE_RESISTANCE, /* 电阻：θ=0 固定 Id 斜坡 + Vdq/Idq 采样，上层三点最小二乘拟合 R */
+	MOTOR_DETECT_STAGE_INDUCTANCE, /* 电感：D 轴预对齐 + ±0.5V 双极性脉冲，di/dt 反算 L */
+	MOTOR_DETECT_STAGE_FLUX,       /* 磁链：旋转 Id 场开环加速 → 关六管滑行 → 反电势矢量测 λ */
 } motor_detect_stage_t;
 
 /*
@@ -462,11 +474,21 @@ detect_offset_finish:
 	return aborted ? 0U : 1U;
 }
 
+/**
+ * @description: 查询当前是否处于任一检测流程（含偏置校准）占用的互斥状态
+ * @return {*}
+ * @author: lkc
+ */
 bool Motor_Detect_IsActive(void)
 {
 	return s_detect_active;
 }
 
+/**
+ * @description: 查询 ISR 状态机驱动的检测（电阻/电感/磁链）是否在运行；偏置校准不算
+ * @return {*}
+ * @author: lkc
+ */
 bool Motor_Detect_ControlIsActive(void)
 {
 	return s_detect_active &&
@@ -475,6 +497,14 @@ bool Motor_Detect_ControlIsActive(void)
 		 s_detect_control.stage == MOTOR_DETECT_STAGE_FLUX);
 }
 
+/**
+ * @description: 工具函数：将 value 限幅到 [minimum, maximum] 区间内
+ * @param {float} value     待限幅输入值
+ * @param {float} minimum   下限
+ * @param {float} maximum   上限
+ * @return {*}
+ * @author: lkc
+ */
 static float Motor_Detect_Clamp(float value, float minimum, float maximum)
 {
 	if (value > maximum) {
@@ -486,6 +516,13 @@ static float Motor_Detect_Clamp(float value, float minimum, float maximum)
 	return value;
 }
 
+/**
+ * @description: 取三相电流绝对值的最大值 (A)
+ * @detail: 供过流判定与峰值统计使用
+ * @param {const MOTOR_PARAM_S} *motor   电机实时数据（含三相电流 ia/ib/ic）
+ * @return {*}
+ * @author: lkc
+ */
 static float Motor_Detect_PhaseCurrentPeak(const MOTOR_PARAM_S *motor)
 {
 	float peak = fabsf(motor->ia);
@@ -514,6 +551,14 @@ static bool Motor_Detect_CurrentTooHigh(const MOTOR_PARAM_S *motor, float dt)
 	return s_detect_control.overcurrent_elapsed >= MOTOR_DETECT_CURRENT_TRIP_S;
 }
 
+/**
+ * @description: ISR 侧检测统一收尾
+ * @detail: 先输出安全停机，再记录成败/错误码，把 stage 切回 IDLE 并释放互斥
+ * @param {bool} success               检测是否成功
+ * @param {motor_detect_error_t} error 错误码（success=false 时有效）
+ * @return {*}
+ * @author: lkc
+ */
 static void Motor_Detect_FinishFromIsr(bool success, motor_detect_error_t error)
 {
 	Motor_DetectControl_OutputSafe(&motor);
@@ -524,6 +569,13 @@ static void Motor_Detect_FinishFromIsr(bool success, motor_detect_error_t error)
 	s_detect_active = false;
 }
 
+/**
+ * @description: ISR 侧故障中止
+ * @detail: 记录硬件故障码后按失败结束当前检测阶段
+ * @param {mc_fault_code} fault   硬件故障码
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_Detect_AbortFromIsr(mc_fault_code fault)
 {
 	s_detect_control.fault = fault;
@@ -941,6 +993,12 @@ void Motor_Detect_DmaStep(MOTOR_PARAM_S *motor, float dt)
 
 /* ---- 任务态：阶段调度与超时 ---- */
 
+/**
+ * @description: 把电机置于受控停机状态
+ * @detail: 撤销运行命令、复位速度环与无感观测器并关闭三相 PWM
+ * @return {*}
+ * @author: lkc
+ */
 static void Motor_Detect_PrepareStoppedMotor(void)
 {
 	motor.ol_enable = false;
@@ -1039,6 +1097,17 @@ static bool Motor_Detect_RunStage(motor_detect_stage_t stage,
 
 /* ---- 公开 API ---- */
 
+/**
+ * @description: 电机参数检测总入口（VESC 风格）：检测相电阻/电感/磁链
+ * @detail: 依次执行偏置校准 → 三点最小二乘拟合相电阻 → 双极性脉冲测相电感 →
+ * 旋转加速后关管滑行测磁链；结果写入 result，返回三项是否全部有效且无错误。
+ * 检测期间带互斥并临时整定电流环参数。
+ * @param {float} current_a               检测电流 (A)
+ * @param {float} electrical_rpm          电气转速 (rpm)
+ * @param {motor_detect_result_t} *result 检测结果输出（可为 NULL）
+ * @return {*}
+ * @author: lkc
+ */
 bool DETECT_MotorParameters(float current_a, float electrical_rpm,
 	motor_detect_result_t *result)
 {
@@ -1205,6 +1274,15 @@ detect_done:
 		s_detect_result.error == MOTOR_DETECT_ERROR_NONE;
 }
 
+/**
+ * @description: 由电气转速与实测机械转速之比四舍五入得到极对数并写回 *pole_pairs
+ * @detail: 比例越界或偏离整数超过容差时返回 false
+ * @param {float} electrical_rpm   电气转速 (rpm)
+ * @param {float} mechanical_rpm   实测机械转速 (rpm)
+ * @param {float} *pole_pairs      极对数输出（可为 NULL）
+ * @return {*}
+ * @author: lkc
+ */
 bool DETECT_CalculatePolePairs(float electrical_rpm, float mechanical_rpm,
 	float *pole_pairs)
 {
@@ -1231,6 +1309,12 @@ bool DETECT_CalculatePolePairs(float electrical_rpm, float mechanical_rpm,
 	return true;
 }
 
+/**
+ * @description: 读取最近一次检测结果快照（含错误码/故障码）
+ * @param {motor_detect_result_t} *result   结果输出（可为 NULL）
+ * @return {*}
+ * @author: lkc
+ */
 void DETECT_GetResult(motor_detect_result_t *result)
 {
 	if (result != NULL) {
@@ -1240,6 +1324,13 @@ void DETECT_GetResult(motor_detect_result_t *result)
 
 /* ---- Flash 持久化 ---- */
 
+/**
+ * @description: 校验检测结果是否有效
+ * @detail: 要求版本匹配，R/L/磁链均带有效标志且落在合法量程内
+ * @param {const motor_detect_result_t} *result   检测结果
+ * @return {*}
+ * @author: lkc
+ */
 static bool Motor_Detect_ResultParametersValid(const motor_detect_result_t *result)
 {
 	return result->version == MOTOR_DETECT_RESULT_VERSION &&
@@ -1254,6 +1345,13 @@ static bool Motor_Detect_ResultParametersValid(const motor_detect_result_t *resu
 		result->flux_linkage_wb <= MOTOR_DETECT_FLUX_MAX_WB;
 }
 
+/**
+ * @description: 把有效检测结果应用到运行配置
+ * @detail: 写 gpstMotorCfg 与 motor 的 R/L/磁链，极对数有效时一并写入
+ * @param {const motor_detect_result_t} *result   检测结果
+ * @return {*}
+ * @author: lkc
+ */
 static void Motor_Detect_ApplyRuntime(const motor_detect_result_t *result)
 {
 	gpstMotorCfg->foc_motor_r = result->resistance_ohm;
@@ -1267,6 +1365,13 @@ static void Motor_Detect_ApplyRuntime(const motor_detect_result_t *result)
 	}
 }
 
+/**
+ * @description: 应用最近一次检测结果到运行参数
+ * @detail: 复位观测器/速度环；save=true 时同步写 Flash
+ * @param {bool} save   是否同步写入 Flash
+ * @return {*}
+ * @author: lkc
+ */
 bool DETECT_ApplyResult(bool save)
 {
 	if (!Motor_Detect_ResultParametersValid(&s_detect_result) || motor.ol_enable) {
@@ -1306,6 +1411,13 @@ void Motor_Detect_ApplyStoredResult(const motor_detect_result_t *stored)
 
 /* ---- 错误名与中止 ---- */
 
+/**
+ * @description: 把检测错误码映射为可读字符串
+ * @detail: 供串口/Shell 显示原因
+ * @param {motor_detect_error_t} error   检测错误码
+ * @return {*}
+ * @author: lkc
+ */
 const char *DETECT_GetErrorName(motor_detect_error_t error)
 {
 	switch (error) {
@@ -1324,6 +1436,12 @@ const char *DETECT_GetErrorName(motor_detect_error_t error)
 	}
 }
 
+/**
+ * @description: 请求中止当前检测
+ * @detail: 置位请求标志；若 ISR 状态机运行中则立即安全关断并结束阶段
+ * @return {*}
+ * @author: lkc
+ */
 void DETECT_Abort(void)
 {
 	uint32_t primask;
@@ -1350,6 +1468,12 @@ void DETECT_Abort(void)
 	Bsp_Tim_StopPwm(MOTOR1);
 }
 
+/**
+ * @description: 检测空闲时清除中止请求标志
+ * @detail: 运行中不改写，避免误中断检测
+ * @return {*}
+ * @author: lkc
+ */
 void DETECT_ClearAbortRequest(void)
 {
 	if (!s_detect_active) {
