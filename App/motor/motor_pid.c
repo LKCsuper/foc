@@ -1,7 +1,7 @@
 /*
  * @Description: 电流 PI 控制器
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-06 10:30:31
+ * @LastEditTime: 2026-09-03 00:14:06
  * @FilePath: \foc\App\motor\utils.c
  */
 #ifdef __cplusplus
@@ -58,38 +58,6 @@ float Motor_Current_PI_Run(float target, float measured, float *v_int,
 
     return v_out;
 }
-
-/* ============================== 旧接口保留 ============================== */
-
-/**
- * @description: 旧版 PID（保留兼容，建议新代码用 Motor_Current_PI_Run）
- */
-void Current_PID_Calc(real32_T ref_temp, real32_T fdb_temp, real32_T* out_temp, CURRENT_PID_DEF* current_pid_temp)
-{
-    current_pid_temp->Err = ref_temp - fdb_temp;
-    current_pid_temp->Cal_Out = current_pid_temp->P_Gain * current_pid_temp->Err + current_pid_temp->I_Sum;
-
-    /* 硬编码限幅 — FIXME: 应从外部设置 Max_Output */
-    current_pid_temp->Max_Output = 5;
-
-    if (current_pid_temp->Cal_Out > current_pid_temp->Max_Output)
-    {
-        *out_temp = current_pid_temp->Max_Output;
-    }
-    else if (current_pid_temp->Cal_Out < current_pid_temp->Min_Output)
-    {
-        *out_temp = current_pid_temp->Min_Output;
-    }
-    else
-    {
-        *out_temp = current_pid_temp->Cal_Out;
-    }
-
-    /* FIXME: 0.000067 是写死的 dt (1/15000)，应该传参 */
-    current_pid_temp->I_Sum += ((*out_temp - current_pid_temp->Cal_Out) * current_pid_temp->B_Gain
-                                + current_pid_temp->I_Gain * current_pid_temp->Err) * 0.000067;
-}
-
 #ifdef __cplusplus
 }
 #endif

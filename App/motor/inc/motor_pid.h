@@ -16,8 +16,6 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-void Current_PID_Calc(real32_T ref_temp, real32_T fdb_temp, real32_T* out_temp, CURRENT_PID_DEF* current_pid_temp);
-
 /**
  * @description: 单轴电流 PI 控制器（d/q 轴通用，VESC 风格）
  * @param target:    目标电流 (A)
