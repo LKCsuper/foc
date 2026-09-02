@@ -146,6 +146,14 @@ static void Motor_Protect_LatchFault(mc_fault_code fault, const MOTOR_PARAM_S *m
     }
 }
 
+/**
+ * @description: 供无感观测器等安全模块锁存一个已经确认的故障。
+ * @detail: 只记录首发故障及其瞬间快照，不在此停 PWM；fault 无效、motor 为空或已有首发故障时忽略，避免覆盖根因。
+ * @param {mc_fault_code} fault 要锁存的故障码；FAULT_CODE_NONE 时忽略
+ * @param {const MOTOR_PARAM_S} *motor 电机实时数据指针，用于生成故障快照；为空时忽略
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_Protect_TriggerFault(mc_fault_code fault, const MOTOR_PARAM_S *motor)
 {
     /* NONE 不是故障；空指针也无法生成可靠快照，因此直接忽略。 */
@@ -329,6 +337,12 @@ mc_fault_code Motor_Protect_GetFault(void)
     return s_state.fault;
 }
 
+/**
+ * @description: 把故障码转换成可读的字符串名称，供 Shell 显示故障原因。
+ * @param {mc_fault_code} fault 待转换的故障码
+ * @return {*} 故障码对应的可读字符串；无法识别的码返回 "UNKNOWN"
+ * @author: lkc
+ */
 const char *Motor_Protect_GetFaultName(mc_fault_code fault)
 {
     switch (fault) {
@@ -347,6 +361,13 @@ const char *Motor_Protect_GetFaultName(mc_fault_code fault)
     }
 }
 
+/**
+ * @description: 获取首次故障发生瞬间的数据快照。
+ * @detail: snapshot 为空指针时不执行任何操作。
+ * @param {motor_protect_snapshot_t} *snapshot 接收快照数据的结构体指针
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_Protect_GetSnapshot(motor_protect_snapshot_t *snapshot)
 {
     if (snapshot != NULL) {

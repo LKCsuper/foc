@@ -146,6 +146,12 @@ static void Motor_Sensorless_RunPll(const MOTOR_PARAM_S *motor, float dt)
                                -max_electrical_speed, max_electrical_speed);
 }
 
+/**
+ * @description: 上电初始化观测器运行时状态
+ * @detail: MOTOR_Param_Init 完成参数赋值后调用一次；清空历史量并回到 OPEN_LOOP。
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_Sensorless_Init(void)
 {
     /* 上电初始化：清空所有历史量，并明确告诉速度环“当前没有可信反馈”。 */
@@ -154,6 +160,13 @@ void Motor_Sensorless_Init(void)
     Motor_SpeedFeedback_Set(0.0f, false);
 }
 
+/**
+ * @description: 复位观测器
+ * @detail: 清空磁链、PLL、锁定计时和接管比例并回到 OPEN_LOOP；停机、模式切换、
+ *          关闭无感或检测到数值异常（NaN/Inf）时调用。
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_Sensorless_Reset(void)
 {
     /*
@@ -165,6 +178,14 @@ void Motor_Sensorless_Reset(void)
     Motor_SpeedFeedback_Set(0.0f, false);
 }
 
+/**
+ * @description: 记录本周期实际下发给逆变器的 α/β 电压
+ * @detail: 下一 FOC 周期会将该电压与新采样电流配对送入磁链模型积分。
+ * @param {float} v_alpha α 轴电压，单位 V
+ * @param {float} v_beta β 轴电压，单位 V
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_Sensorless_SetAppliedVoltage(float v_alpha, float v_beta)
 {
     /*
@@ -515,6 +536,13 @@ void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
     }
 }
 
+/**
+ * @description: 获取本周期 Park 变换应使用的电角度
+ * @detail: 未闭环时返回调用者提供的 open_loop_angle（I/F 角度），闭环后返回已渐变处理的控制角。
+ * @param {float} open_loop_angle 调用者提供的 I/F 强制电角度，单位 rad
+ * @return {*}
+ * @author: lkc
+ */
 float Motor_Sensorless_GetControlAngle(float open_loop_angle)
 {
     /*
@@ -526,12 +554,24 @@ float Motor_Sensorless_GetControlAngle(float open_loop_angle)
            s_sensorless.control_angle : open_loop_angle;
 }
 
+/**
+ * @description: 获取观测器状态机当前状态
+ * @detail: 返回 OPEN_LOOP、LOCKING 或 CLOSED，用于状态显示和调试。
+ * @return {*}
+ * @author: lkc
+ */
 motor_sensorless_state_t Motor_Sensorless_GetState(void)
 {
     /* 供 speed Shell 命令显示 OPEN_LOOP、LOCKING 或 CLOSED。 */
     return s_sensorless.state;
 }
 
+/**
+ * @description: 获取观测电角度
+ * @detail: 返回 PLL 平滑后的电角度（pll_angle）而非原始 atan2 角，单位 rad。
+ * @return {*}
+ * @author: lkc
+ */
 float Motor_Sensorless_GetObserverAngle(void)
 {
     /*
@@ -541,24 +581,48 @@ float Motor_Sensorless_GetObserverAngle(void)
     return s_sensorless.pll_angle;
 }
 
+/**
+ * @description: 获取估算转子磁链模长
+ * @detail: 单位 Wb，正常应接近 sensorless_flux_linkage。
+ * @return {*}
+ * @author: lkc
+ */
 float Motor_Sensorless_GetFluxMagnitude(void)
 {
     /* 返回转子磁链估算模长，单位 Wb；应接近 sensorless_flux_linkage。 */
     return s_sensorless.flux_magnitude;
 }
 
+/**
+ * @description: 获取低通后的机械转速
+ * @detail: 单位 RPM，正负号表示转向。
+ * @return {*}
+ * @author: lkc
+ */
 float Motor_Sensorless_GetMechanicalRpm(void)
 {
     /* 返回低通后的机械转速 RPM，正负号表示正反转。 */
     return s_sensorless.filtered_rpm;
 }
 
+/**
+ * @description: 获取 PLL 观测角与 I/F 强制角的最短相位差
+ * @detail: 单位 rad，结果范围为 ±π。
+ * @return {*}
+ * @author: lkc
+ */
 float Motor_Sensorless_GetPhaseError(void)
 {
     /* 返回 PLL 观测角与 I/F 强制角的最短角度差，单位 rad。 */
     return s_sensorless.phase_error;
 }
 
+/**
+ * @description: 拷贝观测器的接管诊断数据
+ * @param {motor_sensorless_diagnostics_t} *diagnostics 输出指针，填充四项接管条件、锁定计时、接管比例和实际输出电压
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_t *diagnostics)
 {
     if (diagnostics == NULL) {
@@ -575,12 +639,24 @@ void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_t *diagnostics
         NORM2_f(s_sensorless.applied_v_alpha, s_sensorless.applied_v_beta);
 }
 
+/**
+ * @description: 判断观测角是否已接管电流环
+ * @detail: 仅当状态为 CLOSED 时返回 true，不能只理解为“观测器已开启”。
+ * @return {*}
+ * @author: lkc
+ */
 bool Motor_Sensorless_IsClosedLoop(void)
 {
     /* true 表示观测角已经获准参与 Park 变换，不能只理解为“观测器已开启”。 */
     return s_sensorless.state == MOTOR_SENSORLESS_CLOSED;
 }
 
+/**
+ * @description: 判断开环角到观测角的接管是否全部完成
+ * @detail: 需要已进入 CLOSED 且角度渐变比例 blend 达到 1.0；供 I/F 最高转速保护使用。
+ * @return {*}
+ * @author: lkc
+ */
 bool Motor_Sensorless_IsTakeoverComplete(void)
 {
     /* blend 经过 Clamp 后会精确到 1.0，达到该值才算完全使用观测角。 */

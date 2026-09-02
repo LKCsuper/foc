@@ -432,6 +432,14 @@ float utils_throttle_curve(float val, float curve_acc, float curve_brake, int mo
 	return ret;
 }
 
+/**
+ * @description: 计算数据的 CRC-32C (Castagnoli) 校验值
+ * @detail: 初值 0xFFFFFFFF，按字节逐位以反射多项式 0x82F63B78 计算，返回取反后的校验值
+ * @param {uint8_t} *data    待校验数据指针
+ * @param {uint32_t} len     数据长度
+ * @return {*}
+ * @author: lkc
+ */
 uint32_t utils_crc32c(uint8_t *data, uint32_t len) {
 	uint32_t crc = 0xFFFFFFFF;
 
@@ -460,6 +468,15 @@ void utils_fft32_bin0(float *real_in, float *real, float *imag) {
 	*real /= 32.0f;
 }
 
+/**
+ * @description: 计算 32 点 DFT 的 1 号频点（基波）分量
+ * @detail: 实部累加 x[i]*cos_32_1[i]，虚部累加 -x[i]*sin_32_1[i]，除以 32 归一化
+ * @param {float} *real_in   输入时域序列（32 点）
+ * @param {float} *real      输出实部
+ * @param {float} *imag      输出虚部
+ * @return {*}
+ * @author: lkc
+ */
 void utils_fft32_bin1(float *real_in, float *real, float *imag) {
 	*real = 0.0f;
 	*imag = 0.0f;
@@ -471,6 +488,15 @@ void utils_fft32_bin1(float *real_in, float *real, float *imag) {
 	*imag /= 32.0f;
 }
 
+/**
+ * @description: 计算 32 点 DFT 的 2 号频点（2 次谐波）分量
+ * @detail: 查 utils_tab_*_32_2 表，计算方式同 utils_fft32_bin1
+ * @param {float} *real_in   输入时域序列（32 点）
+ * @param {float} *real      输出实部
+ * @param {float} *imag      输出虚部
+ * @return {*}
+ * @author: lkc
+ */
 void utils_fft32_bin2(float *real_in, float *real, float *imag) {
 	*real = 0.0f;
 	*imag = 0.0f;
@@ -482,6 +508,15 @@ void utils_fft32_bin2(float *real_in, float *real, float *imag) {
 	*imag /= 32.0f;
 }
 
+/**
+ * @description: 计算 16 点 DFT 的 0 号频点（直流分量）
+ * @detail: 输出实部为输入均值，虚部置 0
+ * @param {float} *real_in   输入时域序列（16 点）
+ * @param {float} *real      输出实部
+ * @param {float} *imag      输出虚部
+ * @return {*}
+ * @author: lkc
+ */
 void utils_fft16_bin0(float *real_in, float *real, float *imag) {
 	*real = 0.0f;
 	*imag = 0.0f;
@@ -493,6 +528,15 @@ void utils_fft16_bin0(float *real_in, float *real, float *imag) {
 	*real /= 16.0f;
 }
 
+/**
+ * @description: 计算 16 点 DFT 的 1 号频点（基波）分量
+ * @detail: 在 32 点表上按下标 2*i 取样作 16 点基波表，累加后除以 16 归一化
+ * @param {float} *real_in   输入时域序列（16 点）
+ * @param {float} *real      输出实部
+ * @param {float} *imag      输出虚部
+ * @return {*}
+ * @author: lkc
+ */
 void utils_fft16_bin1(float *real_in, float *real, float *imag) {
 	*real = 0.0f;
 	*imag = 0.0f;
@@ -504,6 +548,15 @@ void utils_fft16_bin1(float *real_in, float *real, float *imag) {
 	*imag /= 16.0f;
 }
 
+/**
+ * @description: 计算 16 点 DFT 的 2 号频点（2 次谐波）分量
+ * @detail: 查 *_32_2 表按下标 2*i 取样，计算方式同 utils_fft16_bin1
+ * @param {float} *real_in   输入时域序列（16 点）
+ * @param {float} *real      输出实部
+ * @param {float} *imag      输出虚部
+ * @return {*}
+ * @author: lkc
+ */
 void utils_fft16_bin2(float *real_in, float *real, float *imag) {
 	*real = 0.0f;
 	*imag = 0.0f;
@@ -515,6 +568,15 @@ void utils_fft16_bin2(float *real_in, float *real, float *imag) {
 	*imag /= 16.0f;
 }
 
+/**
+ * @description: 计算 8 点 DFT 的 0 号频点（直流分量）
+ * @detail: 输出实部为输入均值，虚部置 0
+ * @param {float} *real_in   输入时域序列（8 点）
+ * @param {float} *real      输出实部
+ * @param {float} *imag      输出虚部
+ * @return {*}
+ * @author: lkc
+ */
 void utils_fft8_bin0(float *real_in, float *real, float *imag) {
 	*real = 0.0f;
 	*imag = 0.0f;
@@ -526,6 +588,15 @@ void utils_fft8_bin0(float *real_in, float *real, float *imag) {
 	*real /= 8.0f;
 }
 
+/**
+ * @description: 计算 8 点 DFT 的 1 号频点（基波）分量
+ * @detail: 在 32 点表上按下标 4*i 取样作 8 点基波表，累加后除以 8 归一化
+ * @param {float} *real_in   输入时域序列（8 点）
+ * @param {float} *real      输出实部
+ * @param {float} *imag      输出虚部
+ * @return {*}
+ * @author: lkc
+ */
 void utils_fft8_bin1(float *real_in, float *real, float *imag) {
 	*real = 0.0f;
 	*imag = 0.0f;
@@ -537,6 +608,15 @@ void utils_fft8_bin1(float *real_in, float *real, float *imag) {
 	*imag /= 8.0f;
 }
 
+/**
+ * @description: 计算 8 点 DFT 的 2 号频点（2 次谐波）分量
+ * @detail: 查 *_32_2 表按下标 4*i 取样，计算方式同 utils_fft8_bin1
+ * @param {float} *real_in   输入时域序列（8 点）
+ * @param {float} *real      输出实部
+ * @param {float} *imag      输出虚部
+ * @return {*}
+ * @author: lkc
+ */
 void utils_fft8_bin2(float *real_in, float *real, float *imag) {
 	*real = 0.0f;
 	*imag = 0.0f;
@@ -564,10 +644,27 @@ float utils_batt_liion_norm_v_to_capacity(float norm_v) {
 	return capacity;
 }
 
+/**
+ * @description: qsort 回调，按 uint16 数值升序比较
+ * @param {const void} *a    待比较元素 1
+ * @param {const void} *b    待比较元素 2
+ * @return {*}
+ * @author: lkc
+ */
 static int uint16_cmp_func (const void *a, const void *b) {
 	return (*(uint16_t*)a - *(uint16_t*)b);
 }
 
+/**
+ * @description: 运行一步 uint16 中值滤波
+ * @detail: 将 sample 写入环形缓冲并循环推进写索引，对缓冲排序副本取中值返回
+ * @param {uint16_t} *buffer          环形缓冲，长度需为 filter_len
+ * @param {unsigned int} *buffer_index 环形缓冲写索引，调用后自动推进取模
+ * @param {unsigned int} filter_len   滤波窗口长度
+ * @param {uint16_t} sample           本次输入采样值
+ * @return {*}
+ * @author: lkc
+ */
 uint16_t utils_median_filter_uint16_run(uint16_t *buffer,
 		unsigned int *buffer_index, unsigned int filter_len, uint16_t sample) {
 	buffer[(*buffer_index)++] = sample;
@@ -578,6 +675,16 @@ uint16_t utils_median_filter_uint16_run(uint16_t *buffer,
 	return buffer_sorted[filter_len / 2];
 }
 
+/**
+ * @description: 用旋转角构成的旋转矩阵 M 旋转 3D 矢量
+ * @detail: reverse=false 时 output = M*input；reverse=true 时用 M 的转置（逆旋转）计算
+ * @param {float} *input      输入 3D 矢量
+ * @param {float} *rotation   三个轴向旋转角（[x,y,z]）
+ * @param {float} *output     输出 3D 矢量
+ * @param {bool} reverse      是否应用逆旋转
+ * @return {*}
+ * @author: lkc
+ */
 void utils_rotate_vector3(float *input, float *rotation, float *output, bool reverse) {
 	float s1, c1, s2, c2, s3, c3;
 

@@ -220,6 +220,13 @@ static const unsigned int crc32_table[256] =
 	0xbcb4666d, 0xb8757bda, 0xb5365d03, 0xb1f740b4
 };
 
+/**
+ * @description: 查表 + 线性插值计算 sin(x)
+ * @detail: 输入 x 为弧度，先按 2π 归一化到 [0,1] 周期，再取 512+1 点正弦表相邻两值线性插值
+ * @param {float} x    输入角度（弧度）
+ * @return {*}
+ * @author: lkc
+ */
 float sin_f32(float x)
 {
 	float sinVal, fract, in;                           /* Temporary variables for input, output */
@@ -267,6 +274,13 @@ float sin_f32(float x)
 	return (sinVal);
 }
 
+/**
+ * @description: 查表 + 线性插值计算 cos(x)
+ * @detail: 输入 x 为弧度，偏移 0.25（即 π/2）后复用同一正弦表查表插值
+ * @param {float} x    输入角度（弧度）
+ * @return {*}
+ * @author: lkc
+ */
 float cos_f32(float x)
 {
 	float cosVal, fract, in;                   /* Temporary variables for input, output */
@@ -314,6 +328,14 @@ float cos_f32(float x)
 	return (cosVal);
 }
 
+/**
+ * @description: 计算数据的 CRC-8 校验值
+ * @detail: 查表实现，初值 0，逐字节 crc = crc8_table[(data[i] ^ crc) & 0xFF]
+ * @param {const uint8_t} *data    待校验数据指针
+ * @param {const uint32_t} size    数据长度
+ * @return {*}
+ * @author: lkc
+ */
 uint8_t crc8(const uint8_t *data, const uint32_t size)
 {
 	uint8_t crc = 0;
@@ -323,6 +345,14 @@ uint8_t crc8(const uint8_t *data, const uint32_t size)
 	return crc;
 }
 
+/**
+ * @description: 计算数据的 CRC-32 校验值
+ * @detail: 查表实现，多项式 0x04C11DB7（MSB 先行），初值 0；逐字节 crc = (crc<<8) ^ table[((crc>>24) ^ data[i]) & 0xFF]
+ * @param {const uint8_t} *data    待校验数据指针
+ * @param {uint32_t} size          数据长度
+ * @return {*}
+ * @author: lkc
+ */
 uint32_t crc32(const uint8_t *data, uint32_t size)
 {
 	uint32_t crc = 0;
@@ -332,6 +362,14 @@ uint32_t crc32(const uint8_t *data, uint32_t size)
 	return crc;
 }
 
+/**
+ * @description: 将 uint32 值打包为字节写入数据缓冲
+ * @detail: 按主机字节序（小端 MCU 低字节在前）拆分写入 data[0..3]
+ * @param {uint32_t} val    待打包值
+ * @param {uint8_t} *data   输出缓冲
+ * @return {*} 写入的字节数（4）
+ * @author: lkc
+ */
 int uint32_to_data(uint32_t val, uint8_t *data)
 {
 	data[0] = *(((uint8_t*)(&val)) + 0);
@@ -341,6 +379,14 @@ int uint32_to_data(uint32_t val, uint8_t *data)
 	return 4;
 }
 
+/**
+ * @description: 将 int32 值打包为字节写入数据缓冲
+ * @detail: 按主机字节序（小端 MCU 低字节在前）拆分写入 data[0..3]
+ * @param {int32_t} val    待打包值
+ * @param {uint8_t} *data  输出缓冲
+ * @return {*} 写入的字节数（4）
+ * @author: lkc
+ */
 int int32_to_data(int32_t val, uint8_t *data)
 {
 	data[0] = *(((uint8_t*)(&val)) + 0);
@@ -350,6 +396,14 @@ int int32_to_data(int32_t val, uint8_t *data)
 	return 4;
 }
 
+/**
+ * @description: 将 uint16 值打包为字节写入数据缓冲
+ * @detail: 按主机字节序（小端 MCU 低字节在前）拆分写入 data[0..1]
+ * @param {uint16_t} val    待打包值
+ * @param {uint8_t} *data   输出缓冲
+ * @return {*} 写入的字节数（2）
+ * @author: lkc
+ */
 int uint16_to_data(uint16_t val, uint8_t *data)
 {
 	data[0] = *(((uint8_t*)(&val)) + 0);
@@ -357,6 +411,14 @@ int uint16_to_data(uint16_t val, uint8_t *data)
 	return 2;
 }
 
+/**
+ * @description: 将 int16 值打包为字节写入数据缓冲
+ * @detail: 按主机字节序（小端 MCU 低字节在前）拆分写入 data[0..1]
+ * @param {int16_t} val    待打包值
+ * @param {uint8_t} *data  输出缓冲
+ * @return {*} 写入的字节数（2）
+ * @author: lkc
+ */
 int int16_to_data(int16_t val, uint8_t *data)
 {
 	data[0] = *(((uint8_t*)(&val)) + 0);
@@ -364,6 +426,14 @@ int int16_to_data(int16_t val, uint8_t *data)
 	return 2;
 }
 
+/**
+ * @description: 将 float 值打包为字节写入数据缓冲
+ * @detail: 按主机字节序（小端 MCU 低字节在前）拷贝其 4 字节内存表示到 data[0..3]
+ * @param {float} val      待打包值
+ * @param {uint8_t} *data  输出缓冲
+ * @return {*} 写入的字节数（4）
+ * @author: lkc
+ */
 int float_to_data(float val, uint8_t *data)
 {
 	data[0] = *(((uint8_t*)(&val)) + 0);
@@ -373,6 +443,13 @@ int float_to_data(float val, uint8_t *data)
 	return 4;
 }
 
+/**
+ * @description: 从数据缓冲解包出 uint32 值
+ * @detail: 按主机字节序（小端 MCU 低字节在前）拼合 data[0..3]
+ * @param {uint8_t} *data   输入缓冲（至少 4 字节）
+ * @return {*}
+ * @author: lkc
+ */
 uint32_t data_to_uint32(uint8_t *data)
 {
 	uint32_t tmp;
@@ -383,6 +460,13 @@ uint32_t data_to_uint32(uint8_t *data)
 	return tmp;
 }
 
+/**
+ * @description: 从数据缓冲解包出 int32 值
+ * @detail: 按主机字节序（小端 MCU 低字节在前）拼合 data[0..3]
+ * @param {uint8_t} *data   输入缓冲（至少 4 字节）
+ * @return {*}
+ * @author: lkc
+ */
 int32_t data_to_int32(uint8_t *data)
 {
 	int32_t tmp;
@@ -393,6 +477,13 @@ int32_t data_to_int32(uint8_t *data)
 	return tmp;
 }
 
+/**
+ * @description: 从数据缓冲解包出 uint16 值
+ * @detail: 按主机字节序（小端 MCU 低字节在前）拼合 data[0..1]
+ * @param {uint8_t} *data   输入缓冲（至少 2 字节）
+ * @return {*}
+ * @author: lkc
+ */
 uint16_t data_to_uint16(uint8_t *data)
 {
 	uint16_t tmp;
@@ -401,6 +492,13 @@ uint16_t data_to_uint16(uint8_t *data)
 	return tmp;
 }
 
+/**
+ * @description: 从数据缓冲解包出 int16 值
+ * @detail: 按主机字节序（小端 MCU 低字节在前）拼合 data[0..1]
+ * @param {uint8_t} *data   输入缓冲（至少 2 字节）
+ * @return {*}
+ * @author: lkc
+ */
 int16_t data_to_int16(uint8_t *data)
 {
 	int16_t tmp;
@@ -409,6 +507,13 @@ int16_t data_to_int16(uint8_t *data)
 	return tmp;
 }
 
+/**
+ * @description: 从数据缓冲解包出 float 值
+ * @detail: 按主机字节序（小端 MCU 低字节在前）还原 data[0..3] 的 4 字节内存表示
+ * @param {uint8_t} *data   输入缓冲（至少 4 字节）
+ * @return {*}
+ * @author: lkc
+ */
 float data_to_float(uint8_t *data)
 {
 	float tmp_float;

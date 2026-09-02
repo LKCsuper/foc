@@ -4,11 +4,24 @@
 #include <stddef.h>
 #include <string.h>
 
+/**
+ * @description: 符号函数，负数返回 -1.0，否则返回 +1.0。
+ * @param {float} value  待取符号的数值
+ * @return {float} 数值的符号：负数 -1.0，其余 +1.0
+ * @author: lkc
+ */
 static float MotorIfStart_Sign(float value)
 {
     return value < 0.0f ? -1.0f : 1.0f;
 }
 
+/**
+ * @description: 复位 I/F 启动状态机并恢复默认运行值。
+ * @detail: 清零全部状态后，置首周期标志并将 Iq 缩放设为 1。
+ * @param {motor_if_start_t} *state  I/F 启动状态机实例，可为 NULL
+ * @return {*}
+ * @author: lkc
+ */
 void MotorIfStart_Reset(motor_if_start_t *state)
 {
     if (state == NULL) return;
@@ -17,6 +30,13 @@ void MotorIfStart_Reset(motor_if_start_t *state)
     state->iq_scale = 1.0f;
 }
 
+/**
+ * @description: 规整 I/F 启动配置，使取值合法。
+ * @detail: min_rpm 限制为非负，min_iq_scale 限定在 [0, 1]。
+ * @param {motor_if_start_config_t} *config  I/F 启动配置结构体，被原地规整
+ * @return {*}
+ * @author: lkc
+ */
 void MotorIfStart_NormalizeConfig(motor_if_start_config_t *config)
 {
     if (config == NULL) return;
@@ -25,6 +45,14 @@ void MotorIfStart_NormalizeConfig(motor_if_start_config_t *config)
     if (config->min_iq_scale > 1.0f) config->min_iq_scale = 1.0f;
 }
 
+/**
+ * @description: 置为“转子已对齐/位置已知”的中性状态。
+ * @detail: 停止角度推进（0 RPM）、清除相位补偿、恢复满 Iq，
+ *          供预对齐或 HFI 测出位置后的正常 I/F 起步使用。
+ * @param {motor_if_start_t} *state  I/F 启动状态机实例，可为 NULL
+ * @return {*}
+ * @author: lkc
+ */
 void MotorIfStart_SetNeutral(motor_if_start_t *state)
 {
     if (state == NULL) return;
@@ -33,6 +61,14 @@ void MotorIfStart_SetNeutral(motor_if_start_t *state)
     state->phase_boost = 0.0f;
 }
 
+/**
+ * @description: V/F 起步，直接设定角度积分转速。
+ * @detail: V/F 不需要 I/F 的相位补偿与电流缩放，故同时复位两者。
+ * @param {motor_if_start_t} *state  I/F 启动状态机实例，可为 NULL
+ * @param {float} rpm                角度积分转速 (RPM)
+ * @return {*}
+ * @author: lkc
+ */
 void MotorIfStart_SetVfRpm(motor_if_start_t *state, float rpm)
 {
     if (state == NULL) return;
@@ -41,6 +77,17 @@ void MotorIfStart_SetVfRpm(motor_if_start_t *state, float rpm)
     state->phase_boost = 0.0f;
 }
 
+/**
+ * @description: 每 FOC 周期更新一次 I/F 启动派生量。
+ * @detail: 首周期且转子位置未知时注入一次带方向的启动相位补偿；
+ *          转子位置未知且转速低于 min_rpm 时按转速比例减小 Iq 缩放（带下限）；
+ *          转子位置已知用实际转速积分角度，未达最低速时跳升至最低速。
+ * @param {motor_if_start_t} *state                I/F 启动状态机实例，派生量写回本结构体
+ * @param {const motor_if_start_config_t} *config  I/F 启动配置（min_rpm/phase_boost/min_iq_scale）
+ * @param {const motor_if_start_input_t} *input    本拍输入（目标/当前转速、转子位置是否已知）
+ * @return {*}
+ * @author: lkc
+ */
 void MotorIfStart_Step(motor_if_start_t *state,
                        const motor_if_start_config_t *config,
                        const motor_if_start_input_t *input)

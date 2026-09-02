@@ -8,6 +8,12 @@
 #define MOTOR_HFI_START_TWO_PI               (2.0f * MOTOR_HFI_START_PI)
 #define MOTOR_HFI_START_MIN_CURRENT_RESPONSE (1.0e-5f)
 
+/**
+ * @description: 将角度循环归一化到 [0, 2π) 区间。
+ * @param {float} angle  待归一化的角度 (rad)
+ * @return {float} 归一化后的角度 (rad)
+ * @author: lkc
+ */
 static float MotorHfiStart_NormalizeAngle(float angle)
 {
     while (angle >= MOTOR_HFI_START_TWO_PI) angle -= MOTOR_HFI_START_TWO_PI;
@@ -15,6 +21,12 @@ static float MotorHfiStart_NormalizeAngle(float angle)
     return angle;
 }
 
+/**
+ * @description: 复位 HFI 初始位置估计状态机，将全部状态清零。
+ * @param {motor_hfi_start_t} *state  HFI 状态机实例，可为 NULL
+ * @return {*}
+ * @author: lkc
+ */
 void MotorHfiStart_Reset(motor_hfi_start_t *state)
 {
     if (state != NULL) {
@@ -22,6 +34,13 @@ void MotorHfiStart_Reset(motor_hfi_start_t *state)
     }
 }
 
+/**
+ * @description: 校验并规整 HFI 配置参数，使取值合法。
+ * @detail: 电压非负、每轴周期数与置信度限幅；max_bus_voltage_ratio 非法时回退为默认值 0.20。
+ * @param {motor_hfi_start_config_t} *config  HFI 配置结构体，被原地规整
+ * @return {*}
+ * @author: lkc
+ */
 void MotorHfiStart_NormalizeConfig(motor_hfi_start_config_t *config)
 {
     if (config == NULL) return;
@@ -36,6 +55,15 @@ void MotorHfiStart_NormalizeConfig(motor_hfi_start_config_t *config)
     }
 }
 
+/**
+ * @description: 全部轴扫描完成后收尾，估计转子初始角度与可信度。
+ * @detail: 取电流响应最大的轴估计转子角，依据正/负极性响应差判断磁极方向
+ *          （必要时补 π），计算置信度并置 succeeded/attempted 标志。
+ * @param {motor_hfi_start_t} *state            HFI 状态机实例，保存各轴响应并写回结果
+ * @param {const motor_hfi_start_config_t} *config   HFI 配置，min_confidence 作为成功判定门限
+ * @return {*}
+ * @author: lkc
+ */
 static void MotorHfiStart_Finish(motor_hfi_start_t *state,
                                  const motor_hfi_start_config_t *config)
 {
@@ -65,6 +93,19 @@ static void MotorHfiStart_Finish(motor_hfi_start_t *state,
     state->attempted = true;
 }
 
+/**
+ * @description: HFI 零速初始位置估计单步，每 FOC 周期调用一次。
+ * @detail: 在试探角上交替施加正/负 d 轴电压并累加电流增量响应，
+ *          扫完 12 个轴后结束，由状态机给出转子初始角度估计。
+ * @param {motor_hfi_start_t} *state                HFI 状态机实例，保存扫描进度与累计响应
+ * @param {const motor_hfi_start_config_t} *config  HFI 配置（电压、每轴周期数、置信度门限、母线电压比例）
+ * @param {float} i_alpha                           定子 α 轴电流采样 (A)
+ * @param {float} i_beta                            定子 β 轴电流采样 (A)
+ * @param {float} v_bus                             母线电压 (V)，限制探测电压上限
+ * @param {motor_hfi_start_output_t} *output        本拍探测电压输出（apply_voltage/vd/theta）
+ * @return {motor_hfi_start_result_t} SKIPPED=未启用/参数无效/已尝试过；RUNNING=扫描中；FINISHED=扫描完成
+ * @author: lkc
+ */
 motor_hfi_start_result_t MotorHfiStart_Step(
     motor_hfi_start_t *state,
     const motor_hfi_start_config_t *config,

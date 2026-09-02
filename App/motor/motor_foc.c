@@ -46,6 +46,17 @@ void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
 	return;
 }
 
+/**
+ * @description: clarke 逆变换，将 αβ 轴电压还原为三相相电压
+ * @detail: 输出为相对中性点的相电压
+ * @param {float} Ialpha  α 轴电压
+ * @param {float} Ibeta   β 轴电压
+ * @param {float} *Ia     A 相电压输出
+ * @param {float} *Ib     B 相电压输出
+ * @param {float} *Ic     C 相电压输出
+ * @return {*}
+ * @author: lkc
+ */
 void inverse_clarke(float Ialpha, float Ibeta, float *Ia, float *Ib, float *Ic)
 {
     // *Ia =  Ialpha + 24.0f / 2;

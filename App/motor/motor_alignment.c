@@ -3,6 +3,13 @@
 #include <stddef.h>
 #include <string.h>
 
+/**
+ * @description: 复位对齐状态机，恢复到“已停止”的初始状态
+ * @detail: 清零全部状态字段，并将 stopped 置位
+ * @param {motor_alignment_t} *state   对齐状态机；为 NULL 时直接返回
+ * @return {*}
+ * @author: lkc
+ */
 void MotorAlignment_Reset(motor_alignment_t *state)
 {
     if (state == NULL) return;
@@ -10,6 +17,13 @@ void MotorAlignment_Reset(motor_alignment_t *state)
     state->stopped = true;
 }
 
+/**
+ * @description: 归一化对齐配置，将非法负值钳位为 0
+ * @detail: 电流与持续时间为负时置 0；为 0 时调用侧视为关闭预对齐
+ * @param {motor_alignment_config_t} *config   对齐配置；为 NULL 时直接返回
+ * @return {*}
+ * @author: lkc
+ */
 void MotorAlignment_NormalizeConfig(motor_alignment_config_t *config)
 {
     if (config == NULL) return;
@@ -17,6 +31,13 @@ void MotorAlignment_NormalizeConfig(motor_alignment_config_t *config)
     if (config->duration < 0.0f) config->duration = 0.0f;
 }
 
+/**
+ * @description: 将状态机标记为“对齐完成”
+ * @detail: 供其他定位流程（如 HFI 识别成功）代替预对齐完成后调用
+ * @param {motor_alignment_t} *state   对齐状态机；为 NULL 时直接返回
+ * @return {*}
+ * @author: lkc
+ */
 void MotorAlignment_MarkComplete(motor_alignment_t *state)
 {
     if (state == NULL) return;
@@ -25,6 +46,13 @@ void MotorAlignment_MarkComplete(motor_alignment_t *state)
     state->complete = true;
 }
 
+/**
+ * @description: 将状态机标记为“跳过对齐”
+ * @detail: 预对齐未使能时调用，清除 running/complete 等状态
+ * @param {motor_alignment_t} *state   对齐状态机；为 NULL 时直接返回
+ * @return {*}
+ * @author: lkc
+ */
 void MotorAlignment_MarkSkipped(motor_alignment_t *state)
 {
     if (state == NULL) return;
@@ -33,6 +61,18 @@ void MotorAlignment_MarkSkipped(motor_alignment_t *state)
     state->complete = false;
 }
 
+/**
+ * @description: 推进对齐状态机一个控制周期
+ * @detail: 停止状态下满足“使能、电流>0、时长>0”时启动；运行中输出定位角度
+ *          与 D 轴电流给定 (Iq=0)；时长累计到配置值后停止保持，并区分返回
+ *          SKIPPED / STARTED / RUNNING / FINISHED
+ * @param {motor_alignment_t} *state         对齐状态机
+ * @param {motor_alignment_config_t} *config 对齐配置
+ * @param {float} dt                         本拍时间步长 (s)
+ * @param {motor_alignment_output_t} *output 输出：保持位置、角度、id/iq 给定
+ * @return {*}
+ * @author: lkc
+ */
 motor_alignment_result_t MotorAlignment_Step(
     motor_alignment_t *state,
     const motor_alignment_config_t *config,

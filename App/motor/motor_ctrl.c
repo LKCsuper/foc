@@ -84,6 +84,14 @@ VOID Motor_Ctrl_SetVoltage(float uq, float ud, float angle)
     return;
 }
 
+/**
+ * @description: 简易开环拖动，按相邻两次调用的时间差对角度积分
+ * @detail: 按 speed 与实测步长 Ts 累加机械角 gfMechAngle，归一化到弧度后
+ *          施加固定 d/q 电压 (uq≈12V、ud=0)，经反 Park/Clarke 输出 PWM
+ * @param {float} speed  开环转速指令，决定角度累加速率
+ * @return {*}
+ * @author: lkc
+ */
 VOID Motor_Ctrl_OpenLoop(float speed)
 {
     ULONG ulCurTimStamp = xTaskGetTickCount();
@@ -117,6 +125,13 @@ VOID Motor_Ctrl_OpenLoop(float speed)
     return;
 }
 
+/**
+ * @description: 开环 SVPWM 占空比输出（定时器直通版）
+ * @detail: 以 Bsp_Tim 计时步长积分开环角，施加固定 uq=3V，经反 Park 后由
+ *          foc_svm 直接生成三路 CCR 占空比写入定时器，不走电压偏置流程
+ * @return {*}
+ * @author: lkc
+ */
 VOID Motor_Ctrl_OpenLoop1(VOID)
 {
     float radin = 0.0f;

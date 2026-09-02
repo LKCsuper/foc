@@ -862,31 +862,79 @@ static void Motor_OpenLoop_Run(MOTOR_PARAM_S *m, float v_bus)
     }
 }
 
+/**
+ * @description: 查询当前是否正处于 I/F 启动前的转子预对齐阶段。
+ * @return {*}
+ * @author: lkc
+ */
 bool Motor_OpenLoop_IsAligning(void)
 {
     return s_alignment.running;
 }
 
+/**
+ * @description: 返回本次转子预对齐已进行的时间 (s)，用于状态显示与调试。
+ * @return {*}
+ * @author: lkc
+ */
 float Motor_OpenLoop_GetAlignElapsed(void)
 {
     return s_alignment.elapsed;
 }
 
+/**
+ * @description: 查询 HFI 凸极扫描启动流程是否正在运行。
+ * @return {*}
+ * @author: lkc
+ */
 bool Motor_HfiStart_IsRunning(void) { return s_hfi_start.running; }
+/**
+ * @description: 查询 HFI 凸极扫描是否已成功识别出转子初始电角度。
+ * @return {*}
+ * @author: lkc
+ */
 bool Motor_HfiStart_Succeeded(void) { return s_hfi_start.succeeded; }
+/**
+ * @description: 返回 HFI 凸极扫描识别出的转子电角度 (rad)。
+ * @return {*}
+ * @author: lkc
+ */
 float Motor_HfiStart_GetAngle(void) { return s_hfi_start.angle; }
+/**
+ * @description: 返回 HFI 凸极扫描识别的可信度，用于判断识别质量。
+ * @return {*}
+ * @author: lkc
+ */
 float Motor_HfiStart_GetConfidence(void) { return s_hfi_start.confidence; }
 
+/**
+ * @description: 返回 ADC-DMA 中断的平均执行时间。
+ * @detail: 单位为 us；统计覆盖“采样+保护”和完整 FOC 两类回调，结合 ADC 频率可估算总 CPU 占用。
+ * @return {*}
+ * @author: lkc
+ */
 float Motor_DmaInt_GetAverageRuntimeUs(void)
 {
     return s_foc_runtime_average_us;
 }
 
+/**
+ * @description: 返回 ADC-DMA 中断的历史最长执行时间。
+ * @detail: 单位为 us，用于观察完整 FOC 最慢一次的耗时。
+ * @return {*}
+ * @author: lkc
+ */
 float Motor_DmaInt_GetMaximumRuntimeUs(void)
 {
     return s_foc_runtime_maximum_us;
 }
 
+/**
+ * @description: 返回实际 ADC-DMA 触发频率。
+ * @detail: 由 TIM1 中心对齐 PWM 配置实时换算（顶部/底部各触发一次，正常约 30kHz）；TIM1 未初始化时回退到用户配置的 ol_foc_freq。
+ * @return {*}
+ * @author: lkc
+ */
 float Motor_DmaInt_GetAdcFrequencyHz(void)
 {
     uint32_t arr = TIM1->ARR;
@@ -904,6 +952,12 @@ float Motor_DmaInt_GetAdcFrequencyHz(void)
     return adc_trigger_hz;
 }
 
+/**
+ * @description: 返回 FOC 控制环实际运行频率。
+ * @detail: 等于 ADC 触发频率除以分频数 FOC_CONTROL_LOOP_FREQ_DIVIDER。
+ * @return {*}
+ * @author: lkc
+ */
 float Motor_DmaInt_GetControlFrequencyHz(void)
 {
     return Motor_DmaInt_GetAdcFrequencyHz() /
