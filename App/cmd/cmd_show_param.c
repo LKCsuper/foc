@@ -17,7 +17,7 @@ int Cmd_Show(int argc, char *argv[])
 {
     (void)argc;
     (void)argv;
-    PRINTF("Hall [%x]\r\n", utils_read_hall(MOTOR1, 1));
+    PRINTF("Hall [%x]\r\n", Motor_Hall_Read(false, 1));
     PRINTF("Hall0 [%d]\r\n", GPIO_ReadInputDataBit(HW_HALL_ENC_GPIO1, HW_HALL_ENC_PIN1));
     PRINTF("Hall1 [%d]\r\n", GPIO_ReadInputDataBit(HW_HALL_ENC_GPIO2, HW_HALL_ENC_PIN2));
     PRINTF("Hall2 [%d]\r\n", GPIO_ReadInputDataBit(HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3));

@@ -815,7 +815,6 @@ VOID Bsp_Tim4_EncInit(VOID)
 {
 	GPIO_InitTypeDef GPIO_InitStructure;
 	TIM_TimeBaseInitTypeDef TIM_TimBaseInitStructure;
-	TIM_ICInitTypeDef TIM_ICInitStructure;
 
 	/* 时钟初始化 */
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
@@ -833,23 +832,40 @@ VOID Bsp_Tim4_EncInit(VOID)
 	GPIO_PinAFConfig(GPIOB, GPIO_Pin_7, GPIO_AF_TIM4);
 
 	/* 定时器初始化 */
-	TIM_TimBaseInitStructure.TIM_Period = 1024 * 4 - 1;
+	TIM_TimBaseInitStructure.TIM_Period = BSP_ENCODER_COUNTS - 1U;
 	TIM_TimBaseInitStructure.TIM_Prescaler = 0;
 	TIM_TimBaseInitStructure.TIM_CounterMode = TIM_CounterMode_Up;
 	TIM_TimBaseInitStructure.TIM_ClockDivision = TIM_CKD_DIV1;
 	TIM_TimeBaseInit(TIM4, &TIM_TimBaseInitStructure);
 
 	/* 4倍频 */
-	TIM_EncoderInterfaceConfig(TIM4, TIM_EncoderMode_TI12, TIM_ICPolarity_Rising, TIM_ICPolarity_Rising); 
+	TIM_EncoderInterfaceConfig(TIM4, TIM_EncoderMode_TI12, TIM_ICPolarity_Rising, TIM_ICPolarity_Rising);
 
-	// TODO 滤波最后加
-	// TIM_ICInitStructure.TIM_Channel = TIM_Channel_1;
-	// TIM_ICInitStructure.TIM_ICPrescaler = TIM_ICPSC_DIV1;
-	// TIM_ICInitStructure.TIM_ICFilter =
-
+	TIM_SetCounter(TIM4, 0);
 	TIM_Cmd(TIM4, ENABLE);
 
 	return;
+}
+
+/**
+ * @description: 读取 AB 编码器计数值
+ * @return {uint16_t} TIM4 CNT，范围 [0, BSP_ENCODER_COUNTS)
+ * @author: lkc
+ */
+uint16_t Bsp_Tim4_EncGetCount(void)
+{
+	return (uint16_t)TIM4->CNT;
+}
+
+/**
+ * @description: 设置 AB 编码器计数值
+ * @param {uint16_t} count 目标计数
+ * @return {*}
+ * @author: lkc
+ */
+void Bsp_Tim4_EncSetCount(uint16_t count)
+{
+	TIM_SetCounter(TIM4, count);
 }
 
 /**

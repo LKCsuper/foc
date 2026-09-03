@@ -1,35 +1,39 @@
 /*
- * @Description: 
- * @Version: 1.0
+ * @Description: 三相霍尔读取与霍尔表标定
  * @Author: lkc
- * @Date: 2023-10-05 11:22:46
- * @LastEditors: lkc
- * @LastEditTime: 2023-10-07 22:34:28
- * @detail: 
  */
-#ifndef __MOTOR_HALL_H__
-#define __MOTOR_HALL_H__
+#ifndef _MOTOR_HALL_H
+#define _MOTOR_HALL_H
 #ifdef __cplusplus
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define HALL_TIM_CLOCK              (u32)90000000
-#define HALL_SAMPLE_FREQ            (u32)10000
-
-#define PHASE_SHIFT_ANGLE           (float)(60.0f/360.0f*2.0f*PI)
-
-#define HALL_ANGLE_FACTOR           (float)((float)HALL_TIM_CLOCK/(float)HALL_SAMPLE_FREQ*PI/3.0f)
-
-#define HALL_SPEED_FACTOR           (float)((float)HALL_TIM_CLOCK/6.0f)
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-int utils_read_hall(bool is_second_motor, int samples);
-int mcpwm_foc_hall_detect(float current, uint8_t *hall_table, bool *result);
-void Motor_Hall_IRQHandler(void);
+
+/**
+ * @description: 读取三相霍尔状态（bit0=A, bit1=B, bit2=C）
+ * @param {bool} is_second_motor  true 时读第二路霍尔口
+ * @param {int} samples           额外滤波次数，0 表示只采一次
+ * @return {int} 霍尔状态 0~7
+ * @author: lkc
+ */
+int Motor_Hall_Read(bool is_second_motor, int samples);
+
+/**
+ * @description: 开环转一圈，标定霍尔状态与电角度对应表
+ * @param {float} current        对齐电流 (A)，建议用峰值电流 / 3
+ * @param {uint8_t} *hall_table  输出 8 项霍尔表
+ * @param {bool} *result         true 表示标定成功
+ * @return {int} 故障码
+ * @author: lkc
+ */
+int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result);
+
 #ifdef __cplusplus
 }
 #endif

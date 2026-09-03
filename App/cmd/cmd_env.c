@@ -20,7 +20,7 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 保存当前电机参数和检测结果到 Flash
+ * @description: 保存当前电机参数到 Flash
  * @detail: 写入 Sector 10/11 A/B 槽，无需先 setenv 再 saveenv
  * @param {uint8_t} argc
  * @param {char} *
@@ -31,7 +31,8 @@ int Cmd_Saveparam(int argc, char **argv)
 {
     motor_detect_result_t detect;
 
-    DETECT_GetResult(&detect);
+    memset(&detect, 0, sizeof(detect));
+    detect.version = MOTOR_DETECT_RESULT_VERSION;
 
     if (FlashStorage_Save(&motor, &detect)) {
         printf("Parameters saved to Flash A/B slots.\r\n");

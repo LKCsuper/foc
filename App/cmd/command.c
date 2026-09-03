@@ -63,10 +63,10 @@ extern "C" {
 
 /* -- 命令表 ----------------------------------------------------------------*/
 static const cmd_entry_t s_cmd_table[] = {
-    /* 电机检测 */
-    { "detect",     Cmd_Detect,             "detect offset/hall/motor/show/apply/poles/abort" },
+    /* 偏移校准 / 霍尔检测 */
+    { "detect",     Cmd_Detect,             "detect offset/hall" },
     /* Flash 存储 */
-    { "saveparam",  Cmd_Saveparam,          "save motor params and detect result to Flash" },
+    { "saveparam",  Cmd_Saveparam,          "save motor params to Flash" },
     /* 开环 V/F 控制 */
     { "olspeed",    Cmd_OlSpeed,            "openloop V/F speed set <rpm>" },
     { "olstatus",   Cmd_OlStatus,           "show openloop current and fault status" },
@@ -107,7 +107,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "task",       Cmd_Task_Show,          "show FreeRTOS task stats" },
     { "reset",      CMD_Reset,              "software reset MCU" },
     { "duty",       Cmd_Motor_Duty,         "duty cycle control: create/destory/set/start/stop" },
-    { "encoder",    Cmd_Motor_Encoder,      "encoder detect" },
+    { "encoder",    Cmd_Motor_Encoder,      "AB encoder show/reset/detect" },
     { "plot",       Cmd_Serial_Plot,        "serial plot: create/destory" },
     { "openloop",   Cmd_Motor_OpenLoop,     "openloop background task create" },
 };

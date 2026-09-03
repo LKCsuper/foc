@@ -1,8 +1,6 @@
 /*
- * @Description: 检测参数 — 偏置校准、霍尔检测、VESC 风格 R/L/磁链自动测量
- * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-10 19:06:27
- * @FilePath: \foc\App\motor\utils.c
+ * @Description: 电流/电压偏移校准。R/L/磁链等电机参数检测后期再做。
+ * @Author: lkc
  */
 #ifdef __cplusplus
 extern "C" {
@@ -11,1514 +9,224 @@ extern "C" {
 #include "includes.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+#define MOTOR_DETECT_OFFSET_SAMPLES     (1000U) /* 每相采样次数 */
+#define MOTOR_DETECT_OFFSET_MAX_PERCENT (5.0f)  /* 电流零点偏离 ADC 中点超过 5% 时打印警告 */
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /*
- * 检测函数和 FOC 中断都会访问 TIM1。检测期间置位该标志，让 FOC 的 DMA
- * 回调立即返回，不运行保护、观测器、PI 或 SVPWM，避免双方抢写 TIM1。
- * ADC-DMA 搬运由硬件完成，不执行 FOC 回调也能持续更新 ADC_Value[]。
+ * 校准任务会改 TIM1。置位后 DMA 中断只更新 ADC_Value[]，不跑 FOC，
+ * 避免双方抢写 PWM。
  */
-static volatile bool s_detect_active = false;         /* 检测互斥：置位期间 DMA 中断只刷 ADC、不运行 FOC */
-static volatile bool s_detect_abort_requested = false; /* 用户在串口请求中止当前检测 */
-
-/*
- * ============================================================
- * 电流与电压安全限幅
- * ============================================================
- *
- * 电流保护分两级：
- *   硬限幅 (8A)  — 任意一拍超过立即关断，零容忍
- *   软限幅 (4A)  — 超过后需持续 trip_time (1ms) 才关断
- *                   过滤 PWM/ADC 毛刺，避免误触发
- */
-#define MOTOR_DETECT_CURRENT_LIMIT_A        (4.0f)   /* 软限幅阈值 (A)，超时后才触发 */
-#define MOTOR_DETECT_CURRENT_HARD_LIMIT_A   (8.0f)   /* 硬限幅阈值 (A)，一拍即触发 */
-#define MOTOR_DETECT_CURRENT_TRIP_S         (0.001f) /* 软限幅去抖时间 (s)，= 1ms */
-#define MOTOR_DETECT_MIN_BUS_VOLTAGE_V      (8.0f)   /* 检测最低母线电压 (V)，低于此值放弃检测 */
-#define MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V   (8.0f)   /* 磁链阶段电压限幅 (V) */
-
-/*
- * ============================================================
- * 电阻检测
- * ============================================================
- *
- * 时序：ramp(0.8s) + settle(0.2s) + sample(0.5s) = 1.5s 总时长
- * 固定 θ=0，Id 从 0 斜坡上升到 target，稳态后采样 |Vdq|/|Idq|
- * 每个电流点跑一次，共跑 3 点（0.8A / 1.2A / 1.6A）做最小二乘拟合
- */
-#define MOTOR_DETECT_RESISTANCE_VOLTAGE_V   (3.0f)   /* 电阻阶段电压限幅 (V) */
-#define MOTOR_DETECT_RESISTANCE_RAMP_S      (0.8f)   /* Id 斜坡上升时间 (s) */
-#define MOTOR_DETECT_RESISTANCE_SETTLE_S    (0.2f)   /* 稳态建立等待时间 (s)，不采样 */
-#define MOTOR_DETECT_RESISTANCE_SAMPLE_S    (0.5f)   /* 稳态采样窗口时长 (s) */
-#define MOTOR_DETECT_RESISTANCE_MIN_CURRENT_RATIO (0.25f) /* 最小采样电流比例：低于目标 25% 的样本丢弃 */
-#define MOTOR_DETECT_RESISTANCE_MIN_SAMPLES (100U)   /* 最少有效采样点数，不足视为失败 */
-#define MOTOR_DETECT_RESISTANCE_MIN_OHM     (0.005f) /* 合法电阻下限 (Ω)，5mΩ */
-#define MOTOR_DETECT_RESISTANCE_MAX_OHM     (10.0f)  /* 合法电阻上限 (Ω) */
-#define MOTOR_DETECT_RESISTANCE_FIT_POINTS  (3U)     /* 最小二乘拟合点数：0.8A / 1.2A / 1.6A */
-#define MOTOR_DETECT_RESISTANCE_FIT_MIN_A   (0.8f)   /* 拟合最小电流 (A) */
-#define MOTOR_DETECT_RESISTANCE_FIT_MAX_A   (1.6f)   /* 拟合最大电流 (A) */
-#define MOTOR_DETECT_RESISTANCE_FIT_MIN_R2  (0.95f)  /* 拟合 R² 最低要求，<0.95 视为线性度不足 */
-
-/*
- * ============================================================
- * 电感检测
- * ============================================================
- *
- * 时序：align(0.8s) + zero(0.2s) + 双极性脉冲直到收够有效样本
- * D 轴预对齐吸住转子 → 零电流清零 → ±0.5V 脉冲，每半脉冲 8 个采样拍
- * 按 V = R·I + L·dI/dt 反算 L，正负交替避免单向转矩累积
- * 目标 120 个有效脉冲，最多尝试 360 个（3 倍），合格率 <50% 失败
- */
-#define MOTOR_DETECT_INDUCTANCE_ALIGN_V     (3.0f)   /* 对齐阶段电压限幅 (V) */
-#define MOTOR_DETECT_INDUCTANCE_ZERO_V      (2.0f)   /* 零电流阶段电压限幅 (V) */
-#define MOTOR_DETECT_INDUCTANCE_ALIGN_S     (0.8f)   /* D 轴预对齐时间 (s) */
-#define MOTOR_DETECT_INDUCTANCE_ZERO_S      (0.2f)   /* 零电流清零时间 (s) */
-#define MOTOR_DETECT_INDUCTANCE_PULSE_V     (0.5f)   /* 双极性脉冲电压幅值 (V) */
-#define MOTOR_DETECT_INDUCTANCE_HALF_CYCLES (8U)     /* 每半脉冲采样拍数 (= 8 × 66.7μs ≈ 533μs) */
-#define MOTOR_DETECT_INDUCTANCE_TARGET_PULSES (120U) /* 目标有效脉冲数 */
-#define MOTOR_DETECT_INDUCTANCE_MIN_SLOPE   (1.0f)   /* di/dt 最小斜率 (A/s)，过滤无效脉冲 */
-#define MOTOR_DETECT_INDUCTANCE_MIN_H       (5.0e-6f) /* 合法电感下限 (H)，5μH */
-#define MOTOR_DETECT_INDUCTANCE_MAX_H       (0.05f)   /* 合法电感上限 (H)，50mH */
-#define MOTOR_DETECT_INDUCTANCE_DQ_FACTOR   (1.0f)    /* 脉冲施加在 D 轴，测得即为 dq 相电感，不需要 ×1.5 */
-#define MOTOR_DETECT_INDUCTANCE_STABILITY_SCALE (0.9f) /* 最终结果 ×0.9，略低估使观测器更稳定 */
-
-/*
- * ============================================================
- * 磁链检测
- * ============================================================
- *
- * 时序：align(1.0s) + 旋转加速(8.0s) + coast(0.5s)
- * D 轴固定电流 + 缓慢旋转 θ → 转子跟随 → 关六管滑行 → 测反电势
- * λ = |Vαβ| / |ωe|，在滑行窗口内累加角度增量和电压后一次性计算
- */
-#define MOTOR_DETECT_FLUX_ALIGN_S           (1.0f)   /* 预对齐时间 (s) */
-#define MOTOR_DETECT_FLUX_RAMP_S            (8.0f)   /* 转速斜坡时间 (s) */
-#define MOTOR_DETECT_FLUX_MIN_CURRENT_A     (1.5f)   /* 磁链阶段最低电流 (A)，需要足够转矩拖动转子 */
-#define MOTOR_DETECT_FLUX_MIN_RUN_DUTY      (0.03f)  /* 最小运行占空比 (3%)，低于此值视为未转动 */
-#define MOTOR_DETECT_FLUX_DUTY_RISE_FACTOR  (1.5f)   /* 运行占空比需 > 静止占空比 × 此系数 */
-#define MOTOR_DETECT_FLUX_DUTY_COLLAPSE_RATIO (0.70f) /* 占空比从峰值跌落超过 30% 视为失步/堵转 */
-#define MOTOR_DETECT_FLUX_MIN_SAMPLES       (1000U)  /* 滑行窗口最少采样点数 */
-#define MOTOR_DETECT_FLUX_MIN_WB            (1.0e-4f) /* 合法磁链下限 (Wb) */
-#define MOTOR_DETECT_FLUX_MAX_WB            (0.2f)    /* 合法磁链上限 (Wb) */
-#define MOTOR_DETECT_FLUX_COAST_SETTLE_S    (0.01f)   /* 滑行稳定时间 (s)，跳过关管瞬间的电压振铃 */
-#define MOTOR_DETECT_FLUX_COAST_SAMPLE_S    (0.50f)   /* 滑行采样窗口 (s) */
-#define MOTOR_DETECT_FLUX_COAST_MIN_ERPM    (100.0f)  /* 滑行最低电气转速 (RPM)，太慢测不准 */
-#define MOTOR_DETECT_FLUX_MIN_BEMF_V        (0.20f)   /* 最低反电势幅值 (V) */
-
-/*
- * ============================================================
- * 通用参数
- * ============================================================
- */
-#define MOTOR_DETECT_PWM_COOLDOWN_MS        (50U)     /* 阶段间 PWM 冷却时间 (ms)，防直通 */
-#define MOTOR_DETECT_VESC_CURRENT_TC_S      (0.0015f) /* VESC 电流环时间常数 (s)，用于磁链阶段 PI 整定 */
-#define MOTOR_DETECT_MIN_CURRENT_A          (0.3f)    /* 用户可指定的最小检测电流 (A) */
-#define MOTOR_DETECT_MAX_CURRENT_A          (2.0f)    /* 用户可指定的最大检测电流 (A) */
-#define MOTOR_DETECT_MIN_ELECTRICAL_RPM     (200.0f)  /* 用户可指定的最小电气转速 (RPM) */
-#define MOTOR_DETECT_MAX_ELECTRICAL_RPM     (3000.0f) /* 用户可指定的最大电气转速 (RPM) */
-
-/*
- * ============================================================
- * 极对数计算
- * ============================================================
- */
-#define MOTOR_DETECT_POLE_PAIRS_MIN         (1.0f)    /* 最小极对数 */
-#define MOTOR_DETECT_POLE_PAIRS_MAX         (50.0f)   /* 最大极对数 */
-#define MOTOR_DETECT_POLE_PAIRS_RATIO_TOL   (0.15f)   /* 极对数比例容差 (15%)，四舍五入后偏差超此值拒绝 */
-
-/*
- * ============================================================
- * 各阶段超时
- * ============================================================
- */
-#define MOTOR_DETECT_TIMEOUT_RESISTANCE_MS  (4000U)   /* 电阻单点超时 (ms)，斜坡+采样共 1.5s，留足余量 */
-#define MOTOR_DETECT_TIMEOUT_INDUCTANCE_MS  (5000U)   /* 电感阶段超时 (ms) */
-#define MOTOR_DETECT_TIMEOUT_FLUX_MS        (18000U)  /* 磁链阶段超时 (ms)，旋转加速需要较长时间 */
-
-/*
- * ============================================================
- * 偏置校准
- * ============================================================
- */
-#define MOTOR_DETECT_OFFSET_SAMPLES         (1000U)   /* 每相采样次数 */
-#define MOTOR_DETECT_OFFSET_MAX_PERCENT     (5.0f)    /* 电流零点偏离 ADC 中点超过 5% 时打印警告 */
-
-/*
- * 电机参数检测的阶段状态机 — 说明当前正运行哪个检测步骤。
- *
- * RESISTANCE / INDUCTANCE / FLUX 三个阶段由 ISR 逐拍推进
- * (Motor_Detect_DmaStep → Motor_Detect_RunXxxStep)，结束时把
- * stage 切回 IDLE；任务态 Motor_Detect_RunStage 轮询 done 收尾。
- * Motor_Detect_ControlIsActive() 仅对这三者返回 true。
- *
- * OFFSET 例外：DETECT_Offset 在任务态阻塞运行（osDelay 采样），
- * ISR 不对其做任何推进，置 OFFSET 只是占用互斥标志，避免检测
- * 期间其他命令/运行流程改写 PWM。
- */
-typedef enum {
-	MOTOR_DETECT_STAGE_IDLE = 0,   /* 空闲：无检测运行，DMA 步进直接返回 */
-	MOTOR_DETECT_STAGE_OFFSET,     /* 偏置校准：50% 占空比测电流/电压零点（任务态阻塞，非 ISR 状态机） */
-	MOTOR_DETECT_STAGE_RESISTANCE, /* 电阻：θ=0 固定 Id 斜坡 + Vdq/Idq 采样，上层三点最小二乘拟合 R */
-	MOTOR_DETECT_STAGE_INDUCTANCE, /* 电感：D 轴预对齐 + ±0.5V 双极性脉冲，di/dt 反算 L */
-	MOTOR_DETECT_STAGE_FLUX,       /* 磁链：旋转 Id 场开环加速 → 关六管滑行 → 反电势矢量测 λ */
-} motor_detect_stage_t;
-
-/*
- * 检测控制结构 — 跨 ISR 和任务态共享的状态机上下文。
- *
- * ISR 会读写的成员加 volatile；仅任务态访问的成员不加。
- *
- * accum_a / accum_b 在不同阶段含义不同：
- *   电阻阶段：accum_a = 累计 |Vdq|, accum_b = 累计 |Idq|
- *   电感阶段：accum_a = 累计电感值(H), accum_b = 累计 dt (滑行窗口用)
- *   磁链阶段：accum_a = 累计 |Vαβ|,   accum_b = 累计 dt (滑行窗口用)
- *
- * 每个阶段结束都通过 Motor_Detect_FinishFromIsr 写 done/success/error，
- * 任务态 Motor_Detect_RunStage 轮询 done 后读取结果。
- */
-typedef struct {
-	/* ---- ISR 可读写 (volatile)：任务态轮询这些字段判断阶段结束 ---- */
-	volatile motor_detect_stage_t stage; /* 当前阶段，ISR 完成后切为 IDLE */
-	volatile bool done;                 /* ISR 置位 → 任务态退出轮询 */
-	volatile bool success;              /* 本阶段是否成功 */
-	volatile motor_detect_error_t error; /* 失败时的错误码 */
-	volatile mc_fault_code fault;       /* 硬件故障触发的故障码 */
-
-	/* ---- 通用（ISR 读写，任务态初始化） ---- */
-	float elapsed;                /* 本阶段已耗时 (s)，每个 ISR 步进累加 dt */
-	float current_a;              /* 本阶段目标电流幅值 (A) */
-	float electrical_rpm_target;  /* 磁链阶段目标电气转速 (RPM) */
-	float electrical_rpm_now;     /* 磁链阶段当前电气转速 (RPM) */
-	float theta;                  /* 磁链阶段旋转电角度 (rad) */
-	float vd;                     /* 最近一拍 PI 输出的 D 轴电压 (V) */
-	float vq;                     /* 最近一拍 PI 输出的 Q 轴电压 (V) */
-
-	/* ---- 累加器（各阶段复用，含义见结构体顶部注释） ---- */
-	float accum_a;
-	float accum_b;
-
-	/* ---- 电阻检测专用 ---- */
-	float resistance_voltage_avg;  /* 采样窗口平均 |Vdq| (V)，供三点拟合 */
-	float resistance_current_avg;  /* 采样窗口平均 |Idq| (A)，供三点拟合 */
-
-	/* ---- 电流保护专用 ---- */
-	float max_phase_current;       /* 本阶段记录到的相电流峰值 (A) */
-	float overcurrent_elapsed;     /* 持续超过软限幅的累计时间 (s) */
-
-	/* ---- 磁链检测专用 ---- */
-	float flux_duty_still;         /* 静止对齐时的占空比（用于区分堵转和转动） */
-	float flux_duty_now;           /* 当前占空比 */
-	float flux_duty_max;           /* 加速过程中占空比最大值 */
-	float flux_coast_elapsed;      /* 滑行阶段已耗时 (s) */
-	float flux_bemf_angle_last;    /* 上一拍的反电势矢量角度 (rad) */
-	float flux_omega_e;            /* 滑行窗口累计角度增量 (rad)，用于平均 ω */
-
-	/* ---- 采样计数 ---- */
-	uint32_t samples;              /* 有效样本数（电阻/磁链阶段复用） */
-
-	/* ---- 电感检测专用 ---- */
-	uint32_t pulse_position;       /* 当前半脉冲内已过的采样拍数 */
-	uint32_t pulse_count;          /* 已完成的半脉冲数（含正负） */
-	uint32_t valid_pulses;         /* 落在合法电感范围内的有效脉冲数 */
-	float pulse_start_current;     /* 当前半脉冲起始时刻的 Id (A) */
-	bool pulse_started;            /* 双极性脉冲序列已初始化 */
-	bool rotation_started;         /* 磁链阶段旋转已开始 */
-	bool flux_coast_started;       /* 已关断六管进入滑行采样 */
-	bool flux_bemf_angle_valid;    /* 上一拍角度已记录，可做差分 */
-} motor_detect_control_t;
-
-static motor_detect_control_t s_detect_control;
-static motor_detect_result_t s_detect_result = {
-	.version = MOTOR_DETECT_RESULT_VERSION,
-};
-
-/*
- * Fit V = R * I + Voffset. The slope rejects the approximately constant
- * inverter voltage drop that makes a single-point V/I result too high.
- */
-static bool Motor_Detect_FitResistance(const float *current,
-	const float *voltage, uint32_t count, float *resistance,
-	float *voltage_offset, float *r_squared)
-{
-	float sum_i = 0.0f;
-	float sum_v = 0.0f;
-	float sum_ii = 0.0f;
-	float sum_iv = 0.0f;
-	float ss_tot = 0.0f;
-	float ss_res = 0.0f;
-	float denominator;
-	float mean_v;
-
-	if (count < 2U) return false;
-	for (uint32_t i = 0U; i < count; i++) {
-		sum_i += current[i];
-		sum_v += voltage[i];
-		sum_ii += current[i] * current[i];
-		sum_iv += current[i] * voltage[i];
-	}
-	denominator = (float)count * sum_ii - sum_i * sum_i;
-	if (fabsf(denominator) < 1.0e-6f) return false;
-
-	*resistance = ((float)count * sum_iv - sum_i * sum_v) / denominator;
-	*voltage_offset = (sum_v - *resistance * sum_i) / (float)count;
-	mean_v = sum_v / (float)count;
-	for (uint32_t i = 0U; i < count; i++) {
-		float error = voltage[i] - (*resistance * current[i] + *voltage_offset);
-		float deviation = voltage[i] - mean_v;
-		ss_res += error * error;
-		ss_tot += deviation * deviation;
-	}
-	*r_squared = ss_tot > 1.0e-9f ? 1.0f - ss_res / ss_tot : 0.0f;
-	return true;
-}
+static volatile bool s_detect_active = false;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
-/* ---- 偏置校准内部采样辅助 ---- */
-
-/*
- * 对单个相采样 @p samples 次，累加电流和电压。
- * 返回 false 表示被用户中止，调用方应跳转到清理点。
+/**
+ * @description: 对单个相累加电流和电压采样
+ * @param {uint32_t} phase    0=A, 1=B, 2=C
+ * @param {uint32_t} samples  采样次数
+ * @param {float} *current_acc 电流累加
+ * @param {float} *voltage_acc 电压累加
+ * @return {*}
+ * @author: lkc
  */
-static bool Detect_SamplePhase(uint32_t phase, uint32_t samples,
-                               float *current_acc, float *voltage_acc)
+static void Detect_SamplePhase(uint32_t phase, uint32_t samples, float *current_acc, float *voltage_acc)
 {
-	for (uint32_t i = 0U; i < samples; i++) {
-		if (s_detect_abort_requested) {
-			return false;
-		}
-		switch (phase) {
-		case 0:
-			*current_acc += GET_CURRENT1();
-			*voltage_acc += ADC_VOLTS(ADC_IND_SENS1);
-			break;
-		case 1:
-			*current_acc += GET_CURRENT2();
-			*voltage_acc += ADC_VOLTS(ADC_IND_SENS2);
-			break;
-		default:
-			*current_acc += GET_CURRENT3();
-			*voltage_acc += ADC_VOLTS(ADC_IND_SENS3);
-			break;
-		}
-		osDelay(pdMS_TO_TICKS(1));
-	}
-	return true;
+    uint32_t i;
+
+    for (i = 0U; i < samples; i++) {
+        switch (phase) {
+        case 0:
+            *current_acc += GET_CURRENT1();
+            *voltage_acc += ADC_VOLTS(ADC_IND_SENS1);
+            break;
+        case 1:
+            *current_acc += GET_CURRENT2();
+            *voltage_acc += ADC_VOLTS(ADC_IND_SENS2);
+            break;
+        default:
+            *current_acc += GET_CURRENT3();
+            *voltage_acc += ADC_VOLTS(ADC_IND_SENS3);
+            break;
+        }
+        osDelay(pdMS_TO_TICKS(1));
+    }
 }
 
 /**
- * Calibrate voltage and current offsets. For the observer to work at low modulation it
- * is very important to get all current and voltage offsets right. Therefore we store
- * the offsets for when the motor is undriven and when it is driven separately. The
- * motor is driven at 50% modulation on all phases when measuring the driven offset, which
- * corresponds to space-vector modulation with 0 amplitude.
- *
- * cal_undriven: true 时同时校准未驱动相电压偏移（需要电机静止）。
- *
- * return:
- *   0: 被用户中止
- *   1: 成功
+ * @description: 校准三相电流零点和驱动时相电压偏移
+ * @detail: 50% 占空比依次使能 A/B/C 相采样。cal_undriven=true 时再采未驱动相电压。
+ * @param {BOOL} cal_undriven  true 时额外校准未驱动相电压偏移
+ * @return {ULONG} 1 成功
+ * @author: lkc
  */
 ULONG DETECT_Offset(BOOL cal_undriven)
 {
-	const uint32_t samples = MOTOR_DETECT_OFFSET_SAMPLES;
-	float current_sum[3] = {0.0f, 0.0f, 0.0f};
-	float voltage_sum[3] = {0.0f, 0.0f, 0.0f};
-	bool aborted = false;
-	float v_avg;
+    const uint32_t samples = MOTOR_DETECT_OFFSET_SAMPLES;
+    float current_sum[3] = {0.0f, 0.0f, 0.0f};
+    float voltage_sum[3] = {0.0f, 0.0f, 0.0f};
+    float v_avg;
+    float adc_range = 4096.0f;
+    float abs_max;
 
-	/*
-	 * 第一步必须先置位互斥标志。标志置位后，下一次 DMA 中断只会清除
-	 * 中断标志并返回，不再改写 PWM。然后撤销运行命令并关闭三相输出。
-	 */
-	s_detect_control.stage = MOTOR_DETECT_STAGE_OFFSET;
-	s_detect_active = true;
-	motor.ol_enable = false;
-	motor.ol_target_rpm = 0.0f;
-	motor.ol_current_rpm = 0.0f;
-	motor.ol_vd_int = 0.0f;
-	motor.ol_vq_int = 0.0f;
-	Motor_SpeedLoop_Reset();
-	Motor_Sensorless_Reset();
-	Bsp_Tim_StopPwm(MOTOR1);
-	PRINTF("Detect offset: begin\r\n");
+    /*
+     * 先占住互斥，再停机关桥。之后 DMA 中断只刷 ADC，不再改 PWM。
+     */
+    s_detect_active = true;
+    motor.ol_enable = false;
+    motor.ol_target_rpm = 0.0f;
+    motor.ol_current_rpm = 0.0f;
+    motor.ol_vd_int = 0.0f;
+    motor.ol_vq_int = 0.0f;
+    Motor_SpeedLoop_Reset();
+    Motor_Sensorless_Reset();
+    Bsp_Tim_StopPwm(MOTOR1);
+    PRINTF("Detect offset: begin\r\n");
 
-	osDelay(pdMS_TO_TICKS(1000));
+    osDelay(pdMS_TO_TICKS(1000));
 
-	// TODO 看门狗时间必须延长
+    TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, TIM1->ARR / 2, TIM1->ARR / 2);
 
-	/* 按 VESC 的偏移校准时序：50% 占空比后依次使能 A/B/C 相。 */
-	TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, TIM1->ARR / 2, TIM1->ARR / 2);
+    Bsp_Tim_StopPwm(MOTOR1);
+    TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_OCMode_PWM1);
+    TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable);
+    TIM_CCxNCmd(TIM1, TIM_Channel_1, TIM_CCxN_Enable);
+    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    osDelay(pdMS_TO_TICKS(1));
+    PRINTF("Detect offset: phase A\r\n");
+    Detect_SamplePhase(0U, samples, &current_sum[0], &voltage_sum[0]);
 
-	/* ---- Phase A ---- */
-	Bsp_Tim_StopPwm(MOTOR1);
-	TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_OCMode_PWM1);
-	TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable);
-	TIM_CCxNCmd(TIM1, TIM_Channel_1, TIM_CCxN_Enable);
-	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-	osDelay(pdMS_TO_TICKS(1));
-	PRINTF("Detect offset: phase A\r\n");
-	if (!Detect_SamplePhase(0U, samples, &current_sum[0], &voltage_sum[0])) {
-		aborted = true;
-		goto detect_offset_finish;
-	}
+    Bsp_Tim_StopPwm(MOTOR1);
+    TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_OCMode_PWM1);
+    TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
+    TIM_CCxNCmd(TIM1, TIM_Channel_2, TIM_CCxN_Enable);
+    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    osDelay(pdMS_TO_TICKS(1));
+    PRINTF("Detect offset: phase B\r\n");
+    Detect_SamplePhase(1U, samples, &current_sum[1], &voltage_sum[1]);
 
-	/* ---- Phase B ---- */
-	Bsp_Tim_StopPwm(MOTOR1);
-	TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_OCMode_PWM1);
-	TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
-	TIM_CCxNCmd(TIM1, TIM_Channel_2, TIM_CCxN_Enable);
-	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-	osDelay(pdMS_TO_TICKS(1));
-	PRINTF("Detect offset: phase B\r\n");
-	if (!Detect_SamplePhase(1U, samples, &current_sum[1], &voltage_sum[1])) {
-		aborted = true;
-		goto detect_offset_finish;
-	}
+    Bsp_Tim_StopPwm(MOTOR1);
+    TIM_SelectOCxM(TIM1, TIM_Channel_3, TIM_OCMode_PWM1);
+    TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
+    TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
+    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    osDelay(pdMS_TO_TICKS(1));
+    PRINTF("Detect offset: phase C\r\n");
+    Detect_SamplePhase(2U, samples, &current_sum[2], &voltage_sum[2]);
 
-	/* ---- Phase C ---- */
-	Bsp_Tim_StopPwm(MOTOR1);
-	TIM_SelectOCxM(TIM1, TIM_Channel_3, TIM_OCMode_PWM1);
-	TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
-	TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
-	TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
-	osDelay(pdMS_TO_TICKS(1));
-	PRINTF("Detect offset: phase C\r\n");
-	if (!Detect_SamplePhase(2U, samples, &current_sum[2], &voltage_sum[2])) {
-		aborted = true;
-		goto detect_offset_finish;
-	}
+    Bsp_Tim_StopPwm(MOTOR1);
 
-	Bsp_Tim_StopPwm(MOTOR1);
+    motor.currentOffset[0] = current_sum[0] / (float)samples;
+    motor.currentOffset[1] = current_sum[1] / (float)samples;
+    motor.currentOffset[2] = current_sum[2] / (float)samples;
 
-	motor.currentOffset[0] = current_sum[0] / (float)samples;
-	motor.currentOffset[1] = current_sum[1] / (float)samples;
-	motor.currentOffset[2] = current_sum[2] / (float)samples;
+    voltage_sum[0] /= (float)samples;
+    voltage_sum[1] /= (float)samples;
+    voltage_sum[2] /= (float)samples;
+    v_avg = (voltage_sum[0] + voltage_sum[1] + voltage_sum[2]) / 3.0f;
 
-	voltage_sum[0] /= (float)samples;
-	voltage_sum[1] /= (float)samples;
-	voltage_sum[2] /= (float)samples;
-	v_avg = (voltage_sum[0] + voltage_sum[1] + voltage_sum[2]) / 3.0f;
+    motor.voltOffset[0] = voltage_sum[0] - v_avg;
+    motor.voltOffset[1] = voltage_sum[1] - v_avg;
+    motor.voltOffset[2] = voltage_sum[2] - v_avg;
 
-	motor.voltOffset[0] = voltage_sum[0] - v_avg;
-	motor.voltOffset[1] = voltage_sum[1] - v_avg;
-	motor.voltOffset[2] = voltage_sum[2] - v_avg;
+    PRINTF("ADC_RAW [%d] [%d] [%d]\r\n",
+           (int)GET_CURRENT1(), (int)GET_CURRENT2(), (int)GET_CURRENT3());
+    PRINTF("Current Offset [%f] [%f] [%f]\r\n",
+           motor.currentOffset[0], motor.currentOffset[1], motor.currentOffset[2]);
+    PRINTF("Volt Offset [%f] [%f] [%f]\r\n",
+           motor.voltOffset[0], motor.voltOffset[1], motor.voltOffset[2]);
 
-	PRINTF("ADC_RAW [%d] [%d] [%d]\r\n",
-	       (int)GET_CURRENT1(), (int)GET_CURRENT2(), (int)GET_CURRENT3());
-	PRINTF("Current Offset [%f] [%f] [%f]\r\n",
-	       motor.currentOffset[0], motor.currentOffset[1], motor.currentOffset[2]);
-	PRINTF("Volt Offset [%f] [%f] [%f]\r\n",
-	       motor.voltOffset[0], motor.voltOffset[1], motor.voltOffset[2]);
+    abs_max = fabsf(motor.currentOffset[0] - adc_range * 0.5f);
+    if (fabsf(motor.currentOffset[1] - adc_range * 0.5f) > abs_max) {
+        abs_max = fabsf(motor.currentOffset[1] - adc_range * 0.5f);
+    }
+    if (fabsf(motor.currentOffset[2] - adc_range * 0.5f) > abs_max) {
+        abs_max = fabsf(motor.currentOffset[2] - adc_range * 0.5f);
+    }
+    if (abs_max > adc_range * MOTOR_DETECT_OFFSET_MAX_PERCENT / 100.0f) {
+        PRINTF("WARNING: current offset > %.0f%% ADC range — check hardware\r\n",
+               (double)MOTOR_DETECT_OFFSET_MAX_PERCENT);
+    }
 
-	/* 偏移量过大通常意味着硬件问题（运放偏置、参考电压异常等）。 */
-	{
-		float adc_range = 4096.0f;
-		float abs_max;
+    if (cal_undriven) {
+        uint32_t i;
 
-		/* Zero current is centered at half the ADC range, not at zero. */
-		abs_max = fabsf(motor.currentOffset[0] - adc_range * 0.5f);
-		if (fabsf(motor.currentOffset[1] - adc_range * 0.5f) > abs_max)
-			abs_max = fabsf(motor.currentOffset[1] - adc_range * 0.5f);
-		if (fabsf(motor.currentOffset[2] - adc_range * 0.5f) > abs_max)
-			abs_max = fabsf(motor.currentOffset[2] - adc_range * 0.5f);
-		if (abs_max > adc_range * MOTOR_DETECT_OFFSET_MAX_PERCENT / 100.0f) {
-			PRINTF("WARNING: current offset > %.0f%% ADC range — check hardware\r\n",
-			       (double)MOTOR_DETECT_OFFSET_MAX_PERCENT);
-		}
-	}
+        PRINTF("Detect offset: undriven voltage\r\n");
+        osDelay(pdMS_TO_TICKS(10));
 
-	/* Measure undriven offsets */
-	if (cal_undriven) {
-		PRINTF("Detect offset: undriven voltage\r\n");
-		osDelay(pdMS_TO_TICKS(10));
+        voltage_sum[0] = 0.0f;
+        voltage_sum[1] = 0.0f;
+        voltage_sum[2] = 0.0f;
 
-		voltage_sum[0] = 0.0f; voltage_sum[1] = 0.0f; voltage_sum[2] = 0.0f;
+        for (i = 0U; i < samples; i++) {
+            v_avg = (ADC_VOLTS(ADC_IND_SENS1) +
+                     ADC_VOLTS(ADC_IND_SENS2) +
+                     ADC_VOLTS(ADC_IND_SENS3)) / 3.0f;
+            voltage_sum[0] += ADC_VOLTS(ADC_IND_SENS1) - v_avg;
+            voltage_sum[1] += ADC_VOLTS(ADC_IND_SENS2) - v_avg;
+            voltage_sum[2] += ADC_VOLTS(ADC_IND_SENS3) - v_avg;
+            osDelay(pdMS_TO_TICKS(1));
+        }
+        Bsp_Tim_StopPwm(MOTOR1);
 
-		for (uint32_t i = 0U; i < samples; i++) {
-			if (s_detect_abort_requested) {
-				aborted = true;
-				break;
-			}
-			v_avg = (ADC_VOLTS(ADC_IND_SENS1) +
-			         ADC_VOLTS(ADC_IND_SENS2) +
-			         ADC_VOLTS(ADC_IND_SENS3)) / 3.0f;
-			voltage_sum[0] += ADC_VOLTS(ADC_IND_SENS1) - v_avg;
-			voltage_sum[1] += ADC_VOLTS(ADC_IND_SENS2) - v_avg;
-			voltage_sum[2] += ADC_VOLTS(ADC_IND_SENS3) - v_avg;
-			osDelay(pdMS_TO_TICKS(1));
-		}
-		if (aborted) goto detect_offset_finish;
-		Bsp_Tim_StopPwm(MOTOR1);
+        motor.voltundrivenOffset[0] = voltage_sum[0] / (float)samples;
+        motor.voltundrivenOffset[1] = voltage_sum[1] / (float)samples;
+        motor.voltundrivenOffset[2] = voltage_sum[2] / (float)samples;
+    }
 
-		voltage_sum[0] /= (float)samples;
-		voltage_sum[1] /= (float)samples;
-		voltage_sum[2] /= (float)samples;
-
-		motor.voltundrivenOffset[0] = voltage_sum[0];
-		motor.voltundrivenOffset[1] = voltage_sum[1];
-		motor.voltundrivenOffset[2] = voltage_sum[2];
-	}
-
-	// TODO 看门狗时间恢复
-
-	/*
-	 * 先确认三相输出已经关闭，再释放互斥标志。检测后保持停机，避免
-	 * 使用刚测完的参数自动起转；后续必须由 olspeed/olstart 明确启动。
-	 */
-detect_offset_finish:
-	Bsp_Tim_StopPwm(MOTOR1);
-	s_detect_control.stage = MOTOR_DETECT_STAGE_IDLE;
-	s_detect_active = false;
-	PRINTF(aborted ? "Detect offset: aborted\r\n" : "Detect offset: done\r\n");
-	return aborted ? 0U : 1U;
+    Bsp_Tim_StopPwm(MOTOR1);
+    s_detect_active = false;
+    PRINTF("Detect offset: done\r\n");
+    return 1U;
 }
 
 /**
- * @description: 查询当前是否处于任一检测流程（含偏置校准）占用的互斥状态
- * @return {*}
+ * @description: 查询偏移校准是否占用功率桥
+ * @return {bool} true 时 FOC 中断必须立刻返回
  * @author: lkc
  */
 bool Motor_Detect_IsActive(void)
 {
-	return s_detect_active;
+    return s_detect_active;
 }
 
 /**
- * @description: 查询 ISR 状态机驱动的检测（电阻/电感/磁链）是否在运行；偏置校准不算
+ * @description: 开环转一圈，标定霍尔状态与电角度对应表
  * @return {*}
  * @author: lkc
- */
-bool Motor_Detect_ControlIsActive(void)
-{
-	return s_detect_active &&
-		(s_detect_control.stage == MOTOR_DETECT_STAGE_RESISTANCE ||
-		 s_detect_control.stage == MOTOR_DETECT_STAGE_INDUCTANCE ||
-		 s_detect_control.stage == MOTOR_DETECT_STAGE_FLUX);
-}
-
-/**
- * @description: 工具函数：将 value 限幅到 [minimum, maximum] 区间内
- * @param {float} value     待限幅输入值
- * @param {float} minimum   下限
- * @param {float} maximum   上限
- * @return {*}
- * @author: lkc
- */
-static float Motor_Detect_Clamp(float value, float minimum, float maximum)
-{
-	if (value > maximum) {
-		return maximum;
-	}
-	if (value < minimum) {
-		return minimum;
-	}
-	return value;
-}
-
-/**
- * @description: 取三相电流绝对值的最大值 (A)
- * @detail: 供过流判定与峰值统计使用
- * @param {const MOTOR_PARAM_S} *motor   电机实时数据（含三相电流 ia/ib/ic）
- * @return {*}
- * @author: lkc
- */
-static float Motor_Detect_PhaseCurrentPeak(const MOTOR_PARAM_S *motor)
-{
-	float peak = fabsf(motor->ia);
-
-	if (fabsf(motor->ib) > peak) peak = fabsf(motor->ib);
-	if (fabsf(motor->ic) > peak) peak = fabsf(motor->ic);
-	return peak;
-}
-
-/* Reject isolated PWM/ADC spikes, but retain an immediate hard cutoff. */
-static bool Motor_Detect_CurrentTooHigh(const MOTOR_PARAM_S *motor, float dt)
-{
-	float peak = Motor_Detect_PhaseCurrentPeak(motor);
-
-	if (peak > s_detect_control.max_phase_current) {
-		s_detect_control.max_phase_current = peak;
-	}
-	if (peak >= MOTOR_DETECT_CURRENT_HARD_LIMIT_A) {
-		return true;
-	}
-	if (peak > MOTOR_DETECT_CURRENT_LIMIT_A) {
-		s_detect_control.overcurrent_elapsed += dt;
-	} else {
-		s_detect_control.overcurrent_elapsed = 0.0f;
-	}
-	return s_detect_control.overcurrent_elapsed >= MOTOR_DETECT_CURRENT_TRIP_S;
-}
-
-/**
- * @description: ISR 侧检测统一收尾
- * @detail: 先输出安全停机，再记录成败/错误码，把 stage 切回 IDLE 并释放互斥
- * @param {bool} success               检测是否成功
- * @param {motor_detect_error_t} error 错误码（success=false 时有效）
- * @return {*}
- * @author: lkc
- */
-static void Motor_Detect_FinishFromIsr(bool success, motor_detect_error_t error)
-{
-	Motor_DetectControl_OutputSafe(&motor);
-	s_detect_control.success = success;
-	s_detect_control.error = error;
-	s_detect_control.done = true;
-	s_detect_control.stage = MOTOR_DETECT_STAGE_IDLE;
-	s_detect_active = false;
-}
-
-/**
- * @description: ISR 侧故障中止
- * @detail: 记录硬件故障码后按失败结束当前检测阶段
- * @param {mc_fault_code} fault   硬件故障码
- * @return {*}
- * @author: lkc
- */
-void Motor_Detect_AbortFromIsr(mc_fault_code fault)
-{
-	s_detect_control.fault = fault;
-	Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FAULT);
-}
-
-/*
- * 电阻检测 ISR 步进 — 每个 15kHz 控制周期调用一次。
- *
- * 时序分为三个阶段（total_time = ramp + settle + sample）：
- *   阶段 1 (ramp)：   Id 从 0 斜坡上升到目标电流 current_a。
- *                     固定电角度 θ=0，只给 D 轴电流，转子不转。
- *   阶段 2 (settle)： Id 保持在目标电流，等待电流环和 ADC 稳定。
- *                     此阶段不采样，让 PI 和硬件充分建立稳态。
- *   阶段 3 (sample)： 每个周期取 |Vdq| 和 |Idq| 矢量模长，
- *                     分别累加到 accum_a / accum_b，最后
- *                     R = avg(|V|) / avg(|I|)。
- *
- * 结束时只导出 avg V/I 供上层三点最小二乘拟合使用，
- * 不做单点 V/I 除法——死区压降会使单点结果偏高。
- *
- * 前置条件：Motor_DmaInt 已调用 Motor_It_ParamCal 完成采样换算，
- *           并已通过 Motor_Protect_Run 的 30kHz 绝对过流保护。
- */
-static void Motor_Detect_RunResistanceStep(MOTOR_PARAM_S *motor, float dt)
-{
-	float total_time = MOTOR_DETECT_RESISTANCE_RAMP_S +
-		MOTOR_DETECT_RESISTANCE_SETTLE_S +
-		MOTOR_DETECT_RESISTANCE_SAMPLE_S;
-
-	/* 阶段 1：Id 电流斜坡上升。ramp 从 0 线性增长到 1，电流随之从 0 到目标值。 */
-	s_detect_control.elapsed += dt;
-	float ramp = Motor_Detect_Clamp(
-		s_detect_control.elapsed / MOTOR_DETECT_RESISTANCE_RAMP_S, 0.0f, 1.0f);
-	float id_target = s_detect_control.current_a * ramp;
-
-	/* θ=0，Id=target，Iq=0 — 定子磁场固定在 A 相方向，转子被吸住不动。 */
-	Motor_DetectControl_RunCurrent(motor, 0.0f, id_target, 0.0f,
-		MOTOR_DETECT_RESISTANCE_VOLTAGE_V, dt,
-		&s_detect_control.vd, &s_detect_control.vq);
-
-	/* 任意阶段电流超出硬限幅或软限幅超时，立即停止。 */
-	if (Motor_Detect_CurrentTooHigh(motor, dt)) {
-		Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_CURRENT);
-		return;
-	}
-
-	/*
-	 * 阶段 2+3：settle 完成后进入采样窗口。
-	 * 过滤掉电流未达到目标 25% 的样本（电流太小时死区压降占比大，
-	 * V/I 会严重偏高，反而污染平均值）。
-	 */
-	if (s_detect_control.elapsed >
-		(MOTOR_DETECT_RESISTANCE_RAMP_S + MOTOR_DETECT_RESISTANCE_SETTLE_S)) {
-		float current_mag = NORM2_f(motor->Id, motor->Iq);
-		float voltage_mag = NORM2_f(s_detect_control.vd, s_detect_control.vq);
-		if (current_mag > s_detect_control.current_a *
-			MOTOR_DETECT_RESISTANCE_MIN_CURRENT_RATIO) {
-			s_detect_control.accum_a += voltage_mag;
-			s_detect_control.accum_b += current_mag;
-			s_detect_control.samples++;
-		}
-	}
-
-	/* 总时间到 — 验证样本数量和质量，导出平均值。 */
-	if (s_detect_control.elapsed >= total_time) {
-		if (s_detect_control.samples < MOTOR_DETECT_RESISTANCE_MIN_SAMPLES ||
-			s_detect_control.accum_b <= 0.0f) {
-			Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_RESISTANCE);
-			return;
-		}
-
-		/*
-		 * 单点 R = avg(|V|)/avg(|I|)，与死区压降耦合。
-		 * 上层 DETECT_MotorParameters 会用三个不同电流点的
-		 * 结果做最小二乘拟合，斜率才是真正的 R，截距就是死区补偿。
-		 */
-		float resistance = s_detect_control.accum_a /
-			s_detect_control.accum_b;
-		/* 保存平均值供上层拟合和串口打印使用。 */
-		s_detect_control.resistance_voltage_avg =
-			s_detect_control.accum_a / (float)s_detect_control.samples;
-		s_detect_control.resistance_current_avg =
-			s_detect_control.accum_b / (float)s_detect_control.samples;
-		if (resistance < MOTOR_DETECT_RESISTANCE_MIN_OHM ||
-			resistance > MOTOR_DETECT_RESISTANCE_MAX_OHM) {
-			Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_RESISTANCE);
-			return;
-		}
-
-		/* 本点合格，发布到 s_detect_result 供上层拟合消费。 */
-		s_detect_result.resistance_ohm = resistance;
-		s_detect_result.resistance_valid = true;
-		Motor_Detect_FinishFromIsr(true, MOTOR_DETECT_ERROR_NONE);
-	}
-}
-
-/* ========================================================================
- * 电感检测：固定转子后在 D 轴施加 ±0.5V 双极性短脉冲。
- * 每半脉冲量测 di/dt，按 V = R*I + L*dI/dt 反算 L。
- * 正负交替避免单向转矩累积。
- * ======================================================================== */
-static void Motor_Detect_RunInductanceStep(MOTOR_PARAM_S *motor, float dt)
-{
-	float pulse_time_start = MOTOR_DETECT_INDUCTANCE_ALIGN_S +
-		MOTOR_DETECT_INDUCTANCE_ZERO_S;
-
-	s_detect_control.elapsed += dt;
-
-	/* 阶段 1：预对齐 — 吸住转子 */
-	if (s_detect_control.elapsed < MOTOR_DETECT_INDUCTANCE_ALIGN_S) {
-		float ramp = Motor_Detect_Clamp(
-			s_detect_control.elapsed / MOTOR_DETECT_INDUCTANCE_ALIGN_S,
-			0.0f, 1.0f);
-		Motor_DetectControl_RunCurrent(motor, 0.0f,
-			s_detect_control.current_a * ramp, 0.0f,
-			MOTOR_DETECT_INDUCTANCE_ALIGN_V, dt, NULL, NULL);
-		return;
-	}
-
-	/* 阶段 2：短暂零电流，让电感电流清零 */
-	if (s_detect_control.elapsed < pulse_time_start) {
-		Motor_DetectControl_RunCurrent(motor, 0.0f, 0.0f, 0.0f,
-			MOTOR_DETECT_INDUCTANCE_ZERO_V, dt, NULL, NULL);
-		return;
-	}
-
-	/* 阶段 3：双极性脉冲 */
-	if (!s_detect_control.pulse_started) {
-		Motor_DetectControl_Reset(motor);
-		s_detect_control.pulse_started = true;
-		s_detect_control.pulse_position = 0U;
-		s_detect_control.pulse_count = 0U;
-	}
-
-	{
-		float sign = (s_detect_control.pulse_count & 1U) ? -1.0f : 1.0f;
-		float voltage = sign * MOTOR_DETECT_INDUCTANCE_PULSE_V;
-
-		Motor_DetectControl_RunVoltage(motor, 0.0f, voltage, 0.0f,
-			MOTOR_DETECT_INDUCTANCE_PULSE_V);
-
-		if (s_detect_control.pulse_position == 0U) {
-			s_detect_control.pulse_start_current = motor->Id;
-		}
-
-		if (s_detect_control.pulse_position >=
-			(MOTOR_DETECT_INDUCTANCE_HALF_CYCLES - 1U)) {
-			float current_end = motor->Id;
-			float current_mid = 0.5f *
-				(s_detect_control.pulse_start_current + current_end);
-			float delta_current = current_end -
-				s_detect_control.pulse_start_current;
-			float slope_dt = (float)(MOTOR_DETECT_INDUCTANCE_HALF_CYCLES - 1U) * dt;
-			float slope = delta_current / slope_dt;
-			/* 使用已配置的电机电阻而非刚测的值：死区会导致小电流下 R 偏高 3-4 倍。 */
-			float r_drop = motor->sensorless_motor_r * current_mid;
-			float effective_voltage = voltage - r_drop;
-
-			if (fabsf(slope) > MOTOR_DETECT_INDUCTANCE_MIN_SLOPE) {
-				float inductance = effective_voltage / slope;
-				if (inductance > MOTOR_DETECT_INDUCTANCE_MIN_H &&
-					inductance < MOTOR_DETECT_INDUCTANCE_MAX_H) {
-					s_detect_control.accum_a += inductance;
-					s_detect_control.valid_pulses++;
-				}
-			}
-
-			s_detect_control.pulse_count++;
-			s_detect_control.pulse_position = 0U;
-		} else {
-			s_detect_control.pulse_position++;
-		}
-	}
-
-	if (Motor_Detect_CurrentTooHigh(motor, dt)) {
-		Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_CURRENT);
-		return;
-	}
-
-	if (s_detect_control.valid_pulses >= MOTOR_DETECT_INDUCTANCE_TARGET_PULSES ||
-		s_detect_control.pulse_count >= MOTOR_DETECT_INDUCTANCE_TARGET_PULSES * 3U) {
-		if (s_detect_control.valid_pulses <
-			MOTOR_DETECT_INDUCTANCE_TARGET_PULSES / 2U) {
-			Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_INDUCTANCE);
-			return;
-		}
-
-		float inductance = MOTOR_DETECT_INDUCTANCE_DQ_FACTOR *
-			MOTOR_DETECT_INDUCTANCE_STABILITY_SCALE *
-			s_detect_control.accum_a / (float)s_detect_control.valid_pulses;
-		s_detect_result.inductance_h = inductance;
-		s_detect_result.inductance_valid = true;
-		Motor_Detect_FinishFromIsr(true, MOTOR_DETECT_ERROR_NONE);
-	}
-}
-
-/* ========================================================================
- * 磁链检测：先开环加速，随后关闭六管，在自由滑行窗口中由三相
- * 反电势矢量的幅值和真实角速度计算 λ = |Vαβ| / |ωe|。
- * ======================================================================== */
-static void Motor_Detect_RunFluxStep(MOTOR_PARAM_S *motor, float dt)
-{
-	s_detect_control.elapsed += dt;
-
-	/* 阶段 1：固定 Id 预对齐 */
-	if (s_detect_control.elapsed < MOTOR_DETECT_FLUX_ALIGN_S) {
-		float ramp = Motor_Detect_Clamp(
-			s_detect_control.elapsed / MOTOR_DETECT_FLUX_ALIGN_S,
-			0.0f, 1.0f);
-		Motor_DetectControl_RunCurrent(motor, 0.0f,
-			s_detect_control.current_a * ramp, 0.0f,
-			MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V, dt,
-			&s_detect_control.vd, &s_detect_control.vq);
-		if (motor->v_bus > 1.0f && ramp > 0.9f) {
-			s_detect_control.flux_duty_still =
-				NORM2_f(s_detect_control.vd, s_detect_control.vq) / motor->v_bus;
-		}
-		return;
-	}
-
-	/* 阶段 2-4：Id→Iq 过渡 → 转速斜坡 → 稳态采样 */
-	if (!s_detect_control.rotation_started) {
-		Motor_DetectControl_Reset(motor);
-		s_detect_control.rotation_started = true;
-		s_detect_control.theta = 0.0f;
-		s_detect_control.electrical_rpm_now = 0.0f;
-	}
-
-	float rotation_time = s_detect_control.elapsed - MOTOR_DETECT_FLUX_ALIGN_S;
-
-	/* Stage 3: all MOSFETs are off. Derive both voltage and true electrical
-	 * speed from the freely-decaying back-EMF vector. */
-	if (s_detect_control.flux_coast_started) {
-		float v_alpha;
-		float v_beta;
-		float voltage_mag;
-		float bemf_angle;
-		float delta_angle;
-
-		s_detect_control.flux_coast_elapsed += dt;
-		clarke_transform(motor->va, motor->vb, motor->vc,
-			&v_alpha, &v_beta);
-		voltage_mag = NORM2_f(v_alpha, v_beta);
-		bemf_angle = utils_fast_atan2(v_beta, v_alpha);
-
-		if (!s_detect_control.flux_bemf_angle_valid) {
-			s_detect_control.flux_bemf_angle_last = bemf_angle;
-			s_detect_control.flux_bemf_angle_valid = true;
-			return;
-		}
-
-		delta_angle = bemf_angle - s_detect_control.flux_bemf_angle_last;
-		while (delta_angle > M_PI) delta_angle -= 2.0f * M_PI;
-		while (delta_angle < -M_PI) delta_angle += 2.0f * M_PI;
-		s_detect_control.flux_bemf_angle_last = bemf_angle;
-
-		/* A single-sample angle derivative is dominated by ADC noise at low
-		 * speed. Accumulate unwrapped angle, voltage and exact sample time over
-		 * the complete coast window, then form one average omega and flux. */
-		if (s_detect_control.flux_coast_elapsed >
-			MOTOR_DETECT_FLUX_COAST_SETTLE_S) {
-			s_detect_control.flux_omega_e += delta_angle;
-			s_detect_control.accum_a += voltage_mag;
-			s_detect_control.accum_b += dt;
-			s_detect_control.samples++;
-		}
-
-		if (s_detect_control.flux_coast_elapsed >=
-			MOTOR_DETECT_FLUX_COAST_SAMPLE_S) {
-			float omega_average = 0.0f;
-			float voltage_average = 0.0f;
-			float linkage = 0.0f;
-
-			if (s_detect_control.samples > 0U &&
-				s_detect_control.accum_b > 0.0f) {
-				omega_average = s_detect_control.flux_omega_e /
-					s_detect_control.accum_b;
-				voltage_average = s_detect_control.accum_a /
-					(float)s_detect_control.samples;
-			}
-			s_detect_control.flux_omega_e = omega_average;
-			s_detect_control.electrical_rpm_now =
-				fabsf(RADPS2RPM_f(omega_average));
-			s_detect_control.resistance_voltage_avg = voltage_average;
-			if (fabsf(omega_average) > 1.0e-6f) {
-				linkage = voltage_average / fabsf(omega_average);
-			}
-
-			if (s_detect_control.samples < MOTOR_DETECT_FLUX_MIN_SAMPLES ||
-				s_detect_control.electrical_rpm_now <
-					MOTOR_DETECT_FLUX_COAST_MIN_ERPM ||
-				voltage_average < MOTOR_DETECT_FLUX_MIN_BEMF_V ||
-				linkage < MOTOR_DETECT_FLUX_MIN_WB ||
-				linkage > MOTOR_DETECT_FLUX_MAX_WB) {
-				Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FLUX);
-				return;
-			}
-			s_detect_result.flux_linkage_wb = linkage;
-			s_detect_result.flux_valid = true;
-			Motor_Detect_FinishFromIsr(true, MOTOR_DETECT_ERROR_NONE);
-		}
-		return;
-	}
-
-	/* Stage 2: accelerate the rotating current vector. */
-	float speed_ramp = Motor_Detect_Clamp(
-		rotation_time / MOTOR_DETECT_FLUX_RAMP_S, 0.0f, 1.0f);
-
-	s_detect_control.electrical_rpm_now =
-		s_detect_control.electrical_rpm_target * speed_ramp;
-	s_detect_control.theta +=
-		RPM2RADPS_f(s_detect_control.electrical_rpm_now) * dt;
-	utils_norm_angle_rad(&s_detect_control.theta);
-
-	/* Keep the same D-axis alignment field and rotate it slowly. The rotor is
-	 * pulled along by the moving field without the extra 90-degree field jump
-	 * caused by an Id-to-Iq transition at startup. */
-	float id_target = s_detect_control.current_a;
-	float iq_target = 0.0f;
-	Motor_DetectControl_RunCurrent(motor, s_detect_control.theta,
-		id_target, iq_target, MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V, dt,
-		&s_detect_control.vd, &s_detect_control.vq);
-	if (motor->v_bus > 1.0f) {
-		s_detect_control.flux_duty_now =
-			NORM2_f(s_detect_control.vd, s_detect_control.vq) / motor->v_bus;
-		if (s_detect_control.flux_duty_now > s_detect_control.flux_duty_max) {
-			s_detect_control.flux_duty_max = s_detect_control.flux_duty_now;
-		}
-	}
-
-	if (Motor_Detect_CurrentTooHigh(motor, dt)) {
-		Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_CURRENT);
-		return;
-	}
-
-	/* Require clear evidence that the rotor produced more than locked-rotor
-	 * winding drop before disconnecting the bridge for coast sampling. */
-	if (rotation_time >= MOTOR_DETECT_FLUX_RAMP_S) {
-		float minimum_run_duty = fmaxf(MOTOR_DETECT_FLUX_MIN_RUN_DUTY,
-			s_detect_control.flux_duty_still *
-			MOTOR_DETECT_FLUX_DUTY_RISE_FACTOR);
-		if (s_detect_control.flux_duty_now < minimum_run_duty ||
-			(s_detect_control.flux_duty_max > minimum_run_duty &&
-			 s_detect_control.flux_duty_now < s_detect_control.flux_duty_max *
-			 MOTOR_DETECT_FLUX_DUTY_COLLAPSE_RATIO)) {
-			Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FLUX);
-			return;
-		}
-
-		Bsp_Tim_StopPwm(MOTOR1);
-		PHASE_FILTER_ON();
-		s_detect_control.flux_coast_started = true;
-		s_detect_control.flux_coast_elapsed = 0.0f;
-		s_detect_control.flux_bemf_angle_valid = false;
-		s_detect_control.flux_omega_e = 0.0f;
-		s_detect_control.accum_a = 0.0f;
-		s_detect_control.accum_b = 0.0f;
-		s_detect_control.samples = 0U;
-	}
-}
-
-/*
- * 检测状态机 ISR 步进 — 由 Motor_DmaInt 在 15kHz 控制周期中调用。
- *
- * 本函数在 ADC-DMA 中断上下文内执行，负责驱动参数检测的逐拍推进。
- * 调用前 Motor_DmaInt 已完成 ParamCal + 绝对过流保护，因此这里只做
- * 检测专用的前置检查：
- *   1. 检测已结束或 dt 异常 → 安全退出
- *   2. 用户通过串口请求中止    → 记录 USER_ABORT 并结束
- *   3. 母线电压过低              → 记录 FAULT 并结束（防止低压误测）
- *
- * 三项检查通过后才按当前 stage 分发到对应子阶段：
- *   RESISTANCE  — Id 斜坡 + V/I 采样，最小二乘拟合 R
- *   INDUCTANCE  — D 轴预对齐后双极性脉冲，di/dt 反算 L
- *   FLUX        — D 轴旋转开环加速 → 关管滑行 → 反电势测磁链
- */
-void Motor_Detect_DmaStep(MOTOR_PARAM_S *motor, float dt)
-{
-	/* 检测已结束（stage 切回 IDLE）或 dt 为 0 / 负数时直接返回。 */
-	if (!Motor_Detect_ControlIsActive() || dt <= 0.0f) {
-		return;
-	}
-
-	/* 用户在串口输入了 abort，立即结束当前检测流程。 */
-	if (s_detect_abort_requested) {
-		Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_USER_ABORT);
-		return;
-	}
-
-	/*
-	 * 母线电压太低时测出的 R / L / 磁链不可靠——低电压下死区压降
-	 * 占比大，且电机可能根本没通电。直接放弃本次检测。
-	 */
-	if (motor->v_bus < MOTOR_DETECT_MIN_BUS_VOLTAGE_V) {
-		Motor_Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FAULT);
-		return;
-	}
-
-	switch (s_detect_control.stage) {
-		case MOTOR_DETECT_STAGE_RESISTANCE:
-			Motor_Detect_RunResistanceStep(motor, dt);
-			break;
-		case MOTOR_DETECT_STAGE_INDUCTANCE:
-			Motor_Detect_RunInductanceStep(motor, dt);
-			break;
-		case MOTOR_DETECT_STAGE_FLUX:
-			Motor_Detect_RunFluxStep(motor, dt);
-			break;
-		default:
-			/* IDLE / OFFSET 阶段不应该通过 ControlIsActive 检查到达这里。 */
-			break;
-	}
-}
-
-/* ---- 任务态：阶段调度与超时 ---- */
-
-/**
- * @description: 把电机置于受控停机状态
- * @detail: 撤销运行命令、复位速度环与无感观测器并关闭三相 PWM
- * @return {*}
- * @author: lkc
- */
-static void Motor_Detect_PrepareStoppedMotor(void)
-{
-	motor.ol_enable = false;
-	motor.ol_target_rpm = 0.0f;
-	motor.ol_current_rpm = 0.0f;
-	motor.ol_vd_int = 0.0f;
-	motor.ol_vq_int = 0.0f;
-	Motor_SpeedLoop_Reset();
-	Motor_Sensorless_Reset();
-	Bsp_Tim_StopPwm(MOTOR1);
-}
-
-/*
- * 启动一个检测阶段，在任务态阻塞轮询直到 ISR 标记 done 或超时。
- * s_detect_control 的 ISR 字段（stage/done/success/error/fault）为 volatile，
- * 其余任务态字段用逐成员赋值代替 memset 以避免 volatile 对象的未定义行为。
- */
-static bool Motor_Detect_RunStage(motor_detect_stage_t stage,
-	float current_a, float electrical_rpm, uint32_t timeout_ms)
-{
-	uint32_t waited_ms = 0U;
-	uint32_t primask;
-
-	/* 逐成员清零任务态字段 */
-	s_detect_control.stage                  = stage;
-	s_detect_control.done                   = false;
-	s_detect_control.success                = false;
-	s_detect_control.error                  = MOTOR_DETECT_ERROR_NONE;
-	s_detect_control.fault                  = FAULT_CODE_NONE;
-	s_detect_control.elapsed                = 0.0f;
-	s_detect_control.current_a              = current_a;
-	s_detect_control.electrical_rpm_target  = electrical_rpm;
-	s_detect_control.electrical_rpm_now     = 0.0f;
-	s_detect_control.theta                  = 0.0f;
-	s_detect_control.vd                     = 0.0f;
-	s_detect_control.vq                     = 0.0f;
-	s_detect_control.accum_a                 = 0.0f;
-	s_detect_control.accum_b                 = 0.0f;
-	s_detect_control.resistance_voltage_avg  = 0.0f;
-	s_detect_control.resistance_current_avg  = 0.0f;
-	s_detect_control.max_phase_current       = 0.0f;
-	s_detect_control.overcurrent_elapsed     = 0.0f;
-	s_detect_control.flux_duty_still         = 0.0f;
-	s_detect_control.flux_duty_now           = 0.0f;
-	s_detect_control.flux_duty_max           = 0.0f;
-	s_detect_control.flux_coast_elapsed      = 0.0f;
-	s_detect_control.flux_bemf_angle_last    = 0.0f;
-	s_detect_control.flux_omega_e            = 0.0f;
-	s_detect_control.samples                = 0U;
-	s_detect_control.pulse_position         = 0U;
-	s_detect_control.pulse_count            = 0U;
-	s_detect_control.valid_pulses           = 0U;
-	s_detect_control.pulse_start_current    = 0.0f;
-	s_detect_control.pulse_started          = false;
-	s_detect_control.rotation_started       = false;
-	s_detect_control.flux_coast_started      = false;
-	s_detect_control.flux_bemf_angle_valid   = false;
-
-	Motor_DetectControl_Reset(&motor);
-
-	primask = __get_PRIMASK();
-	__disable_irq();
-	s_detect_active = true;
-	if (0U == primask) {
-		__enable_irq();
-	}
-	Bsp_Tim_StartPwm(MOTOR1);
-
-	while (!s_detect_control.done && waited_ms < timeout_ms) {
-		osDelay(pdMS_TO_TICKS(1));
-		waited_ms++;
-	}
-
-	if (!s_detect_control.done) {
-		primask = __get_PRIMASK();
-		__disable_irq();
-		s_detect_active = false;
-		s_detect_control.stage = MOTOR_DETECT_STAGE_IDLE;
-		if (0U == primask) {
-			__enable_irq();
-		}
-		Motor_DetectControl_OutputSafe(&motor);
-		s_detect_control.error = MOTOR_DETECT_ERROR_TIMEOUT;
-		s_detect_control.success = false;
-	}
-
-	Bsp_Tim_StopPwm(MOTOR1);
-	/* 等待功率级彻底进入高阻态再返回，避免下一阶段立即重开 PWM 时直通。 */
-	osDelay(pdMS_TO_TICKS(MOTOR_DETECT_PWM_COOLDOWN_MS));
-	if (!s_detect_control.success) {
-		s_detect_result.error = s_detect_control.error;
-		s_detect_result.fault = s_detect_control.fault;
-	}
-	return s_detect_control.success;
-}
-
-/* ---- 公开 API ---- */
-
-/**
- * @description: 电机参数检测总入口（VESC 风格）：检测相电阻/电感/磁链
- * @detail: 依次执行偏置校准 → 三点最小二乘拟合相电阻 → 双极性脉冲测相电感 →
- * 旋转加速后关管滑行测磁链；结果写入 result，返回三项是否全部有效且无错误。
- * 检测期间带互斥并临时整定电流环参数。
- * @param {float} current_a               检测电流 (A)
- * @param {float} electrical_rpm          电气转速 (rpm)
- * @param {motor_detect_result_t} *result 检测结果输出（可为 NULL）
- * @return {*}
- * @author: lkc
- */
-bool DETECT_MotorParameters(float current_a, float electrical_rpm,
-	motor_detect_result_t *result)
-{
-	float current_kp_old = motor.ol_current_kp;
-	float current_ki_old = motor.ol_current_ki;
-	float voltage_limit_old = motor.ol_vq_limit;
-	float fit_current[MOTOR_DETECT_RESISTANCE_FIT_POINTS];
-	float fit_voltage[MOTOR_DETECT_RESISTANCE_FIT_POINTS];
-	float resistance_fit = 0.0f;
-	float inverter_voltage_offset = 0.0f;
-	float resistance_fit_r2 = 0.0f;
-	float flux_current_a;
-
-	if (s_detect_active) {
-		s_detect_result.error = MOTOR_DETECT_ERROR_BUSY;
-		if (result != NULL) *result = s_detect_result;
-		return false;
-	}
-	if (motor.ol_enable) {
-		s_detect_result.error = MOTOR_DETECT_ERROR_MOTOR_RUNNING;
-		if (result != NULL) *result = s_detect_result;
-		return false;
-	}
-	if (Motor_Protect_IsFaultLatched()) {
-		s_detect_result.error = MOTOR_DETECT_ERROR_FAULT;
-		s_detect_result.fault = Motor_Protect_GetFault();
-		if (result != NULL) *result = s_detect_result;
-		return false;
-	}
-	if (s_detect_abort_requested) {
-		memset(&s_detect_result, 0, sizeof(s_detect_result));
-		s_detect_result.version = MOTOR_DETECT_RESULT_VERSION;
-		s_detect_result.error = MOTOR_DETECT_ERROR_USER_ABORT;
-		if (result != NULL) *result = s_detect_result;
-		return false;
-	}
-
-	current_a = Motor_Detect_Clamp(fabsf(current_a),
-		MOTOR_DETECT_MIN_CURRENT_A, MOTOR_DETECT_MAX_CURRENT_A);
-	flux_current_a = current_a;
-	if (flux_current_a < MOTOR_DETECT_FLUX_MIN_CURRENT_A) {
-		flux_current_a = MOTOR_DETECT_FLUX_MIN_CURRENT_A;
-	}
-	electrical_rpm = Motor_Detect_Clamp(fabsf(electrical_rpm),
-		MOTOR_DETECT_MIN_ELECTRICAL_RPM, MOTOR_DETECT_MAX_ELECTRICAL_RPM);
-	memset(&s_detect_result, 0, sizeof(s_detect_result));
-	s_detect_result.version = MOTOR_DETECT_RESULT_VERSION;
-	s_detect_result.test_current_a = current_a;
-	s_detect_result.test_electrical_rpm = electrical_rpm;
-
-	Motor_Detect_PrepareStoppedMotor();
-	PRINTF("Detect motor: calibrating current/voltage offsets\r\n");
-	if (DETECT_Offset(FALSE) != 1U) {
-		s_detect_result.error = s_detect_abort_requested ?
-			MOTOR_DETECT_ERROR_USER_ABORT : MOTOR_DETECT_ERROR_FAULT;
-		goto detect_done;
-	}
-
-	PRINTF("Detect motor: fitting phase resistance at %.1f..%.1fA\r\n",
-		MOTOR_DETECT_RESISTANCE_FIT_MIN_A,
-		MOTOR_DETECT_RESISTANCE_FIT_MAX_A);
-	for (uint32_t point = 0U;
-		point < MOTOR_DETECT_RESISTANCE_FIT_POINTS; point++) {
-		float ratio = (float)point /
-			(float)(MOTOR_DETECT_RESISTANCE_FIT_POINTS - 1U);
-		float fit_target = MOTOR_DETECT_RESISTANCE_FIT_MIN_A + ratio *
-			(MOTOR_DETECT_RESISTANCE_FIT_MAX_A -
-			 MOTOR_DETECT_RESISTANCE_FIT_MIN_A);
-
-		if (!Motor_Detect_RunStage(MOTOR_DETECT_STAGE_RESISTANCE,
-			fit_target, electrical_rpm, MOTOR_DETECT_TIMEOUT_RESISTANCE_MS)) {
-			/* A trial stage may have published its temporary V/I result. */
-			s_detect_result.resistance_valid = false;
-			PRINTF("  R fit aborted: phase peak=%.3fA, over-limit=%.3fms\r\n",
-				s_detect_control.max_phase_current,
-				s_detect_control.overcurrent_elapsed * 1000.0f);
-			goto detect_done;
-		}
-		fit_current[point] = s_detect_control.resistance_current_avg;
-		fit_voltage[point] = s_detect_control.resistance_voltage_avg;
-		PRINTF("  R fit %lu/%lu: I=%.4fA V=%.4fV V/I=%.4f ohm peak=%.3fA\r\n",
-			(unsigned long)(point + 1U),
-			(unsigned long)MOTOR_DETECT_RESISTANCE_FIT_POINTS,
-			fit_current[point], fit_voltage[point],
-			fit_voltage[point] / fit_current[point],
-			s_detect_control.max_phase_current);
-	}
-	if (!Motor_Detect_FitResistance(fit_current, fit_voltage,
-		MOTOR_DETECT_RESISTANCE_FIT_POINTS, &resistance_fit,
-		&inverter_voltage_offset, &resistance_fit_r2) ||
-		resistance_fit < MOTOR_DETECT_RESISTANCE_MIN_OHM ||
-		resistance_fit > MOTOR_DETECT_RESISTANCE_MAX_OHM ||
-		resistance_fit_r2 < MOTOR_DETECT_RESISTANCE_FIT_MIN_R2) {
-		s_detect_result.resistance_valid = false;
-		s_detect_result.error = MOTOR_DETECT_ERROR_RESISTANCE;
-		PRINTF("Detect motor: resistance fit invalid R=%.6f R2=%.4f\r\n",
-			resistance_fit, resistance_fit_r2);
-		goto detect_done;
-	}
-	s_detect_result.resistance_ohm = resistance_fit;
-	s_detect_result.resistance_valid = true;
-	PRINTF("Detect motor: R=%.6f ohm, inverter offset=%.4fV, R2=%.4f\r\n",
-		resistance_fit, inverter_voltage_offset, resistance_fit_r2);
-
-	PRINTF("Detect motor: measuring phase inductance with bipolar pulses\r\n");
-	if (!Motor_Detect_RunStage(MOTOR_DETECT_STAGE_INDUCTANCE,
-		current_a, electrical_rpm, MOTOR_DETECT_TIMEOUT_INDUCTANCE_MS)) {
-		goto detect_done;
-	}
-	PRINTF("Detect motor: L=%.3f uH\r\n",
-		s_detect_result.inductance_h * 1000000.0f);
-
-	PRINTF("Detect motor: rotating Id field to %.0f electrical RPM for coast BEMF (%.2fA, %.1fs ramp)\r\n",
-		electrical_rpm, flux_current_a,
-		MOTOR_DETECT_FLUX_RAMP_S);
-	/* VESC 使用约 1.5ms 电流环时间常数进行磁链检测，结束后恢复用户参数。 */
-	motor.ol_current_kp = s_detect_result.inductance_h /
-		MOTOR_DETECT_VESC_CURRENT_TC_S;
-	motor.ol_current_ki = s_detect_result.resistance_ohm /
-		MOTOR_DETECT_VESC_CURRENT_TC_S;
-	motor.ol_vq_limit = MOTOR_DETECT_VOLTAGE_LIMIT_FLUX_V;
-	if (!Motor_Detect_RunStage(MOTOR_DETECT_STAGE_FLUX,
-		flux_current_a, electrical_rpm, MOTOR_DETECT_TIMEOUT_FLUX_MS)) {
-		PRINTF("Detect motor: flux invalid duty still=%.4f now=%.4f max=%.4f peak=%.3fA coast=%.1f eRPM Bemf=%.4fV samples=%lu\r\n",
-			s_detect_control.flux_duty_still,
-			s_detect_control.flux_duty_now,
-			s_detect_control.flux_duty_max,
-			s_detect_control.max_phase_current,
-			s_detect_control.electrical_rpm_now,
-			s_detect_control.resistance_voltage_avg,
-			(unsigned long)s_detect_control.samples);
-		goto detect_done;
-	}
-	PRINTF("Detect motor: flux=%.4f mWb\r\n",
-		s_detect_result.flux_linkage_wb * 1000.0f);
-	PRINTF("Detect motor: coast |Bemf|=%.4fV at %.1f eRPM, Ke=%.3f V/krpm line-line RMS (%.0f pole pairs)\r\n",
-		s_detect_control.resistance_voltage_avg,
-		s_detect_control.electrical_rpm_now,
-		128.25498f * motor.ol_pole_pairs * s_detect_result.flux_linkage_wb,
-		motor.ol_pole_pairs);
-	PRINTF("Detect motor: flux duty still=%.4f run=%.4f max=%.4f\r\n",
-		s_detect_control.flux_duty_still,
-		s_detect_control.flux_duty_now,
-		s_detect_control.flux_duty_max);
-	PRINTF("Detect motor: if you can measure the mechanical RPM now, run:\r\n");
-	PRINTF("  detect poles %.0f <measured_mechanical_rpm>\r\n",
-		electrical_rpm);
-	PRINTF("Otherwise check the motor datasheet or count rotor magnets.\r\n");
-
-	s_detect_result.error = MOTOR_DETECT_ERROR_NONE;
-	s_detect_result.fault = FAULT_CODE_NONE;
-
-detect_done:
-	motor.ol_current_kp = current_kp_old;
-	motor.ol_current_ki = current_ki_old;
-	motor.ol_vq_limit = voltage_limit_old;
-	Motor_Detect_PrepareStoppedMotor();
-	if (result != NULL) {
-		*result = s_detect_result;
-	}
-	return s_detect_result.resistance_valid &&
-		s_detect_result.inductance_valid &&
-		s_detect_result.flux_valid &&
-		s_detect_result.error == MOTOR_DETECT_ERROR_NONE;
-}
-
-/**
- * @description: 由电气转速与实测机械转速之比四舍五入得到极对数并写回 *pole_pairs
- * @detail: 比例越界或偏离整数超过容差时返回 false
- * @param {float} electrical_rpm   电气转速 (rpm)
- * @param {float} mechanical_rpm   实测机械转速 (rpm)
- * @param {float} *pole_pairs      极对数输出（可为 NULL）
- * @return {*}
- * @author: lkc
- */
-bool DETECT_CalculatePolePairs(float electrical_rpm, float mechanical_rpm,
-	float *pole_pairs)
-{
-	if (fabsf(electrical_rpm) < 1.0f || fabsf(mechanical_rpm) < 1.0f) {
-		s_detect_result.error = MOTOR_DETECT_ERROR_MECHANICAL_REFERENCE;
-		return false;
-	}
-
-	float ratio = fabsf(electrical_rpm / mechanical_rpm);
-	float rounded = floorf(ratio + 0.5f);
-	if (rounded < MOTOR_DETECT_POLE_PAIRS_MIN ||
-		rounded > MOTOR_DETECT_POLE_PAIRS_MAX ||
-		fabsf(ratio - rounded) > rounded * MOTOR_DETECT_POLE_PAIRS_RATIO_TOL) {
-		s_detect_result.error = MOTOR_DETECT_ERROR_MECHANICAL_REFERENCE;
-		return false;
-	}
-
-	s_detect_result.pole_pairs = rounded;
-	s_detect_result.pole_pairs_valid = true;
-	s_detect_result.error = MOTOR_DETECT_ERROR_NONE;
-	if (pole_pairs != NULL) {
-		*pole_pairs = rounded;
-	}
-	return true;
-}
-
-/**
- * @description: 读取最近一次检测结果快照（含错误码/故障码）
- * @param {motor_detect_result_t} *result   结果输出（可为 NULL）
- * @return {*}
- * @author: lkc
- */
-void DETECT_GetResult(motor_detect_result_t *result)
-{
-	if (result != NULL) {
-		*result = s_detect_result;
-	}
-}
-
-/* ---- Flash 持久化 ---- */
-
-/**
- * @description: 校验检测结果是否有效
- * @detail: 要求版本匹配，R/L/磁链均带有效标志且落在合法量程内
- * @param {const motor_detect_result_t} *result   检测结果
- * @return {*}
- * @author: lkc
- */
-static bool Motor_Detect_ResultParametersValid(const motor_detect_result_t *result)
-{
-	return result->version == MOTOR_DETECT_RESULT_VERSION &&
-		result->resistance_valid &&
-		result->resistance_ohm >= MOTOR_DETECT_RESISTANCE_MIN_OHM &&
-		result->resistance_ohm <= MOTOR_DETECT_RESISTANCE_MAX_OHM &&
-		result->inductance_valid &&
-		result->inductance_h >= MOTOR_DETECT_INDUCTANCE_MIN_H &&
-		result->inductance_h <= MOTOR_DETECT_INDUCTANCE_MAX_H &&
-		result->flux_valid &&
-		result->flux_linkage_wb >= MOTOR_DETECT_FLUX_MIN_WB &&
-		result->flux_linkage_wb <= MOTOR_DETECT_FLUX_MAX_WB;
-}
-
-/**
- * @description: 把有效检测结果应用到运行配置
- * @detail: 写 gpstMotorCfg 与 motor 的 R/L/磁链，极对数有效时一并写入
- * @param {const motor_detect_result_t} *result   检测结果
- * @return {*}
- * @author: lkc
- */
-static void Motor_Detect_ApplyRuntime(const motor_detect_result_t *result)
-{
-	gpstMotorCfg->foc_motor_r = result->resistance_ohm;
-	gpstMotorCfg->foc_motor_l = result->inductance_h;
-	gpstMotorCfg->foc_motor_flux_linkage = result->flux_linkage_wb;
-	motor.sensorless_motor_r = result->resistance_ohm;
-	motor.sensorless_motor_l = result->inductance_h;
-	motor.sensorless_flux_linkage = result->flux_linkage_wb;
-	if (result->pole_pairs_valid) {
-		motor.ol_pole_pairs = result->pole_pairs;
-	}
-}
-
-/**
- * @description: 应用最近一次检测结果到运行参数
- * @detail: 复位观测器/速度环；save=true 时同步写 Flash
- * @param {bool} save   是否同步写入 Flash
- * @return {*}
- * @author: lkc
- */
-bool DETECT_ApplyResult(bool save)
-{
-	if (!Motor_Detect_ResultParametersValid(&s_detect_result) || motor.ol_enable) {
-		return false;
-	}
-
-	Motor_Detect_ApplyRuntime(&s_detect_result);
-	Motor_Sensorless_Reset();
-	Motor_SpeedLoop_Reset();
-	if (save) {
-		if (!FlashStorage_Save(&motor, &s_detect_result)) {
-			return false;
-		}
-	}
-	return true;
-}
-
-/**
- * @description: 从已加载的 Flash 数据中恢复检测结果（替代原 EasyFlash 读取版本）
- * @param stored: FlashStorage 加载时得到的 detect 数据（可为 NULL）
- */
-void Motor_Detect_ApplyStoredResult(const motor_detect_result_t *stored)
-{
-	if (stored == NULL) {
-		return;
-	}
-
-	if (Motor_Detect_ResultParametersValid(stored)) {
-		s_detect_result = *stored;
-		Motor_Detect_ApplyRuntime(&s_detect_result);
-		PRINTF("Loaded detected motor: R=%.6f L=%.3fuH flux=%.4fmWb\r\n",
-			s_detect_result.resistance_ohm,
-			s_detect_result.inductance_h * 1000000.0f,
-			s_detect_result.flux_linkage_wb * 1000.0f);
-	}
-}
-
-/* ---- 错误名与中止 ---- */
-
-/**
- * @description: 把检测错误码映射为可读字符串
- * @detail: 供串口/Shell 显示原因
- * @param {motor_detect_error_t} error   检测错误码
- * @return {*}
- * @author: lkc
- */
-const char *DETECT_GetErrorName(motor_detect_error_t error)
-{
-	switch (error) {
-		case MOTOR_DETECT_ERROR_NONE:                 return "NONE";
-		case MOTOR_DETECT_ERROR_BUSY:                 return "BUSY";
-		case MOTOR_DETECT_ERROR_MOTOR_RUNNING:         return "MOTOR_RUNNING";
-		case MOTOR_DETECT_ERROR_FAULT:                return "FAULT";
-		case MOTOR_DETECT_ERROR_TIMEOUT:              return "TIMEOUT";
-		case MOTOR_DETECT_ERROR_CURRENT:              return "CURRENT_TOO_HIGH";
-		case MOTOR_DETECT_ERROR_RESISTANCE:           return "RESISTANCE_INVALID";
-		case MOTOR_DETECT_ERROR_INDUCTANCE:           return "INDUCTANCE_INVALID";
-		case MOTOR_DETECT_ERROR_FLUX:                 return "FLUX_INVALID";
-		case MOTOR_DETECT_ERROR_MECHANICAL_REFERENCE:  return "MECHANICAL_REFERENCE_INVALID";
-		case MOTOR_DETECT_ERROR_USER_ABORT:           return "USER_ABORT";
-		default:                                      return "UNKNOWN";
-	}
-}
-
-/**
- * @description: 请求中止当前检测
- * @detail: 置位请求标志；若 ISR 状态机运行中则立即安全关断并结束阶段
- * @return {*}
- * @author: lkc
- */
-void DETECT_Abort(void)
-{
-	uint32_t primask;
-
-	s_detect_abort_requested = true;
-	if (!s_detect_active) {
-		return;
-	}
-
-	/* 撤销检测互斥并立即关闭桥臂，使后台检测期间的 olstop 可以生效。 */
-	primask = __get_PRIMASK();
-	__disable_irq();
-	if (Motor_Detect_ControlIsActive()) {
-		Motor_DetectControl_OutputSafe(&motor);
-		s_detect_control.success = false;
-		s_detect_control.error = MOTOR_DETECT_ERROR_USER_ABORT;
-		s_detect_control.done = true;
-	}
-	s_detect_control.stage = MOTOR_DETECT_STAGE_IDLE;
-	s_detect_active = false;
-	if (0U == primask) {
-		__enable_irq();
-	}
-	Bsp_Tim_StopPwm(MOTOR1);
-}
-
-/**
- * @description: 检测空闲时清除中止请求标志
- * @detail: 运行中不改写，避免误中断检测
- * @return {*}
- * @author: lkc
- */
-void DETECT_ClearAbortRequest(void)
-{
-	if (!s_detect_active) {
-		s_detect_abort_requested = false;
-	}
-}
-
-/* ---- 霍尔检测 ---- */
-
-/**
- * @description: 检测霍尔
  */
 VOID DETECT_Hall(VOID)
 {
-	motor_all_state_t *motor = gpstMotor1;
+    motor_all_state_t *motor = gpstMotor1;
+    uint8_t hall_tab[8];
+    bool res;
+    int i;
 
-	uint8_t hall_tab[8];
-	bool res;
-	mcpwm_foc_hall_detect(6.0 / 3.0, hall_tab, &res);
+    Motor_Hall_Detect(6.0f / 3.0f, hall_tab, &res);
 
-	if (res) {
-		INFO("DETECT HALL Success.\r\n");
-		for (int i = 0; i < 8; i++) {
-			motor->m_conf->foc_hall_table[i] = hall_tab[i];
-			PRINTF("%d ", hall_tab[i]);
-		}
-		PRINTF("\r\n");
-		for (int i = 0; i < 6; i++) {
-			PRINTF("%d ", gpstMotor->hallABC[i]);
-		}
-		PRINTF("\r\n");
-	}
+    if (res) {
+        INFO("DETECT HALL Success.\r\n");
+        for (i = 0; i < 8; i++) {
+            motor->m_conf->foc_hall_table[i] = hall_tab[i];
+            PRINTF("%d ", hall_tab[i]);
+        }
+        PRINTF("\r\n");
+        for (i = 0; i < 6; i++) {
+            PRINTF("%d ", gpstMotor->hallABC[i]);
+        }
+        PRINTF("\r\n");
+    }
 }
 
-/* ---- 上电初始化 ---- */
-
 /**
- * @description: 检测初始化
- * @detail:
- * 注意如果先检测,adc检测中断中处理foc的函数一定要关闭
+ * @description: 上电做一次电流/电压偏移校准
+ * @detail: 校准期间 ADC 中断里的 FOC 必须关闭
+ * @return {*}
+ * @author: lkc
  */
 VOID Detect_Init(VOID)
 {
-	DETECT_ClearAbortRequest();
-	DETECT_Offset(TRUE);
+    DETECT_Offset(TRUE);
 }
 
 #ifdef __cplusplus

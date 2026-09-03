@@ -52,8 +52,8 @@ mc_configuration *gpstMotorCfg = &motorCfg;
 /**
  * @description: 电机参数初始化
  * @detail: 依次写入电机固定参数与开环/电流/速度/无感等运行默认值；尝试从 Flash
- *          加载已保存参数，失败则以默认值写入 Flash；随后用代码默认值覆盖运行参数、
- *          应用已保存的检测结果，并初始化速度环与无感观测器。
+ *          加载已保存参数，失败则以默认值写入 Flash；随后用代码默认值覆盖运行参数，
+ *          并初始化速度环与无感观测器。R/L/磁链检测结果暂不应用。
  * @return {*}
  * @author: lkc
  */
@@ -144,6 +144,7 @@ VOID MOTOR_Param_Init(VOID)
         }
         PRINTF("Default Flash Param\r\n");
     }
+    (void)detect_buf;
 
     // TODO：调试使用
     /* 开发阶段：开环参数始终从代码默认值覆盖，改 motor_param.c 即可生效 */
@@ -197,8 +198,6 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotor->sensorless_phase_offset     = gpstMotorDefault->sensorless_phase_offset;
     gpstMotor->sensorless_speed_filter     = gpstMotorDefault->sensorless_speed_filter;
 
-    /* 若用户执行过 detect apply，检测值在这里覆盖代码中的示例电机参数。 */
-    Motor_Detect_ApplyStoredResult(&detect_buf);
     Motor_Speed_Init();
     Motor_Sensorless_Init();
 

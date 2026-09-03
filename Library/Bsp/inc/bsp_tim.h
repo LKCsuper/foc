@@ -26,6 +26,10 @@ extern "C" {
 #define HW_COUNT_TIM					(TIM3)
 #define HE_COUNT_RCC					(RCC_APB1Periph_TIM3)
 
+/* TIM4 AB 编码器：PB6/PB7，1024 线 × 4 倍频 */
+#define BSP_ENCODER_TIM                 (TIM4)
+#define BSP_ENCODER_COUNTS              (1024U * 4U)
+
 /* 原pwm死区为360  死区时间大约350ns左右 */
 #define HW_DEAD_TIME_NSEC				(360.0f)	// Dead time
 
@@ -94,7 +98,9 @@ VOID Bsp_Tim_Pwm2(ULONG f_zv);
 VOID Bsp_Tim_Init(VOID);
 VOID Bsp_Tim_RunCount(VOID);
 VOID Bsp_Tim3_IRQ(VOID);
-VOID Bsp_Tim_RunCount(VOID);
+VOID Bsp_Tim4_EncInit(VOID);
+uint16_t Bsp_Tim4_EncGetCount(void);
+void Bsp_Tim4_EncSetCount(uint16_t count);
 
 VOID Bsp_Tim1_Base(ULONG f_zv);
 VOID Bsp_Tim1_OC(VOID);

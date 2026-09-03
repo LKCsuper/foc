@@ -194,7 +194,7 @@ static void Motor_OpenLoop_ResetRuntime(MOTOR_PARAM_S *m)
  * 这里不能修改 ol_target_rpm。目标转速属于任务/Shell 下发的命令，
  * 如果高频 DMA 中断在“写目标转速”和“置位 ol_enable”之间抢占任务，
  * 清零目标会导致启动命令偶发丢失。需要撤销运行命令时，由 olstop、
- * 故障清除或检测流程同时清除 ol_enable 和 ol_target_rpm；故障锁存
+ * 故障清除或偏移校准同时清除 ol_enable 和 ol_target_rpm；故障锁存
  * 本身则会在不改写用户命令的情况下持续禁止 PWM 控制输出。
  */
 static void Motor_OpenLoop_Stop(MOTOR_PARAM_S *m)
@@ -700,118 +700,6 @@ static void Motor_OpenLoop_RunIf(MOTOR_PARAM_S *m, float v_bus, float dt)
 }
 
 /*
- * 检测控制 — 复位 PI 积分、电流反馈和观测器状态。
- * 每次进入新的检测阶段（电阻/电感/磁链）或双极性脉冲开始前调用，
- * 避免上一阶段的 PI 累积值污染当前测量。
- */
-void Motor_DetectControl_Reset(MOTOR_PARAM_S *m)
-{
-    m->ol_vd_int = 0.0f;
-    m->ol_vq_int = 0.0f;
-    m->Id = 0.0f;
-    m->Iq = 0.0f;
-    Motor_SpeedLoop_Reset();
-    Motor_Sensorless_Reset();
-}
-
-/*
- * 检测控制 — 电流闭环模式。
- *
- * 这是检测 ISR 的核心输出函数：给定目标电角度和 Id/Iq 目标值，
- * 完成 Clarke/Park 反馈 → PI 闭环 → 反 Park + SVPWM 输出的完整链路。
- *
- * voltage_limit 用于限制 PI 输出电压幅值，内部会与 v_bus*75% 取较小值，
- * 防止过调制导致电流不受控。
- *
- * @param m              电机参数结构
- * @param theta          电角度 (rad)，决定定子磁场方向
- * @param id_target      D 轴目标电流 (A)，正值为励磁
- * @param iq_target      Q 轴目标电流 (A)，正值为转矩
- * @param voltage_limit  电压限幅 (V)，取该值与 v_bus*0.75 的较小值
- * @param dt             控制周期 (s)
- * @param vd [out]       可选，PI 输出的 D 轴电压；传 NULL 不返回
- * @param vq [out]       可选，PI 输出的 Q 轴电压；传 NULL 不返回
- */
-void Motor_DetectControl_RunCurrent(MOTOR_PARAM_S *m,
-                                    float theta,
-                                    float id_target,
-                                    float iq_target,
-                                    float voltage_limit,
-                                    float dt,
-                                    float *vd,
-                                    float *vq)
-{
-    motor_dq_voltage_t voltage;
-    float safe_limit = m->v_bus * 0.75f;
-
-    /* 限制电压上限，取调用者需求和硬件安全上限的较小值。 */
-    if (voltage_limit < safe_limit) {
-        safe_limit = voltage_limit;
-    }
-    if (safe_limit < 0.0f) {
-        safe_limit = 0.0f;
-    }
-
-    /* 完整电流闭环：采样反馈 → PI 计算 → SVPWM 输出。 */
-    Motor_CurrentFeedback_UpdateDq(m, theta);
-    voltage = Motor_CurrentLoop_RunPi(m, id_target, iq_target, dt, safe_limit);
-    Motor_Foc_OutputVoltage(m, voltage.vd, voltage.vq, theta, m->v_bus);
-
-    /* 可选返回 PI 输出电压，用于电阻检测的 V/I 计算和占空比监控。 */
-    if (vd != NULL) {
-        *vd = voltage.vd;
-    }
-    if (vq != NULL) {
-        *vq = voltage.vq;
-    }
-}
-
-/*
- * 检测控制 — 电压开环模式。
- *
- * 直接给定 vd/vq 电压指令，跳过 PI 闭环。
- * 用于电感检测的双极性脉冲：电压是固定的 ±0.5V，不需要电流 PI 干预。
- * 仅做矢量限幅保护，仍走 Clarke/Park 反馈链路以更新 Id/Iq 采样值。
- *
- * @param m              电机参数结构
- * @param theta          电角度 (rad)
- * @param vd             D 轴电压指令 (V)
- * @param vq             Q 轴电压指令 (V)
- * @param voltage_limit  电压限幅 (V)，取该值与 v_bus*0.75 的较小值
- */
-void Motor_DetectControl_RunVoltage(MOTOR_PARAM_S *m,
-                                    float theta,
-                                    float vd,
-                                    float vq,
-                                    float voltage_limit)
-{
-    float safe_limit = m->v_bus * 0.75f;
-
-    if (voltage_limit < safe_limit) {
-        safe_limit = voltage_limit;
-    }
-    if (safe_limit < 0.0f) {
-        safe_limit = 0.0f;
-    }
-
-    /* 仍更新电流反馈，让调用者可在下一拍读取 Id/Iq。 */
-    Motor_CurrentFeedback_UpdateDq(m, theta);
-    /* 对给定电压矢量做限幅，但不回写 PI 积分项（此模式下没有 PI）。 */
-    utils_saturate_vector_2d(&vd, &vq, safe_limit);
-    Motor_Foc_OutputVoltage(m, vd, vq, theta, m->v_bus);
-}
-
-/*
- * 检测控制 — 输出安全状态并复位。
- * 检测结束时调用，确保三相输出回到 50% 中点电平。
- */
-void Motor_DetectControl_OutputSafe(MOTOR_PARAM_S *m)
-{
-    Motor_DetectControl_Reset(m);
-    Motor_OpenLoop_OutputSafe(m);
-}
-
-/*
  * 开环运行主状态机 (每个 FOC 控制周期调用一次)：
  *   1. 欠压 → 复位 + 安全输出；
  *   2. 未就绪 → 停机；
@@ -1029,34 +917,6 @@ VOID Motor_It_ParamCal(VOID)
 }
 
 /*
- * 参数检测模式下的 ISR 路径。
- * ParamCal + 30kHz 过流保护 + 分频后的 DmaStep。
- * 由 Motor_DmaInt 调度，不直接注册到中断向量表。
- */
-static void Motor_DmaInt_Detect(void)
-{
-    uint32_t runtime_start = Bsp_Tim_DtNow();
-    float protection_dt;
-
-    Motor_It_ParamCal();
-    protection_dt = Motor_OpenLoop_GetAdcDt(&motor);
-
-    /* 参数检测也保留 30kHz 绝对过流保护，不能因检测模式绕过功率级安全。 */
-    if (Motor_Protect_Run(&motor, protection_dt)) {
-        Motor_Detect_AbortFromIsr(Motor_Protect_GetFault());
-        Motor_DetectControl_OutputSafe(&motor);
-        Motor_DmaInt_RecordRuntime(runtime_start);
-        return;
-    }
-
-    // DmaStep 只在分频拍触发，避免每拍都跑检测逻辑。
-    if (Motor_DmaInt_ShouldRun()) {
-        Motor_Detect_DmaStep(&motor, Motor_OpenLoop_GetDt(&motor));
-    }
-    Motor_DmaInt_RecordRuntime(runtime_start);
-}
-
-/*
  * 正常 FOC 模式下的 ISR 路径。
  * ParamCal + 30kHz 过流保护 + 分频后的开环 FOC 全流程。
  * 由 Motor_DmaInt 调度，不直接注册到中断向量表。
@@ -1106,8 +966,8 @@ static void Motor_DmaInt_Foc(void)
  * 这是整个 FOC 控制链的驱动入口，由 ADC-DMA-TIM 联动触发。
  *
  * DMA 进入本回调前，硬件已经把本次 ADC 结果搬入 ADC_Value[]。
- * 偏置校准由任务直接切换三相桥臂，DMA 只负责更新 ADC 原始数组，
- * 因此当 Motor_Detect_ControlIsActive() 为 false 时 ISR 立即返回。
+ * 偏移校准由任务直接切换三相桥臂，DMA 只负责更新 ADC 原始数组，
+ * 因此校准占用功率桥时 ISR 立即返回。
  */
 void Motor_DmaInt(void *p, uint32_t flags)
 {
@@ -1115,10 +975,6 @@ void Motor_DmaInt(void *p, uint32_t flags)
     (void)flags;
 
     if (Motor_Detect_IsActive()) {
-        if (!Motor_Detect_ControlIsActive()) {
-            return;
-        }
-        Motor_DmaInt_Detect();
         return;
     }
 

@@ -50,29 +50,6 @@ float Motor_DmaInt_GetAverageRuntimeUs(void);
 float Motor_DmaInt_GetMaximumRuntimeUs(void);
 float Motor_DmaInt_GetAdcFrequencyHz(void);
 float Motor_DmaInt_GetControlFrequencyHz(void);
-
-/*
- * 电机参数检测专用的底层 FOC 接口。
- * 这些函数只允许 Motor_Detect_DmaStep() 在检测互斥期间调用：
- *   - RunCurrent：固定/旋转电角度下闭环控制 Id/Iq，并返回实际 Vd/Vq；
- *   - RunVoltage：直接输出检测脉冲，同时更新该角度下的 Id/Iq；
- *   - Reset/Safe：清除 PI 并输出安全占空比。
- */
-void Motor_DetectControl_Reset(MOTOR_PARAM_S *motor);
-void Motor_DetectControl_RunCurrent(MOTOR_PARAM_S *motor,
-                                    float theta,
-                                    float id_target,
-                                    float iq_target,
-                                    float voltage_limit,
-                                    float dt,
-                                    float *vd,
-                                    float *vq);
-void Motor_DetectControl_RunVoltage(MOTOR_PARAM_S *motor,
-                                    float theta,
-                                    float vd,
-                                    float vq,
-                                    float voltage_limit);
-void Motor_DetectControl_OutputSafe(MOTOR_PARAM_S *motor);
 #ifdef __cplusplus
 }
 #endif
