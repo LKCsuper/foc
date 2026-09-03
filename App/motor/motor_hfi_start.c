@@ -1,3 +1,7 @@
+/*
+ * @Description: HFI 凸极扫描零速初始位置估计
+ * @Author: lkc
+ */
 #include "motor_hfi_start.h"
 
 #include <math.h>

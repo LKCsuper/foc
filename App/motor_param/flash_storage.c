@@ -1,3 +1,7 @@
+/*
+ * @Description: 电机参数与检测结果 Flash 双槽持久化存储
+ * @Author: lkc
+ */
 #ifdef __cplusplus
 extern "C" {
 #endif

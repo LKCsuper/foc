@@ -1,11 +1,6 @@
 /*
- * @Description: 
- * @Version: 1.0
+ * @Description: 简易 FOC 数学工具函数与数据结构声明
  * @Author: lkc
- * @Date: 2023-09-30 17:22:51
- * @LastEditors: lkc
- * @LastEditTime: 2023-09-30 17:29:30
- * @detail: 
  */
 #ifndef __MOTOR_SIMPLE_UTILS_H__
 #define __MOTOR_SIMPLE_UTILS_H__
@@ -61,10 +56,41 @@ typedef struct
 	float q;
 } DQVoltage_s;
 /******************************************************************************/
+/**
+ * @description: 查表法快速近似 sin，输入角须在 [0, 2π]。
+ * @param {float} a  输入角度 (rad)
+ * @return {float} sin(a)
+ * @author: lkc
+ */
 float _sin(float a);
+/**
+ * @description: 查表法快速近似 cos，输入角须在 [0, 2π]。
+ * @param {float} a  输入角度 (rad)
+ * @return {float} cos(a)
+ * @author: lkc
+ */
 float _cos(float a);
+/**
+ * @description: 将弧度角归一化到 [0, 2π)。
+ * @param {float} angle  输入角度 (rad)
+ * @return {float} 归一化后的角度 (rad)
+ * @author: lkc
+ */
 float _normalizeAngle(float angle);
+/**
+ * @description: 机械角换算为电角度。
+ * @param {float} shaft_angle  机械角 (rad)
+ * @param {int} pole_pairs     极对数
+ * @return {float} 电角度 (rad)
+ * @author: lkc
+ */
 float _electricalAngle(float shaft_angle, int pole_pairs);
+/**
+ * @description: 快速近似平方根。
+ * @param {float} number  输入值
+ * @return {float} sqrt(number) 的近似值
+ * @author: lkc
+ */
 float _sqrtApprox(float number);
 /******************************************************************************/
 #ifdef __cplusplus

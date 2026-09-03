@@ -1,8 +1,6 @@
 /*
- * @Description: 
- * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-26 20:08:32
- * @FilePath: \foc\App\motor\inc\utils.h
+ * @Description: ADC-DMA 中断与 FOC 控制环入口
+ * @Author: lkc
  */
 #ifndef _MOTOR_IT_H
 #define _MOTOR_IT_H
@@ -35,21 +33,86 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: ADC-DMA 传输完成中断回调，FOC 控制链驱动入口。
+ * @param {void} *p       回调用户参数（未使用）
+ * @param {uint32_t} flags  DMA 事件标志（未使用）
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_DmaInt(void *p, uint32_t flags);
 
-/* 供 Shell 状态显示预对齐是否仍在进行，以及已经保持了多长时间。 */
+/**
+ * @description: 查询当前是否正处于 I/F 启动前的转子预对齐阶段。
+ * @return {bool} true=预对齐进行中
+ * @author: lkc
+ */
 bool Motor_OpenLoop_IsAligning(void);
+
+/**
+ * @description: 返回本次转子预对齐已进行的时间。
+ * @return {float} 已对齐时长 (s)
+ * @author: lkc
+ */
 float Motor_OpenLoop_GetAlignElapsed(void);
+
+/**
+ * @description: 查询 HFI 凸极扫描启动流程是否正在运行。
+ * @return {bool} true=HFI 扫描进行中
+ * @author: lkc
+ */
 bool Motor_HfiStart_IsRunning(void);
+
+/**
+ * @description: 查询 HFI 凸极扫描是否已成功识别出转子初始电角度。
+ * @return {bool} true=识别成功
+ * @author: lkc
+ */
 bool Motor_HfiStart_Succeeded(void);
+
+/**
+ * @description: 返回 HFI 凸极扫描识别出的转子电角度。
+ * @return {float} 转子电角度 (rad)
+ * @author: lkc
+ */
 float Motor_HfiStart_GetAngle(void);
+
+/**
+ * @description: 返回 HFI 凸极扫描识别的可信度。
+ * @return {float} 可信度 [0, 1]
+ * @author: lkc
+ */
 float Motor_HfiStart_GetConfidence(void);
 
-/* FOC 中断耗时统计，供 olstatus 判断 CPU 是否被实时控制占满。 */
+/**
+ * @description: 返回 ADC-DMA 中断的平均执行时间。
+ * @return {float} 平均耗时 (us)
+ * @author: lkc
+ */
 float Motor_DmaInt_GetAverageRuntimeUs(void);
+
+/**
+ * @description: 返回 ADC-DMA 中断的历史最长执行时间。
+ * @return {float} 最大耗时 (us)
+ * @author: lkc
+ */
 float Motor_DmaInt_GetMaximumRuntimeUs(void);
+
+/**
+ * @description: 返回实际 ADC-DMA 触发频率。
+ * @return {float} ADC 采样频率 (Hz)
+ * @author: lkc
+ */
 float Motor_DmaInt_GetAdcFrequencyHz(void);
+
+/**
+ * @description: 返回 FOC 控制环实际运行频率。
+ * @return {float} 控制环频率 (Hz)
+ * @author: lkc
+ */
 float Motor_DmaInt_GetControlFrequencyHz(void);
+
 #ifdef __cplusplus
 }
 #endif

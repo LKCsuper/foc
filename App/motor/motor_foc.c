@@ -1,8 +1,6 @@
 /*
- * @Description: 
- * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-14 17:08:15
- * @FilePath: \foc\App\motor\utils.c
+ * @Description: FOC 坐标变换与 SVPWM 调制（Clarke/Park/逆 Park/SVM）
+ * @Author: lkc
  */
 #ifdef __cplusplus
 extern "C" {
@@ -16,13 +14,13 @@ extern "C" {
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /**
- * @description: clarke 变换
- * @detail: 
- * @param {float} Ia
- * @param {float} Ib
- * @param {float} Ic
- * @param {float} *Ialpha
- * @param {float} *Ibeta
+ * @description: Clarke 变换，将三相电流投影到 αβ 静止坐标系。
+ * @detail: 三电阻采样时使用完整 Clarke；两电阻硬件按 Ia/Ib 假设三相平衡。
+ * @param {float} Ia       A 相电流 (A)
+ * @param {float} Ib       B 相电流 (A)
+ * @param {float} Ic       C 相电流 (A)
+ * @param {float} *Ialpha  输出 α 轴电流 (A)
+ * @param {float} *Ibeta   输出 β 轴电流 (A)
  * @return {*}
  * @author: lkc
  */
@@ -71,13 +69,12 @@ void inverse_clarke(float Ialpha, float Ibeta, float *Ia, float *Ib, float *Ic)
 }
 
 /**
- * @description: park变换
- * @detail: 
- * @param {float} Ialpha
- * @param {float} Ibeta
- * @param {float} Theta 相位,例如编码器角度
- * @param {float} *Id
- * @param {float} *Iq
+ * @description: Park 变换，将 αβ 电流投影到与转子同步的 dq 坐标系。
+ * @param {float} Ialpha  α 轴电流 (A)
+ * @param {float} Ibeta   β 轴电流 (A)
+ * @param {float} Theta   电角度 (rad)
+ * @param {float} *Id     输出 d 轴电流 (A)
+ * @param {float} *Iq     输出 q 轴电流 (A)
  * @return {*}
  * @author: lkc
  */
@@ -90,15 +87,12 @@ void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq
 }
 
 /**
- * @description: 
- * @detail: 
- * [uα]   [cos角度 -sin角度] [ud]
- * [uβ]	  [sin角度 cos角度]  [uq]
- * @param {float} mod_d
- * @param {float} mod_q
- * @param {float} Theta
- * @param {float} *mod_alpha
- * @param {float} *mod_beta
+ * @description: 逆 Park 变换，将 dq 电压还原为 αβ 电压矢量。
+ * @param {float} mod_d      d 轴电压 (V)
+ * @param {float} mod_q      q 轴电压 (V)
+ * @param {float} Theta      电角度 (rad)
+ * @param {float} *mod_alpha 输出 α 轴电压 (V)
+ * @param {float} *mod_beta  输出 β 轴电压 (V)
  * @return {*}
  * @author: lkc
  */
@@ -113,14 +107,14 @@ void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float
 }
 
 /**
- * @description: svpwm
- * @detail: 
- * @param {float} alpha
- * @param {float} beta
- * @param {float*} tA
- * @param {float*} tB
- * @param {float*} tC
- * @return {*}
+ * @description: 空间矢量 PWM 调制，将 αβ 电压归一化为三相占空比。
+ * @detail: 输出 tA/tB/tC 为 [0, 1] 归一化占空比；任一相越界时返回 -1。
+ * @param {float} alpha  α 轴电压（归一化）
+ * @param {float} beta   β 轴电压（归一化）
+ * @param {float} *tA    A 相占空比输出
+ * @param {float} *tB    B 相占空比输出
+ * @param {float} *tC    C 相占空比输出
+ * @return {int} 占空比合法返回 0，否则返回 -1
  * @author: lkc
  */
 int svm(float alpha, float beta, float* tA, float* tB, float* tC)
@@ -242,14 +236,17 @@ int svm(float alpha, float beta, float* tA, float* tB, float* tC)
 }
 
 /**
- * @brief svm Space vector modulation. Magnitude must not be larger than sqrt(3)/2, or 0.866 to avoid overmodulation.
- *        See https://github.com/vedderb/bldc/pull/372#issuecomment-962499623 for a full description.
- * @param alpha voltage
- * @param beta Park transformed and normalized voltage
- * @param PWMFullDutyCycle is the peak value of the PWM counter. 占空比
- * @param tAout PWM duty cycle phase A (0 = off all of the time, PWMFullDutyCycle = on all of the time)
- * @param tBout PWM duty cycle phase B
- * @param tCout PWM duty cycle phase C
+ * @description: 空间矢量 PWM 调制，输出定时器比较值与扇区号。
+ * @detail: 输入 αβ 电压与 PWM 计数满量程，计算三路 CCR 占空比；幅值不应超过 sqrt(3)/2 以免过调制。
+ * @param {float} alpha            α 轴电压
+ * @param {float} beta             β 轴电压
+ * @param {uint32_t} PWMFullDutyCycle  PWM 计数满量程 (ARR)
+ * @param {uint32_t} *tAout        A 相 CCR 输出
+ * @param {uint32_t} *tBout        B 相 CCR 输出
+ * @param {uint32_t} *tCout        C 相 CCR 输出
+ * @param {uint32_t} *svm_sector   SVPWM 扇区号 (1~6)
+ * @return {*}
+ * @author: lkc
  */
 void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 				uint32_t* tAout, uint32_t* tBout, uint32_t* tCout, uint32_t *svm_sector) 
@@ -388,16 +385,16 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 }
 
 /**
- * @description: 慧驱动svpwm
- * @detail: 
- * @param {float} Valpha
- * @param {float} Vbeta
- * @param {float} Udc
- * @param {uint32_t} Tpwm
- * @param {uint32_t} *pTcmp1
- * @param {uint32_t} *pTcmp2
- * @param {uint32_t} *pTcmp3
- * @param {uint32_t} *pSector
+ * @description: 慧驱动 SVPWM，将 αβ 电压矢量转为三路 PWM 比较值。
+ * @detail: 含 min/max 共模注入与过调制缩放，占空比以 50% 为中心分布。
+ * @param {float} Valpha   α 轴电压 (V)
+ * @param {float} Vbeta    β 轴电压 (V)
+ * @param {float} Udc      母线电压 (V)
+ * @param {uint32_t} Tpwm  PWM 计数满量程 (ARR)
+ * @param {uint32_t} *pTcmp1  A 相 CCR 输出
+ * @param {uint32_t} *pTcmp2  B 相 CCR 输出
+ * @param {uint32_t} *pTcmp3  C 相 CCR 输出
+ * @param {uint32_t} *pSector SVPWM 扇区号 (1~6)
  * @return {*}
  * @author: lkc
  */
@@ -474,13 +471,12 @@ void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcm
 
 
 /**
- * @description: pll锁相环
- * @detail: 
- * @param:phase
- * @param:dt
- * @param:phase_var
- * @param:speed_var
- * @param:conf
+ * @description: 运行一步 PLL 锁相环，跟踪输入相位并估算角速度。
+ * @param {float} phase       待跟踪的相位输入 (rad)
+ * @param {float} dt          控制周期 (s)
+ * @param {float} *phase_var  PLL 输出相位 (rad)，原地更新
+ * @param {float} *speed_var  PLL 输出角速度 (rad/s)，原地更新
+ * @param {mc_configuration} *conf  含 foc_pll_kp / foc_pll_ki 的配置
  * @return {*}
  * @author: lkc
  */

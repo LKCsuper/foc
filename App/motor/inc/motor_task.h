@@ -1,8 +1,6 @@
 /*
- * @Description: 
- * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-26 20:12:49
- * @FilePath: \foc\App\motor\inc\utils.h
+ * @Description: 电机后台任务入口
+ * @Author: lkc
  */
 #ifndef _MOTOR_TASK_H
 #define _MOTOR_TASK_H
@@ -16,7 +14,14 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: PID 控制后台任务入口。
+ * @return {*}
+ * @author: lkc
+ */
 VOID Motor_PidControl(VOID);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,14 +1,6 @@
 /*
- * @Description: 
- * @Version: 1.0
+ * @Description: 简易 BLDC/FOC 开环拖动与 SVPWM 输出
  * @Author: lkc
- * @Date: 2023-09-30 17:09:25
- * @LastEditors: lkc
- * @LastEditTime: 2023-09-30 22:31:34
- * @detail: 
- * 
- * 能旋转，但是实际跟vesc效果差太多
- * 
  */
 #ifdef __cplusplus
 extern "C" {
@@ -38,6 +30,13 @@ unsigned long open_loop_timestamp;
 float velocity_limit;
 /******************************************************************************/
 /******************************************************************************/
+/**
+ * @description: 按当前控制模式更新开环目标并输出电压。
+ * @detail: Type_velocity_openloop 走速度开环；Type_angle_openloop 走角度开环。
+ * @param {float} new_target  速度 (rad/s) 或角度 (rad) 目标值
+ * @return {*}
+ * @author: lkc
+ */
 void move(float new_target)
 {
 	switch(controller)
@@ -61,6 +60,14 @@ void move(float new_target)
 	}
 }
 /******************************************************************************/
+/**
+ * @description: 按 dq 电压与电角度计算 SVPWM 占空比并写入 TIM1。
+ * @param {float} Uq       q 轴电压 (V)
+ * @param {float} Ud       d 轴电压 (V)
+ * @param {float} angle_el 电角度 (rad)
+ * @return {*}
+ * @author: lkc
+ */
 void setPhaseVoltage(float Uq, float Ud, float angle_el)
 {
 	float Uout;
@@ -140,6 +147,12 @@ void setPhaseVoltage(float Uq, float Ud, float angle_el)
     TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
 }
 /******************************************************************************/
+/**
+ * @description: 速度开环拖动，积分轴角并按 voltage_limit 输出 q 轴电压。
+ * @param {float} target_velocity  目标角速度 (rad/s)
+ * @return {float} 本拍输出的 q 轴电压 (V)
+ * @author: lkc
+ */
 float velocityOpenloop(float target_velocity)
 {
 	unsigned long now_us;
@@ -172,10 +185,9 @@ float velocityOpenloop(float target_velocity)
 }
 /******************************************************************************/
 /**
- * @description: 角度开环 
- * @detail: 
- * @param {float} target_angle
- * @return {*}
+ * @description: 角度开环拖动，以 velocity_limit 限速逼近目标角。
+ * @param {float} target_angle  目标机械角 (rad)
+ * @return {float} 本拍输出的 q 轴电压 (V)
  * @author: lkc
  */
 float angleOpenloop(float target_angle)
@@ -221,6 +233,11 @@ float angleOpenloop(float target_angle)
 }
 /******************************************************************************/
 
+/**
+ * @description: 初始化简易 BLDC 开环默认参数（电压、极对数、控制模式等）。
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_Simple_BldcInit(void)
 {
 	voltage_power_supply=24;   			//V

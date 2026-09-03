@@ -25,6 +25,12 @@ typedef struct {
     const char *desc;
 } cmd_entry_t;
 
+/**
+ * @description: 初始化命令行框架。
+ * @detail: 创建串口命令消息队列并启动命令处理任务。
+ * @return {*}
+ * @author: lkc
+ */
 void Command_Init(void);
 
 typedef struct {

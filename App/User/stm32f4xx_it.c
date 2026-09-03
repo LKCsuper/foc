@@ -43,20 +43,20 @@
 /******************************************************************************/
 
 /**
-  * @brief   This function handles NMI exception.
-  * @param  None
-  * @retval None
-  */
+ * @description: NMI 不可屏蔽中断异常处理。
+ * @return {void} 无
+ * @author: lkc
+ */
 void NMI_Handler(void)
 {
     return;
 }
 
 /**
-  * @brief  This function handles Hard Fault exception.
-  * @param  None
-  * @retval None
-  */
+ * @description: HardFault 硬件故障异常处理，进入死循环。
+ * @return {void} 无
+ * @author: lkc
+ */
 void HardFault_Handler(void)
 {
     /* Go to infinite loop when Hard Fault exception occurs */
@@ -66,10 +66,10 @@ void HardFault_Handler(void)
 }
 
 /**
-  * @brief  This function handles Memory Manage exception.
-  * @param  None
-  * @retval None
-  */
+ * @description: MemManage 内存管理异常处理，进入死循环。
+ * @return {void} 无
+ * @author: lkc
+ */
 void MemManage_Handler(void)
 {
     /* Go to infinite loop when Memory Manage exception occurs */
@@ -79,10 +79,10 @@ void MemManage_Handler(void)
 }
 
 /**
-  * @brief  This function handles Bus Fault exception.
-  * @param  None
-  * @retval None
-  */
+ * @description: BusFault 总线故障异常处理，进入死循环。
+ * @return {void} 无
+ * @author: lkc
+ */
 void BusFault_Handler(void)
 {
     /* Go to infinite loop when Bus Fault exception occurs */
@@ -90,10 +90,10 @@ void BusFault_Handler(void)
 }
 
 /**
-  * @brief  This function handles Usage Fault exception.
-  * @param  None
-  * @retval None
-  */
+ * @description: UsageFault 用法故障异常处理，进入死循环。
+ * @return {void} 无
+ * @author: lkc
+ */
 void UsageFault_Handler(void)
 {
     /* Go to infinite loop when Usage Fault exception occurs */
@@ -101,19 +101,18 @@ void UsageFault_Handler(void)
 }
 
 /**
-  * @brief  This function handles Debug Monitor exception.
-  * @param  None
-  * @retval None
-  */
+ * @description: DebugMon 调试监视器异常处理。
+ * @return {void} 无
+ * @author: lkc
+ */
 void DebugMon_Handler(void)
 {
 
 }
 
 /**
- * @description: sysTick ,freertos任务
- * @detail: 
- * @return {*}
+ * @description: SysTick 系统节拍中断，驱动 FreeRTOS 与 BSP 时基。
+ * @return {void} 无
  * @author: lkc
  */
 void SysTick_Handler(void)
@@ -124,9 +123,8 @@ void SysTick_Handler(void)
 }
 
 /**
- * @description: DMA 采集完成adc
- * @detail: 
- * @return {*}
+ * @description: DMA2 Stream4 中断 — ADC 采集完成回调。
+ * @return {void} 无
  * @author: lkc
  */
 void DMA2_Stream4_IRQHandler(void)
@@ -136,25 +134,32 @@ void DMA2_Stream4_IRQHandler(void)
     return;
 }
 
-/*
- * 调试串口发送 DMA 中断。
- *
- * UART4_TX 对应 DMA1 Stream4。一次连续内存块发送结束后进入这里，
- * BSP 会释放已发送的数据，并自动启动环形缓冲区中的下一段数据。
- * 这个中断每一段数据只触发一次，而不是每发送一个字符触发一次，
- * 因此对 30kHz FOC 中断的额外 CPU 占用很小。
- */
 #if (4 == USART_NUM)
+/**
+ * @description: DMA1 Stream4 中断 — 调试串口 TX DMA 发送完成。
+ * @return {void} 无
+ * @author: lkc
+ */
 void DMA1_Stream4_IRQHandler(void)
 {
     Bsp_Usart_TxDmaHandler();
 }
 #elif (3 == USART_NUM)
+/**
+ * @description: DMA1 Stream3 中断 — 调试串口 TX DMA 发送完成。
+ * @return {void} 无
+ * @author: lkc
+ */
 void DMA1_Stream3_IRQHandler(void)
 {
     Bsp_Usart_TxDmaHandler();
 }
 #elif (1 == USART_NUM)
+/**
+ * @description: DMA2 Stream7 中断 — 调试串口 TX DMA 发送完成。
+ * @return {void} 无
+ * @author: lkc
+ */
 void DMA2_Stream7_IRQHandler(void)
 {
     Bsp_Usart_TxDmaHandler();
@@ -162,9 +167,8 @@ void DMA2_Stream7_IRQHandler(void)
 #endif
 
 /**
- * @description: foc用不到
- * @detail: 
- * @return {*}
+ * @description: ADC 注入转换完成中断（FOC 未使用，仅清标志）。
+ * @return {void} 无
  * @author: lkc
  */
 void ADC_IRQHandler(void)
@@ -175,9 +179,8 @@ void ADC_IRQHandler(void)
 
 #if (3 == USART_NUM)
 /**
- * @description: 串口3中断,用于命令行
- * @detail: 
- * @return {*}
+ * @description: USART3 串口接收中断 — 命令行输入。
+ * @return {void} 无
  * @author: lkc
  */
 void USART3_IRQHandler( void )
@@ -187,9 +190,8 @@ void USART3_IRQHandler( void )
 }
 #elif (4 == USART_NUM)
 /**
- * @description: 串口3中断,用于命令行
- * @detail: 
- * @return {*}
+ * @description: UART4 串口接收中断 — 命令行输入。
+ * @return {void} 无
  * @author: lkc
  */
 void UART4_IRQHandler( void )
@@ -200,9 +202,8 @@ void UART4_IRQHandler( void )
 #endif
 
 /**
- * @description: 定时器中断,用于统计freertos
- * @detail: 
- * @return {*}
+ * @description: TIM3 定时器中断 — FreeRTOS 运行时统计计数。
+ * @return {void} 无
  * @author: lkc
  */
 void TIM3_IRQHandler(void)

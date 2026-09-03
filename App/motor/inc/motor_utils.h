@@ -1,8 +1,6 @@
 /*
- * @Description: 
- * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-26 20:12:09
- * @FilePath: \foc\App\motor\inc\utils.h
+ * @Description: 电机外设与 PWM 辅助工具
+ * @Author: lkc
  */
 #ifndef _MOTOR_UTILS_H
 #define _MOTOR_UTILS_H
@@ -16,7 +14,16 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: 根据死区时间与内核时钟计算 TIM 死区寄存器 DTG 值。
+ * @param {float} deadtime_ns       目标死区时间 (ns)
+ * @param {float} core_clock_freq   内核时钟频率 (Hz)
+ * @return {UCHAR} DTG 寄存器编码值
+ * @author: lkc
+ */
 UCHAR calculate_deadtime(float deadtime_ns, float core_clock_freq);
+
 #ifdef __cplusplus
 }
 #endif

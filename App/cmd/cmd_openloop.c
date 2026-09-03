@@ -47,6 +47,11 @@ STATIC const osThreadAttr_t taskDutyAttr =
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
+/**
+ * @description: 尝试获取 olstatus 静态缓冲区互斥锁。
+ * @return {bool} true 表示加锁成功，false 表示已有输出在进行
+ * @author: lkc
+ */
 static bool ol_status_try_lock(void)
 {
     uint32_t primask = __get_PRIMASK();
@@ -64,6 +69,11 @@ static bool ol_status_try_lock(void)
     return locked;
 }
 
+/**
+ * @description: 释放 olstatus 静态缓冲区互斥锁。
+ * @return {void} 无
+ * @author: lkc
+ */
 static void ol_status_unlock(void)
 {
     uint32_t primask = __get_PRIMASK();
@@ -75,9 +85,12 @@ static void ol_status_unlock(void)
     }
 }
 
-/*
- * 向状态页尾部追加一段格式化文字。
- * vsnprintf 只写 RAM，不会像 printf 那样每生成一个字符就进入串口驱动。
+/**
+ * @description: 向状态页尾部追加一段格式化文字。
+ * @param {size_t *} used 已用字节数，入参出参
+ * @param {const char *} format printf 风格格式串
+ * @return {void} 无
+ * @author: lkc
  */
 static void ol_status_append(size_t *used, const char *format, ...)
 {
@@ -107,6 +120,12 @@ static void ol_status_append(size_t *used, const char *format, ...)
     }
 }
 
+/**
+ * @description: 将无感状态枚举转换为可读字符串。
+ * @param {motor_sensorless_state_t} state 无感状态
+ * @return {const char *} 状态名称字符串
+ * @author: lkc
+ */
 static const char *ol_sensorless_state_name(motor_sensorless_state_t state)
 {
     switch (state) {
@@ -120,10 +139,11 @@ static const char *ol_sensorless_state_name(motor_sensorless_state_t state)
     }
 }
 
-/*
- * 当用户要求的 I/F 转速高于安全上限时，解释控制器接下来会怎么做。
- * 这里只打印提示，不偷偷替用户打开无感接管或速度 PI，避免观测器参数
- * 尚未确认时突然切入闭环。真正的转速限制在 Motor_OpenLoop_UpdateSpeed()。
+/**
+ * @description: 当 I/F 目标转速超过安全上限时打印提示信息。
+ * @param {float} target_rpm 用户请求的目标机械转速 (RPM)
+ * @return {void} 无
+ * @author: lkc
  */
 static void ol_print_high_speed_guard_notice(float target_rpm)
 {
@@ -156,7 +176,9 @@ static void ol_print_high_speed_guard_notice(float target_rpm)
 }
 
 /**
- * @description: 打印开环当前状态
+ * @description: 格式化并输出开环、电流环、无感与保护状态到串口。
+ * @return {void} 无
+ * @author: lkc
  */
 static void ol_print_status(void)
 {
@@ -305,9 +327,11 @@ static void ol_print_status(void)
 }
 
 /**
- * @description: olspeed 命令 — 设置/查看开环目标转速
- * @param argc 参数个数
- * @param argv 参数列表
+ * @description: olspeed 命令 — 设置或查看开环目标转速。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为目标转速 (RPM)，负数为反转
+ * @return {int} 0 成功
+ * @author: lkc
  */
 int Cmd_OlSpeed(int argc, char *argv[])
 {
@@ -338,7 +362,11 @@ int Cmd_OlSpeed(int argc, char *argv[])
 }
 
 /**
- * @description: olboost 命令 — 设置 V/F 启动补偿电压
+ * @description: olboost 命令 — 设置 V/F 启动补偿电压。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为补偿电压 (V)
+ * @return {int} 0 成功
+ * @author: lkc
  */
 int Cmd_OlBoost(int argc, char *argv[])
 {
@@ -354,7 +382,11 @@ int Cmd_OlBoost(int argc, char *argv[])
 }
 
 /**
- * @description: olkvf 命令 — 设置 V/F 斜率
+ * @description: olkvf 命令 — 设置 V/F 斜率。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为斜率 (V/Hz)
+ * @return {int} 0 成功
+ * @author: lkc
  */
 int Cmd_OlKvf(int argc, char *argv[])
 {
@@ -370,7 +402,11 @@ int Cmd_OlKvf(int argc, char *argv[])
 }
 
 /**
- * @description: olramp 命令 — 设置软启动斜坡速率
+ * @description: olramp 命令 — 设置软启动斜坡速率。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为斜坡速率 (RPM/s)
+ * @return {int} 0 成功
+ * @author: lkc
  */
 int Cmd_OlRamp(int argc, char *argv[])
 {
@@ -386,7 +422,11 @@ int Cmd_OlRamp(int argc, char *argv[])
 }
 
 /**
- * @description: olvlimit 命令 — 设置 Vq 上限
+ * @description: olvlimit 命令 — 设置 Vq 电压上限。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 Vq 上限 (V)
+ * @return {int} 0 成功
+ * @author: lkc
  */
 int Cmd_OlVlimit(int argc, char *argv[])
 {
@@ -401,6 +441,13 @@ int Cmd_OlVlimit(int argc, char *argv[])
     return 0;
 }
 
+/**
+ * @description: olmax 命令 — 设置开环最大转速限制。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为最大转速 (RPM)
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_OlMaxSpeed(int argc, char *argv[])
 {
     if (argc < 2)
@@ -417,6 +464,13 @@ int Cmd_OlMaxSpeed(int argc, char *argv[])
     return 0;
 }
 
+/**
+ * @description: olmin 命令 — 设置开环最小转速（启动默认值）。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为最小转速 (RPM)
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_OlMinSpeed(int argc, char *argv[])
 {
     if (argc < 2)
@@ -435,6 +489,13 @@ int Cmd_OlMinSpeed(int argc, char *argv[])
     return 0;
 }
 
+/**
+ * @description: olstart 命令 — 启动开环运行。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表（无额外参数）
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_OlStart(int argc, char *argv[])
 {
     (void)argc;
@@ -460,6 +521,13 @@ int Cmd_OlStart(int argc, char *argv[])
     return 0;
 }
 
+/**
+ * @description: olstop 命令 — 停止开环运行并清零积分器。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表（无额外参数）
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_OlStop(int argc, char *argv[])
 {
     (void)argc;
@@ -477,10 +545,12 @@ int Cmd_OlStop(int argc, char *argv[])
     return 0;
 }
 
-/*
- * olstatus：手动打印一次开环、电流环、无感和保护状态。
- * 原有 ol_print_status() 只被后台 openloop 任务调用；导出这个 Shell 包装
- * 函数后，调试时无需启动后台任务也能随时查询 Ia/Ib/Ic 与故障状态。
+/**
+ * @description: olstatus 命令 — 手动打印一次开环与保护状态。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表（无额外参数）
+ * @return {int} 0 成功
+ * @author: lkc
  */
 int Cmd_OlStatus(int argc, char *argv[])
 {
@@ -491,7 +561,13 @@ int Cmd_OlStatus(int argc, char *argv[])
     return 0;
 }
 
-/* sltakeover <0|1>：单独授权观测器接管角度，默认关闭便于安全观察。 */
+/**
+ * @description: sltakeover 命令 — 授权或禁止无感观测器接管电角度。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 0 或 1
+ * @return {int} 0 成功，-1 参数错误或前置条件不满足
+ * @author: lkc
+ */
 int Cmd_SensorlessTakeover(int argc, char *argv[])
 {
     int enable;
@@ -519,6 +595,13 @@ int Cmd_SensorlessTakeover(int argc, char *argv[])
     return 0;
 }
 
+/**
+ * @description: olfault 命令 — 查询或清除锁存的电机保护故障。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 "clear" 时清除故障
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_OlFault(int argc, char *argv[])
 {
     motor_protect_snapshot_t snapshot;
@@ -572,8 +655,11 @@ int Cmd_OlFault(int argc, char *argv[])
 }
 
 /**
- * @description: olmode 命令 — 切换开环模式
- * @usage: olmode <0|1>  (0=V/F, 1=I/F)
+ * @description: olmode 命令 — 切换开环模式（V/F 或 I/F）。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 0(V/F) 或 1(I/F)
+ * @return {int} 0 成功，-1 参数无效
+ * @author: lkc
  */
 int Cmd_OlMode(int argc, char *argv[])
 {
@@ -604,7 +690,11 @@ int Cmd_OlMode(int argc, char *argv[])
 }
 
 /**
- * @description: oliq 命令 — 设置开环电流模式 Iq 目标
+ * @description: oliq 命令 — 设置 I/F 模式 Iq 目标电流。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为目标电流 (A)
+ * @return {int} 0 成功
+ * @author: lkc
  */
 int Cmd_OlIq(int argc, char *argv[])
 {
@@ -620,7 +710,11 @@ int Cmd_OlIq(int argc, char *argv[])
 }
 
 /**
- * @description: olid 命令 — 设置开环电流模式 Id 目标（通常为 0）
+ * @description: olid 命令 — 设置 I/F 模式 Id 目标电流。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为目标电流 (A)
+ * @return {int} 0 成功
+ * @author: lkc
  */
 int Cmd_OlId(int argc, char *argv[])
 {
@@ -635,7 +729,11 @@ int Cmd_OlId(int argc, char *argv[])
 }
 
 /**
- * @description: olkp 命令 — 设置开环电流环 Kp
+ * @description: olkp 命令 — 设置开环电流环比例增益 Kp。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 Kp 值
+ * @return {int} 0 成功
+ * @author: lkc
  */
 int Cmd_OlKp(int argc, char *argv[])
 {
@@ -651,7 +749,11 @@ int Cmd_OlKp(int argc, char *argv[])
 }
 
 /**
- * @description: olki 命令 — 设置开环电流环 Ki
+ * @description: olki 命令 — 设置开环电流环积分增益 Ki。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 Ki 值
+ * @return {int} 0 成功
+ * @author: lkc
  */
 int Cmd_OlKi(int argc, char *argv[])
 {
@@ -667,7 +769,11 @@ int Cmd_OlKi(int argc, char *argv[])
 }
 
 /**
- * @description: olphase 命令 — 设置启动相位补偿
+ * @description: olphase 命令 — 设置 I/F 启动相位超前补偿。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为相位补偿 (rad)
+ * @return {int} 0 成功
+ * @author: lkc
  */
 int Cmd_OlPhase(int argc, char *argv[])
 {
@@ -682,11 +788,12 @@ int Cmd_OlPhase(int argc, char *argv[])
     return 0;
 }
 
-/*
- * olalign <0|1> <Id_A> <time_s> [angle_rad]
- *
- * 设置 I/F 启动前的固定 D 轴预对齐。参数只能在停止状态修改，避免运行中
- * 突然把旋转磁场切换成固定磁场。
+/**
+ * @description: olalign 命令 — 配置 I/F 启动前 D 轴转子预对齐参数。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表：<0|1> <Id_A> <time_s> [angle_rad]
+ * @return {int} 0 成功，-1 运行中修改或参数无效
+ * @author: lkc
  */
 int Cmd_OlAlign(int argc, char *argv[])
 {
@@ -727,7 +834,13 @@ int Cmd_OlAlign(int argc, char *argv[])
     return 0;
 }
 
-/* hfistart <0|1> <voltage_V> <cycles_per_axis> [min_confidence] */
+/**
+ * @description: hfistart 命令 — 配置 HFI 高频注入启动参数。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表：<0|1> <voltage_V> <cycles> [min_confidence]
+ * @return {int} 0 成功，-1 运行中修改或参数无效
+ * @author: lkc
+ */
 int Cmd_HfiStart(int argc, char *argv[])
 {
     int enable;
@@ -770,7 +883,13 @@ int Cmd_HfiStart(int argc, char *argv[])
     return 0;
 }
 
-/* speed 命令：查看速度反馈、速度误差、PI 参数和 Iq 输出。 */
+/**
+ * @description: speed 命令 — 查看速度环与开环综合状态。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表（无额外参数）
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_SpeedStatus(int argc, char *argv[])
 {
     (void)argc;
@@ -779,7 +898,13 @@ int Cmd_SpeedStatus(int argc, char *argv[])
     return 0;
 }
 
-/* spenable <0|1>：切换手动 Iq 和速度 PI，不自动修改目标转速。 */
+/**
+ * @description: spenable 命令 — 启停速度 PI 闭环。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 0 或 1
+ * @return {int} 0 成功，-1 参数错误或前置条件不满足
+ * @author: lkc
+ */
 int Cmd_SpeedEnable(int argc, char *argv[])
 {
     int enable;
@@ -817,7 +942,13 @@ int Cmd_SpeedEnable(int argc, char *argv[])
     return 0;
 }
 
-/* slenable <0|1>：启停无感观测器；关闭时只保留原来的 I/F 开环。 */
+/**
+ * @description: slenable 命令 — 启停无感磁链观测器。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 0 或 1
+ * @return {int} 0 成功，-1 参数无效
+ * @author: lkc
+ */
 int Cmd_SensorlessEnable(int argc, char *argv[])
 {
     int enable;
@@ -845,7 +976,13 @@ int Cmd_SensorlessEnable(int argc, char *argv[])
     return 0;
 }
 
-/* slrpm <transition> <fallback>：设置开环接管和失锁回退机械转速。 */
+/**
+ * @description: slrpm 命令 — 设置无感接管与失锁回退转速阈值。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表：<transition_rpm> <fallback_rpm>
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_SensorlessRpm(int argc, char *argv[])
 {
     if (argc < 3) {
@@ -866,15 +1003,12 @@ int Cmd_SensorlessRpm(int argc, char *argv[])
     return 0;
 }
 
-/*
- * slguard <openloop_max_rpm> <phase_tolerance_rad> <blend_time_s>
- *
- * 三个参数共同约束从 I/F 到无感闭环的危险过渡区：
- *   1. openloop_max_rpm：观测角未完全接管前，I/F 最多强拖到多少机械 RPM；
- *   2. phase_tolerance：接管前观测角与 I/F 角允许相差多少弧度；
- *   3. blend_time_s：从 I/F 角平滑切到观测角所用时间。
- *
- * 运行中修改会复位观测器并导致角度参考突变，所以只允许停机时设置。
+/**
+ * @description: slguard 命令 — 设置 I/F 到无感闭环过渡的安全约束。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表：<openloop_max_rpm> <phase_tol_rad> <blend_s>
+ * @return {int} 0 成功，-1 运行中修改
+ * @author: lkc
  */
 int Cmd_SensorlessGuard(int argc, char *argv[])
 {
@@ -933,7 +1067,13 @@ int Cmd_SensorlessGuard(int argc, char *argv[])
     return 0;
 }
 
-/* slmotor <R_ohm> <L_mH> <flux_mWb>：设置无感电机模型并换算到 SI 单位。 */
+/**
+ * @description: slmotor 命令 — 设置无感电机模型 R/L/磁链参数。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表：<R_ohm> <L_mH> <flux_mWb>
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_SensorlessMotor(int argc, char *argv[])
 {
     if (argc < 4) {
@@ -956,7 +1096,13 @@ int Cmd_SensorlessMotor(int argc, char *argv[])
     return 0;
 }
 
-/* slobs <gain> <pll_kp> <pll_ki>：设置观测器收敛增益和 PLL 增益。 */
+/**
+ * @description: slobs 命令 — 设置无感观测器增益与 PLL 参数。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表：<observer_gain> <pll_kp> <pll_ki>
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_SensorlessObserver(int argc, char *argv[])
 {
     if (argc < 4) {
@@ -979,7 +1125,13 @@ int Cmd_SensorlessObserver(int argc, char *argv[])
     return 0;
 }
 
-/* slphase <rad>：补偿观测器固定电角度偏差，调试前保持 0。 */
+/**
+ * @description: slphase 命令 — 设置无感观测器固定电角度补偿。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为相位偏移 (rad)
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_SensorlessPhase(int argc, char *argv[])
 {
     if (argc < 2) {
@@ -994,7 +1146,13 @@ int Cmd_SensorlessPhase(int argc, char *argv[])
     return 0;
 }
 
-/* spkp <A/RPM>：设置速度环比例增益。 */
+/**
+ * @description: spkp 命令 — 设置速度环比例增益 Kp。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 Kp (A/RPM)
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_SpeedKp(int argc, char *argv[])
 {
     if (argc < 2) {
@@ -1008,7 +1166,13 @@ int Cmd_SpeedKp(int argc, char *argv[])
     return 0;
 }
 
-/* spki <A/(RPM*s)>：设置速度环积分增益。 */
+/**
+ * @description: spki 命令 — 设置速度环积分增益 Ki。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 Ki (A/(RPM·s))
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_SpeedKi(int argc, char *argv[])
 {
     if (argc < 2) {
@@ -1022,7 +1186,13 @@ int Cmd_SpeedKi(int argc, char *argv[])
     return 0;
 }
 
-/* spiq <A>：设置速度 PI 可以请求的最大转矩电流。 */
+/**
+ * @description: spiq 命令 — 设置速度 PI 可请求的最大 Iq 电流。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 Iq 上限 (A)
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_SpeedIqLimit(int argc, char *argv[])
 {
     if (argc < 2) {
@@ -1036,7 +1206,13 @@ int Cmd_SpeedIqLimit(int argc, char *argv[])
     return 0;
 }
 
-/* spbrake <0|1>：是否允许速度 PI 输出与目标方向相反的制动电流。 */
+/**
+ * @description: spbrake 命令 — 允许或禁止速度 PI 输出反向制动电流。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 0 或 1
+ * @return {int} 0 成功，-1 参数无效
+ * @author: lkc
+ */
 int Cmd_SpeedBrake(int argc, char *argv[])
 {
     int enable;
@@ -1060,7 +1236,10 @@ int Cmd_SpeedBrake(int argc, char *argv[])
 /* 以下命令均注册在 command.c 命令表中 */
 
 /**
- * @description: 原 openloop 任务（保留兼容）
+ * @description: 后台开环状态周期性打印任务（兼容旧接口）。
+ * @param {void *} argument 任务参数（未使用）
+ * @return {void} 无
+ * @author: lkc
  */
 VOID Openloop_ControlTask(VOID *argument)
 {
@@ -1075,8 +1254,11 @@ VOID Openloop_ControlTask(VOID *argument)
 }
 
 /**
- * @description: 后台 openloop 状态打印任务（兼容旧接口）
- *   openloop create   创建后台打印任务
+ * @description: openloop 命令 — 创建后台开环状态打印任务。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为 "create"
+ * @return {int} 0 成功，-1 用法错误
+ * @author: lkc
  */
 int Cmd_Motor_OpenLoop(int argc, char *argv[])
 {

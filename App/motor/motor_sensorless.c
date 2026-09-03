@@ -1,3 +1,7 @@
+/*
+ * @Description: 无感观测器：Ortega 磁链观测 + PLL 锁相与角度接管
+ * @Author: lkc
+ */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -198,24 +202,15 @@ void Motor_Sensorless_SetAppliedVoltage(float v_alpha, float v_beta)
     s_sensorless.applied_v_beta = v_beta;
 }
 
-/*
- * 执行一次无感估算与状态机更新。
- *
- * 调用频率：与 I/F 电流环相同，每个 FOC 控制周期调用一次。
- * 输入数据：
- *   - motor->ia/ib/ic：本周期三相电流，单位 A；
- *   - applied_v_alpha/beta：上一周期保存的控制电压，单位 V；
- *   - dt：一次 FOC 周期的时间，单位 s；
- *   - R/L/flux：电阻 Ω、电感 H、永磁磁链 Wb。
- *
- * 执行顺序：
- *   1. 检查运行条件并整理电机参数；
- *   2. 三相电流做 Clarke 变换；
- *   3. 积分 Ortega 磁链模型；
- *   4. 从转子磁链计算原始角度；
- *   5. PLL 估算平滑角度和转速；
- *   6. 判断能否接管，或闭环后是否已经失锁；
- *   7. 输出渐变后的控制角度和速度有效标志。
+/**
+ * @description: 执行一次无感磁链估算与接管状态机更新。
+ * @detail: 每个 FOC 周期调用一次：Clarke 变换 → Ortega 磁链积分 → atan2 原始角 →
+ *          PLL 平滑 → 判断锁定/失锁条件 → 输出渐变后的控制角与速度有效标志。
+ *          仅服务于 I/F 电流闭环且 sensorless_enable 为 true 时运行。
+ * @param {MOTOR_PARAM_S} *motor  电机参数与运行时数据
+ * @param {float} dt              FOC 控制周期 (s)
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
 {

@@ -202,6 +202,12 @@ static void cmd_handle_char(char c)
     }
 }
 
+/**
+ * @description: 命令行任务 — 从队列读取串口字符并解析分发命令。
+ * @param {void *} argument 任务参数（未使用）
+ * @return {void} 无
+ * @author: lkc
+ */
 void Cmd_Task(void *argument)
 {
     STATIC CMD_QUEUE_ITEM rx_item;
@@ -222,6 +228,11 @@ void Cmd_Task(void *argument)
 }
 
 /* -- 初始化 ----------------------------------------------------------------*/
+/**
+ * @description: 初始化命令行框架 — 创建消息队列与命令任务。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Command_Init(void)
 {
     if (queueCmdHandle == NULL) {

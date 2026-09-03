@@ -1,11 +1,6 @@
 /*
- * @Description: 
- * @Version: 1.0
+ * @Description: 电机开环控制与 PWM 电压输出
  * @Author: lkc
- * @Date: 2023-08-29 22:34:25
- * @LastEditors: lkc
- * @LastEditTime: 2023-09-02 22:07:43
- * @detail: 
  */
 #ifdef __cplusplus
 extern "C" {
@@ -26,12 +21,13 @@ float ud, uq;
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @brief  三相相电压 -> PWM 占空比输出
- * @detail 输入为 Clark 逆变换后的三相相电压（以中性点为 0，约 ±Vbus/2），
- *         先加 Vbus/2 偏置转为单极性 [0, Vbus]，再归一化为占空比并写入定时器。
- * @param  ua  A 相电压 (V)
- * @param  ub  B 相电压 (V)
- * @param  uc  C 相电压 (V)
+ * @description: 将三相相电压转换为 PWM 占空比并写入定时器。
+ * @detail: 输入为以中性点为 0 的双极性相电压 (V)，加 Vbus/2 偏置后归一化为占空比 [0, 1]。
+ * @param {float} ua  A 相电压 (V)
+ * @param {float} ub  B 相电压 (V)
+ * @param {float} uc  C 相电压 (V)
+ * @return {*}
+ * @author: lkc
  */
 VOID Motor_Ctrl_Pwm(float ua, float ub, float uc)
 {
@@ -62,11 +58,11 @@ VOID Motor_Ctrl_Pwm(float ua, float ub, float uc)
 }
 
 /**
- * @description: 
- * @detail: 
- * @param {float} uq
- * @param {float} ud
- * @param {float} angle
+ * @description: 按给定 dq 电压与电角度输出 PWM。
+ * @detail: 经逆 Park → 逆 Clarke 得到三相相电压，再调用 Motor_Ctrl_Pwm 写入定时器。
+ * @param {float} uq    q 轴电压 (V)
+ * @param {float} ud    d 轴电压 (V)
+ * @param {float} angle 电角度 (rad)
  * @return {*}
  * @author: lkc
  */

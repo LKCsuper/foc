@@ -62,12 +62,22 @@ void vApplicationDaemonTaskStartupHook(void);
 
 /* USER CODE BEGIN 1 */
 /* Functions needed when configGENERATE_RUN_TIME_STATS is on */
+/**
+ * @description: 配置 FreeRTOS 运行时统计计时器（弱符号默认空实现）。
+ * @return {void} 无
+ * @author: lkc
+ */
 __weak void configureTimerForRunTimeStats(void)
 {
 	// ulFreeRTOSRunTimeTicks = 0;
 	// Bsp_Tim_RunCount();
 }
 
+/**
+ * @description: 读取 FreeRTOS 运行时统计计数器（弱符号默认返回 0）。
+ * @return {unsigned long} 运行时 tick 计数值
+ * @author: lkc
+ */
 __weak unsigned long getRunTimeCounterValue(void)
 {
 //	return ulFreeRTOSRunTimeTicks;
@@ -76,6 +86,11 @@ __weak unsigned long getRunTimeCounterValue(void)
 /* USER CODE END 1 */
 
 /* USER CODE BEGIN 2 */
+/**
+ * @description: FreeRTOS 空闲任务钩子，每次 idle 迭代调用。
+ * @return {void} 无
+ * @author: lkc
+ */
 void vApplicationIdleHook( void )
 {
    /* vApplicationIdleHook() will only be called if configUSE_IDLE_HOOK is set
@@ -91,6 +106,11 @@ void vApplicationIdleHook( void )
 /* USER CODE END 2 */
 
 /* USER CODE BEGIN 3 */
+/**
+ * @description: FreeRTOS 系统 tick 钩子，在 tick 中断上下文调用。
+ * @return {void} 无
+ * @author: lkc
+ */
 void vApplicationTickHook( void )
 {
    /* This function will be called by each tick interrupt if
@@ -102,6 +122,13 @@ void vApplicationTickHook( void )
 /* USER CODE END 3 */
 
 /* USER CODE BEGIN 4 */
+/**
+ * @description: FreeRTOS 任务栈溢出钩子，检测到溢出时打印任务名。
+ * @param {xTaskHandle} xTask 溢出任务句柄
+ * @param {signed char *} pcTaskName 溢出任务名称
+ * @return {void} 无
+ * @author: lkc
+ */
 void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
 {
     /* Run time stack overflow checking is performed if
@@ -112,6 +139,11 @@ void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN 5 */
+/**
+ * @description: FreeRTOS 堆分配失败钩子，pvPortMalloc 失败时调用。
+ * @return {void} 无
+ * @author: lkc
+ */
 void vApplicationMallocFailedHook(void)
 {
    /* vApplicationMallocFailedHook() will only be called if
@@ -129,6 +161,11 @@ void vApplicationMallocFailedHook(void)
 /* USER CODE END 5 */
 
 /* USER CODE BEGIN DAEMON_TASK_STARTUP_HOOK */
+/**
+ * @description: FreeRTOS 守护任务启动钩子，Timer 服务任务就绪后调用。
+ * @return {void} 无
+ * @author: lkc
+ */
 void vApplicationDaemonTaskStartupHook(void)
 {
 }

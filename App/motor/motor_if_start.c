@@ -1,3 +1,7 @@
+/*
+ * @Description: I/F 开环启动：相位补偿、Iq 缩放与角度积分转速
+ * @Author: lkc
+ */
 #include "motor_if_start.h"
 
 #include <math.h>

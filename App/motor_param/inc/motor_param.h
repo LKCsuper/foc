@@ -1,8 +1,6 @@
 /*
- * @Description: 
- * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-10-09 23:00:11
- * @FilePath: \foc\App\motor\inc\utils.h
+ * @Description: 电机运行参数与全局状态定义
+ * @Author: lkc
  */
 #ifndef _MOTOR_PARAM_H
 #define _MOTOR_PARAM_H
@@ -356,6 +354,14 @@ extern MOTOR_PARAM_S *gpstMotor;
 extern mc_configuration *gpstMotorCfg;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: 电机参数初始化。
+ * @detail: 写入固定参数与开环/电流/速度/无感默认值，尝试从 Flash 加载已保存参数，
+ *          并初始化速度环与无感观测器。
+ * @return {*}
+ * @author: lkc
+ */
 VOID MOTOR_Param_Init(VOID);
 #ifdef __cplusplus
 }

@@ -1,3 +1,7 @@
+/*
+ * @Description: 无感 Ortega 磁链观测器与开环切闭环接口
+ * @Author: lkc
+ */
 #ifndef _MOTOR_SENSORLESS_H
 #define _MOTOR_SENSORLESS_H
 
@@ -41,57 +45,104 @@ typedef struct {
     float applied_voltage;    /* 实际下发的 α/β 电压矢量模长，单位 V */
 } motor_sensorless_diagnostics_t;
 
-/* 上电初始化运行时状态；MOTOR_Param_Init() 完成参数赋值后调用一次。 */
+/**
+ * @description: 上电初始化观测器运行时状态。
+ * @detail: MOTOR_Param_Init() 完成参数赋值后调用一次。
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_Sensorless_Init(void);
 
-/*
- * 清空磁链、PLL、锁定计时和接管比例，并把速度反馈标记为无效。
- * 停机、模式切换、关闭无感或检测到 NaN/Inf 时都会调用。
+/**
+ * @description: 复位观测器。
+ * @detail: 清空磁链、PLL、锁定计时和接管比例，并把速度反馈标记为无效。
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Sensorless_Reset(void);
 
-/*
- * 保存本周期反 Park 后实际下发的 α/β 电压，单位 V。
- * 下一 FOC 周期会把它与新采样电流一起送入磁链模型。
+/**
+ * @description: 记录本周期实际下发给逆变器的 α/β 电压。
+ * @param {float} v_alpha  α 轴电压 (V)
+ * @param {float} v_beta   β 轴电压 (V)
+ * @detail: 下一 FOC 周期会把它与新采样电流一起送入磁链模型。
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Sensorless_SetAppliedVoltage(float v_alpha, float v_beta);
 
-/*
- * 每个 FOC 周期更新 Ortega 磁链、PLL、锁定/失锁状态和角度渐变。
- * motor 中的 R/L/flux 必须分别使用 Ω、H、Wb，dt 的单位必须是 s。
+/**
+ * @description: 每个 FOC 周期更新 Ortega 磁链、PLL、锁定/失锁状态和角度渐变。
+ * @param {MOTOR_PARAM_S} *motor  电机实时参数；R/L/flux 分别使用 Ω、H、Wb
+ * @param {float} dt              控制周期 (s)
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt);
 
-/*
- * 返回本周期 Park 变换应使用的电角度，单位 rad。
- * 未闭环时返回 open_loop_angle；闭环后返回渐变后的观测控制角。
+/**
+ * @description: 获取本周期 Park 变换应使用的电角度。
+ * @param {float} open_loop_angle  调用者提供的 I/F 强制电角度 (rad)
+ * @return {float} 控制用电角度 (rad)；未闭环时返回 open_loop_angle
+ * @author: lkc
  */
 float Motor_Sensorless_GetControlAngle(float open_loop_angle);
 
-/* 查询当前状态，主要用于状态显示和调试。 */
+/**
+ * @description: 获取观测器状态机当前状态。
+ * @return {motor_sensorless_state_t} OPEN_LOOP、LOCKING 或 CLOSED
+ * @author: lkc
+ */
 motor_sensorless_state_t Motor_Sensorless_GetState(void);
 
-/* 返回 PLL 平滑后的观测电角度，单位 rad。 */
+/**
+ * @description: 获取 PLL 平滑后的观测电角度。
+ * @return {float} 观测电角度 (rad)
+ * @author: lkc
+ */
 float Motor_Sensorless_GetObserverAngle(void);
 
-/* 返回估算转子磁链模长，单位 Wb。 */
+/**
+ * @description: 获取估算转子磁链模长。
+ * @return {float} 磁链模长 (Wb)
+ * @author: lkc
+ */
 float Motor_Sensorless_GetFluxMagnitude(void);
 
-/* 返回低通后的机械转速，单位 RPM，反转时为负。 */
+/**
+ * @description: 获取低通后的机械转速。
+ * @return {float} 机械转速 (RPM)，反转时为负
+ * @author: lkc
+ */
 float Motor_Sensorless_GetMechanicalRpm(void);
 
-/* 返回 PLL 角与 I/F 强制角的最短角度差，单位 rad。 */
+/**
+ * @description: 获取 PLL 观测角与 I/F 强制角的最短相位差。
+ * @return {float} 相位误差 (rad)，范围为 ±π
+ * @author: lkc
+ */
 float Motor_Sensorless_GetPhaseError(void);
 
-/* 获取四项接管条件、锁定计时、接管比例和实际输出电压。 */
+/**
+ * @description: 拷贝观测器的接管诊断数据。
+ * @param {motor_sensorless_diagnostics_t} *diagnostics  输出指针，填充四项接管条件、锁定计时、接管比例和实际输出电压
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_t *diagnostics);
 
-/* true 表示观测角已经接管，而不只是观测器处于启用状态。 */
+/**
+ * @description: 判断观测角是否已接管电流环。
+ * @return {bool} true=已进入 CLOSED 且观测角参与 Park 变换
+ * @author: lkc
+ */
 bool Motor_Sensorless_IsClosedLoop(void);
 
-/*
- * true 表示已经进入 CLOSED，并且开环角到观测角的渐变比例已经达到 100%。
- * 启动 I/F 最高转速保护使用本函数，防止角度仍在渐变时提前继续升速。
+/**
+ * @description: 判断开环角到观测角的接管是否全部完成。
+ * @detail: 需要已进入 CLOSED 且角度渐变比例 blend 达到 1.0；供 I/F 最高转速保护使用。
+ * @return {bool} true=接管渐变已完成
+ * @author: lkc
  */
 bool Motor_Sensorless_IsTakeoverComplete(void);
 

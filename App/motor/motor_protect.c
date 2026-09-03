@@ -1,3 +1,7 @@
+/*
+ * @Description: 电机保护：过流、欠压、堵转、失速检测与故障锁存
+ * @Author: lkc
+ */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -165,9 +169,12 @@ void Motor_Protect_TriggerFault(mc_fault_code fault, const MOTOR_PARAM_S *motor)
     Motor_Protect_LatchFault(fault, motor);
 }
 
-/*
- * 初始化保护配置和状态。
- * config=NULL：使用上面的默认参数；config 非空：复制用户提供的整套参数。
+/**
+ * @description: 初始化保护模块配置与运行时状态。
+ * @detail: config 为空时使用默认阈值；随后清除全部故障锁存与计时器。
+ * @param {const motor_protect_config_t} *config  保护参数；NULL 时使用内置默认值
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Protect_Init(const motor_protect_config_t *config)
 {
@@ -177,10 +184,14 @@ void Motor_Protect_Init(const motor_protect_config_t *config)
     Motor_Protect_ClearFault();
 }
 
-/*
- * 保存外部计算的真实机械转速。
- * 注意：不能把 ol_current_rpm 传进来，因为它只是软件生成的开环指令，
- * 即使转子堵死，ol_current_rpm 也可能继续上升，无法反映真实运动状态。
+/**
+ * @description: 更新堵转/失速保护所用的真实机械转速反馈。
+ * @detail: 须传入观测器或传感器测得的真实 RPM，不可使用 ol_current_rpm 开环指令值；
+ *          valid 为 false 时清除速度类历史计时。
+ * @param {float} rpm     机械转速 (RPM)，正负表示转向
+ * @param {bool} valid    转速反馈是否可靠
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Protect_SetSpeedFeedback(float rpm, bool valid)
 {
@@ -194,9 +205,13 @@ void Motor_Protect_SetSpeedFeedback(float rpm, bool valid)
     }
 }
 
-/*
- * 过流保护：max(|ia|, |ib|, |ic|) >= over_current。
- * 使用短延时过滤一个采样点的 ADC 毛刺，但延时不能过长，以免损坏功率器件。
+/**
+ * @description: 检测三相瞬时电流是否持续超过过流阈值。
+ * @detail: 取 max(|ia|, |ib|, |ic|) 与 over_current (A) 比较，经 over_current_time (s) 去抖后确认。
+ * @param {const MOTOR_PARAM_S} *motor  电机实时数据
+ * @param {float} dt                    本周期时间步长 (s)
+ * @return {bool} 去抖后确认过流返回 true
+ * @author: lkc
  */
 bool Motor_Protect_CheckOverCurrent(const MOTOR_PARAM_S *motor, float dt)
 {
@@ -206,9 +221,13 @@ bool Motor_Protect_CheckOverCurrent(const MOTOR_PARAM_S *motor, float dt)
                                   &s_state.over_current_timer);
 }
 
-/*
- * 欠压保护：存在运行命令，并且 v_bus < under_voltage。
- * 增加 running 条件是为了避免正常停机和上电 ADC 滤波尚未建立时误报警。
+/**
+ * @description: 检测运行过程中母线电压是否持续低于欠压阈值。
+ * @detail: 仅在 ol_enable 且目标转速非零时判断，避免停机和上电滤波阶段误触发。
+ * @param {const MOTOR_PARAM_S} *motor  电机实时数据
+ * @param {float} dt                    本周期时间步长 (s)
+ * @return {bool} 去抖后确认欠压返回 true
+ * @author: lkc
  */
 bool Motor_Protect_CheckUnderVoltage(const MOTOR_PARAM_S *motor, float dt)
 {
@@ -219,11 +238,14 @@ bool Motor_Protect_CheckUnderVoltage(const MOTOR_PARAM_S *motor, float dt)
                                   &s_state.under_voltage_timer);
 }
 
-/*
- * 堵转保护用于“电机一直没有转起来”的情况，三个条件必须同时成立：
- *   1. commanded：目标转速足够高，说明控制器确实要求电机旋转；
- *   2. stopped：真实反馈转速接近 0，说明转子没有跟随；
- *   3. loaded：相电流不小，说明控制器正在出力，而不是尚未使能。
+/**
+ * @description: 检测电机是否在带载情况下始终未能起转（堵转）。
+ * @detail: 须同时满足：目标转速 ≥ stall_target_rpm (RPM)、真实转速 ≤ stall_speed_rpm (RPM)、
+ *          相电流峰值 ≥ stall_current (A)，且速度反馈有效；经 stall_time (s) 去抖确认。
+ * @param {const MOTOR_PARAM_S} *motor  电机实时数据
+ * @param {float} dt                    本周期时间步长 (s)
+ * @return {bool} 去抖后确认堵转返回 true
+ * @author: lkc
  */
 bool Motor_Protect_CheckStall(const MOTOR_PARAM_S *motor, float dt)
 {
@@ -246,11 +268,14 @@ bool Motor_Protect_CheckStall(const MOTOR_PARAM_S *motor, float dt)
                                   s_config.stall_time, &s_state.stall_timer);
 }
 
-/*
- * 失速保护用于“电机已经转起来，随后突然掉速”的情况。
- * 它和堵转的区别：
- *   - 堵转：从启动开始就没有达到正常速度；
- *   - 失速：先达到过正常速度，运行中又明显跌落。
+/**
+ * @description: 检测电机已加速后是否持续严重掉速（失速）。
+ * @detail: 须先确认曾达到目标转速 50%，再判断真实转速低于目标 × speed_loss_ratio；
+ *          速度反馈无效或目标过低时不启用；经 speed_loss_time (s) 去抖确认。
+ * @param {const MOTOR_PARAM_S} *motor  电机实时数据
+ * @param {float} dt                    本周期时间步长 (s)
+ * @return {bool} 去抖后确认失速返回 true
+ * @author: lkc
  */
 bool Motor_Protect_CheckSpeedLoss(const MOTOR_PARAM_S *motor, float dt)
 {
@@ -287,11 +312,14 @@ bool Motor_Protect_CheckSpeedLoss(const MOTOR_PARAM_S *motor, float dt)
                                   &s_state.speed_loss_timer);
 }
 
-/*
- * 统一保护调度入口。
- *
- * 返回 true 并不代表“本周期刚刚发生故障”，也可能是以前发生的故障仍在锁存。
- * 因此上层每次看到 true 都必须继续保持安全输出，不能自动恢复 FOC。
+/**
+ * @description: 统一保护调度入口，按优先级检测并锁存首发故障。
+ * @detail: 已锁存时直接返回 true；否则依次检查过流、欠压、堵转、失速。
+ *          返回 true 表示须保持安全输出，不代表本周期新发生故障。
+ * @param {const MOTOR_PARAM_S} *motor  电机实时数据
+ * @param {float} dt                    本周期时间步长 (s)
+ * @return {bool} 故障已锁存或本周期新触发返回 true
+ * @author: lkc
  */
 bool Motor_Protect_Run(const MOTOR_PARAM_S *motor, float dt)
 {
@@ -314,9 +342,11 @@ bool Motor_Protect_Run(const MOTOR_PARAM_S *motor, float dt)
     return s_state.fault_latched;
 }
 
-/*
- * 清除全部保护状态。
- * 该函数只清软件锁存，不判断硬件故障是否真的消失；调用者必须先停机检查。
+/**
+ * @description: 清除全部保护锁存、计时器与速度历史状态。
+ * @detail: 仅清除软件状态，不判断硬件故障是否消失；调用前须先停机检查。
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Protect_ClearFault(void)
 {
@@ -325,13 +355,21 @@ void Motor_Protect_ClearFault(void)
     s_state.fault = FAULT_CODE_NONE;
 }
 
-/* 返回故障锁存标志，供状态显示和启动条件检查使用。 */
+/**
+ * @description: 查询保护模块是否已锁存故障。
+ * @return {bool} 已锁存返回 true
+ * @author: lkc
+ */
 bool Motor_Protect_IsFaultLatched(void)
 {
     return s_state.fault_latched;
 }
 
-/* 返回首发故障码，Shell 的 olfault 命令使用它显示故障原因。 */
+/**
+ * @description: 获取首次锁存的故障码。
+ * @return {mc_fault_code} 首发故障码；无故障时为 FAULT_CODE_NONE
+ * @author: lkc
+ */
 mc_fault_code Motor_Protect_GetFault(void)
 {
     return s_state.fault;

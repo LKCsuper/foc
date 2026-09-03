@@ -566,12 +566,53 @@
 #endif
 
 // Functions
+/**
+ * @description: 初始化板级 GPIO，含功率级、霍尔、LED 等引脚模式与默认电平。
+ * @return {void} 无
+ * @author: lkc
+ */
 void hw_init_gpio(void);
+
+/**
+ * @description: 配置 ADC 规则/注入通道映射，匹配电流、电压与温度采样引脚。
+ * @return {void} 无
+ * @author: lkc
+ */
 void hw_setup_adc_channels(void);
+
+/**
+ * @description: 启动板载 I2C 外设，供 IMU、EEPROM 等从设备通信。
+ * @return {void} 无
+ * @author: lkc
+ */
 void hw_start_i2c(void);
+
+/**
+ * @description: 停止板载 I2C 外设并释放总线。
+ * @return {void} 无
+ * @author: lkc
+ */
 void hw_stop_i2c(void);
+
+/**
+ * @description: 在 I2C 总线异常后尝试恢复通信（复位/重初始化）。
+ * @return {void} 无
+ * @author: lkc
+ */
 void hw_try_restore_i2c(void);
+
+/**
+ * @description: 根据 MCU 唯一 ID（UUID）生成硬件识别码。
+ * @return {uint8_t} 硬件 ID
+ * @author: lkc
+ */
 uint8_t hw_id_from_uuid(void);
+
+/**
+ * @description: 根据硬件引脚绑带/拨码状态读取硬件识别码。
+ * @return {uint8_t} 硬件 ID
+ * @author: lkc
+ */
 uint8_t hw_id_from_pins(void);
 
 #endif /* HW_H_ */

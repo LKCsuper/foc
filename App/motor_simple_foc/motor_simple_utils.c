@@ -1,3 +1,7 @@
+/*
+ * @Description: 简易 FOC 数学工具（查表 sin/cos、角度归一化等）
+ * @Author: lkc
+ */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -22,6 +26,12 @@ const int sine_array[200] = {0,79,158,237,316,395,473,552,631,710,789,867,946,10
 // ~50us (int array)
 // precision +-0.005
 // it has to receive an angle in between 0 and 2PI
+/**
+ * @description: 查表法快速近似 sin，输入角须在 [0, 2π]。
+ * @param {float} a  输入角度 (rad)
+ * @return {float} sin(a)，精度约 ±0.005
+ * @author: lkc
+ */
 float _sin(float a){
   if(a < _PI_2){
     //return sine_array[(int)(199.0*( a / (_PI/2.0)))];
@@ -47,19 +57,36 @@ float _sin(float a){
 // ~56us (int array)
 // precision +-0.005
 // it has to receive an angle in between 0 and 2PI
+/**
+ * @description: 查表法快速近似 cos，输入角须在 [0, 2π]。
+ * @param {float} a  输入角度 (rad)
+ * @return {float} cos(a)，精度约 ±0.005
+ * @author: lkc
+ */
 float _cos(float a){
   float a_sin = a + _PI_2;
   a_sin = a_sin > _2PI ? a_sin - _2PI : a_sin;
   return _sin(a_sin);
 }
 /***************************************************************************/
-// normalizing radian angle to [0,2PI]
+/**
+ * @description: 将弧度角归一化到 [0, 2π)。
+ * @param {float} angle  输入角度 (rad)
+ * @return {float} 归一化后的角度 (rad)
+ * @author: lkc
+ */
 float _normalizeAngle(float angle){
   float a = fmod(angle, _2PI);
   return a >= 0 ? a : (a + _2PI);
 }
 /***************************************************************************/
-// Electrical angle calculation
+/**
+ * @description: 机械角换算为电角度。
+ * @param {float} shaft_angle  机械角 (rad)
+ * @param {int} pole_pairs     极对数
+ * @return {float} 电角度 (rad)
+ * @author: lkc
+ */
 float _electricalAngle(float shaft_angle, int pole_pairs) {
   return (shaft_angle * pole_pairs);
 }
@@ -67,6 +94,12 @@ float _electricalAngle(float shaft_angle, int pole_pairs) {
 // square root approximation function using 
 // https://reprap.org/forum/read.php?147,219210
 // https://en.wikipedia.org/wiki/Fast_inverse_square_root
+/**
+ * @description: 快速近似平方根（Quake III 逆平方根法）。
+ * @param {float} number  输入值
+ * @return {float} sqrt(number) 的近似值
+ * @author: lkc
+ */
 float _sqrtApprox(float number) {//low in fat
   long i;
   float y;

@@ -1,3 +1,7 @@
+/*
+ * @Description: I/F 启动前转子 D 轴预对齐状态机
+ * @Author: lkc
+ */
 #include "motor_alignment.h"
 
 #include <stddef.h>

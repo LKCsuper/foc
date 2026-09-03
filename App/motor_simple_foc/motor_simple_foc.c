@@ -1,3 +1,7 @@
+/*
+ * @Description: 简易 FOC 全局状态与电角度计算
+ * @Author: lkc
+ */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -25,6 +29,11 @@ MotionControlType controller;
 float sensor_offset=0;
 float zero_electric_angle;
 /******************************************************************************/
+/**
+ * @description: 计算当前电角度（含传感器偏移与零位校准）。
+ * @return {float} 电角度 (rad)，范围 [0, 2π)
+ * @author: lkc
+ */
 float electricalAngle(void)
 {
   return _normalizeAngle((shaft_angle + sensor_offset) * pole_pairs - zero_electric_angle);

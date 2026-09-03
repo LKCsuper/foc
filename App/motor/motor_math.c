@@ -1,4 +1,8 @@
 /*
+ * @Description: 电机控制通用数学工具（角度、FFT、CRC、滤波等）
+ * @Author: lkc
+ */
+/*
 	Copyright 2016 - 2019 Benjamin Vedder	benjamin@vedder.se
 
 	This file is part of the VESC firmware.
@@ -18,15 +22,12 @@
     */
 #include "includes.h"
 /**
- * @description: angle映射到min 到 max
- * @detail: 
- * Map angle from 0 to 1 in the range min to max. If angle is
- * outside of the range it will be less truncated to the closest
- * angle. Angle units: Degrees
- * @param {float} angle 
- * @param {float} min
- * @param {float} max
- * @return {*}
+ * @description: 将角度映射到 [min, max] 区间内的归一化比例。
+ * @detail: 输入角度超出范围时截断到最近边界；角度单位为度 (deg)。
+ * @param {float} angle  待映射角度 (deg)
+ * @param {float} min    区间下限 (deg)
+ * @param {float} max    区间上限 (deg)
+ * @return {float} 映射结果 [0, 1]；min==max 时返回 -1
  * @author: lkc
  */
 float utils_map_angle(float angle, float min, float max) {
@@ -53,14 +54,11 @@ float utils_map_angle(float angle, float min, float max) {
 }
 
 /**
- * @description: 
- * @detail: 
- * 将小于tres的值截断为0
- * Truncate absolute values less than tres to zero. 
- * The value tres will be mapped to 0 and the value max to max.
- * @param {float} *value
- * @param {float} tres
- * @param {float} max
+ * @description: 对输入值施加死区并重新映射到 [-max, max]。
+ * @detail: 绝对值小于 tres 的输出置 0；tres 映射到 0，max 映射到 max。
+ * @param {float} *value  输入输出值
+ * @param {float} tres    死区阈值
+ * @param {float} max     满量程
  * @return {*}
  * @author: lkc
  */
@@ -78,12 +76,10 @@ void utils_deadband(float *value, float tres, float max) {
 }
 
 /**
- * @description: 
- * @detail: 角度差值-180 到 180
- * Get the difference between two angles. Will always be between -180 and +180 degrees
- * @param {float} angle1 The first angle
- * @param {float} angle2 The second angle
- * @return {float} The difference between the angles
+ * @description: 计算两角度之差并归一化到 [-180°, 180°]。
+ * @param {float} angle1  角度 1 (deg)
+ * @param {float} angle2  角度 2 (deg)
+ * @return {float} 最短角度差 (deg)
  * @author: lkc
  */
 float utils_angle_difference(float angle1, float angle2) {
@@ -94,12 +90,10 @@ float utils_angle_difference(float angle1, float angle2) {
 }
 
 /**
- * @description: 
- * @detail: 转换为Π的角度差值
- * Get the difference between two angles. Will always be between -pi and +pi radians.
- * @param {float} angle1 The first angle in radians
- * @param {float} angle2 The second angle in radians
- * @return {*} The difference between the angles in radians
+ * @description: 计算两弧度角之差并归一化到 [-π, π]。
+ * @param {float} angle1  角度 1 (rad)
+ * @param {float} angle2  角度 2 (rad)
+ * @return {float} 最短角度差 (rad)
  * @author: lkc
  */
 float utils_angle_difference_rad(float angle1, float angle2) {
@@ -110,12 +104,12 @@ float utils_angle_difference_rad(float angle1, float angle2) {
 }
 
 /**
- * @description: 角度平均值,但是这个utils_fast_sincos_better
- * @detail: Takes the average of a number of angles.
- * @param {float} *angles The angles in radians.
- * @param {float} *weights The weight of the summarized angles
- * @param {int} angles_num The number of angles.
- * @return {*} The average angle. 
+ * @description: 对多个弧度角按权重求圆均值。
+ * @detail: 通过 sin/cos 加权求和后 atan2 得到平均角，使用 utils_fast_sincos_better。
+ * @param {float} *angles     角度数组 (rad)
+ * @param {float} *weights    权重数组
+ * @param {int} angles_num    角度个数
+ * @return {float} 加权平均角度 (rad)
  * @author: lkc
  */
 float utils_avg_angles_rad_fast(IN float *angles, IN float *weights,IN int angles_num) {
@@ -177,11 +171,10 @@ int utils_middle_of_3_int(int a, int b, int c) {
 }
 
 /**
- * @description: Fast atan2
- * @detail: See http://www.dspguru.com/dsp/tricks/fixed-point-atan2-with-self-normalization
- * @param {float} y
- * @param {float} x
- * @return {*} The angle in radians
+ * @description: 快速近似 atan2，返回 [-π, π] 弧度角。
+ * @param {float} y  y 分量
+ * @param {float} x  x 分量
+ * @return {float} 极角 (rad)
  * @author: lkc
  */
 float utils_fast_atan2(float y, float x) {
@@ -208,12 +201,11 @@ float utils_fast_atan2(float y, float x) {
 }
 
 /**
- * @description: Fast sine and cosine implementation.
- * @detail: See http://lab.polygonal.de/?p=205
- * @param {float} angle The angle in radians
- * WARNING: Don't use too large angles.
- * @param {float} *sin A pointer to store the sine value.
- * @param {float} *cos A pointer to store the cosine value.
+ * @description: 快速近似 sin/cos 计算。
+ * @detail: 输入角须先归一化到 [-π, π]；大角度精度会下降。
+ * @param {float} angle  输入角度 (rad)
+ * @param {float} *sin   sin 输出
+ * @param {float} *cos   cos 输出
  * @return {*}
  * @author: lkc
  */
@@ -249,12 +241,11 @@ void utils_fast_sincos(float angle, float *sin, float *cos) {
 }
 
 /**
- * @description: Fast sine and cosine implementation.
- * @detail: See http://lab.polygonal.de/?p=205
- * @param {float} angle The angle in radians
- * WARNING: Don't use too large angles.
- * @param {float} *sin A pointer to store the sine value.
- * @param {float} *cos A pointer to store the cosine value.
+ * @description: 高精度快速近似 sin/cos 计算。
+ * @detail: 在 utils_fast_sincos 基础上增加二次修正；输入角须归一化到 [-π, π]。
+ * @param {float} angle  输入角度 (rad)
+ * @param {float} *sin   sin 输出
+ * @param {float} *cos   cos 输出
  * @return {*}
  * @author: lkc
  */
@@ -351,10 +342,9 @@ float utils_max_abs(float va, float vb) {
 }
 
 /**
- * @description: 将int转换为字节 字符串 
- * @detail: Create string representation of the binary content of a byte
- * @param {int} x The byte.
- * @param {char} *b Array to store the string representation in.
+ * @description: 将字节整数转换为 8 位二进制字符串。
+ * @param {int} x   输入字节 (0~255)
+ * @param {char} *b 输出缓冲，至少 9 字节
  * @return {*}
  * @author: lkc
  */
@@ -368,13 +358,13 @@ void utils_byte_to_binary(int x, char *b) {
 }
 
 /**
- * @description: 该函数应该与电源有关系
- * @detail: 
- * @param {float} val
- * @param {float} curve_acc
- * @param {float} curve_brake
- * @param {int} mode
- * @return {*}
+ * @description: 对油门输入施加加速/制动曲线映射。
+ * @detail: mode 0=指数、1=自然指数、2=多项式、其他=线性；输出范围 [-1, 1]。
+ * @param {float} val         输入值 [-1, 1]
+ * @param {float} curve_acc   加速曲线系数
+ * @param {float} curve_brake 制动曲线系数
+ * @param {int} mode          曲线类型
+ * @return {float} 映射后的油门值
  * @author: lkc
  */
 float utils_throttle_curve(float val, float curve_acc, float curve_brake, int mode) {
@@ -456,7 +446,15 @@ uint32_t utils_crc32c(uint8_t *data, uint32_t len) {
 	return ~crc;
 }
 
-// Yes, this is only the average...
+/**
+ * @description: 计算 32 点 DFT 的 0 号频点（直流分量）。
+ * @detail: 输出实部为输入均值，虚部置 0。
+ * @param {float} *real_in  输入时域序列（32 点）
+ * @param {float} *real     输出实部
+ * @param {float} *imag     输出虚部
+ * @return {*}
+ * @author: lkc
+ */
 void utils_fft32_bin0(float *real_in, float *real, float *imag) {
 	*real = 0.0f;
 	*imag = 0.0f;
@@ -628,8 +626,13 @@ void utils_fft8_bin2(float *real_in, float *real, float *imag) {
 	*imag /= 8.0f;
 }
 
-// A mapping of a samsung 30q cell for % remaining capacity vs. voltage from
-// 4.2 to 3.2, note that the you lose 15% of the 3Ah rated capacity in this range
+/**
+ * @description: 根据归一化锂电池电压估算剩余容量比例。
+ * @detail: norm_v 限制在 [0, 1]，对应 Samsung 30Q 4.2V~3.2V 区间的多项式拟合。
+ * @param {float} norm_v  归一化电压 [0, 1]
+ * @return {float} 剩余容量比例
+ * @author: lkc
+ */
 float utils_batt_liion_norm_v_to_capacity(float norm_v) {
 	// constants for polynomial fit of lithium ion battery
 	const float li_p[] = {

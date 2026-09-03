@@ -1,10 +1,6 @@
 /*
- * @Description: 
- * @Version: 2.0
+ * @Description: FreeRTOS 运行时统计计时器移植层
  * @Author: lkc
- * @Date: 2022-11-19 09:57:21
- * @LastEditors: lkc
- * @LastEditTime: 2023-08-27 10:50:25
  */
 #ifdef __cplusplus
 extern "C" {
@@ -19,9 +15,8 @@ ULONG ulFreeRTOSRunTimeTicks = 0;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /**
- * @description: 配置运行统计
- * @detail: 
- * @return {*}
+ * @description: 配置 FreeRTOS 运行时统计计时器并清零计数。
+ * @return {void} 无
  * @author: lkc
  */
 void configureTimerForRunTimeStats(void)
@@ -31,9 +26,8 @@ void configureTimerForRunTimeStats(void)
 }
 
 /**
- * @description: 获取freertos运行count
- * @detail: 
- * @return {*}
+ * @description: 读取 FreeRTOS 运行时统计 tick 计数器。
+ * @return {unsigned long} 累计运行时 tick 数
  * @author: lkc
  */
 unsigned long getRunTimeCounterValue(void)

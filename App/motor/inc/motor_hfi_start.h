@@ -1,3 +1,7 @@
+/*
+ * @Description: 零速 HFI 初始位置估计状态机
+ * @Author: lkc
+ */
 #ifndef MOTOR_HFI_START_H
 #define MOTOR_HFI_START_H
 
@@ -8,13 +12,6 @@
 extern "C" {
 #endif
 
-/*
- * Standalone zero-speed HFI initial-position estimator.
- *
- * This module has no dependency on the motor parameter structure, PWM driver,
- * current transforms, RTOS, or hardware registers.  The caller supplies the
- * alpha/beta current sample and applies the returned d-axis voltage command.
- */
 #define MOTOR_HFI_START_AXIS_COUNT (12U)
 
 typedef struct {
@@ -53,8 +50,33 @@ typedef struct {
     float confidence;
 } motor_hfi_start_t;
 
+/**
+ * @description: 复位 HFI 初始位置估计状态机，将全部状态清零。
+ * @param {motor_hfi_start_t} *state  HFI 状态机实例，可为 NULL
+ * @return {*}
+ * @author: lkc
+ */
 void MotorHfiStart_Reset(motor_hfi_start_t *state);
+
+/**
+ * @description: 校验并规整 HFI 配置参数，使取值合法。
+ * @param {motor_hfi_start_config_t} *config  HFI 配置结构体，被原地规整
+ * @return {*}
+ * @author: lkc
+ */
 void MotorHfiStart_NormalizeConfig(motor_hfi_start_config_t *config);
+
+/**
+ * @description: HFI 零速初始位置估计单步，每 FOC 周期调用一次。
+ * @param {motor_hfi_start_t} *state                HFI 状态机实例
+ * @param {const motor_hfi_start_config_t} *config  HFI 配置
+ * @param {float} i_alpha                           定子 α 轴电流采样 (A)
+ * @param {float} i_beta                            定子 β 轴电流采样 (A)
+ * @param {float} v_bus                             母线电压 (V)
+ * @param {motor_hfi_start_output_t} *output        本拍探测电压输出
+ * @return {motor_hfi_start_result_t} SKIPPED/RUNNING/FINISHED
+ * @author: lkc
+ */
 motor_hfi_start_result_t MotorHfiStart_Step(
     motor_hfi_start_t *state,
     const motor_hfi_start_config_t *config,

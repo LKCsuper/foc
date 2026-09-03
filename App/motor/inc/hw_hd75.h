@@ -323,6 +323,11 @@
 #define HW_LIM_TEMP_FET			-40.0, 110.0
 
 // Functions
+/**
+ * @description: 采样 BM75 关机按键状态（SHUTDOWN 引脚）。
+ * @return {bool} true=按键按下，false=未按下
+ * @author: lkc
+ */
 bool hw_sample_shutdown_button(void);
 
 #endif /* HW_BM75_H_ */

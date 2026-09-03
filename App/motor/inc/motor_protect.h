@@ -1,3 +1,7 @@
+/*
+ * @Description: 电机过流、欠压、堵转与失速保护接口
+ * @Author: lkc
+ */
 #ifndef _MOTOR_PROTECT_H
 #define _MOTOR_PROTECT_H
 
@@ -62,59 +66,117 @@ typedef struct {
     bool phase_ok;      /* 无感相位接管条件 */
 } motor_protect_snapshot_t;
 
-/*
- * 初始化保护模块。
- * @param config 自定义保护参数；传 NULL 表示继续使用源文件中的默认参数。
- * @note  调用后会清除故障码、锁存标志、所有计时器和速度反馈状态。
+/**
+ * @description: 初始化保护模块。
+ * @param {const motor_protect_config_t} *config  自定义保护参数；传 NULL 使用默认参数
+ * @detail: 调用后清除故障码、锁存标志、所有计时器和速度反馈状态。
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Protect_Init(const motor_protect_config_t *config);
 
-/*
- * 更新真实机械转速反馈。
- * @param rpm   霍尔、编码器或观测器计算出的机械转速，单位 RPM，可为负数。
- * @param valid true 表示 rpm 有效；false 表示暂时没有可靠速度反馈。
- * @note  valid=false 时堵转和失速保护被禁用，过流和欠压保护不受影响。
+/**
+ * @description: 更新真实机械转速反馈。
+ * @param {float} rpm    霍尔、编码器或观测器计算出的机械转速 (RPM)，可为负数
+ * @param {bool} valid   true 表示 rpm 有效；false 表示暂时没有可靠速度反馈
+ * @detail: valid=false 时堵转和失速保护被禁用，过流和欠压保护不受影响。
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Protect_SetSpeedFeedback(float rpm, bool valid);
 
-/*
- * 以下四个函数只负责一种故障的判断，不负责停 PWM，也不直接锁存故障码。
- * @param motor 电机实时数据，包含三相电流、母线电压和目标转速。
- * @param dt    本次与上次保护检查之间的时间，单位秒。
- * @return true：该故障条件已经连续保持足够长时间；false：尚未触发。
+/**
+ * @description: 检查过流故障条件是否已连续保持足够长时间。
+ * @param {const MOTOR_PARAM_S} *motor  电机实时数据，含三相电流与母线电压
+ * @param {float} dt                      本次与上次保护检查之间的时间 (s)
+ * @return {bool} true=过流条件已确认；false=尚未触发
+ * @author: lkc
  */
 bool Motor_Protect_CheckOverCurrent(const MOTOR_PARAM_S *motor, float dt);
+
+/**
+ * @description: 检查欠压故障条件是否已连续保持足够长时间。
+ * @param {const MOTOR_PARAM_S} *motor  电机实时数据
+ * @param {float} dt                      保护检查周期 (s)
+ * @return {bool} true=欠压条件已确认；false=尚未触发
+ * @author: lkc
+ */
 bool Motor_Protect_CheckUnderVoltage(const MOTOR_PARAM_S *motor, float dt);
+
+/**
+ * @description: 检查堵转故障条件是否已连续保持足够长时间。
+ * @param {const MOTOR_PARAM_S} *motor  电机实时数据
+ * @param {float} dt                      保护检查周期 (s)
+ * @return {bool} true=堵转条件已确认；false=尚未触发
+ * @author: lkc
+ */
 bool Motor_Protect_CheckStall(const MOTOR_PARAM_S *motor, float dt);
+
+/**
+ * @description: 检查失速故障条件是否已连续保持足够长时间。
+ * @param {const MOTOR_PARAM_S} *motor  电机实时数据
+ * @param {float} dt                      保护检查周期 (s)
+ * @return {bool} true=失速条件已确认；false=尚未触发
+ * @author: lkc
+ */
 bool Motor_Protect_CheckSpeedLoss(const MOTOR_PARAM_S *motor, float dt);
 
-/*
- * 保护统一入口，由 FOC 控制周期调用。
- * 函数依次检查四种故障，并把第一次发生的故障锁存下来。
- * @return true：已有锁存故障，上层必须停止本周期 FOC 输出；false：可以运行。
+/**
+ * @description: 保护统一入口，由 FOC 控制周期调用。
+ * @detail: 依次检查四种故障，并把第一次发生的故障锁存下来。
+ * @param {const MOTOR_PARAM_S} *motor  电机实时数据
+ * @param {float} dt                      保护检查周期 (s)
+ * @return {bool} true=已有锁存故障，上层必须停止本周期 FOC 输出；false=可以运行
+ * @author: lkc
  */
 bool Motor_Protect_Run(const MOTOR_PARAM_S *motor, float dt);
 
-/*
- * 由无感观测器等其他安全模块锁存一个已经确认的故障。
- * 本函数只记录首发故障及快照；调用者或下一次 Motor_Protect_Run() 负责停 PWM。
- * fault=FAULT_CODE_NONE 或 motor=NULL 时忽略，已有首发故障时也不会覆盖。
+/**
+ * @description: 由无感观测器等安全模块锁存一个已经确认的故障。
+ * @detail: 只记录首发故障及快照；调用者或下一次 Motor_Protect_Run() 负责停 PWM。
+ * @param {mc_fault_code} fault              要锁存的故障码；FAULT_CODE_NONE 时忽略
+ * @param {const MOTOR_PARAM_S} *motor  用于生成故障快照；为空时忽略
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Protect_TriggerFault(mc_fault_code fault, const MOTOR_PARAM_S *motor);
 
-/* 人工解除故障锁存；调用前应先撤销运行指令并确认真实故障已经排除。 */
+/**
+ * @description: 人工解除故障锁存。
+ * @detail: 调用前应先撤销运行指令并确认真实故障已经排除。
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_Protect_ClearFault(void);
 
-/* 查询是否存在锁存故障。 */
+/**
+ * @description: 查询是否存在锁存故障。
+ * @return {bool} true=已锁存故障
+ * @author: lkc
+ */
 bool Motor_Protect_IsFaultLatched(void);
 
-/* 获取锁存的首发故障码；没有故障时返回 FAULT_CODE_NONE。 */
+/**
+ * @description: 获取锁存的首发故障码。
+ * @return {mc_fault_code} 故障码；无故障时返回 FAULT_CODE_NONE
+ * @author: lkc
+ */
 mc_fault_code Motor_Protect_GetFault(void);
 
-/* 把故障码转换成可读名称，便于 Shell 直接显示原因。 */
+/**
+ * @description: 把故障码转换成可读名称，便于 Shell 直接显示原因。
+ * @param {mc_fault_code} fault  待转换的故障码
+ * @return {const char *} 故障名称字符串
+ * @author: lkc
+ */
 const char *Motor_Protect_GetFaultName(mc_fault_code fault);
 
-/* 获取首发故障快照；snapshot=NULL 时不执行任何操作。 */
+/**
+ * @description: 获取首发故障发生瞬间的数据快照。
+ * @param {motor_protect_snapshot_t} *snapshot  接收快照数据的结构体指针；为 NULL 时不执行任何操作
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_Protect_GetSnapshot(motor_protect_snapshot_t *snapshot);
 
 #ifdef __cplusplus

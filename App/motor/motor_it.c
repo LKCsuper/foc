@@ -869,13 +869,13 @@ static bool Motor_DmaInt_ShouldRun(void)
     return false;
 }
 
-/*
- * 中断内参数采样与换算 (每个 FOC 控制周期执行一次)：
- *   1. 读取三相电流 ADC → 减去零点偏移 → 乘以电流系数 → ia/ib/ic
- *   2. 读取三相电压 ADC → 减去未驱动偏移 → 乘以分压比和系数 → va/vb/vc
- *   3. 读取母线电压，经一阶低通滤波 → v_bus
- *
- * 注意：vb/vc 的 ADC 通道编号与相序不是简单的一一对应，见硬件映射。
+/**
+ * @description: 中断内采样三相电流/相电压并换算为物理量。
+ * @detail: 每个 ADC-DMA 回调执行一次：电流减零点偏移后乘系数得 ia/ib/ic (A)；
+ *          相电压减未驱动偏移并乘分压系数得 va/vb/vc (V)；母线电压经低通滤波得 v_bus (V)。
+ *          vb/vc 的 ADC 通道与相序非一一对应，见硬件映射。
+ * @return {*}
+ * @author: lkc
  */
 VOID Motor_It_ParamCal(VOID)
 {
@@ -961,13 +961,13 @@ static void Motor_DmaInt_Foc(void)
     Motor_DmaInt_RecordRuntime(runtime_start);
 }
 
-/*
- * DMA 传输完成中断回调 (ADC 采样由 DMA 搬运完成后触发)。
- * 这是整个 FOC 控制链的驱动入口，由 ADC-DMA-TIM 联动触发。
- *
- * DMA 进入本回调前，硬件已经把本次 ADC 结果搬入 ADC_Value[]。
- * 偏移校准由任务直接切换三相桥臂，DMA 只负责更新 ADC 原始数组，
- * 因此校准占用功率桥时 ISR 立即返回。
+/**
+ * @description: ADC-DMA 传输完成中断回调，FOC 控制链驱动入口。
+ * @detail: 由 ADC-DMA-TIM 联动触发；参数检测占用功率桥时直接返回，否则进入 FOC 路径。
+ * @param {void} *p     回调上下文，未使用
+ * @param {uint32_t} flags  中断标志，未使用
+ * @return {*}
+ * @author: lkc
  */
 void Motor_DmaInt(void *p, uint32_t flags)
 {

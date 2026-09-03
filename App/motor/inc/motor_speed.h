@@ -1,3 +1,7 @@
+/*
+ * @Description: 通用速度 PI 外环接口
+ * @Author: lkc
+ */
 #ifndef _MOTOR_SPEED_H
 #define _MOTOR_SPEED_H
 
@@ -5,37 +9,76 @@
 extern "C" {
 #endif
 
-/*
- * 通用速度 PI 外环：
- *
- *   真实机械转速 -> 速度 PI -> Iq 目标 -> 电流 PI -> SVPWM
- *
- * 本模块不关心速度来自霍尔、编码器还是无感观测器。反馈源只需要调用
- * Motor_SpeedFeedback_Set() 提供机械 RPM 和有效标志即可。
+/**
+ * @description: 上电初始化速度环模块。
+ * @detail: 清除速度反馈、PI 积分和输出。
+ * @return {*}
+ * @author: lkc
  */
-
-/* 清除速度反馈、PI 积分和输出。 */
 void Motor_Speed_Init(void);
 
-/*
- * 更新真实机械转速。
- * @param rpm   机械转速，单位 RPM，反转为负数。
- * @param valid true=反馈可信；false=当前不能用于速度闭环。
+/**
+ * @description: 更新速度环的真实机械转速反馈。
+ * @param {float} rpm    机械转速 (RPM)，反转为负数
+ * @param {bool} valid   true=反馈可信；false=当前不能用于速度闭环
+ * @return {*}
+ * @author: lkc
  */
 void Motor_SpeedFeedback_Set(float rpm, bool valid);
 
-/* 运行速度 PI；函数内部按照 motor->speed_loop_hz 自动分频。 */
+/**
+ * @description: 运行速度 PI 外环，计算电流内环的 Iq 目标。
+ * @detail: 函数内部按照 motor->speed_loop_hz 自动分频。
+ * @param {MOTOR_PARAM_S} *motor  电机实时参数
+ * @param {float} dt              控制周期 (s)
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_SpeedLoop_Run(MOTOR_PARAM_S *motor, float dt);
 
-/* 只清除 PI 状态，不清除反馈源最近一次提供的速度。 */
+/**
+ * @description: 清除速度 PI 状态（分频计时/积分/误差/输出目标）。
+ * @detail: 不清除反馈源最近一次提供的速度。
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_SpeedLoop_Reset(void);
 
-/* 无感开环切闭环时，用当前等效 Iq 预置积分，减小接管瞬间的电流阶跃。 */
+/**
+ * @description: 用当前等效 Iq 预置速度 PI 积分与输出。
+ * @detail: 无感开环切闭环时使用，减小接管瞬间的电流阶跃。
+ * @param {float} iq  预置 Iq 目标 (A)
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_SpeedLoop_PrimeIq(float iq);
 
+/**
+ * @description: 读取速度 PI 输出的 Iq 目标。
+ * @return {float} Iq 目标 (A)
+ * @author: lkc
+ */
 float Motor_SpeedLoop_GetIqTarget(void);
+
+/**
+ * @description: 读取最近一次有效的实测机械转速。
+ * @return {float} 机械转速 (RPM)
+ * @author: lkc
+ */
 float Motor_SpeedLoop_GetMeasuredRpm(void);
+
+/**
+ * @description: 读取最近一次速度环误差。
+ * @return {float} 速度误差 (RPM)
+ * @author: lkc
+ */
 float Motor_SpeedLoop_GetError(void);
+
+/**
+ * @description: 查询当前是否有可信的机械转速反馈。
+ * @return {bool} true=反馈有效
+ * @author: lkc
+ */
 bool Motor_SpeedLoop_IsFeedbackValid(void);
 
 #ifdef __cplusplus
