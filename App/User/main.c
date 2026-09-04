@@ -50,10 +50,10 @@ void Task_Init(void *argument)
      */
     Detect_Init();          // 开机偏移校准
     MOTOR_ShowParam();      // 显示参数（在Shell启动前打印完，避免抢UART）
-    PRINTF("Init Task %d\r\n", TIM1->ARR);
+    PRINTF("Init Task period=%lu\r\n", (unsigned long)Hal_Motor_PwmPeriodCounts());
     // RTT_Debug_Init();
     Command_Init();         // 命令行初始化（最后启动，避免Shell抢UART）
-    Bsp_Tim_StartPwm(MOTOR1);   // 先恢复三相 PWM 模式，此时仍没有运行命令
+    Hal_Motor_PwmStart();   // 先恢复三相 PWM 模式，此时仍没有运行命令
     while (1)
     {
         osDelay(pdMS_TO_TICKS(1000));

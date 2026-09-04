@@ -1,8 +1,6 @@
 /*
- * @Description: 
- * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-10 19:02:14
- * @FilePath: \foc\App\motor\utils.c
+ * @Description: 电机运行参数初始化与全局状态
+ * @Author: lkc
  */
 #ifdef __cplusplus
 extern "C" {
@@ -34,19 +32,10 @@ extern "C" {
 #define MOTOR_FIXED_FLUX_LINKAGE        (0.02573f)  /* 6.6 V/kRPM、2 极对 -> 25.73 mWb */
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-motor_all_state_t m_motor_1;
-motor_all_state_t m_motor_2;
-mc_configuration mcconf1;
-mc_configuration mcconf2;
 MOTOR_PARAM_S motor;
-MOTOR_PARAM_S motorDefault;
-mc_configuration motorCfg;
-//MOTOR_PARAM_S motor;
-motor_all_state_t *gpstMotor1 = &m_motor_1;
-motor_all_state_t *gpstMotor2 = &m_motor_2;
+static MOTOR_PARAM_S motorDefault;
 MOTOR_PARAM_S *gpstMotor = &motor;
-MOTOR_PARAM_S *gpstMotorDefault = &motorDefault;
-mc_configuration *gpstMotorCfg = &motorCfg;
+static MOTOR_PARAM_S *gpstMotorDefault = &motorDefault;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /**
@@ -60,11 +49,9 @@ mc_configuration *gpstMotorCfg = &motorCfg;
 VOID MOTOR_Param_Init(VOID)
 {
     motor_detect_result_t detect_buf;
+    bool flash_ok;
 
     /* 一、电机固定参数：更换电机时按铭牌/辨识结果修改 */
-    gpstMotorCfg->foc_motor_r = MOTOR_FIXED_LINE_RESISTANCE;
-    gpstMotorCfg->foc_motor_l = MOTOR_FIXED_LINE_INDUCTANCE;
-    gpstMotorCfg->foc_motor_flux_linkage = MOTOR_FIXED_FLUX_LINKAGE;
     gpstMotorDefault->ol_pole_pairs = MOTOR_FIXED_POLE_PAIRS;
 
     /* 二、运行给定值：属于控制指令，不是电机固有参数 */
@@ -131,8 +118,18 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotorDefault->sensorless_phase_offset     = 0.0f;
     gpstMotorDefault->sensorless_speed_filter     = 0.10f;
 
+    gpstMotorDefault->hall_extra_samples = 1;
+    {
+        int hall_i;
+
+        for (hall_i = 0; hall_i < (int)MOTOR_HALL_TABLE_SIZE; hall_i++) {
+            gpstMotorDefault->hall_table[hall_i] = MOTOR_HALL_TABLE_INVALID;
+        }
+    }
+
     /* 尝试从 Flash 加载已保存的电机参数和检测结果 */
-    if (!FlashStorage_Load(gpstMotor, &detect_buf))
+    flash_ok = FlashStorage_Load(gpstMotor, &detect_buf);
+    if (!flash_ok)
     {
         /* 首次上电或数据损坏：以代码默认值初始化并写入 Flash */
         memset(&detect_buf, 0, sizeof(detect_buf));
@@ -197,20 +194,15 @@ VOID MOTOR_Param_Init(VOID)
     gpstMotor->sensorless_phase_tolerance = gpstMotorDefault->sensorless_phase_tolerance;
     gpstMotor->sensorless_phase_offset     = gpstMotorDefault->sensorless_phase_offset;
     gpstMotor->sensorless_speed_filter     = gpstMotorDefault->sensorless_speed_filter;
+    if (!flash_ok) {
+        gpstMotor->hall_extra_samples = gpstMotorDefault->hall_extra_samples;
+        memcpy(gpstMotor->hall_table, gpstMotorDefault->hall_table, sizeof(gpstMotor->hall_table));
+    }
 
     Motor_Speed_Init();
     Motor_Sensorless_Init();
 
     PRINTF("Motor iq set [%f]\r\n", gpstMotor->e_iq_set);
-
-    gpstMotor1->m_conf = &mcconf1;
-    gpstMotor2->m_conf = &mcconf2;
-
-    motor_all_state_t *motor = gpstMotor1;
-
-    motor->m_conf->m_hall_extra_samples = MCCONF_M_HALL_EXTRA_SAMPLES;
-
-    PRINTF("PARAM %d %d\r\n", motor->m_conf->m_hall_extra_samples, MCCONF_M_HALL_EXTRA_SAMPLES);
 
     return;
 }

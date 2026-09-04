@@ -51,9 +51,15 @@ VOID Motor_Ctrl_Pwm(float ua, float ub, float uc)
 
     //PRINTF("a%f b%f c %f\r\n", dutya, dutyb, dutyc);
 
-    /* 写入 CCR 并触发 COM 事件，三相占空比同步更新 */
-    TIMER_UPDATE_DUTY_M1(HW_PWM1_TIM->ARR * dutya, HW_PWM1_TIM->ARR * dutyb, HW_PWM1_TIM->ARR * dutyc);
-    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    /* 写入比较值并提交，三相占空比同步更新 */
+    {
+        uint32_t period = Hal_Motor_PwmPeriodCounts();
+
+        Hal_Motor_PwmSetDuty((uint32_t)(period * dutya),
+                             (uint32_t)(period * dutyb),
+                             (uint32_t)(period * dutyc));
+        Hal_Motor_PwmCommit();
+    }
     return;
 }
 
@@ -136,7 +142,7 @@ VOID Motor_Ctrl_OpenLoop1(VOID)
      float sector;
     static ULONG ulUa, ulUb, ulUc;
     static float m_openloop_angle = 0.0;
-    ULONG curTim = Bsp_Tim_DtNow();
+    ULONG curTim = Hal_Motor_TimeUs();
     static ULONG lastTim = 0;
     float dt = 0.0f;
     float phase = 0.0f;
@@ -167,7 +173,7 @@ VOID Motor_Ctrl_OpenLoop1(VOID)
 
      inverse_park(ud, uq, phase, &ualpha, &ubeta);
 
-     foc_svm(ualpha, ubeta, TIM1->ARR, &ulUa, &ulUb, &ulUc , &sector);
+     foc_svm(ualpha, ubeta, Hal_Motor_PwmPeriodCounts(), &ulUa, &ulUb, &ulUc , &sector);
     
 //     svm(ualpha, ualpha, &ua, &ub, &uc);
     
@@ -183,8 +189,8 @@ VOID Motor_Ctrl_OpenLoop1(VOID)
 
     //Motor_Ctrl_Pwm(ua, ub, uc);
     /* 更新占空比 */
-    TIMER_UPDATE_DUTY_M1(ulUa, ulUb, ulUc);
-    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    Hal_Motor_PwmSetDuty(ulUa, ulUb, ulUc);
+    Hal_Motor_PwmCommit();
 
     lastTim = curTim;
 

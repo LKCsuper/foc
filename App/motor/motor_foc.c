@@ -476,19 +476,23 @@ void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcm
  * @param {float} dt          控制周期 (s)
  * @param {float} *phase_var  PLL 输出相位 (rad)，原地更新
  * @param {float} *speed_var  PLL 输出角速度 (rad/s)，原地更新
- * @param {mc_configuration} *conf  含 foc_pll_kp / foc_pll_ki 的配置
+ * @param {float} pll_kp      PLL 比例增益
+ * @param {float} pll_ki      PLL 积分增益
  * @return {*}
  * @author: lkc
  */
 void foc_pll_run(float phase, float dt, float *phase_var,
-					float *speed_var, mc_configuration *conf) {
+                 float *speed_var, float pll_kp, float pll_ki)
+{
+    float delta_theta;
+
 	UTILS_NAN_ZERO(*phase_var);
-	float delta_theta = phase - *phase_var;
+	delta_theta = phase - *phase_var;
 	utils_norm_angle_rad(&delta_theta);
 	UTILS_NAN_ZERO(*speed_var);
-	*phase_var += (*speed_var + conf->foc_pll_kp * delta_theta) * dt;
+	*phase_var += (*speed_var + pll_kp * delta_theta) * dt;
 	utils_norm_angle_rad((float*)phase_var);
-	*speed_var += conf->foc_pll_ki * delta_theta * dt;
+	*speed_var += pll_ki * delta_theta * dt;
 }
 #ifdef __cplusplus
 }

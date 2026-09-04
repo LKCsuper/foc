@@ -13,6 +13,9 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 static float s_elec_offset_rad; /* 电角度零点偏置 (rad) */
 static bool s_inverted;         /* true 时 A/B 方向取反 */
+#ifndef MOTOR_ENCODER_INVERTED
+#define MOTOR_ENCODER_INVERTED  (false)
+#endif
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -42,10 +45,10 @@ static float Motor_Encoder_Wrap2Pi(float angle)
 void Motor_Encoder_Init(void)
 {
     s_elec_offset_rad = 0.0f;
-    s_inverted = MCCONF_FOC_ENCODER_INVERTED;
-    Bsp_Tim4_EncInit();
-    Bsp_Tim4_EncSetCount(0U);
-    PRINTF("Encoder AB: TIM4 PB6/PB7, %u count/rev\r\n", (unsigned)BSP_ENCODER_COUNTS);
+    s_inverted = MOTOR_ENCODER_INVERTED;
+    Hal_Encoder_Init();
+    Hal_Encoder_SetCount(0U);
+    PRINTF("Encoder AB: %u count/rev\r\n", (unsigned)Hal_Encoder_CountsPerRev());
 }
 
 /**
@@ -55,7 +58,7 @@ void Motor_Encoder_Init(void)
  */
 uint16_t Motor_Encoder_GetCount(void)
 {
-    return Bsp_Tim4_EncGetCount();
+    return Hal_Encoder_GetCount();
 }
 
 /**
@@ -65,7 +68,7 @@ uint16_t Motor_Encoder_GetCount(void)
  */
 void Motor_Encoder_Reset(void)
 {
-    Bsp_Tim4_EncSetCount(0U);
+    Hal_Encoder_SetCount(0U);
     s_elec_offset_rad = 0.0f;
 }
 
@@ -78,8 +81,12 @@ float Motor_Encoder_GetMechAngle(void)
 {
     float turns;
     float angle;
+    uint32_t counts = Hal_Encoder_CountsPerRev();
 
-    turns = (float)Bsp_Tim4_EncGetCount() / (float)BSP_ENCODER_COUNTS;
+    if (counts == 0U) {
+        counts = 1U;
+    }
+    turns = (float)Hal_Encoder_GetCount() / (float)counts;
     if (s_inverted) {
         turns = 1.0f - turns;
     }

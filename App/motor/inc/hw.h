@@ -438,6 +438,9 @@
 #endif
 
 // Default ID
+#ifndef APPCONF_CONTROLLER_ID
+#define APPCONF_CONTROLLER_ID		(-1)
+#endif
 #ifndef HW_DEFAULT_ID
 #define HW_DEFAULT_ID			(APPCONF_CONTROLLER_ID >= 0 ? APPCONF_CONTROLLER_ID : hw_id_from_uuid())
 #endif

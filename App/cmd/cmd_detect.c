@@ -77,8 +77,7 @@ int Cmd_Detect(int argc, char *argv[])
         success = DETECT_Offset(FALSE) == 1U;
         break;
     case DETECT_HALL:
-        DETECT_Hall();
-        success = true;
+        success = DETECT_Hall();
         break;
     default:
         break;

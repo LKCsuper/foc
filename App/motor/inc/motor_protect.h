@@ -9,6 +9,8 @@
 extern "C" {
 #endif
 
+#include "motor_types.h"
+
 /*
  * 电机保护参数表。
  *

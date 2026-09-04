@@ -23,7 +23,7 @@ static void Encoder_PrintStatus(void)
 {
     PRINTF("Encoder count=%u / %u\r\n",
            (unsigned)Motor_Encoder_GetCount(),
-           (unsigned)BSP_ENCODER_COUNTS);
+           (unsigned)Hal_Encoder_CountsPerRev());
     PRINTF("  mech=%.3f rad (%.1f deg)\r\n",
            Motor_Encoder_GetMechAngle(),
            Motor_Encoder_GetMechAngle() * 180.0f / (float)M_PI);

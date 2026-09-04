@@ -8,6 +8,7 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#include "motor_types.h"
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_DETECT_RESULT_VERSION (1U)
 /* Private typedef -----------------------------------------------------------*/
@@ -64,10 +65,10 @@ VOID Detect_Init(VOID);
 
 /**
  * @description: 开环转一圈，标定霍尔状态与电角度对应表
- * @return {*}
+ * @return {bool} true 表示 6 个有效扇区标定成功
  * @author: lkc
  */
-VOID DETECT_Hall(VOID);
+bool DETECT_Hall(void);
 
 /**
  * @description: 偏移校准时 FOC 中断必须立刻返回，避免和任务抢写 PWM

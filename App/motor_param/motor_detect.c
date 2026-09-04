@@ -14,7 +14,7 @@ extern "C" {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /*
- * 校准任务会改 TIM1。置位后 DMA 中断只更新 ADC_Value[]，不跑 FOC，
+ * 校准任务会改 PWM 输出。置位后 DMA 中断只更新 ADC_Value[]，不跑 FOC，
  * 避免双方抢写 PWM。
  */
 static volatile bool s_detect_active = false;
@@ -80,41 +80,29 @@ ULONG DETECT_Offset(BOOL cal_undriven)
     motor.ol_vq_int = 0.0f;
     Motor_SpeedLoop_Reset();
     Motor_Sensorless_Reset();
-    Bsp_Tim_StopPwm(MOTOR1);
+    Hal_Motor_PwmStop();
     PRINTF("Detect offset: begin\r\n");
 
     osDelay(pdMS_TO_TICKS(1000));
 
-    TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, TIM1->ARR / 2, TIM1->ARR / 2);
+    Hal_Motor_PwmSetSafe();
 
-    Bsp_Tim_StopPwm(MOTOR1);
-    TIM_SelectOCxM(TIM1, TIM_Channel_1, TIM_OCMode_PWM1);
-    TIM_CCxCmd(TIM1, TIM_Channel_1, TIM_CCx_Enable);
-    TIM_CCxNCmd(TIM1, TIM_Channel_1, TIM_CCxN_Enable);
-    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    Hal_Motor_EnablePhase(1U);
     osDelay(pdMS_TO_TICKS(1));
     PRINTF("Detect offset: phase A\r\n");
     Detect_SamplePhase(0U, samples, &current_sum[0], &voltage_sum[0]);
 
-    Bsp_Tim_StopPwm(MOTOR1);
-    TIM_SelectOCxM(TIM1, TIM_Channel_2, TIM_OCMode_PWM1);
-    TIM_CCxCmd(TIM1, TIM_Channel_2, TIM_CCx_Enable);
-    TIM_CCxNCmd(TIM1, TIM_Channel_2, TIM_CCxN_Enable);
-    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    Hal_Motor_EnablePhase(2U);
     osDelay(pdMS_TO_TICKS(1));
     PRINTF("Detect offset: phase B\r\n");
     Detect_SamplePhase(1U, samples, &current_sum[1], &voltage_sum[1]);
 
-    Bsp_Tim_StopPwm(MOTOR1);
-    TIM_SelectOCxM(TIM1, TIM_Channel_3, TIM_OCMode_PWM1);
-    TIM_CCxCmd(TIM1, TIM_Channel_3, TIM_CCx_Enable);
-    TIM_CCxNCmd(TIM1, TIM_Channel_3, TIM_CCxN_Enable);
-    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    Hal_Motor_EnablePhase(3U);
     osDelay(pdMS_TO_TICKS(1));
     PRINTF("Detect offset: phase C\r\n");
     Detect_SamplePhase(2U, samples, &current_sum[2], &voltage_sum[2]);
 
-    Bsp_Tim_StopPwm(MOTOR1);
+    Hal_Motor_PwmStop();
 
     motor.currentOffset[0] = current_sum[0] / (float)samples;
     motor.currentOffset[1] = current_sum[1] / (float)samples;
@@ -167,14 +155,14 @@ ULONG DETECT_Offset(BOOL cal_undriven)
             voltage_sum[2] += ADC_VOLTS(ADC_IND_SENS3) - v_avg;
             osDelay(pdMS_TO_TICKS(1));
         }
-        Bsp_Tim_StopPwm(MOTOR1);
+        Hal_Motor_PwmStop();
 
         motor.voltundrivenOffset[0] = voltage_sum[0] / (float)samples;
         motor.voltundrivenOffset[1] = voltage_sum[1] / (float)samples;
         motor.voltundrivenOffset[2] = voltage_sum[2] / (float)samples;
     }
 
-    Bsp_Tim_StopPwm(MOTOR1);
+    Hal_Motor_PwmStop();
     s_detect_active = false;
     PRINTF("Detect offset: done\r\n");
     return 1U;
@@ -192,13 +180,12 @@ bool Motor_Detect_IsActive(void)
 
 /**
  * @description: 开环转一圈，标定霍尔状态与电角度对应表
- * @return {*}
+ * @return {bool} true 表示 6 个有效扇区标定成功
  * @author: lkc
  */
-VOID DETECT_Hall(VOID)
+bool DETECT_Hall(void)
 {
-    motor_all_state_t *motor = gpstMotor1;
-    uint8_t hall_tab[8];
+    uint8_t hall_tab[MOTOR_HALL_TABLE_SIZE];
     bool res;
     int i;
 
@@ -206,16 +193,19 @@ VOID DETECT_Hall(VOID)
 
     if (res) {
         INFO("DETECT HALL Success.\r\n");
-        for (i = 0; i < 8; i++) {
-            motor->m_conf->foc_hall_table[i] = hall_tab[i];
-            PRINTF("%d ", hall_tab[i]);
+        for (i = 0; i < (int)MOTOR_HALL_TABLE_SIZE; i++) {
+            PRINTF("%d ", (int)motor.hall_table[i]);
         }
         PRINTF("\r\n");
         for (i = 0; i < 6; i++) {
-            PRINTF("%d ", gpstMotor->hallABC[i]);
+            PRINTF("%d ", motor.hallABC[i]);
         }
         PRINTF("\r\n");
+    } else {
+        PRINTF("DETECT HALL Failed.\r\n");
     }
+
+    return res;
 }
 
 /**

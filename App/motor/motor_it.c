@@ -10,7 +10,7 @@
  *   1. 中断里采样三相电流、相电压、母线电压
  *   2. 软件积分产生开环电角度
  *   3. 根据 ol_mode 选择 V/F 电压开环，或者角度开环 + 电流闭环
- *   4. 统一走反 Park + SVPWM 输出到 TIM1
+ *   4. 统一走反 Park + SVPWM 经 HAL 输出 PWM
  */
 #ifdef __cplusplus
 extern "C" {
@@ -57,7 +57,7 @@ static volatile float s_foc_runtime_maximum_us = 0.0f;
 
 static void Motor_DmaInt_RecordRuntime(uint32_t start_time)
 {
-    uint32_t elapsed_us = Bsp_Tim_DtNow() - start_time;
+    uint32_t elapsed_us = Hal_Motor_TimeUs() - start_time;
     float elapsed = (float)elapsed_us;
 
     /* 调试器暂停或 TIM5 尚未初始化时可能得到异常大值，不把它污染到统计中。 */
@@ -79,22 +79,13 @@ static void Motor_DmaInt_RecordRuntime(uint32_t start_time)
 
 /*
  * 计算 ADC-DMA 相邻两次回调的基础周期。
- * TIM1 是中心对齐 PWM，计数顶部和底部各产生一次触发，所以
- * SYSTEM_CORE_CLOCK / ARR 正好是 30000Hz ADC-DMA 回调频率。
+ * 中心对齐 PWM 计数顶部和底部各产生一次触发，采样率由 HAL 按 PWM 时基换算。
  */
 static float Motor_OpenLoop_GetAdcDt(MOTOR_PARAM_S *m)
 {
-    uint32_t arr = TIM1->ARR;
-    uint32_t psc = TIM1->PSC + 1U;
-    float foc_freq;
+    float foc_freq = Hal_Motor_AdcSampleRateHz();
 
-    /*
-     * VESC style: derive dt from the real timer rate that drives ADC/DMA.
-     * In this project TIM1->ARR is configured as SYSTEM_CORE_CLOCK / f_zv,
-     * and TIM1 update events are used as the control-loop trigger source.
-     */
-    if (arr > 0U && psc > 0U) {
-        foc_freq = (float)SYSTEM_CORE_CLOCK / ((float)arr * (float)psc);
+    if (foc_freq > 1.0f) {
         m->ol_foc_freq = foc_freq;
     } else {
         foc_freq = m->ol_foc_freq;
@@ -159,11 +150,13 @@ static float Motor_CurrentOffset_GetValid(float offset)
  */
 static void Motor_OpenLoop_OutputSafe(MOTOR_PARAM_S *m)
 {
-    m->duty1 = TIM1->ARR / 2;
-    m->duty2 = TIM1->ARR / 2;
-    m->duty3 = TIM1->ARR / 2;
-    TIMER_UPDATE_DUTY_M1(m->duty1, m->duty2, m->duty3);
-    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    uint32_t mid = Hal_Motor_PwmPeriodCounts() / 2U;
+
+    m->duty1 = mid;
+    m->duty2 = mid;
+    m->duty3 = mid;
+    Hal_Motor_PwmSetDuty(m->duty1, m->duty2, m->duty3);
+    Hal_Motor_PwmCommit();
     Motor_Sensorless_SetAppliedVoltage(0.0f, 0.0f);
 }
 
@@ -211,6 +204,10 @@ static void Motor_OpenLoop_Stop(MOTOR_PARAM_S *m)
  */
 static bool Motor_OpenLoop_IsReady(MOTOR_PARAM_S *m, float v_bus)
 {
+    if (Motor_Hall_DetectIsActive()) {
+        return m->ol_enable && v_bus >= 1.0f;
+    }
+
     return m->ol_enable && m->ol_target_rpm != 0.0f && v_bus >= 1.0f;
 }
 
@@ -522,7 +519,7 @@ static void Motor_OpenLoop_UpdateTheta(MOTOR_PARAM_S *m, float dt)
 
 /*
  * FOC 电压输出统一入口：
- *   反 Park 变换 (vd/vq → v_alpha/v_beta) → SVPWM 计算占空比 → 更新 TIM1 比较寄存器。
+ *   反 Park 变换 (vd/vq → v_alpha/v_beta) → SVPWM 计算占空比 → 经 HAL 写 PWM。
  * 无论 V/F 模式还是电流闭环模式，最终都走这条路输出 PWM。
  */
 static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq,
@@ -531,14 +528,15 @@ static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq,
     float v_alpha;
     float v_beta;
     ULONG sector;
+    uint32_t period = Hal_Motor_PwmPeriodCounts();
 
     inverse_park(vd, vq, theta, &v_alpha, &v_beta);
     /* 观测器使用本次下发电压，在下一 FOC 周期积分定子磁链。 */
     Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
-    svm_hqd(v_alpha, v_beta, v_bus, TIM1->ARR,
+    svm_hqd(v_alpha, v_beta, v_bus, period,
             &m->duty1, &m->duty2, &m->duty3, &sector);
-    TIMER_UPDATE_DUTY_M1(m->duty1, m->duty2, m->duty3);
-    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    Hal_Motor_PwmSetDuty(m->duty1, m->duty2, m->duty3);
+    Hal_Motor_PwmCommit();
 }
 
 /*
@@ -700,6 +698,28 @@ static void Motor_OpenLoop_RunIf(MOTOR_PARAM_S *m, float v_bus, float dt)
 }
 
 /*
+ * 霍尔标定专用电流环：任务侧更新 forced 角度与 Id，ISR 只做 Clarke/Park/PI/SVPWM。
+ */
+static void Motor_OpenLoop_RunHallDetect(MOTOR_PARAM_S *m, float v_bus, float dt)
+{
+    float theta;
+    float id_target;
+    float iq_target;
+    float v_limit;
+    motor_dq_voltage_t voltage;
+
+    if (!Motor_Hall_DetectGetTargets(m, &theta, &id_target, &iq_target)) {
+        Motor_OpenLoop_Stop(m);
+        return;
+    }
+
+    v_limit = Motor_OpenLoop_GetVoltageLimit(m, v_bus);
+    Motor_CurrentFeedback_UpdateDq(m, theta);
+    voltage = Motor_CurrentLoop_RunPi(m, id_target, iq_target, dt, v_limit);
+    Motor_Foc_OutputVoltage(m, voltage.vd, voltage.vq, theta, v_bus);
+}
+
+/*
  * 开环运行主状态机 (每个 FOC 控制周期调用一次)：
  *   1. 欠压 → 复位 + 安全输出；
  *   2. 未就绪 → 停机；
@@ -724,6 +744,11 @@ static void Motor_OpenLoop_Run(MOTOR_PARAM_S *m, float v_bus)
     }
 
     dt = Motor_OpenLoop_GetDt(m);
+
+    if (Motor_Hall_DetectIsActive()) {
+        Motor_OpenLoop_RunHallDetect(m, v_bus, dt);
+        return;
+    }
 
     Motor_OpenLoop_NormalizeConfig(m);
     if (m->ol_mode == MOTOR_OL_MODE_IF) {
@@ -819,21 +844,15 @@ float Motor_DmaInt_GetMaximumRuntimeUs(void)
 
 /**
  * @description: 返回实际 ADC-DMA 触发频率。
- * @detail: 由 TIM1 中心对齐 PWM 配置实时换算（顶部/底部各触发一次，正常约 30kHz）；TIM1 未初始化时回退到用户配置的 ol_foc_freq。
+ * @detail: 由 HAL 按中心对齐 PWM 时基换算（顶部/底部各触发一次，正常约 30kHz）；未初始化时回退到用户配置的 ol_foc_freq。
  * @return {*}
  * @author: lkc
  */
 float Motor_DmaInt_GetAdcFrequencyHz(void)
 {
-    uint32_t arr = TIM1->ARR;
-    uint32_t psc = TIM1->PSC + 1U;
-    float adc_trigger_hz;
+    float adc_trigger_hz = Hal_Motor_AdcSampleRateHz();
 
-    if (arr > 0U && psc > 0U) {
-        /* 中心对齐 PWM 在计数顶部和底部各产生一次 ADC 触发。 */
-        adc_trigger_hz = (float)SYSTEM_CORE_CLOCK /
-                         ((float)arr * (float)psc);
-    } else {
+    if (adc_trigger_hz <= 0.0f) {
         adc_trigger_hz = motor.ol_foc_freq;
     }
 
@@ -923,7 +942,7 @@ VOID Motor_It_ParamCal(VOID)
  */
 static void Motor_DmaInt_Foc(void)
 {
-    uint32_t runtime_start = Bsp_Tim_DtNow();
+    uint32_t runtime_start = Hal_Motor_TimeUs();
     float protection_dt;
 
     /*

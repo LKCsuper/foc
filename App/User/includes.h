@@ -79,10 +79,15 @@ extern "C" {
 #include "bsp_hall.h"
 #include "bsp.h"
 
+/* hal — App 只调 HAL，寄存器仅留在 Library/Hal/port */
+#include "hal_motor.h"
+#include "hal_sensor.h"
+
 /* it */
 #include "stm32f4xx_it.h"
 
 /* foc */
+#include "motor_types.h"
 #include "foc_simulink0.h"
 
 /* simple foc */
@@ -90,10 +95,8 @@ extern "C" {
 
 /* motor */
 #include "motor_common.h"
-#include "datatypes.h"
-#include "mcconf_default.h"
-#include "motor_cal.h"
 #include "motor_param.h"
+#include "motor_cal.h"
 #include "motor_math.h"
 #include "motor_hall.h"
 #include "motor_encoder.h"

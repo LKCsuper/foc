@@ -2,8 +2,8 @@
  * @Description: FOC 电流环与观测器增益整定
  * @Author: lkc
  */
-#ifndef __MOTOR_CAL_H__
-#define __MOTOR_CAL_H__
+#ifndef _MOTOR_CAL_H
+#define _MOTOR_CAL_H
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -16,13 +16,20 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 按 VESC 电流环时间常数整定 FOC 电流环 Kp/Ki 与观测器增益。
- * @param {mc_configuration} *mcconf  电机配置，需含 R/L/flux_linkage；结果写回 foc_current_kp/ki 与 foc_observer_gain
- * @param {float} tc                    电流环时间常数 (us)
+ * @description: 按 R/L 与电流环时间常数整定 FOC 电流环 Kp/Ki 与观测器增益。
+ * @param {MOTOR_PARAM_S} *m  运行时参数；R/L/磁链取自 sensorless_* 字段
+ * @param {float} tc          电流环时间常数 (s)
  * @return {*}
  * @author: lkc
  */
-void VESC_Calc_Foc_cc_kp_ki_gain(mc_configuration *mcconf, float tc);
+void Motor_Calc_FocCurrentKpKi(MOTOR_PARAM_S *m, float tc);
+
+/**
+ * @description: 计算电机电气速度环 Kp/Ki 的预留接口
+ * @return {*}
+ * @author: lkc
+ */
+VOID MOTOR_Cal_Electric_KP_KI(VOID);
 
 #ifdef __cplusplus
 }

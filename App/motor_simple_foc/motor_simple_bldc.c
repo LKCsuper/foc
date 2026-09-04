@@ -143,8 +143,14 @@ void setPhaseVoltage(float Uq, float Ud, float angle_el)
 
 	//PRINTF("{%f,%f,%f}\r\n", Ta, Tb, Tc);
 
-	TIMER_UPDATE_DUTY_M1(Ta * TIM1->ARR, Tb * TIM1->ARR, Tc * TIM1->ARR);
-    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+	{
+		uint32_t period = Hal_Motor_PwmPeriodCounts();
+
+		Hal_Motor_PwmSetDuty((uint32_t)(Ta * period),
+		                     (uint32_t)(Tb * period),
+		                     (uint32_t)(Tc * period));
+		Hal_Motor_PwmCommit();
+	}
 }
 /******************************************************************************/
 /**
@@ -158,15 +164,8 @@ float velocityOpenloop(float target_velocity)
 	unsigned long now_us;
 	float Ts,Uq;
 
-	now_us = TIM5->CNT; //_micros();
-	if(now_us < open_loop_timestamp)
-	{
-		Ts = (float)(open_loop_timestamp - now_us)/9*1e-6;
-	}
-	else
-	{
-		Ts = (float)(0xFFFFFF - now_us + open_loop_timestamp)/9*1e-6;
-	}
+	now_us = Hal_Motor_TimeUs();
+	Ts = (float)(now_us - open_loop_timestamp) * 1e-6f;
 	open_loop_timestamp = now_us;  //save timestamp for next call
 	// quick fix for strange cases (micros overflow)
 	if(Ts == 0 || Ts > 0.5) Ts = 1e-3; 
@@ -195,19 +194,8 @@ float angleOpenloop(float target_angle)
 	unsigned long now_us;
 	float Ts,Uq;
 	
-	now_us = TIM5->CNT; //_micros();
-
-	//PRINTF("%d\r\n", now_us);
-
-	if(now_us < open_loop_timestamp)
-	{
-		Ts = (float)(open_loop_timestamp - now_us)/9*1e-6;
-	}
-	else
-	{
-		Ts = (float)(0xFFFFFF - now_us + open_loop_timestamp)/9*1e-6;
-	}
-		
+	now_us = Hal_Motor_TimeUs();
+	Ts = (float)(now_us - open_loop_timestamp) * 1e-6f;
 	open_loop_timestamp = now_us;  //save timestamp for next call
 	// quick fix for strange cases (micros overflow)
 	if(Ts == 0 || Ts > 0.5) Ts = 1e-3; 

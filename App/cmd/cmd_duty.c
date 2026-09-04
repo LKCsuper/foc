@@ -27,20 +27,23 @@ STATIC const osThreadAttr_t taskDutyAttr =
 VOID Duty_ControlTask(VOID *argument)
 {
     (void)argument;
+    uint32_t period = Hal_Motor_PwmPeriodCounts();
+    uint32_t pulse = period / 10U;
+
     PRINTF("\n");
-    Bsp_Tim_StartPwm(false);
+    Hal_Motor_PwmStart();
     while (1)
     {
-        TIMER_UPDATE_DUTY_M1(HW_PWM1_TIM->ARR / 10, 0, 0);
-        TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+        Hal_Motor_PwmSetDuty(pulse, 0U, 0U);
+        Hal_Motor_PwmCommit();
 
         osDelay(pdMS_TO_TICKS(50));
-        TIMER_UPDATE_DUTY_M1(0, HW_PWM1_TIM->ARR / 10, 0);
-        TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+        Hal_Motor_PwmSetDuty(0U, pulse, 0U);
+        Hal_Motor_PwmCommit();
 
         osDelay(pdMS_TO_TICKS(50));
-        TIMER_UPDATE_DUTY_M1(0, 0, HW_PWM1_TIM->ARR / 10);
-        TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+        Hal_Motor_PwmSetDuty(0U, 0U, pulse);
+        Hal_Motor_PwmCommit();
         osDelay(pdMS_TO_TICKS(50));
     }
 }
@@ -67,7 +70,7 @@ int Cmd_Motor_Duty(int argc, char *argv[])
         taskPlotHandle = osThreadNew(Duty_ControlTask, NULL, &taskDutyAttr);
     } else if (strcmp(argv[1], "destory") == 0) {
         PRINTF("duty task destory\r\n");
-        Bsp_Tim_StopPwm(false);
+        Hal_Motor_PwmStop();
         if (osOK == osThreadTerminate(taskPlotHandle)) {
             PRINTF("success\r\n");
         } else {
@@ -84,17 +87,24 @@ int Cmd_Motor_Duty(int argc, char *argv[])
             return -1;
         }
         PRINTF("duty set [%d%%]\r\n", pct);
-        TIMER_UPDATE_DUTY_M1((HW_PWM1_TIM->ARR / 100) * pct,
-                             (HW_PWM1_TIM->ARR / 100) * pct,
-                             (HW_PWM1_TIM->ARR / 100) * pct);
-        TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+        {
+            uint32_t period = Hal_Motor_PwmPeriodCounts();
+            uint32_t duty = (period / 100U) * (uint32_t)pct;
+
+            Hal_Motor_PwmSetDuty(duty, duty, duty);
+            Hal_Motor_PwmCommit();
+        }
     } else if (strcmp(argv[1], "start") == 0) {
         PRINTF("duty start\r\n");
-        TIMER_UPDATE_DUTY_M1(HW_PWM1_TIM->ARR / 5, HW_PWM1_TIM->ARR / 5, HW_PWM1_TIM->ARR / 5);
-        Bsp_Tim_StartPwm(false);
-        TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+        {
+            uint32_t duty = Hal_Motor_PwmPeriodCounts() / 5U;
+
+            Hal_Motor_PwmSetDuty(duty, duty, duty);
+            Hal_Motor_PwmStart();
+            Hal_Motor_PwmCommit();
+        }
     } else if (strcmp(argv[1], "stop") == 0) {
-        Bsp_Tim_StopPwm(false);
+        Hal_Motor_PwmStop();
     } else {
         PRINTF("unknown: %s\r\n", argv[1]);
         return -1;

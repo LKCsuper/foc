@@ -198,7 +198,7 @@ static void ol_print_status(void)
         PRINTF("Status output is already running\n");
         return;
     }
-    format_start = Bsp_Tim_DtNow();
+    format_start = Hal_Motor_TimeUs();
 
     sensorless_state = ol_sensorless_state_name(Motor_Sensorless_GetState());
 
@@ -317,7 +317,7 @@ static void ol_print_status(void)
         ol_status_append(&used, "  Est Vq     : %.2f V (%.0f%% mod)\n", vq_est, mod);
     }
     /* 统计从状态快照到 RAM 格式化完成的墙钟时间，其中也包含 FOC 中断抢占时间。 */
-    format_elapsed_us = Bsp_Tim_DtNow() - format_start;
+    format_elapsed_us = Hal_Motor_TimeUs() - format_start;
     ol_status_append(&used, "  Status fmt : %lu us (RAM)\n",
                      (unsigned long)format_elapsed_us);
     ol_status_append(&used, "=============================\n\n");
@@ -355,7 +355,7 @@ int Cmd_OlSpeed(int argc, char *argv[])
     motor.ol_target_rpm = rpm;
     motor.ol_enable = (rpm != 0.0f);
     if (!motor.ol_enable) motor.ol_current_rpm = 0.0f;
-    if (motor.ol_enable) Bsp_Tim_StartPwm(MOTOR1);
+    if (motor.ol_enable) Hal_Motor_PwmStart();
     PRINTF("Target RPM set to %.0f\n", rpm);
     ol_print_high_speed_guard_notice(rpm);
     return 0;
@@ -515,7 +515,7 @@ int Cmd_OlStart(int argc, char *argv[])
     }
 
     motor.ol_enable = true;
-    Bsp_Tim_StartPwm(MOTOR1);
+    Hal_Motor_PwmStart();
     PRINTF("Open-loop started, target %.0f RPM\n", motor.ol_target_rpm);
     ol_print_high_speed_guard_notice(motor.ol_target_rpm);
     return 0;
@@ -533,14 +533,14 @@ int Cmd_OlStop(int argc, char *argv[])
     (void)argc;
     (void)argv;
 
+    Motor_Hall_DetectAbort();
     motor.ol_enable = false;
     motor.ol_target_rpm = 0.0f;
     motor.ol_current_rpm = 0.0f;
     motor.ol_vd_int = 0.0f;
     motor.ol_vq_int = 0.0f;
     Motor_SpeedLoop_Reset();
-    TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, TIM1->ARR / 2, TIM1->ARR / 2);
-    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    Hal_Motor_PwmSetSafe();
     PRINTF("Open-loop stopped\n");
     return 0;
 }
@@ -647,8 +647,7 @@ int Cmd_OlFault(int argc, char *argv[])
     motor.ol_vd_int = 0.0f;
     motor.ol_vq_int = 0.0f;
     Motor_SpeedLoop_Reset();
-    TIMER_UPDATE_DUTY_M1(TIM1->ARR / 2, TIM1->ARR / 2, TIM1->ARR / 2);
-    TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    Hal_Motor_PwmSetSafe();
     Motor_Protect_ClearFault();
     PRINTF("Motor fault cleared; use olstart to restart\n");
     return 0;
