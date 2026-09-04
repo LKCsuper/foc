@@ -108,7 +108,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "reset",      CMD_Reset,              "software reset MCU" },
     { "duty",       Cmd_Motor_Duty,         "duty cycle control: create/destory/set/start/stop" },
     { "encoder",    Cmd_Motor_Encoder,      "AB encoder show/reset/detect" },
-    { "plot",       Cmd_Serial_Plot,        "serial plot: create/destory" },
+    { "plot",       Cmd_Serial_Plot,        "VOFA JustFloat: create current|speed|pos|sine" },
     { "openloop",   Cmd_Motor_OpenLoop,     "openloop background task create" },
 };
 

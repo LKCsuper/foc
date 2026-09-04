@@ -1,8 +1,6 @@
 /*
- * @Description: 
- * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-04 18:58:19
- * @FilePath: \foc\Library\Bsp\inc\bsp_adc.h
+ * @Description: VOFA+ 串口绘图命令声明
+ * @Author: lkc
  */
 #ifndef _COMMAND_SERIAL_PLOT_H
 #define _COMMAND_SERIAL_PLOT_H
@@ -12,11 +10,21 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define TEXT_PLOT(title, fmt, args...) printf("{"#title"}"fmt"\n", ##args)
+/* FireWater 文本格式（可选，主路径用 JustFloat） */
+#define TEXT_PLOT(title, fmt, args...) printf("{" #title "}" fmt "\n", ##args)
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: plot 命令 — VOFA+ JustFloat 调试曲线
+ * @param {int} argc  参数个数
+ * @param {char *} argv[]  create/destory/help 与模式名
+ * @return {int} 0 成功，-1 失败
+ * @author: lkc
+ */
+int Cmd_Serial_Plot(int argc, char *argv[]);
 
 #ifdef __cplusplus
 }
