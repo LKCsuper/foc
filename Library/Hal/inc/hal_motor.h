@@ -84,6 +84,54 @@ float Hal_Motor_AdcSampleRateHz(void);
  */
 uint32_t Hal_Motor_TimeUs(void);
 
+/**
+ * @description: 计算自 start_us 以来流逝的时间
+ * @param {uint32_t} start_us  起始时刻 (us)，通常来自 Hal_Motor_TimeUs
+ * @return {float} 流逝时间 (s)，支持无符号溢出回绕
+ * @author: lkc
+ */
+float Hal_Motor_TimeElapsedSec(uint32_t start_us);
+
+/**
+ * @description: 读取单个 ADC 通道原始值
+ * @param {uint8_t} channel  ADC 缓冲下标
+ * @return {uint16_t} 原始计数；通道越界返回 0
+ * @author: lkc
+ */
+uint16_t Hal_Motor_AdcRaw(uint8_t channel);
+
+/**
+ * @description: 拷贝 ADC DMA 缓冲到调用方数组
+ * @param {uint16_t} *dst  目标缓冲
+ * @param {uint32_t} len   最多拷贝通道数
+ * @return {*}
+ * @author: lkc
+ */
+void Hal_Motor_AdcGetRaw(uint16_t *dst, uint32_t len);
+
+/**
+ * @description: 读取相电流 ADC 原始值（含分流极性处理）
+ * @param {uint8_t} phase  0=A，1=B，2=C
+ * @return {uint16_t} ADC 计数
+ * @author: lkc
+ */
+uint16_t Hal_Motor_CurrentAdc(uint8_t phase);
+
+/**
+ * @description: 读取相电压采样点电压
+ * @param {uint8_t} phase  0=SENS1，1=SENS2，2=SENS3
+ * @return {float} 采样点电压 (V)
+ * @author: lkc
+ */
+float Hal_Motor_SenseVolts(uint8_t phase);
+
+/**
+ * @description: 读取直流母线电压
+ * @return {float} 母线电压 (V)
+ * @author: lkc
+ */
+float Hal_Motor_BusVoltage(void);
+
 #ifdef __cplusplus
 }
 #endif

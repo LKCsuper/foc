@@ -6,6 +6,9 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#ifndef HAL_INTERNAL
+#define HAL_INTERNAL
+#endif
 #include "includes.h"
 #include "hal_motor.h"
 #include "hal_sensor.h"
@@ -133,6 +136,103 @@ float Hal_Motor_AdcSampleRateHz(void)
 uint32_t Hal_Motor_TimeUs(void)
 {
     return (uint32_t)Bsp_Tim_DtNow();
+}
+
+/**
+ * @description: 计算自 start_us 以来流逝的时间
+ * @param {uint32_t} start_us
+ * @return {float} s
+ * @author: lkc
+ */
+float Hal_Motor_TimeElapsedSec(uint32_t start_us)
+{
+    return Bsp_Tim_DtSecondElapsedSince((ULONG)start_us);
+}
+
+/**
+ * @description: 读取单个 ADC 通道原始值
+ * @param {uint8_t} channel
+ * @return {uint16_t} 原始计数
+ * @author: lkc
+ */
+uint16_t Hal_Motor_AdcRaw(uint8_t channel)
+{
+    if (channel >= (uint8_t)(HW_ADC_CHANNELS + HW_ADC_CHANNELS_EXTRA)) {
+        return 0U;
+    }
+    return ADC_Value[channel];
+}
+
+/**
+ * @description: 拷贝 ADC DMA 缓冲
+ * @param {uint16_t} *dst
+ * @param {uint32_t} len
+ * @return {*}
+ * @author: lkc
+ */
+void Hal_Motor_AdcGetRaw(uint16_t *dst, uint32_t len)
+{
+    uint32_t max_ch = (uint32_t)(HW_ADC_CHANNELS + HW_ADC_CHANNELS_EXTRA);
+    uint32_t i;
+    uint32_t n;
+
+    if (dst == NULL) {
+        return;
+    }
+    n = (len < max_ch) ? len : max_ch;
+    for (i = 0U; i < n; i++) {
+        dst[i] = ADC_Value[i];
+    }
+}
+
+/**
+ * @description: 读取相电流 ADC 原始值
+ * @param {uint8_t} phase
+ * @return {uint16_t} ADC 计数
+ * @author: lkc
+ */
+uint16_t Hal_Motor_CurrentAdc(uint8_t phase)
+{
+    switch (phase) {
+    case 0U:
+        return (uint16_t)GET_CURRENT1();
+    case 1U:
+        return (uint16_t)GET_CURRENT2();
+    case 2U:
+        return (uint16_t)GET_CURRENT3();
+    default:
+        return 0U;
+    }
+}
+
+/**
+ * @description: 读取相电压采样点电压
+ * @param {uint8_t} phase
+ * @return {float} V
+ * @author: lkc
+ */
+float Hal_Motor_SenseVolts(uint8_t phase)
+{
+    switch (phase) {
+    case 0U:
+        return ADC_VOLTS(ADC_IND_SENS1);
+    case 1U:
+        return ADC_VOLTS(ADC_IND_SENS2);
+    case 2U:
+        return ADC_VOLTS(ADC_IND_SENS3);
+    default:
+        return 0.0f;
+    }
+}
+
+/**
+ * @description: 读取直流母线电压
+ * @return {float} V
+ * @author: lkc
+ */
+float Hal_Motor_BusVoltage(void)
+{
+    return GET_INPUT_VOLTAGE();
 }
 
 /**

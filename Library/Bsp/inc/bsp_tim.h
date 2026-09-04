@@ -33,6 +33,11 @@ extern "C" {
 /* 原pwm死区为360  死区时间大约350ns左右 */
 #define HW_DEAD_TIME_NSEC				(360.0f)	// Dead time
 
+/*
+ * 寄存器写宏仅供 BSP / HAL port 使用。
+ * 在对应 .c 中于 #include "includes.h" 之前定义 HAL_INTERNAL。
+ */
+#ifdef HAL_INTERNAL
 #ifdef HW_HAS_3_SHUNTS
 #define TIMER_UPDATE_DUTY_M1(duty1, duty2, duty3) \
 		TIM1->CR1 |= TIM_CR1_UDIS; \
@@ -79,6 +84,7 @@ extern "C" {
 		TIM2->CCR2 = samp / 2; \
 		TIM8->CR1 &= ~TIM_CR1_UDIS; \
 		TIM2->CR1 &= ~TIM_CR1_UDIS;
+#endif /* HAL_INTERNAL */
 
 typedef enum{
 	MOTOR1 = 0,

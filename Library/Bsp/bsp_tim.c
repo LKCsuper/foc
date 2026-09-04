@@ -18,6 +18,9 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#ifndef HAL_INTERNAL
+#define HAL_INTERNAL
+#endif
 #include "includes.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/

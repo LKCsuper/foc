@@ -903,13 +903,13 @@ VOID Motor_It_ParamCal(VOID)
     float current_offset1;
     float current_offset2;
 
-	m->currentAdc[0] = GET_CURRENT1();
-	m->currentAdc[1] = GET_CURRENT2();
-	m->currentAdc[2] = GET_CURRENT3();
+	m->currentAdc[0] = Hal_Motor_CurrentAdc(0U);
+	m->currentAdc[1] = Hal_Motor_CurrentAdc(1U);
+	m->currentAdc[2] = Hal_Motor_CurrentAdc(2U);
 
-    m->voltAdc[0] = ADC_VOLTS(ADC_IND_SENS1);
-    m->voltAdc[1] = ADC_VOLTS(ADC_IND_SENS2);
-    m->voltAdc[2] = ADC_VOLTS(ADC_IND_SENS3);
+    m->voltAdc[0] = Hal_Motor_SenseVolts(0U);
+    m->voltAdc[1] = Hal_Motor_SenseVolts(1U);
+    m->voltAdc[2] = Hal_Motor_SenseVolts(2U);
 
     current_offset0 = Motor_CurrentOffset_GetValid(m->currentOffset[0]);
     current_offset1 = Motor_CurrentOffset_GetValid(m->currentOffset[1]);
@@ -921,18 +921,18 @@ VOID Motor_It_ParamCal(VOID)
 
     /*
      * 注意 ADC 通道与相序的映射不是线性的：
-     *   va ← ADC_IND_SENS1 (offset[0])
-     *   vb ← ADC_IND_SENS3 (offset[2]) — 交换
-     *   vc ← ADC_IND_SENS2 (offset[1]) — 交换
+     *   va ← SENS1 (offset[0])
+     *   vb ← SENS3 (offset[2]) — 交换
+     *   vc ← SENS2 (offset[1]) — 交换
      */
-    m->va = (ADC_VOLTS(ADC_IND_SENS1) - m->voltundrivenOffset[0]) *
+    m->va = (Hal_Motor_SenseVolts(0U) - m->voltundrivenOffset[0]) *
             PHASE_VOLTAGE_DIVIDER_GAIN * ADC_VOLTS_PH_FACTOR;
-    m->vb = (ADC_VOLTS(ADC_IND_SENS3) - m->voltundrivenOffset[2]) *
+    m->vb = (Hal_Motor_SenseVolts(2U) - m->voltundrivenOffset[2]) *
             PHASE_VOLTAGE_DIVIDER_GAIN * ADC_VOLTS_PH_FACTOR;
-    m->vc = (ADC_VOLTS(ADC_IND_SENS2) - m->voltundrivenOffset[1]) *
+    m->vc = (Hal_Motor_SenseVolts(1U) - m->voltundrivenOffset[1]) *
             PHASE_VOLTAGE_DIVIDER_GAIN * ADC_VOLTS_PH_FACTOR;
 
-    UTILS_LP_FAST(m->v_bus, GET_INPUT_VOLTAGE(), 0.1f);
+    UTILS_LP_FAST(m->v_bus, Hal_Motor_BusVoltage(), 0.1f);
 }
 
 /*

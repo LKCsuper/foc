@@ -40,10 +40,15 @@
 
 ## 3. 头文件
 
-- 业务 `.c` **只** `#include "includes.h"`，不要再单独拉一堆模块头。
-- 新模块的 `.h` 加入 `App/User/includes.h` 对应分组（`/* motor */`、`/* cmd */`、`/* bsp */` 等）。
-- **禁止**重排 `includes.h` 和各文件的 include 顺序（`.clang-format` 已设 `SortIncludes: Never`）。
+- 业务 `.c` **只** `#include "includes.h"`（或等价地 `#include "includes_app.h"`），不要再单独拉一堆模块头。
+- 头文件已拆为：
+  - `includes_platform.h` — STM32 / FreeRTOS / BSP / HAL / 板级宏
+  - `includes_app.h` — motor / param / sensor / cmd（内部仍会带上 platform，渐进解耦）
+  - `includes.h` — 上述两者总入口
+- 新模块的 `.h` 加入 `includes_app.h` 对应分组（`/* motor */`、`/* cmd */` 等）；平台头加入 `includes_platform.h`。
+- **禁止**重排 `includes*.h` 和各文件的 include 顺序（`.clang-format` 已设 `SortIncludes: Never`）。
 - 头文件用 include guard，命名：`_模块名大写_H`，例如 `_MOTOR_PID_H`。
+- App 业务代码只调 `Hal_*`，不要直接写 `TIM1->` / `TIMER_UPDATE_DUTY_*`（这些宏仅在定义了 `HAL_INTERNAL` 的 BSP/port 中可见）。
 
 ## 4. 格式
 

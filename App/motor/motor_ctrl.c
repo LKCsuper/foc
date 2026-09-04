@@ -154,7 +154,7 @@ VOID Motor_Ctrl_OpenLoop1(VOID)
 	// utils_norm_angle_rad((float*)&motor_now->m_openloop_angle);
 	// motor_now->m_motor_state.phase = motor_now->m_openloop_angle;
 
-    dt = Bsp_Tim_DtSecondElapsedSince(curTim);
+    dt = Hal_Motor_TimeElapsedSec(curTim);
 
     if (0 == lastTim)
     {

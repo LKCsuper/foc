@@ -37,16 +37,16 @@ static void Detect_SamplePhase(uint32_t phase, uint32_t samples, float *current_
     for (i = 0U; i < samples; i++) {
         switch (phase) {
         case 0:
-            *current_acc += GET_CURRENT1();
-            *voltage_acc += ADC_VOLTS(ADC_IND_SENS1);
+            *current_acc += (float)Hal_Motor_CurrentAdc(0U);
+            *voltage_acc += Hal_Motor_SenseVolts(0U);
             break;
         case 1:
-            *current_acc += GET_CURRENT2();
-            *voltage_acc += ADC_VOLTS(ADC_IND_SENS2);
+            *current_acc += (float)Hal_Motor_CurrentAdc(1U);
+            *voltage_acc += Hal_Motor_SenseVolts(1U);
             break;
         default:
-            *current_acc += GET_CURRENT3();
-            *voltage_acc += ADC_VOLTS(ADC_IND_SENS3);
+            *current_acc += (float)Hal_Motor_CurrentAdc(2U);
+            *voltage_acc += Hal_Motor_SenseVolts(2U);
             break;
         }
         osDelay(pdMS_TO_TICKS(1));
@@ -118,7 +118,8 @@ ULONG DETECT_Offset(BOOL cal_undriven)
     motor.voltOffset[2] = voltage_sum[2] - v_avg;
 
     PRINTF("ADC_RAW [%d] [%d] [%d]\r\n",
-           (int)GET_CURRENT1(), (int)GET_CURRENT2(), (int)GET_CURRENT3());
+           (int)Hal_Motor_CurrentAdc(0U), (int)Hal_Motor_CurrentAdc(1U),
+           (int)Hal_Motor_CurrentAdc(2U));
     PRINTF("Current Offset [%f] [%f] [%f]\r\n",
            motor.currentOffset[0], motor.currentOffset[1], motor.currentOffset[2]);
     PRINTF("Volt Offset [%f] [%f] [%f]\r\n",
@@ -147,12 +148,12 @@ ULONG DETECT_Offset(BOOL cal_undriven)
         voltage_sum[2] = 0.0f;
 
         for (i = 0U; i < samples; i++) {
-            v_avg = (ADC_VOLTS(ADC_IND_SENS1) +
-                     ADC_VOLTS(ADC_IND_SENS2) +
-                     ADC_VOLTS(ADC_IND_SENS3)) / 3.0f;
-            voltage_sum[0] += ADC_VOLTS(ADC_IND_SENS1) - v_avg;
-            voltage_sum[1] += ADC_VOLTS(ADC_IND_SENS2) - v_avg;
-            voltage_sum[2] += ADC_VOLTS(ADC_IND_SENS3) - v_avg;
+            v_avg = (Hal_Motor_SenseVolts(0U) +
+                     Hal_Motor_SenseVolts(1U) +
+                     Hal_Motor_SenseVolts(2U)) / 3.0f;
+            voltage_sum[0] += Hal_Motor_SenseVolts(0U) - v_avg;
+            voltage_sum[1] += Hal_Motor_SenseVolts(1U) - v_avg;
+            voltage_sum[2] += Hal_Motor_SenseVolts(2U) - v_avg;
             osDelay(pdMS_TO_TICKS(1));
         }
         Hal_Motor_PwmStop();

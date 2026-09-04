@@ -1,8 +1,8 @@
 /*
- * @Description: 
- * @Date: 2023-02-17 22:55:09
- * @LastEditTime: 2023-10-09 19:18:30
- * @FilePath: \my_foc\App\User\includes.h
+ * @Description: 工程总入口头文件（平台 + 应用）
+ * @Author: lkc
+ * @detail: 业务 .c 仍可只 #include "includes.h"。拆分见 includes_platform.h /
+ *          includes_app.h；勿重排本文件 include 顺序。
  */
 #ifndef _INCLUDES_H
 #define _INCLUDES_H
@@ -10,114 +10,8 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-/* c std */
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <math.h>
-#include <stdbool.h>
-
-/* stm */
-#ifndef USE_STDPERIPH_DRIVER
-#define USE_STDPERIPH_DRIVER    1
-#endif
-#define HSE_VALUE               ((uint32_t)8000000) // 外部晶振频率
-#define HSE_USE                 (1)                 // 1:使用外部晶振 0:使用内部晶振
-
-#include "arm_math.h"
-#include "stm32f4xx.h"
-
-/* freertos */
-#include "FreeRTOS.h"
-#include "portable.h"
-#include "task.h"
-#include "semphr.h"
-#include "croutine.h"
-#include "event_groups.h"
-#include "list.h"
-#include "queue.h"
-#include "stream_buffer.h"
-#include "timers.h"
-#include "mpu_prototypes.h"
-#include "cmsis_os2.h"
-#include "freertos_port.h"
-
-/* commn */
-#include "printf_color.h"
-#include "common.h"
-
-/* jlink */
-#include "SEGGER_RTT.h"
-#include "SEGGER_RTT_DEBUG.h"
-
-/* fal */
-#include <fal.h>
-
-/* easyflash — replaced by flash_storage.h (direct struct flash R/W) */
-/* #include "easyflash.h" */
-
-/* flashdb */
-#include "flashdb.h"
-
-/* common */
-#include "motor_utils.h"
-
-/* hardware */
-#include "hw_hd75.h"
-#include "hw.h"
-
-/* bsp */
-#include "bsp_adc.h"
-#include "bsp_gpio.h"
-#include "bsp_usart.h"
-#include "bsp_misc.h"
-#include "bsp_tim.h"
-#include "bsp_dma.h"
-#include "bsp_flash.h"
-#include "bsp_it.h"
-#include "bsp_hall.h"
-#include "bsp.h"
-
-/* hal — App 只调 HAL，寄存器仅留在 Library/Hal/port */
-#include "hal_motor.h"
-#include "hal_sensor.h"
-
-/* it */
-#include "stm32f4xx_it.h"
-
-/* foc */
-#include "motor_types.h"
-#include "foc_simulink0.h"
-
-/* simple foc */
-#include "motor_simple_utils.h"
-
-/* motor */
-#include "motor_common.h"
-#include "motor_param.h"
-#include "motor_cal.h"
-#include "motor_math.h"
-#include "motor_hall.h"
-#include "motor_encoder.h"
-#include "motor_foc.h"
-#include "motor_task.h"
-#include "motor_it.h"
-#include "motor_pid.h"
-#include "motor_protect.h"
-#include "motor_speed.h"
-#include "motor_sensorless.h"
-#include "motor_tim.h"
-#include "motor_ctrl.h"
-#include "motor_detect.h"
-#include "flash_storage.h"
-#include "motor.h"
-
-#include "motor_simple_includes.h"
-
-/* cmd */
-#include "command.h"
-#include "cmd_serial_plot.h"
+#include "includes_platform.h"
+#include "includes_app.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -130,4 +24,3 @@ extern "C" {
 #endif
 
 #endif
-
