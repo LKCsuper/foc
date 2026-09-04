@@ -26,6 +26,7 @@
 | PID         | 电流环、速度环、位置环          | `App/motor/motor_pid.c`、`motor_speed.c`、`motor_ctrl.c`                    |
 | 霍尔        | 霍尔解码、电角度 / 转速         | `App/motor_sensor/motor_hall.c`、`Library/Bsp/bsp_hall.c`                     |
 | 编码器      | 编码器检测与角度                | `App/cmd/cmd_encoder.c` 及后续独立 `motor_encoder` 模块                       |
+| 采样换算    | ADC → 电流/相电压/母线          | `App/motor/motor_sense.c`（经 `Hal_Motor_*`）                                  |
 | 参数 / 检测 | 电机参数、偏移、R/L             | `App/motor_param/`                                                              |
 | 命令行      | Shell 命令                      | `App/cmd/`                                                                      |
 | BSP         | 外设驱动                        | `Library/Bsp/`                                                                  |
@@ -40,7 +41,8 @@
 
 ## 3. 头文件
 
-- 业务 `.c` **只** `#include "includes.h"`（或等价地 `#include "includes_app.h"`），不要再单独拉一堆模块头。
+- 业务 `.c` 默认只 `#include "includes.h"`（或 `#include "includes_app.h"`）。
+- **例外（阶段 4）**：纯算法文件（如 `motor_foc.c`）允许只包含 `motor_foc.h` / `motor_math.h` 等无芯片头，禁止再拉 `includes_platform.h` / `stm32f4xx.h`。
 - 头文件已拆为：
   - `includes_platform.h` — STM32 / FreeRTOS / BSP / HAL / 板级宏
   - `includes_app.h` — motor / param / sensor / cmd（内部仍会带上 platform，渐进解耦）

@@ -21,11 +21,6 @@ extern "C" {
 #include "motor_hfi_start.h"
 #include "motor_if_start.h"
 
-/* 电流零点正常应在 ADC 中点附近。flash 没校准或读出异常时，用默认值兜底。 */
-#define MOTOR_CURRENT_OFFSET_MIN      (1000.0f)
-#define MOTOR_CURRENT_OFFSET_MAX      (3000.0f)
-#define MOTOR_CURRENT_OFFSET_DEFAULT  (2045.0f)
-
 /* DQ 轴电压中间量，用于电流环 PI 输出与限幅之间的传递。 */
 typedef struct {
     float vd; /* D 轴电压 (励磁分量) */
@@ -127,20 +122,6 @@ static float Motor_OpenLoop_GetVoltageLimit(MOTOR_PARAM_S *m, float v_bus)
     }
 
     return limit;
-}
-
-/*
- * 获取有效的电流零点偏移值。
- * 若 flash 中存储的偏移量超出合理范围 (1.0V~3.0V 对应 ADC 中点附近)，
- * 则返回默认值 2045 兜底，避免用异常偏移量算出离谱的电流值。
- */
-static float Motor_CurrentOffset_GetValid(float offset)
-{
-    if (offset < MOTOR_CURRENT_OFFSET_MIN || offset > MOTOR_CURRENT_OFFSET_MAX) {
-        return MOTOR_CURRENT_OFFSET_DEFAULT;
-    }
-
-    return offset;
 }
 
 /*
@@ -890,49 +871,13 @@ static bool Motor_DmaInt_ShouldRun(void)
 
 /**
  * @description: 中断内采样三相电流/相电压并换算为物理量。
- * @detail: 每个 ADC-DMA 回调执行一次：电流减零点偏移后乘系数得 ia/ib/ic (A)；
- *          相电压减未驱动偏移并乘分压系数得 va/vb/vc (V)；母线电压经低通滤波得 v_bus (V)。
- *          vb/vc 的 ADC 通道与相序非一一对应，见硬件映射。
+ * @detail: 委托 Motor_Sense_Update；每个 ADC-DMA 回调执行一次。
  * @return {*}
  * @author: lkc
  */
 VOID Motor_It_ParamCal(VOID)
 {
-    MOTOR_PARAM_S *m = &motor;
-    float current_offset0;
-    float current_offset1;
-    float current_offset2;
-
-	m->currentAdc[0] = Hal_Motor_CurrentAdc(0U);
-	m->currentAdc[1] = Hal_Motor_CurrentAdc(1U);
-	m->currentAdc[2] = Hal_Motor_CurrentAdc(2U);
-
-    m->voltAdc[0] = Hal_Motor_SenseVolts(0U);
-    m->voltAdc[1] = Hal_Motor_SenseVolts(1U);
-    m->voltAdc[2] = Hal_Motor_SenseVolts(2U);
-
-    current_offset0 = Motor_CurrentOffset_GetValid(m->currentOffset[0]);
-    current_offset1 = Motor_CurrentOffset_GetValid(m->currentOffset[1]);
-    current_offset2 = Motor_CurrentOffset_GetValid(m->currentOffset[2]);
-
-    m->ia = (m->currentAdc[0] - current_offset0) * FAC_CURRENT;   
-    m->ib = (m->currentAdc[1] - current_offset1) * FAC_CURRENT;
-    m->ic = (m->currentAdc[2] - current_offset2) * FAC_CURRENT;
-
-    /*
-     * 注意 ADC 通道与相序的映射不是线性的：
-     *   va ← SENS1 (offset[0])
-     *   vb ← SENS3 (offset[2]) — 交换
-     *   vc ← SENS2 (offset[1]) — 交换
-     */
-    m->va = (Hal_Motor_SenseVolts(0U) - m->voltundrivenOffset[0]) *
-            PHASE_VOLTAGE_DIVIDER_GAIN * ADC_VOLTS_PH_FACTOR;
-    m->vb = (Hal_Motor_SenseVolts(2U) - m->voltundrivenOffset[2]) *
-            PHASE_VOLTAGE_DIVIDER_GAIN * ADC_VOLTS_PH_FACTOR;
-    m->vc = (Hal_Motor_SenseVolts(1U) - m->voltundrivenOffset[1]) *
-            PHASE_VOLTAGE_DIVIDER_GAIN * ADC_VOLTS_PH_FACTOR;
-
-    UTILS_LP_FAST(m->v_bus, Hal_Motor_BusVoltage(), 0.1f);
+    Motor_Sense_Update(&motor);
 }
 
 /*

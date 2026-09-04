@@ -26,6 +26,7 @@ extern "C" {
 #include "motor_hall.h"
 #include "motor_encoder.h"
 #include "motor_foc.h"
+#include "motor_sense.h"
 #include "motor_task.h"
 #include "motor_it.h"
 #include "motor_pid.h"

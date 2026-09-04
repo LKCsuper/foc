@@ -895,21 +895,6 @@
         <Group>
           <GroupName>Simulink</GroupName>
           <Files>
-            <File>
-              <FileName>foc_simulink0.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\Doc\matlab\foc_simulink0_ert_rtw\foc_simulink0.c</FilePath>
-            </File>
-            <File>
-              <FileName>foc_simulink0_data.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\Doc\matlab\foc_simulink0_ert_rtw\foc_simulink0_data.c</FilePath>
-            </File>
-            <File>
-              <FileName>EKF_CAL_wrapper.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\Doc\matlab\EKF_CAL_wrapper.c</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>
@@ -999,6 +984,11 @@
               <FileName>motor_it.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_it.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_sense.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_sense.c</FilePath>
             </File>
             <File>
               <FileName>motor_hfi_start.c</FileName>

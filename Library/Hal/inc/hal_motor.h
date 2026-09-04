@@ -9,6 +9,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
+#include <stdbool.h>
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -131,6 +132,28 @@ float Hal_Motor_SenseVolts(uint8_t phase);
  * @author: lkc
  */
 float Hal_Motor_BusVoltage(void);
+
+/**
+ * @description: 电流 ADC 计数到安培的换算系数
+ * @return {float} 比例 (A/count)
+ * @author: lkc
+ */
+float Hal_Motor_CurrentScale(void);
+
+/**
+ * @description: 相电压采样点到相电压的增益
+ * @detail: 含分压网络与 ADC_VOLTS_PH_FACTOR
+ * @return {float} 无量纲增益
+ * @author: lkc
+ */
+float Hal_Motor_PhaseVoltageGain(void);
+
+/**
+ * @description: 是否为三电阻采样硬件
+ * @return {bool} true 表示三相分流齐全，可用完整 Clarke
+ * @author: lkc
+ */
+bool Hal_Motor_HasThreeShunts(void);
 
 #ifdef __cplusplus
 }

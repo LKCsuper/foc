@@ -236,6 +236,40 @@ float Hal_Motor_BusVoltage(void)
 }
 
 /**
+ * @description: 电流 ADC 计数到安培的换算系数
+ * @return {float} A/count
+ * @author: lkc
+ */
+float Hal_Motor_CurrentScale(void)
+{
+    return (float)FAC_CURRENT;
+}
+
+/**
+ * @description: 相电压采样点到相电压的增益
+ * @return {float} 增益
+ * @author: lkc
+ */
+float Hal_Motor_PhaseVoltageGain(void)
+{
+    return (float)PHASE_VOLTAGE_DIVIDER_GAIN * (float)ADC_VOLTS_PH_FACTOR;
+}
+
+/**
+ * @description: 是否为三电阻采样硬件
+ * @return {bool}
+ * @author: lkc
+ */
+bool Hal_Motor_HasThreeShunts(void)
+{
+#ifdef HW_HAS_3_SHUNTS
+    return true;
+#else
+    return false;
+#endif
+}
+
+/**
  * @description: 初始化 AB 正交编码器
  * @return {*}
  * @author: lkc

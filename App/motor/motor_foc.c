@@ -6,7 +6,10 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-#include "includes.h"
+#include <stdint.h>
+#include <math.h>
+#include "motor_foc.h"
+#include "motor_math.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -27,12 +30,10 @@ extern "C" {
 void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
 {
 	/*
-	 * VESC 在三电阻(HW_HAS_3_SHUNTS) 模式下使用完整 Clarke 变换。
-	 * 它同时使用三相采样，如果三相上有同向的小偏置，它会在
-	 * 变换中相互抵消。旧实现只用 Ia/Ib，导致 Ic 虽然被采集却不参与
-	 * D/Q 电流计算，对低电流起步特别敏感。
+	 * 三电阻采样用完整 Clarke；两电阻按 Ia/Ib 假设三相平衡。
+	 * 板级默认由 MOTOR_FOC_THREE_SHUNTS 配置（本仓库 HD75 为 1）。
 	 */
-#ifdef HW_HAS_3_SHUNTS
+#if MOTOR_FOC_THREE_SHUNTS
 	*Ialpha = (2.0f / 3.0f) * Ia - (1.0f / 3.0f) * Ib - (1.0f / 3.0f) * Ic;
 	*Ibeta = (Ib - Ic) * ONE_BY_SQRT3;
 #else
