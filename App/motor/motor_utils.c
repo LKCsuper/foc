@@ -560,7 +560,7 @@ uint8_t calculate_deadtime(float deadtime_ns, float core_clock_freq)
 					// Deadtime requested is longer than max achievable. Set deadtime at
 					// longest possible value
 					DTG = 0xFF;
-					assert_param(1); //catch this
+					/* 请求死区超过硬件上限；原先 assert_param 依赖板级宏，固件默认空操作 */
 				}
 			}
 		}

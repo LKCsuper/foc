@@ -15,11 +15,7 @@ extern "C" {
 #include "motor_detect.h"
 #include "motor_settings.h"
 
-/* The linker application region ends at 0x080C0000. Sectors 10 and 11 are
- * reserved as two independent parameter slots so an interrupted save leaves
- * the previous slot intact. */
-#define FLASH_STORAGE_SLOT_A_ADDR    0x080C0000U
-#define FLASH_STORAGE_SLOT_B_ADDR    0x080E0000U
+/* 槽物理地址由 Hal_Flash 提供；本头仅约定逻辑存储格式。 */
 #define FLASH_STORAGE_MAGIC          0x464C4B43U
 #define FLASH_STORAGE_FORMAT_VERSION 2U
 #define FLASH_STORAGE_COMMITTED      0xA55AA55AU

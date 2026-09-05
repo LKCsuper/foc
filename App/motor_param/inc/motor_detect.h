@@ -51,7 +51,8 @@ typedef struct {
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /**
- * @description: 校准三相电流零点和驱动时相电压偏移
+ * @description: 校准三相电流零点和驱动时相电压偏移（应用包装：含 RTOS 延时与 PWM）。
+ * @detail: 累加/结算见 Motor_Detect_Offset*（可裸机逐步喂样本）；本接口供 Shell/上电调用。
  * @param {bool} cal_undriven  true 时额外校准未驱动相电压偏移
  * @return {uint32_t} 1 成功，0 被中止
  * @author: lkc
@@ -73,7 +74,7 @@ void Detect_Init(void);
 bool DETECT_Hall(void);
 
 /**
- * @description: 偏移校准时 FOC 中断必须立刻返回，避免和任务抢写 PWM
+ * @description: 偏移校准时 FOC 不得改占空比编排（ISR 仍采样+软件保护）。
  * @return {bool} true 表示校准占用功率桥
  * @author: lkc
  */

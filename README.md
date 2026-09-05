@@ -6,9 +6,10 @@
 
 - 应用工程：`App/Project/foc.uvprojx`，目标 `Foc`，使用 Keil MDK 的 ARM 工具链。
 - 工作区：`Project/Master_Project.uvmpw`；Boot 是独立工程，不是核心算法依赖。
-- 当前应用输出目录在仓库外 `../build/`（相对应用工程为 `../../../build/`）。本次没有修改该路径，也没有运行烧录。
-- `App/Project/Foc.BAT` 含原开发机的绝对路径，不能当作通用构建脚本。
+- Keil 批编译：仓库根目录 `.\build_keil.ps1`（可选 `-Action rebuild|clean`、`-Project Boot`、`-Uv4 <UV4.exe>`）；实现在 `Scripts/build_keil.ps1`，日志在 `.build/keil/`。旧的 `App/Project/Foc.BAT` 含本机绝对路径，勿当通用脚本。
+- 当前应用输出目录在仓库外 `../build/`（相对应用工程为 `../../../build/`）。
 - 主机测试入口：`Tests/host/run.ps1`，用 Zig 的 C 编译器编译生产代码，不需要 MCU SDK/RTOS；详情见 `Tests/host/README.md`。
+- 最小学习示例：`Examples/`（变换 → 校准 → 开环 → 有感电流 → 有感速度）；**主机通过与上板通过分开陈述**。
 
 ## 主控制链与阅读顺序
 
@@ -22,12 +23,11 @@ DMA2_Stream4 → Bsp_Dma2Stream4_Handler → Motor_DmaInt
   → 按分频执行启动/电流环/无感/速度环 → 逆 Park/SVPWM → HAL PWM
 ```
 
-先读 `motor_foc.c` / `motor_pid.c`，再读 `motor_it.c` 主链和 `motor_settings.h` 配置边界，最后看硬件适配。
+先读 `motor_foc.c` / `motor_pid.c`，再读 `motor_it.c` 主链和 `motor_settings.h` 配置边界，最后看硬件适配。有感路径：`olfb encoder|hall` + 可选 `spenable`（见 `Examples/04`/`05`）。
 
 - 当前配置推算：PWM 约 15 kHz，ADC 回调约 30 kHz，FOC 分频 2 后约 15 kHz；这些是代码配置值，本次未用示波器测量。
-- `motor_simple_foc` 为学习实现，其初始化仍由 main 调用；未接入主 FOC 中断，暂不删除。
+- `motor_simple_foc` 为早期学习实现，未接入主 FOC 中断；正式学习路径见 `Examples/`，勿再复制第二套核心算法。
 - `motor_ctrl.c` 开环函数和 `Motor_PidControl` 未发现外部 C 调用，保留兼容/占位身份。
-- 已有 `motor_encoder.c` 提供编码器读数与零点接口，正常有感反馈接入主电流环仍待实现，不能把“有传感器文件”当作“已有感闭环”。
 
 ## 启动与调试
 
@@ -43,10 +43,10 @@ DMA2_Stream4 → Bsp_Dma2Stream4_Handler → Motor_DmaInt
 - `saveparam` 只保存配置与校准的固定 216-byte 小端 payload，不保存运行命令、采样值、PI 积分或已停用的 R/L 自动检测结果。
 - v1 格式不迁移。升级后旧槽无法加载时使用代码默认值，上电重新执行偏移校准，霍尔表需重新标定；不会自动擦除旧槽，显式 `saveparam` 才写入新格式。
 - 保留开发阶段既有策略：重启后控制增益等由代码默认值覆盖，只恢复校准和霍尔额外采样配置。保存成功不代表运行配置会全部在重启后生效。
-- 保存必须在运行命令禁用、偏移/霍尔校准结束后执行。当前 Flash 驱动仍绑定 STM32F4，完整擦写互斥和输出仲裁属于后续工作。
+- 保存必须在运行命令禁用、偏移/霍尔校准结束后执行。Flash 经 `Hal_Flash_*`；完整上板擦写与输出仲裁仍以实机为准。
 
 ## 实施进度
 
-见 [AI_CODE.md](AI_CODE.md)、[本轮实施记录](Doc/doc/架构实施记录_2026-09-05.md) 和 [代码阅读指南](Doc/doc/代码阅读指南.md)。
+实施进度见 [AI_CODE.md](AI_CODE.md)、[本轮实施记录](Doc/doc/架构实施记录_2026-09-05.md)、[基线电气行为（静态）](Doc/doc/基线电气行为_静态.md) 和 [代码阅读指南](Doc/doc/代码阅读指南.md)。
 
-本轮完成步骤 0 的静态梳理和步骤 1 的配置/校准存储边界。命令一致提交、完整 runtime 拆分、主控制抽取与第二芯片适配仍待执行；主机通过不能代替完整固件构建和上板验证。
+步骤 0～6 主机/文档侧已通（步骤 0 上板末项未勾）；主机通过不能代替完整固件构建和上板验证。

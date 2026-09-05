@@ -114,7 +114,7 @@ float utils_angle_difference_rad(float angle1, float angle2) {
  * @return {float} 加权平均角度 (rad)
  * @author: lkc
  */
-float utils_avg_angles_rad_fast(IN float *angles, IN float *weights,IN int angles_num) {
+float utils_avg_angles_rad_fast(float *angles, float *weights, int angles_num) {
 	float s_sum = 0.0f;
 	float c_sum = 0.0f;
 

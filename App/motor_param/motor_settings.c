@@ -291,58 +291,118 @@ bool Motor_Settings_Capture(const MOTOR_PARAM_S *motor, motor_settings_t *settin
     return true;
 }
 
+static void settings_write_config(MOTOR_PARAM_S *motor, const motor_config_t *config)
+{
+    motor->ol_max_rpm = config->ol_max_rpm;
+    motor->ol_v_boost = config->ol_v_boost;
+    motor->ol_kv_f = config->ol_kv_f;
+    motor->ol_ramp_rpm_s = config->ol_ramp_rpm_s;
+    motor->ol_vq_limit = config->ol_vq_limit;
+    motor->ol_foc_freq = config->ol_foc_freq;
+    motor->ol_pole_pairs = config->ol_pole_pairs;
+    motor->ol_min_rpm = config->ol_min_rpm;
+    motor->ol_current_kp = config->ol_current_kp;
+    motor->ol_current_ki = config->ol_current_ki;
+    motor->ol_start_phase_boost = config->ol_start_phase_boost;
+    motor->ol_align_enable = config->ol_align_enable;
+    motor->ol_align_current = config->ol_align_current;
+    motor->ol_align_time = config->ol_align_time;
+    motor->ol_align_angle = config->ol_align_angle;
+    motor->hfi_start_enable = config->hfi_start_enable;
+    motor->hfi_start_voltage = config->hfi_start_voltage;
+    motor->hfi_start_cycles = config->hfi_start_cycles;
+    motor->hfi_start_min_confidence = config->hfi_start_min_confidence;
+    motor->speed_enable = config->speed_enable;
+    motor->speed_allow_braking = config->speed_allow_braking;
+    motor->speed_kp = config->speed_kp;
+    motor->speed_ki = config->speed_ki;
+    motor->speed_iq_limit = config->speed_iq_limit;
+    motor->speed_loop_hz = config->speed_loop_hz;
+    motor->sensorless_enable = config->sensorless_enable;
+    motor->sensorless_takeover = config->sensorless_takeover;
+    motor->sensorless_motor_r = config->sensorless_motor_r;
+    motor->sensorless_motor_l = config->sensorless_motor_l;
+    motor->sensorless_flux_linkage = config->sensorless_flux_linkage;
+    motor->sensorless_observer_gain = config->sensorless_observer_gain;
+    motor->sensorless_pll_kp = config->sensorless_pll_kp;
+    motor->sensorless_pll_ki = config->sensorless_pll_ki;
+    motor->sensorless_transition_rpm = config->sensorless_transition_rpm;
+    motor->sensorless_fallback_rpm = config->sensorless_fallback_rpm;
+    motor->sensorless_openloop_max_rpm = config->sensorless_openloop_max_rpm;
+    motor->sensorless_lock_time = config->sensorless_lock_time;
+    motor->sensorless_loss_time = config->sensorless_loss_time;
+    motor->sensorless_blend_time = config->sensorless_blend_time;
+    motor->sensorless_phase_tolerance = config->sensorless_phase_tolerance;
+    motor->sensorless_phase_offset = config->sensorless_phase_offset;
+    motor->sensorless_speed_filter = config->sensorless_speed_filter;
+    motor->hall_extra_samples = config->hall_extra_samples;
+}
+
 bool Motor_Settings_Apply(MOTOR_PARAM_S *motor, const motor_settings_t *settings)
 {
     if (motor == NULL || settings == NULL || motor->ol_enable || !settings_valid(settings)) {
         return false;
     }
-    motor->ol_max_rpm = settings->config.ol_max_rpm;
-    motor->ol_v_boost = settings->config.ol_v_boost;
-    motor->ol_kv_f = settings->config.ol_kv_f;
-    motor->ol_ramp_rpm_s = settings->config.ol_ramp_rpm_s;
-    motor->ol_vq_limit = settings->config.ol_vq_limit;
-    motor->ol_foc_freq = settings->config.ol_foc_freq;
-    motor->ol_pole_pairs = settings->config.ol_pole_pairs;
-    motor->ol_min_rpm = settings->config.ol_min_rpm;
-    motor->ol_current_kp = settings->config.ol_current_kp;
-    motor->ol_current_ki = settings->config.ol_current_ki;
-    motor->ol_start_phase_boost = settings->config.ol_start_phase_boost;
-    motor->ol_align_enable = settings->config.ol_align_enable;
-    motor->ol_align_current = settings->config.ol_align_current;
-    motor->ol_align_time = settings->config.ol_align_time;
-    motor->ol_align_angle = settings->config.ol_align_angle;
-    motor->hfi_start_enable = settings->config.hfi_start_enable;
-    motor->hfi_start_voltage = settings->config.hfi_start_voltage;
-    motor->hfi_start_cycles = settings->config.hfi_start_cycles;
-    motor->hfi_start_min_confidence = settings->config.hfi_start_min_confidence;
-    motor->speed_enable = settings->config.speed_enable;
-    motor->speed_allow_braking = settings->config.speed_allow_braking;
-    motor->speed_kp = settings->config.speed_kp;
-    motor->speed_ki = settings->config.speed_ki;
-    motor->speed_iq_limit = settings->config.speed_iq_limit;
-    motor->speed_loop_hz = settings->config.speed_loop_hz;
-    motor->sensorless_enable = settings->config.sensorless_enable;
-    motor->sensorless_takeover = settings->config.sensorless_takeover;
-    motor->sensorless_motor_r = settings->config.sensorless_motor_r;
-    motor->sensorless_motor_l = settings->config.sensorless_motor_l;
-    motor->sensorless_flux_linkage = settings->config.sensorless_flux_linkage;
-    motor->sensorless_observer_gain = settings->config.sensorless_observer_gain;
-    motor->sensorless_pll_kp = settings->config.sensorless_pll_kp;
-    motor->sensorless_pll_ki = settings->config.sensorless_pll_ki;
-    motor->sensorless_transition_rpm = settings->config.sensorless_transition_rpm;
-    motor->sensorless_fallback_rpm = settings->config.sensorless_fallback_rpm;
-    motor->sensorless_openloop_max_rpm = settings->config.sensorless_openloop_max_rpm;
-    motor->sensorless_lock_time = settings->config.sensorless_lock_time;
-    motor->sensorless_loss_time = settings->config.sensorless_loss_time;
-    motor->sensorless_blend_time = settings->config.sensorless_blend_time;
-    motor->sensorless_phase_tolerance = settings->config.sensorless_phase_tolerance;
-    motor->sensorless_phase_offset = settings->config.sensorless_phase_offset;
-    motor->sensorless_speed_filter = settings->config.sensorless_speed_filter;
-    motor->hall_extra_samples = settings->config.hall_extra_samples;
+    settings_write_config(motor, &settings->config);
     memcpy(motor->currentOffset, settings->calibration.current_offset, sizeof(motor->currentOffset));
     memcpy(motor->voltOffset, settings->calibration.voltage_offset, sizeof(motor->voltOffset));
     memcpy(motor->voltundrivenOffset, settings->calibration.undriven_offset, sizeof(motor->voltundrivenOffset));
     memcpy(motor->hall_table, settings->calibration.hall_table, sizeof(motor->hall_table));
+    return true;
+}
+
+bool Motor_Settings_ConfigRequiresStop(const motor_config_t *from, const motor_config_t *to)
+{
+    if (from == NULL || to == NULL) {
+        return true;
+    }
+
+    if (from->ol_pole_pairs != to->ol_pole_pairs || from->ol_foc_freq != to->ol_foc_freq ||
+        from->speed_loop_hz != to->speed_loop_hz || from->hall_extra_samples != to->hall_extra_samples) {
+        return true;
+    }
+    if (from->ol_align_enable != to->ol_align_enable || from->ol_align_current != to->ol_align_current ||
+        from->ol_align_time != to->ol_align_time || from->ol_align_angle != to->ol_align_angle) {
+        return true;
+    }
+    if (from->hfi_start_enable != to->hfi_start_enable || from->hfi_start_voltage != to->hfi_start_voltage ||
+        from->hfi_start_cycles != to->hfi_start_cycles ||
+        from->hfi_start_min_confidence != to->hfi_start_min_confidence) {
+        return true;
+    }
+    if (from->sensorless_motor_r != to->sensorless_motor_r || from->sensorless_motor_l != to->sensorless_motor_l ||
+        from->sensorless_flux_linkage != to->sensorless_flux_linkage ||
+        from->sensorless_observer_gain != to->sensorless_observer_gain ||
+        from->sensorless_pll_kp != to->sensorless_pll_kp || from->sensorless_pll_ki != to->sensorless_pll_ki ||
+        from->sensorless_transition_rpm != to->sensorless_transition_rpm ||
+        from->sensorless_fallback_rpm != to->sensorless_fallback_rpm ||
+        from->sensorless_lock_time != to->sensorless_lock_time ||
+        from->sensorless_loss_time != to->sensorless_loss_time ||
+        from->sensorless_phase_offset != to->sensorless_phase_offset ||
+        from->sensorless_speed_filter != to->sensorless_speed_filter) {
+        return true;
+    }
+    return false;
+}
+
+bool Motor_Settings_ApplyConfig(MOTOR_PARAM_S *motor, const motor_config_t *config)
+{
+    motor_settings_t candidate;
+
+    if (motor == NULL || config == NULL) {
+        return false;
+    }
+    if (!Motor_Settings_Capture(motor, &candidate)) {
+        return false;
+    }
+    if (motor->ol_enable && Motor_Settings_ConfigRequiresStop(&candidate.config, config)) {
+        return false;
+    }
+    candidate.config = *config;
+    if (!settings_valid(&candidate)) {
+        return false;
+    }
+    settings_write_config(motor, config);
     return true;
 }
 

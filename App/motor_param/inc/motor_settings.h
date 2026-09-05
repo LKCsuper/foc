@@ -89,6 +89,29 @@ bool Motor_Settings_Capture(const MOTOR_PARAM_S *motor, motor_settings_t *settin
 bool Motor_Settings_Apply(MOTOR_PARAM_S *motor, const motor_settings_t *settings);
 
 /**
+ * @description: 判断配置变更是否必须停机后才能应用。
+ * @detail: 停机字段：极对数、控制/速度环频率、对齐/HFI、霍尔滤波次数、
+ *          无感电机模型与观测器结构参数。下列允许在线修改：
+ *          V/F 斜率与补偿、斜坡、Vq/电流环增益、max/min RPM、速度 PI 增益、
+ *          制动开关、I/F 高速护栏与相位混合时间，以及命令型开关
+ *          speed_enable / sensorless_enable / takeover。
+ * @param from 当前配置，不可为空
+ * @param to 目标配置，不可为空
+ * @return {bool} true=必须停机；空指针视为需要停机
+ */
+bool Motor_Settings_ConfigRequiresStop(const motor_config_t *from, const motor_config_t *to);
+
+/**
+ * @description: 应用配置（不改校准、不改命令目标电流/转速 enable）。
+ * @detail: 先与当前校准拼成完整 settings 校验；仅停机字段变化且电机在跑时失败。
+ *          成功时只写配置相关字段。非 ISR 接口。
+ * @param motor 电机对象，不可为空
+ * @param config 目标配置，不可为空
+ * @return {bool} 成功返回 true
+ */
+bool Motor_Settings_ApplyConfig(MOTOR_PARAM_S *motor, const motor_config_t *config);
+
+/**
  * @description: 编码为固定小端格式；size 必须匹配，非法输入返回 false 且不写输出。
  * @detail: 指针不可为空；配置单位沿用 motor_param.h，长度单位 byte。非 ISR 接口。
  * @param settings 输入配置/校准快照

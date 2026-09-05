@@ -119,6 +119,21 @@ int main(void)
     assert(motor.ol_current_kp == 0.2f);
     assert(!motor.ol_enable && motor.ol_vd_int == 0.0f && motor.ia == 0.0f);
     assert(save_calls == 0);
+
+    /* 运行中允许在线增益，禁止极对数；完整 Apply 仍要求停机。 */
+    assert(Motor_Settings_Capture(&motor, &settings));
+    motor.ol_enable = true;
+    settings.config.ol_current_kp = 0.35f;
+    assert(Motor_Settings_ApplyConfig(&motor, &settings.config));
+    assert(motor.ol_current_kp == 0.35f);
+    settings.config.ol_pole_pairs = 4.0f;
+    assert(!Motor_Settings_ApplyConfig(&motor, &settings.config));
+    assert(motor.ol_pole_pairs == 2.0f);
+    assert(!Motor_Settings_Apply(&motor, &settings));
+    motor.ol_enable = false;
+    settings.config.ol_pole_pairs = 2.0f;
+    assert(Motor_Settings_Apply(&motor, &settings));
+
     puts("PASS: settings codec, validation, state isolation and initialization");
     return 0;
 }

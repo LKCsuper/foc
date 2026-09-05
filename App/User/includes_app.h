@@ -25,6 +25,8 @@ extern "C" {
 #include "motor_math.h"
 #include "motor_hall.h"
 #include "motor_encoder.h"
+#include "motor_feedback.h"
+#include "motor_hall_angle.h"
 #include "motor_foc.h"
 #include "motor_sense.h"
 #include "motor_task.h"
@@ -36,6 +38,8 @@ extern "C" {
 #include "motor_tim.h"
 #include "motor_ctrl.h"
 #include "motor_detect.h"
+/* 可选：非阻塞偏移核心，裸机/主机逐步喂样本 */
+#include "motor_detect_offset.h"
 #include "flash_storage.h"
 #include "motor.h"
 

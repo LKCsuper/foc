@@ -680,6 +680,11 @@
               <FileType>1</FileType>
               <FilePath>..\..\Library\Hal\port\stm32f4\hal_motor_stm32f4.c</FilePath>
             </File>
+            <File>
+              <FileName>hal_flash_stm32f4.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Library\Hal\port\stm32f4\hal_flash_stm32f4.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -894,8 +899,6 @@
         </Group>
         <Group>
           <GroupName>Simulink</GroupName>
-          <Files>
-          </Files>
         </Group>
         <Group>
           <GroupName>Rtt</GroupName>
@@ -1016,6 +1019,16 @@
               <FilePath>..\motor\motor_pid.c</FilePath>
             </File>
             <File>
+              <FileName>motor_current.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_current.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_control.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_protect.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_protect.c</FilePath>
@@ -1024,6 +1037,11 @@
               <FileName>motor_speed.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_speed.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_foc_divider.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_foc_divider.c</FilePath>
             </File>
             <File>
               <FileName>motor_sensorless.c</FileName>
@@ -1091,6 +1109,11 @@
               <FilePath>..\motor_param\motor_detect.c</FilePath>
             </File>
             <File>
+              <FileName>motor_detect_offset.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_param\motor_detect_offset.c</FilePath>
+            </File>
+            <File>
               <FileName>flash_storage.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor_param\flash_storage.c</FilePath>
@@ -1109,6 +1132,16 @@
               <FileName>motor_encoder.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor_sensor\motor_encoder.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_feedback.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_sensor\motor_feedback.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_hall_angle.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_sensor\motor_hall_angle.c</FilePath>
             </File>
           </Files>
         </Group>

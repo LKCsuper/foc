@@ -40,6 +40,7 @@ extern "C" {
 /* cmd_openloop.c     */ extern int Cmd_OlStop(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlFault(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlMode(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlFeedback(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlIq(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlId(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlKp(int argc, char *argv[]);
@@ -80,6 +81,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olstop",     Cmd_OlStop,             "openloop stop" },
     { "olfault",    Cmd_OlFault,            "show or clear latched motor fault" },
     { "olmode",     Cmd_OlMode,             "openloop mode 0=VF 1=current" },
+    { "olfb",       Cmd_OlFeedback,         "feedback openloop|sensorless|encoder|hall" },
     { "oliq",       Cmd_OlIq,               "openloop current Iq target <A>" },
     { "olid",       Cmd_OlId,               "openloop current Id target <A>" },
     { "olkp",       Cmd_OlKp,               "openloop current Kp" },

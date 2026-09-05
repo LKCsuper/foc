@@ -1,0 +1,304 @@
+#include <assert.h>
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+#include "motor_control.h"
+#include "motor_param.h"
+#include "motor_current.h"
+#include "motor_feedback.h"
+
+void Motor_SpeedLoop_Reset(void)
+{
+}
+
+void Motor_Sensorless_Reset(void)
+{
+}
+
+bool Motor_Sensorless_IsTakeoverComplete(void)
+{
+    return false;
+}
+
+static float s_last_current_theta;
+static int s_sensorless_updates;
+static bool s_speed_fb_valid;
+static float s_speed_fb_rpm;
+static float s_speed_iq_out;
+static bool s_last_speed_loop_active;
+static float s_last_speed_iq_target;
+
+void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
+{
+    (void)motor;
+    (void)dt;
+    s_sensorless_updates++;
+}
+
+void Motor_SpeedFeedback_Set(float rpm, bool valid)
+{
+    s_speed_fb_rpm = rpm;
+    s_speed_fb_valid = valid;
+    if (!valid) {
+        s_speed_iq_out = 0.0f;
+    }
+}
+
+void Motor_SpeedLoop_Run(MOTOR_PARAM_S *motor, float dt)
+{
+    (void)dt;
+    if (motor != NULL && motor->speed_enable && s_speed_fb_valid) {
+        s_speed_iq_out = 1.25f; /* 模拟速度 PI 输出 Iq */
+    } else {
+        s_speed_iq_out = 0.0f;
+    }
+}
+
+bool Motor_SpeedLoop_IsFeedbackValid(void)
+{
+    return s_speed_fb_valid;
+}
+
+float Motor_SpeedLoop_GetIqTarget(void)
+{
+    return s_speed_iq_out;
+}
+
+float Motor_Sensorless_GetControlAngle(float open_loop_angle)
+{
+    return open_loop_angle + 9.0f; /* 无感路径可区分 */
+}
+
+static bool s_enc_zero;
+static float s_enc_elec = 1.57f;
+static float s_enc_rpm = 321.0f;
+static bool s_enc_speed_ok = true;
+
+bool Motor_Encoder_IsZeroValid(void)
+{
+    return s_enc_zero;
+}
+
+float Motor_Encoder_GetElecAngle(void)
+{
+    return s_enc_elec;
+}
+
+float Motor_Encoder_GetMechRpm(void)
+{
+    return s_enc_rpm;
+}
+
+bool Motor_Encoder_IsSpeedValid(void)
+{
+    return s_enc_speed_ok;
+}
+
+bool Motor_Hall_AngleIsAngleValid(void)
+{
+    return false;
+}
+
+float Motor_Hall_AngleGetTheta(void)
+{
+    return 0.0f;
+}
+
+float Motor_Hall_AngleGetMechRpm(void)
+{
+    return 0.0f;
+}
+
+bool Motor_Hall_AngleIsSpeedValid(void)
+{
+    return false;
+}
+
+bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad, float *id_target, float *iq_target)
+{
+    (void)m;
+    (void)theta_rad;
+    (void)id_target;
+    (void)iq_target;
+    return false;
+}
+
+void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
+{
+    (void)motor;
+    (void)theta;
+}
+
+motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, float iq_target, float dt,
+                                       float v_limit)
+{
+    motor_dq_voltage_t v = {0.0f, 0.0f};
+    (void)motor;
+    (void)id_target;
+    (void)iq_target;
+    (void)dt;
+    (void)v_limit;
+    return v;
+}
+
+motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const motor_current_target_ctx_t *ctx,
+                                      float dt, float v_limit, float *id_target_out, float *iq_target_out)
+{
+    motor_dq_voltage_t v = {0.1f, 0.2f};
+    (void)motor;
+    (void)dt;
+    (void)v_limit;
+    s_last_current_theta = theta;
+    s_last_speed_loop_active = (ctx != NULL) && ctx->speed_loop_active;
+    s_last_speed_iq_target = (ctx != NULL) ? ctx->speed_iq_target : 0.0f;
+    if (id_target_out != NULL) {
+        *id_target_out = 0.0f;
+    }
+    if (iq_target_out != NULL) {
+        *iq_target_out = 0.0f;
+    }
+    return v;
+}
+
+void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
+{
+    (void)Ia;
+    (void)Ib;
+    (void)Ic;
+    if (Ialpha != NULL) {
+        *Ialpha = 0.0f;
+    }
+    if (Ibeta != NULL) {
+        *Ibeta = 0.0f;
+    }
+}
+
+int main(void)
+{
+    motor_control_t a;
+    motor_control_t b;
+    MOTOR_PARAM_S motor;
+    motor_control_result_t result;
+    float limit;
+    unsigned i;
+
+    memset(&motor, 0, sizeof(motor));
+    Motor_Control_Init(&a);
+    Motor_Control_Init(&b);
+
+    motor.ol_vq_limit = 20.0f;
+    limit = Motor_Control_GetVoltageLimit(&motor, 24.0f);
+    assert(fabsf(limit - 18.0f) < 1e-4f);
+    motor.ol_vq_limit = 10.0f;
+    limit = Motor_Control_GetVoltageLimit(&motor, 24.0f);
+    assert(fabsf(limit - 10.0f) < 1e-4f);
+
+    motor.ol_enable = true;
+    motor.ol_target_rpm = 500.0f;
+    assert(Motor_Control_IsReady(&motor, 24.0f, false));
+    assert(!Motor_Control_IsReady(&motor, 0.5f, false));
+    motor.ol_target_rpm = 0.0f;
+    assert(!Motor_Control_IsReady(&motor, 24.0f, false));
+    assert(Motor_Control_IsReady(&motor, 24.0f, true));
+
+    motor.ol_mode = MOTOR_OL_MODE_IF;
+    motor.ol_target_rpm = 2000.0f;
+    motor.ol_current_rpm = 0.0f;
+    motor.ol_ramp_rpm_s = 1000.0f;
+    motor.sensorless_openloop_max_rpm = 800.0f;
+    for (i = 0; i < 5U; ++i) {
+        Motor_Control_UpdateSpeed(&motor, 0.1f, false);
+    }
+    assert(fabsf(motor.ol_current_rpm - 500.0f) < 1e-3f);
+    for (i = 0; i < 20U; ++i) {
+        Motor_Control_UpdateSpeed(&motor, 0.1f, false);
+    }
+    assert(fabsf(motor.ol_current_rpm - 800.0f) < 1e-3f);
+    Motor_Control_UpdateSpeed(&motor, 0.1f, true);
+    assert(motor.ol_current_rpm > 800.0f);
+
+    assert(!Motor_Control_IsAligning(&a));
+    a.startup.alignment.running = true;
+    a.startup.alignment.elapsed = 0.12f;
+    assert(Motor_Control_IsAligning(&a));
+    assert(!Motor_Control_IsAligning(&b));
+    assert(fabsf(Motor_Control_GetAlignElapsed(&a) - 0.12f) < 1e-6f);
+
+    motor.ol_enable = true;
+    motor.ol_target_rpm = 500.0f;
+    motor.ol_current_rpm = 300.0f;
+    result = Motor_Control_Step(&a, &motor, 0.5f, 0.001f, false);
+    assert(result.action == MOTOR_CONTROL_ACTION_SAFE);
+    assert(fabsf(motor.ol_current_rpm) < 1e-6f);
+
+    motor.ol_pole_pairs = 0.0f;
+    motor.sensorless_phase_tolerance = 3.0f;
+    Motor_Control_NormalizeConfig(&motor);
+    assert(motor.ol_pole_pairs >= 1.0f);
+    assert(motor.sensorless_phase_tolerance <= 1.50f);
+
+    /* 故障仲裁：锁存时强制 SAFE，未锁存保留 DQ。 */
+    {
+        motor_control_result_t proposed;
+        motor_control_result_t out;
+
+        proposed.action = MOTOR_CONTROL_ACTION_OUTPUT_DQ;
+        proposed.vd = 1.0f;
+        proposed.vq = 2.0f;
+        proposed.theta = 0.5f;
+        out = Motor_Control_ArbitrateOutput(true, &proposed);
+        assert(out.action == MOTOR_CONTROL_ACTION_SAFE);
+        out = Motor_Control_ArbitrateOutput(false, &proposed);
+        assert(out.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
+        assert(fabsf(out.vq - 2.0f) < 1e-6f);
+    }
+
+    /* 有感电流+速度环：encoder 角/速有效且 speed_enable → 电流环用速度 Iq */
+    {
+        motor_control_t ctrl;
+        MOTOR_PARAM_S m;
+
+        memset(&m, 0, sizeof(m));
+        Motor_Control_Init(&ctrl);
+        m.ol_enable = true;
+        m.ol_mode = MOTOR_OL_MODE_IF;
+        m.ol_target_rpm = 500.0f;
+        m.ol_current_rpm = 100.0f;
+        m.ol_pole_pairs = 2.0f;
+        m.ol_align_enable = false;
+        m.hfi_start_enable = false;
+        m.ol_min_rpm = 50.0f;
+        m.ol_ramp_rpm_s = 0.0f;
+        m.ol_theta = 0.25f;
+        m.speed_enable = true;
+        s_enc_zero = true;
+        s_enc_elec = 1.57f;
+        s_enc_rpm = 321.0f;
+        s_enc_speed_ok = true;
+        s_sensorless_updates = 0;
+        s_last_current_theta = -1.0f;
+        s_last_speed_loop_active = false;
+        s_speed_fb_valid = false;
+        Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_ENCODER);
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
+        assert(fabsf(result.theta - 1.57f) < 1e-5f);
+        assert(fabsf(s_last_current_theta - 1.57f) < 1e-5f);
+        assert(s_sensorless_updates == 0);
+        assert(s_speed_fb_valid);
+        assert(fabsf(s_speed_fb_rpm - 321.0f) < 1e-3f);
+        assert(s_last_speed_loop_active);
+        assert(fabsf(s_last_speed_iq_target - 1.25f) < 1e-5f);
+
+        /* 角无效则不发布速度，速度环不激活 */
+        s_enc_zero = false;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(!s_speed_fb_valid);
+        assert(!s_last_speed_loop_active);
+
+        Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_SENSORLESS);
+    }
+
+    printf("test_motor_control: pass\n");
+    return 0;
+}

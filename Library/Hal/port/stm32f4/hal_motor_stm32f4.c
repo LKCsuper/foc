@@ -150,6 +150,31 @@ float Hal_Motor_TimeElapsedSec(uint32_t start_us)
 }
 
 /**
+ * @description: 捕获本周期一致的采样帧
+ * @param {hal_motor_sample_t *} out
+ * @return {bool} true=成功
+ * @author: lkc
+ */
+bool Hal_Motor_SampleCapture(hal_motor_sample_t *out)
+{
+    if (out == NULL) {
+        return false;
+    }
+
+    out->current_adc[0] = Hal_Motor_CurrentAdc(0U);
+    out->current_adc[1] = Hal_Motor_CurrentAdc(1U);
+    out->current_adc[2] = Hal_Motor_CurrentAdc(2U);
+    out->sense_volts[0] = Hal_Motor_SenseVolts(0U);
+    out->sense_volts[1] = Hal_Motor_SenseVolts(1U);
+    out->sense_volts[2] = Hal_Motor_SenseVolts(2U);
+    out->v_bus = Hal_Motor_BusVoltage();
+    out->time_us = Hal_Motor_TimeUs();
+    out->three_shunts = Hal_Motor_HasThreeShunts();
+    out->current_mask = out->three_shunts ? 0x07U : 0x03U;
+    return true;
+}
+
+/**
  * @description: 读取单个 ADC 通道原始值
  * @param {uint8_t} channel
  * @return {uint16_t} 原始计数

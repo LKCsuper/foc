@@ -19,6 +19,7 @@ extern "C" {
 #include "motor_math.h"
 #include "hal_motor.h"
 #include "hal_sensor.h"
+#include "motor.h"
 /* Private typedef -----------------------------------------------------------*/
 typedef struct {
     volatile bool active;
@@ -139,10 +140,7 @@ static void Motor_Hall_TableToMotor(const uint8_t *hall_table, MOTOR_PARAM_S *m)
 static void Motor_Hall_DetectFinish(MOTOR_PARAM_S *m)
 {
     Motor_Hall_DetectCtxReset();
-    m->ol_enable = false;
-    m->ol_target_rpm = 0.0f;
-    m->ol_vd_int = 0.0f;
-    m->ol_vq_int = 0.0f;
+    (void)Motor_RequestStop(m);
     Hal_Motor_PwmStop();
 }
 
@@ -242,8 +240,7 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
 
     m->ol_enable = true;
     m->ol_target_rpm = 1.0f;
-    m->ol_vd_int = 0.0f;
-    m->ol_vq_int = 0.0f;
+    (void)Motor_ClearRuntimeControl(m);
     s_hall_detect.abort = false;
     s_hall_detect.iq_target = 0.0f;
     s_hall_detect.theta_rad = 0.0f;
