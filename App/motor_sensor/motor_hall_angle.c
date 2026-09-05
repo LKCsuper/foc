@@ -10,8 +10,8 @@ extern "C" {
 #include <math.h>
 #include "motor_hall_angle.h"
 #include "motor_math.h"
-/* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 static motor_hall_angle_t s_hall_angle;
@@ -19,7 +19,10 @@ static motor_hall_angle_t s_hall_angle;
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 判断霍尔表是否可用于运行。
+ * @description: 判断霍尔表是否可用于运行（恰 6 个有效扇区、2 个无效）
+ * @param {const int8_t} *table  长度 MOTOR_HALL_TABLE_SIZE
+ * @return {bool} true=表就绪
+ * @author: lkc
  */
 bool Motor_Hall_TableReady(const int8_t *table)
 {
@@ -46,7 +49,12 @@ bool Motor_Hall_TableReady(const int8_t *table)
 }
 
 /**
- * @description: 由霍尔状态查表得到电角度。
+ * @description: 由霍尔状态查表得到电角度
+ * @param {const int8_t} *table  霍尔表
+ * @param {int} hall_state       霍尔状态 0..7
+ * @param {float} *theta_rad     输出电角 (rad)
+ * @return {bool} true=该扇区有效；false=越界/非法表项
+ * @author: lkc
  */
 bool Motor_Hall_DecodeAngle(const int8_t *table, int hall_state, float *theta_rad)
 {
@@ -66,7 +74,10 @@ bool Motor_Hall_DecodeAngle(const int8_t *table, int hall_state, float *theta_ra
 }
 
 /**
- * @description: 复位霍尔角度运行时。
+ * @description: 复位霍尔角度运行时
+ * @param {motor_hall_angle_t} *st  状态
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Hall_AngleReset(motor_hall_angle_t *st)
 {
@@ -83,7 +94,14 @@ void Motor_Hall_AngleReset(motor_hall_angle_t *st)
 }
 
 /**
- * @description: 用本拍霍尔状态更新电角与转速估计。
+ * @description: 用本拍霍尔状态更新电角与转速估计
+ * @param {motor_hall_angle_t} *st  状态
+ * @param {const int8_t} *table     霍尔表
+ * @param {int} hall_state          当前霍尔 0..7
+ * @param {float} pole_pairs        极对数（电转速→机械转速）
+ * @param {float} dt_s              本拍时间 (s)
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hall_state, float pole_pairs,
                             float dt_s)
@@ -151,7 +169,9 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
 }
 
 /**
- * @description: 默认实例复位。
+ * @description: 默认实例复位
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Hall_AngleResetDefault(void)
 {
@@ -159,7 +179,13 @@ void Motor_Hall_AngleResetDefault(void)
 }
 
 /**
- * @description: 默认实例更新。
+ * @description: 默认实例更新
+ * @param {const int8_t} *table  霍尔表
+ * @param {int} hall_state       当前霍尔
+ * @param {float} pole_pairs     极对数
+ * @param {float} dt_s           本拍时间 (s)
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Hall_AngleUpdateDefault(const int8_t *table, int hall_state, float pole_pairs, float dt_s)
 {
@@ -167,7 +193,9 @@ void Motor_Hall_AngleUpdateDefault(const int8_t *table, int hall_state, float po
 }
 
 /**
- * @description: 默认实例电角。
+ * @description: 默认实例电角 (rad)；angle_valid=false 时值勿单独使用
+ * @return {float} 电角度 (rad)
+ * @author: lkc
  */
 float Motor_Hall_AngleGetTheta(void)
 {
@@ -175,7 +203,9 @@ float Motor_Hall_AngleGetTheta(void)
 }
 
 /**
- * @description: 默认实例机械转速。
+ * @description: 默认实例机械转速 (RPM)
+ * @return {float} 机械转速 (RPM)
+ * @author: lkc
  */
 float Motor_Hall_AngleGetMechRpm(void)
 {
@@ -183,7 +213,9 @@ float Motor_Hall_AngleGetMechRpm(void)
 }
 
 /**
- * @description: 默认实例电角是否有效。
+ * @description: 默认实例电角是否有效
+ * @return {bool} true=电角可信
+ * @author: lkc
  */
 bool Motor_Hall_AngleIsAngleValid(void)
 {
@@ -191,7 +223,9 @@ bool Motor_Hall_AngleIsAngleValid(void)
 }
 
 /**
- * @description: 默认实例转速是否有效。
+ * @description: 默认实例转速是否有效
+ * @return {bool} true=转速可信
+ * @author: lkc
  */
 bool Motor_Hall_AngleIsSpeedValid(void)
 {

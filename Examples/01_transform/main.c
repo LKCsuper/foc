@@ -1,5 +1,6 @@
 /*
  * @Description: 学习示例 01 — Clarke/Park/逆 Park/SVM 主机往返（复用生产 motor_foc）
+ * @Author: lkc
  */
 #include <math.h>
 #include <stdio.h>
@@ -7,6 +8,15 @@
 
 #include "motor_foc.h"
 
+/**
+ * @description: 断言浮点接近期望值，失败则退出进程
+ * @param {const char} *name  断言名称
+ * @param {float} got         实际值
+ * @param {float} want        期望值
+ * @param {float} eps         容差
+ * @return {*}
+ * @author: lkc
+ */
 static void expect_near(const char *name, float got, float want, float eps)
 {
     float err = fabsf(got - want);
@@ -16,6 +26,11 @@ static void expect_near(const char *name, float got, float want, float eps)
     }
 }
 
+/**
+ * @description: 示例入口：Clarke/Park/逆 Park 往返与 SVM 占空比范围检查
+ * @return {int} 0=通过，非 0=失败
+ * @author: lkc
+ */
 int main(void)
 {
     float ia = 1.0f;

@@ -10,15 +10,21 @@ extern "C" {
 #include <math.h>
 #include <string.h>
 #include "motor_detect_offset.h"
-/* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 复位偏移校准状态，准备接收样本。
+ * @description: 复位偏移校准状态，准备接收样本
+ * @param {motor_detect_offset_t} *st     状态，不可为空
+ * @param {bool} cal_undriven             true=驱动相结束后继续采未驱动相电压
+ * @param {uint32_t} samples_per_phase    每相样本数；0 则用默认 1000
+ * @param {float} adc_full_scale          ADC 满量程；<=0 则用 4096
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Detect_OffsetReset(motor_detect_offset_t *st, bool cal_undriven, uint32_t samples_per_phase,
                               float adc_full_scale)
@@ -35,8 +41,12 @@ void Motor_Detect_OffsetReset(motor_detect_offset_t *st, bool cal_undriven, uint
 }
 
 /**
- * @description: 喂入当前驱动相的一个电流/电压样本。
- * @return {bool} true=本相已满
+ * @description: 喂入当前驱动相的一个电流/电压样本（非阻塞）
+ * @param {motor_detect_offset_t} *st  状态
+ * @param {float} i_adc                相电流 ADC 计数
+ * @param {float} v_sense              对应相采样点电压 (V)
+ * @return {bool} true=本相样本数已满，应切换相或 FinalizeDriven
+ * @author: lkc
  */
 bool Motor_Detect_OffsetFeedDriven(motor_detect_offset_t *st, float i_adc, float v_sense)
 {
@@ -53,8 +63,10 @@ bool Motor_Detect_OffsetFeedDriven(motor_detect_offset_t *st, float i_adc, float
 }
 
 /**
- * @description: 切换到下一驱动相。
- * @return {bool} true=还有下一相
+ * @description: 驱动相采样满后切换到下一相
+ * @param {motor_detect_offset_t} *st  状态
+ * @return {bool} true=仍有下一驱动相；false=三相已完成
+ * @author: lkc
  */
 bool Motor_Detect_OffsetNextPhase(motor_detect_offset_t *st)
 {
@@ -70,7 +82,10 @@ bool Motor_Detect_OffsetNextPhase(motor_detect_offset_t *st)
 }
 
 /**
- * @description: 计算驱动相电流零点与电压偏置，并置 offset_warn。
+ * @description: 由三相累加和计算电流零点与驱动相电压偏置
+ * @param {motor_detect_offset_t} *st  状态（写入 current_offset/volt_offset/offset_warn）
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Detect_OffsetFinalizeDriven(motor_detect_offset_t *st)
 {
@@ -106,8 +121,13 @@ void Motor_Detect_OffsetFinalizeDriven(motor_detect_offset_t *st)
 }
 
 /**
- * @description: 喂入一拍未驱动三相电压。
- * @return {bool} true=样本已满
+ * @description: 喂入一拍未驱动三相电压，累加相对均值的偏置（非阻塞）
+ * @param {motor_detect_offset_t} *st  状态
+ * @param {float} v0                   SENS1 (V)
+ * @param {float} v1                   SENS2 (V)
+ * @param {float} v2                   SENS3 (V)
+ * @return {bool} true=未驱动样本数已满
+ * @author: lkc
  */
 bool Motor_Detect_OffsetFeedUndriven(motor_detect_offset_t *st, float v0, float v1, float v2)
 {
@@ -125,7 +145,10 @@ bool Motor_Detect_OffsetFeedUndriven(motor_detect_offset_t *st, float v0, float 
 }
 
 /**
- * @description: 计算未驱动相电压偏移。
+ * @description: 计算未驱动相电压偏移
+ * @param {motor_detect_offset_t} *st  状态
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Detect_OffsetFinalizeUndriven(motor_detect_offset_t *st)
 {
@@ -142,7 +165,12 @@ void Motor_Detect_OffsetFinalizeUndriven(motor_detect_offset_t *st)
 }
 
 /**
- * @description: 将校准结果写入电机偏移字段。
+ * @description: 将校准结果写入电机对象的偏移字段
+ * @param {const motor_detect_offset_t} *st  已 Finalize 的状态
+ * @param {MOTOR_PARAM_S} *motor             电机对象
+ * @param {bool} apply_undriven              true=同时写 voltundrivenOffset
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Detect_OffsetApply(const motor_detect_offset_t *st, MOTOR_PARAM_S *motor, bool apply_undriven)
 {

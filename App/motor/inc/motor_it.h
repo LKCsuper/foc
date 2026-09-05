@@ -113,6 +113,14 @@ float Motor_DmaInt_GetAdcFrequencyHz(void);
  */
 float Motor_DmaInt_GetControlFrequencyHz(void);
 
+/**
+ * @description: 采样换算入口：捕获 ADC 帧并换算为电流/电压物理量。
+ * @detail: 内部为 SampleCapture → ApplyFrame；可在每拍 ADC 回调中调用。
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_It_ParamCal(void);
+
 #ifdef __cplusplus
 }
 #endif

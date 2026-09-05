@@ -5,9 +5,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+/* Includes ------------------------------------------------------------------*/
 #include <math.h>
 #include <string.h>
+#include <stddef.h>
 
 #include "motor_control.h"
 #include "motor_current.h"
@@ -17,7 +18,20 @@ extern "C" {
 #include "motor_sensorless.h"
 #include "motor_feedback.h"
 #include "motor_hall.h"
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+static motor_control_result_t Motor_Control_ResultSafe(void);
+static motor_control_result_t Motor_Control_ResultDq(float vd, float vq, float theta);
+/* Private functions ---------------------------------------------------------*/
 
+/**
+ * @description: 构造 SAFE 输出请求（三相 mid 占空比语义，非关桥保证）。
+ * @return {motor_control_result_t} action=SAFE，vd/vq/theta 清零
+ * @author: lkc
+ */
 static motor_control_result_t Motor_Control_ResultSafe(void)
 {
     motor_control_result_t result;
@@ -27,6 +41,14 @@ static motor_control_result_t Motor_Control_ResultSafe(void)
     return result;
 }
 
+/**
+ * @description: 构造 DQ 电压输出请求。
+ * @param {float} vd  D 轴电压 (V)
+ * @param {float} vq  Q 轴电压 (V)
+ * @param {float} theta  电角度 (rad)
+ * @return {motor_control_result_t} action=OUTPUT_DQ
+ * @author: lkc
+ */
 static motor_control_result_t Motor_Control_ResultDq(float vd, float vq, float theta)
 {
     motor_control_result_t result;
@@ -40,7 +62,7 @@ static motor_control_result_t Motor_Control_ResultDq(float vd, float vq, float t
 
 /**
  * @description: 初始化控制实例。
- * @param {motor_control_t *} ctrl  控制实例
+ * @param {motor_control_t} *ctrl  控制实例
  * @return {*}
  * @author: lkc
  */
@@ -57,8 +79,8 @@ void Motor_Control_Init(motor_control_t *ctrl)
 
 /**
  * @description: 复位启动链与速度/无感/电流积分显示。
- * @param {motor_control_t *} ctrl  控制实例
- * @param {MOTOR_PARAM_S *} motor   电机对象
+ * @param {motor_control_t} *ctrl  控制实例
+ * @param {MOTOR_PARAM_S} *motor   电机对象
  * @return {*}
  * @author: lkc
  */
@@ -84,7 +106,7 @@ void Motor_Control_ResetRuntime(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
 
 /**
  * @description: 电压限幅 = min(配置, 0.75×母线)。
- * @param {const MOTOR_PARAM_S *} motor  配置
+ * @param {const MOTOR_PARAM_S} *motor  配置
  * @param {float} v_bus  母线 (V)
  * @return {float} 限幅 (V)
  * @author: lkc
@@ -109,7 +131,7 @@ float Motor_Control_GetVoltageLimit(const MOTOR_PARAM_S *motor, float v_bus)
 
 /**
  * @description: 使能 + 目标（或霍尔标定）+ 母线足够。
- * @param {const MOTOR_PARAM_S *} motor  命令
+ * @param {const MOTOR_PARAM_S} *motor  命令
  * @param {float} v_bus  母线 (V)
  * @param {bool} hall_detect_active  霍尔标定
  * @return {bool} true=可运行
@@ -128,7 +150,7 @@ bool Motor_Control_IsReady(const MOTOR_PARAM_S *motor, float v_bus, bool hall_de
 
 /**
  * @description: 钳位开环/无感配置。
- * @param {MOTOR_PARAM_S *} motor  被修改
+ * @param {MOTOR_PARAM_S} *motor  被修改
  * @return {*}
  * @author: lkc
  */
@@ -256,7 +278,7 @@ void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor)
 
 /**
  * @description: 转速斜坡；无感未完全接管时可限制目标。
- * @param {MOTOR_PARAM_S *} motor  斜坡
+ * @param {MOTOR_PARAM_S} *motor  斜坡
  * @param {float} dt  周期 (s)
  * @param {bool} sensorless_takeover_complete  是否已完全用观测角
  * @return {*}
@@ -304,8 +326,8 @@ void Motor_Control_UpdateSpeed(MOTOR_PARAM_S *motor, float dt, bool sensorless_t
 
 /**
  * @description: 积分电角度。
- * @param {motor_control_t *} ctrl  控制实例
- * @param {MOTOR_PARAM_S *} motor   写 ol_theta
+ * @param {motor_control_t} *ctrl  控制实例
+ * @param {MOTOR_PARAM_S} *motor   写 ol_theta
  * @param {float} dt  周期 (s)
  * @return {*}
  * @author: lkc
@@ -320,6 +342,13 @@ void Motor_Control_UpdateTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor, floa
     utils_norm_angle_rad(&motor->ol_theta);
 }
 
+/**
+ * @description: V/F 启动：低于最小转速时抬升到 min_rpm，并同步 I/F 角度转速。
+ * @param {motor_control_t} *ctrl  控制实例
+ * @param {MOTOR_PARAM_S} *motor   开环转速状态
+ * @return {*}
+ * @author: lkc
+ */
 static void Motor_Control_StartupVf(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
 {
     float target = motor->ol_target_rpm;
@@ -331,6 +360,14 @@ static void Motor_Control_StartupVf(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
     MotorIfStart_SetVfRpm(&ctrl->startup.if_start, motor->ol_current_rpm);
 }
 
+/**
+ * @description: 推进预对齐一步；进行中写对齐角并冻结开环转速。
+ * @param {motor_control_t} *ctrl  控制实例
+ * @param {MOTOR_PARAM_S} *motor   电机对象
+ * @param {float} dt  控制周期 (s)
+ * @return {bool} true=对齐仍在进行（调用方应跳过后续启动）
+ * @author: lkc
+ */
 static bool Motor_Control_RunAlignment(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float dt)
 {
     motor_alignment_config_t config = {motor->ol_align_enable, motor->ol_align_current, motor->ol_align_time,
@@ -364,6 +401,13 @@ static bool Motor_Control_RunAlignment(motor_control_t *ctrl, MOTOR_PARAM_S *mot
     return false;
 }
 
+/**
+ * @description: I/F 启动一步：更新相位提升与 iq 缩放；未对齐时标记跳过。
+ * @param {motor_control_t} *ctrl  控制实例
+ * @param {MOTOR_PARAM_S} *motor   电机对象
+ * @return {*}
+ * @author: lkc
+ */
 static void Motor_Control_StartupIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
 {
     motor_if_start_config_t config = {motor->ol_min_rpm, motor->ol_start_phase_boost, 0.1f};
@@ -376,6 +420,14 @@ static void Motor_Control_StartupIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
     }
 }
 
+/**
+ * @description: 取本拍电流环电角度（开环角+相位提升，经反馈源选择）。
+ * @detail: 默认无感；编码器/霍尔在角有效时走有感电流环电角。
+ * @param {motor_control_t} *ctrl  控制实例
+ * @param {MOTOR_PARAM_S} *motor   电机对象
+ * @return {float} 电角度 (rad)
+ * @author: lkc
+ */
 static float Motor_Control_GetCurrentTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
 {
     float theta = motor->ol_theta + ctrl->startup.if_start.phase_boost;
@@ -392,6 +444,9 @@ static float Motor_Control_GetCurrentTheta(motor_control_t *ctrl, MOTOR_PARAM_S 
 /**
  * @description: 有感模式下发布编码器/霍尔转速。
  * @detail: 须角、速均有效才置 feedback_valid，避免无零点/非法扇区时开速度环。
+ * @param {MOTOR_PARAM_S} *motor  电机对象
+ * @return {*}
+ * @author: lkc
  */
 static void Motor_Control_PublishSensoredSpeed(MOTOR_PARAM_S *motor)
 {
@@ -405,6 +460,14 @@ static void Motor_Control_PublishSensoredSpeed(MOTOR_PARAM_S *motor)
     Motor_SpeedFeedback_Set(publish ? feedback.mech_rpm : 0.0f, publish);
 }
 
+/**
+ * @description: 填充电流环目标上下文（对齐、I/F 缩放、速度环 Iq）。
+ * @param {motor_control_t} *ctrl  控制实例
+ * @param {MOTOR_PARAM_S} *motor   电机对象
+ * @param {motor_current_target_ctx_t} *ctx  输出上下文
+ * @return {*}
+ * @author: lkc
+ */
 static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *motor,
                                          motor_current_target_ctx_t *ctx)
 {
@@ -414,6 +477,15 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
     ctx->speed_iq_target = ctx->speed_loop_active ? Motor_SpeedLoop_GetIqTarget() : 0.0f;
 }
 
+/**
+ * @description: I/F 路径：选角、填目标上下文并跑电流环，返回 DQ 输出。
+ * @param {motor_control_t} *ctrl  控制实例
+ * @param {MOTOR_PARAM_S} *motor   电机对象
+ * @param {float} v_bus  母线 (V)
+ * @param {float} dt  控制周期 (s)
+ * @return {motor_control_result_t} DQ 电压请求
+ * @author: lkc
+ */
 static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus,
                                                     float dt)
 {
@@ -427,6 +499,13 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
     return Motor_Control_ResultDq(voltage.vd, voltage.vq, theta);
 }
 
+/**
+ * @description: V/F 路径：按电气频率计算 Vq，固定 Vd=0，用开环电角输出。
+ * @param {MOTOR_PARAM_S} *motor  电机对象
+ * @param {float} v_bus  母线 (V)
+ * @return {motor_control_result_t} DQ 电压请求
+ * @author: lkc
+ */
 static motor_control_result_t Motor_Control_RunVf(MOTOR_PARAM_S *motor, float v_bus)
 {
     float vq_limit = Motor_Control_GetVoltageLimit(motor, v_bus);
@@ -447,6 +526,14 @@ static motor_control_result_t Motor_Control_RunVf(MOTOR_PARAM_S *motor, float v_
     return Motor_Control_ResultDq(0.0f, vq, motor->ol_theta);
 }
 
+/**
+ * @description: 霍尔标定路径：取标定目标电流/角，跑电流 PI 并输出 DQ。
+ * @param {MOTOR_PARAM_S} *motor  电机对象
+ * @param {float} v_bus  母线 (V)
+ * @param {float} dt  控制周期 (s)
+ * @return {motor_control_result_t} DQ 或 SAFE（无有效目标时）
+ * @author: lkc
+ */
 static motor_control_result_t Motor_Control_RunHallDetect(MOTOR_PARAM_S *motor, float v_bus, float dt)
 {
     float theta;
@@ -465,9 +552,15 @@ static motor_control_result_t Motor_Control_RunHallDetect(MOTOR_PARAM_S *motor, 
     return Motor_Control_ResultDq(voltage.vd, voltage.vq, theta);
 }
 
-/*
- * HFI：扫描中每拍输出探测电压；结束时请求 SAFE，成功则标记对齐完成。
- * 返回 true 表示本拍已给出 result（调用方应直接返回）。
+/**
+ * @description: 推进 HFI 启动扫描；占用本拍输出时写 result。
+ * @detail: 扫描中每拍输出探测电压；结束时请求 SAFE，成功则标记对齐完成。
+ * @param {motor_control_t} *ctrl  控制实例
+ * @param {MOTOR_PARAM_S} *motor   电机对象
+ * @param {float} v_bus  母线 (V)
+ * @param {motor_control_result_t} *result  本拍输出（仅本函数返回 true 时有效）
+ * @return {bool} true=本拍已给出 result（调用方应直接返回）
+ * @author: lkc
  */
 static bool Motor_Control_RunHfi(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus,
                                  motor_control_result_t *result)
@@ -511,8 +604,8 @@ static bool Motor_Control_RunHfi(motor_control_t *ctrl, MOTOR_PARAM_S *motor, fl
 
 /**
  * @description: 推进一拍控制编排并返回输出仲裁。
- * @param {motor_control_t *} ctrl  控制实例
- * @param {MOTOR_PARAM_S *} motor   电机
+ * @param {motor_control_t} *ctrl  控制实例
+ * @param {MOTOR_PARAM_S} *motor   电机
  * @param {float} v_bus  母线 (V)
  * @param {float} dt  FOC 周期 (s)
  * @param {bool} hall_detect_active  霍尔标定
@@ -583,31 +676,67 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
     return Motor_Control_RunVf(motor, v_bus);
 }
 
+/**
+ * @description: 查询是否处于预对齐。
+ * @param {const motor_control_t} *ctrl  控制实例
+ * @return {bool} true=对齐进行中
+ * @author: lkc
+ */
 bool Motor_Control_IsAligning(const motor_control_t *ctrl)
 {
     return ctrl != NULL && ctrl->startup.alignment.running;
 }
 
+/**
+ * @description: 本次对齐已进行时间。
+ * @param {const motor_control_t} *ctrl  控制实例
+ * @return {float} 时长 (s)
+ * @author: lkc
+ */
 float Motor_Control_GetAlignElapsed(const motor_control_t *ctrl)
 {
     return ctrl == NULL ? 0.0f : ctrl->startup.alignment.elapsed;
 }
 
+/**
+ * @description: HFI 是否在跑。
+ * @param {const motor_control_t} *ctrl  控制实例
+ * @return {bool} true=扫描中
+ * @author: lkc
+ */
 bool Motor_Control_HfiIsRunning(const motor_control_t *ctrl)
 {
     return ctrl != NULL && ctrl->startup.hfi_start.running;
 }
 
+/**
+ * @description: HFI 是否已成功。
+ * @param {const motor_control_t} *ctrl  控制实例
+ * @return {bool} true=识别成功
+ * @author: lkc
+ */
 bool Motor_Control_HfiSucceeded(const motor_control_t *ctrl)
 {
     return ctrl != NULL && ctrl->startup.hfi_start.succeeded;
 }
 
+/**
+ * @description: HFI 识别电角度。
+ * @param {const motor_control_t} *ctrl  控制实例
+ * @return {float} 电角度 (rad)
+ * @author: lkc
+ */
 float Motor_Control_HfiGetAngle(const motor_control_t *ctrl)
 {
     return ctrl == NULL ? 0.0f : ctrl->startup.hfi_start.angle;
 }
 
+/**
+ * @description: HFI 可信度。
+ * @param {const motor_control_t} *ctrl  控制实例
+ * @return {float} 可信度 [0,1]
+ * @author: lkc
+ */
 float Motor_Control_HfiGetConfidence(const motor_control_t *ctrl)
 {
     return ctrl == NULL ? 0.0f : ctrl->startup.hfi_start.confidence;
@@ -616,7 +745,7 @@ float Motor_Control_HfiGetConfidence(const motor_control_t *ctrl)
 /**
  * @description: 故障仲裁：已锁存故障时强制 SAFE，禁止 DQ 覆盖安全输出。
  * @param {bool} fault_latched  保护是否已锁存
- * @param {const motor_control_result_t *} proposed  Control_Step 提议
+ * @param {const motor_control_result_t} *proposed  Control_Step 提议
  * @return {motor_control_result_t} 最终输出
  * @author: lkc
  */

@@ -9,15 +9,20 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+/* Includes ------------------------------------------------------------------*/
 #include "motor_foc_divider.h"
-
 #include <stddef.h>
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 初始化分频状态。
- * @param {motor_foc_divider_t *} state  分频状态；NULL 直接返回
- * @param {int} divider  分频数；<=0 时置为 1
+ * @description: 初始化分频状态
+ * @param {motor_foc_divider_t} *state  分频状态；NULL 直接返回
+ * @param {int} divider                 分频数；<=0 时置为 1
  * @return {*}
  * @author: lkc
  */

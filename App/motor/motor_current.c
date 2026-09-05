@@ -5,18 +5,24 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+/* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
 
 #include "motor_current.h"
 #include "motor_foc.h"
 #include "motor_math.h"
 #include "motor_pid.h"
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 三相电流 → αβ → d/q，写回 motor 反馈字段。
- * @param {MOTOR_PARAM_S *} motor  含 ia/ib/ic
- * @param {float} theta  Park 用电角度 (rad)
+ * @description: 三相电流 → αβ → d/q，写回 motor 反馈字段
+ * @param {MOTOR_PARAM_S} *motor  含 ia/ib/ic
+ * @param {float} theta           Park 用电角度 (rad)
  * @return {*}
  * @author: lkc
  */
@@ -31,10 +37,10 @@ void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
 
 /**
  * @description: 按工况选择 Id/Iq 目标。
- * @param {const MOTOR_PARAM_S *} motor  命令与对齐电流
- * @param {const motor_current_target_ctx_t *} ctx  注入上下文
- * @param {float *} id_target  输出 Id (A)
- * @param {float *} iq_target  输出 Iq (A)
+ * @param {const MOTOR_PARAM_S} * motor  命令与对齐电流
+ * @param {const motor_current_target_ctx_t} * ctx  注入上下文
+ * @param {float} * id_target  输出 Id (A)
+ * @param {float} * iq_target  输出 Iq (A)
  * @return {*}
  * @author: lkc
  */
@@ -77,8 +83,8 @@ void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_ta
 
 /**
  * @description: vd/vq 合成矢量限幅 + 积分抗饱和。
- * @param {MOTOR_PARAM_S *} motor  增益与积分
- * @param {motor_dq_voltage_t *} v  电压指令
+ * @param {MOTOR_PARAM_S} * motor  增益与积分
+ * @param {motor_dq_voltage_t} * v  电压指令
  * @param {float} id_err  Id 误差 (A)
  * @param {float} iq_err  Iq 误差 (A)
  * @param {float} v_limit  矢量模长上限 (V)
@@ -104,7 +110,7 @@ void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, flo
 
 /**
  * @description: d/q 双轴电流 PI + 矢量限幅。
- * @param {MOTOR_PARAM_S *} motor  反馈与积分
+ * @param {MOTOR_PARAM_S} * motor  反馈与积分
  * @param {float} id_target  Id 目标 (A)
  * @param {float} iq_target  Iq 目标 (A)
  * @param {float} dt  控制周期 (s)
@@ -132,13 +138,13 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
 
 /**
  * @description: 电流环一步：反馈 + 目标 + PI（不含 PWM）。
- * @param {MOTOR_PARAM_S *} motor  电机对象
+ * @param {MOTOR_PARAM_S} * motor  电机对象
  * @param {float} theta  电角度 (rad)
- * @param {const motor_current_target_ctx_t *} ctx  目标上下文
+ * @param {const motor_current_target_ctx_t} * ctx  目标上下文
  * @param {float} dt  控制周期 (s)
  * @param {float} v_limit  电压限幅 (V)
- * @param {float *} id_target_out  可选输出 Id 目标
- * @param {float *} iq_target_out  可选输出 Iq 目标
+ * @param {float} * id_target_out  可选输出 Id 目标
+ * @param {float} * iq_target_out  可选输出 Iq 目标
  * @return {motor_dq_voltage_t} vd/vq (V)
  * @author: lkc
  */

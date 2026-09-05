@@ -11,8 +11,8 @@ extern "C" {
 #include "motor_sensorless.h"
 #include "motor_encoder.h"
 #include "motor_hall_angle.h"
-/* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 static motor_feedback_t s_feedback = {
@@ -22,7 +22,10 @@ static motor_feedback_t s_feedback = {
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 复位反馈选择为默认无感源。
+ * @description: 复位反馈选择为默认无感源（与历史 GetCurrentTheta 行为一致）
+ * @param {motor_feedback_t} *fb  实例，不可为空
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Feedback_Reset(motor_feedback_t *fb)
 {
@@ -33,7 +36,11 @@ void Motor_Feedback_Reset(motor_feedback_t *fb)
 }
 
 /**
- * @description: 设置请求的反馈来源。
+ * @description: 设置请求的反馈来源
+ * @param {motor_feedback_t} *fb           实例
+ * @param {motor_feedback_source_t} source 来源
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Feedback_SetSource(motor_feedback_t *fb, motor_feedback_source_t source)
 {
@@ -44,7 +51,10 @@ void Motor_Feedback_SetSource(motor_feedback_t *fb, motor_feedback_source_t sour
 }
 
 /**
- * @description: 读取请求的反馈来源。
+ * @description: 读取请求的反馈来源
+ * @param {const motor_feedback_t} *fb  实例
+ * @return {motor_feedback_source_t} 当前请求源；fb 空则 OPENLOOP
+ * @author: lkc
  */
 motor_feedback_source_t Motor_Feedback_GetSource(const motor_feedback_t *fb)
 {
@@ -52,7 +62,14 @@ motor_feedback_source_t Motor_Feedback_GetSource(const motor_feedback_t *fb)
 }
 
 /**
- * @description: 按请求源解析本拍电角与有效标志。
+ * @description: 按请求源解析本拍电角/转速有效标志（不写速度环、不访问 PWM）
+ * @detail: ENCODER/HALL 角无效时回退 open_loop_theta；不伪造有效零速
+ * @param {motor_feedback_t} *fb           实例
+ * @param {const MOTOR_PARAM_S} *motor     电机（查 sensorless_enable 等），可为空
+ * @param {float} open_loop_theta          开环/I/F 电角 (rad)
+ * @param {motor_feedback_sample_t} *out   输出，不可为空
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, float open_loop_theta,
                            motor_feedback_sample_t *out)
@@ -144,7 +161,9 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
 }
 
 /**
- * @description: 默认单实例复位。
+ * @description: 默认单实例复位为无感源
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Feedback_ResetDefault(void)
 {
@@ -152,7 +171,10 @@ void Motor_Feedback_ResetDefault(void)
 }
 
 /**
- * @description: 默认单实例设置来源。
+ * @description: 默认单实例设置来源
+ * @param {motor_feedback_source_t} source  来源
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Feedback_SetSourceDefault(motor_feedback_source_t source)
 {
@@ -160,7 +182,9 @@ void Motor_Feedback_SetSourceDefault(motor_feedback_source_t source)
 }
 
 /**
- * @description: 读取默认单实例请求源。
+ * @description: 读取默认单实例请求的反馈来源
+ * @return {motor_feedback_source_t} 当前请求源
+ * @author: lkc
  */
 motor_feedback_source_t Motor_Feedback_GetSourceDefault(void)
 {
@@ -168,7 +192,10 @@ motor_feedback_source_t Motor_Feedback_GetSourceDefault(void)
 }
 
 /**
- * @description: 是否为有感角源。
+ * @description: 是否为有感角源（编码器/霍尔），用于跳过无感更新与开环限速
+ * @param {motor_feedback_source_t} source  请求源
+ * @return {bool} true=ENCODER 或 HALL
+ * @author: lkc
  */
 bool Motor_Feedback_IsSensoredSource(motor_feedback_source_t source)
 {
@@ -176,7 +203,12 @@ bool Motor_Feedback_IsSensoredSource(motor_feedback_source_t source)
 }
 
 /**
- * @description: 默认单实例采样。
+ * @description: 默认单实例采样
+ * @param {const MOTOR_PARAM_S} *motor     电机
+ * @param {float} open_loop_theta          开环电角 (rad)
+ * @param {motor_feedback_sample_t} *out   输出
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Feedback_SampleDefault(const MOTOR_PARAM_S *motor, float open_loop_theta,
                                   motor_feedback_sample_t *out)

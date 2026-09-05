@@ -13,13 +13,13 @@ extern "C" {
 #include "motor_param.h"
 #include "motor_math.h"
 #include "hal_sensor.h"
-/* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #ifndef MOTOR_ENCODER_INVERTED
 #define MOTOR_ENCODER_INVERTED (false)
 #endif
 #define MOTOR_ENCODER_DT_MIN_S (1.0e-6f)
 #define MOTOR_ENCODER_DT_MAX_S (0.1f)
+/* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 static motor_encoder_runtime_t s_encoder;
@@ -29,7 +29,10 @@ static int32_t Motor_Encoder_DeltaCounts(uint16_t now, uint16_t last, uint32_t c
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 将角度循环归一化到 [0, 2π)。
+ * @description: 将角度循环归一化到 [0, 2π)
+ * @param {float} angle  输入角度 (rad)
+ * @return {float} 归一化后的角度 (rad)
+ * @author: lkc
  */
 static float Motor_Encoder_Wrap2Pi(float angle)
 {
@@ -43,7 +46,12 @@ static float Motor_Encoder_Wrap2Pi(float angle)
 }
 
 /**
- * @description: 计算最短回绕差分（有符号计数增量）。
+ * @description: 计算最短路径的有符号计数增量（处理回绕）
+ * @param {uint16_t} now   当前计数值
+ * @param {uint16_t} last  上一拍计数值
+ * @param {uint32_t} cpr   每圈计数；0 时按 1
+ * @return {int32_t} 有符号计数差（最短路径）
+ * @author: lkc
  */
 static int32_t Motor_Encoder_DeltaCounts(uint16_t now, uint16_t last, uint32_t cpr)
 {
@@ -59,7 +67,13 @@ static int32_t Motor_Encoder_DeltaCounts(uint16_t now, uint16_t last, uint32_t c
 }
 
 /**
- * @description: 初始化运行时（不访问硬件）。
+ * @description: 初始化编码器运行时（不访问硬件）
+ * @detail: 清零点与速度历史；counts_per_rev 为 0 时按 1 处理
+ * @param {motor_encoder_runtime_t} *rt  运行时状态，不可为空
+ * @param {uint32_t} counts_per_rev      每机械圈计数（含正交倍频）
+ * @param {bool} inverted                true=机械正方向与计数方向相反
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Encoder_RuntimeInit(motor_encoder_runtime_t *rt, uint32_t counts_per_rev, bool inverted)
 {
@@ -77,7 +91,13 @@ void Motor_Encoder_RuntimeInit(motor_encoder_runtime_t *rt, uint32_t counts_per_
 }
 
 /**
- * @description: 用新计数与 dt 更新速度。
+ * @description: 用新计数与采样间隔更新机械转速（处理计数回绕）
+ * @detail: 不修改电角零点；dt 过小/过大或首拍时 speed_valid=false
+ * @param {motor_encoder_runtime_t} *rt  运行时状态
+ * @param {uint16_t} count               当前正交解码计数值
+ * @param {float} dt_s                   距上一拍时间 (s)
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Encoder_UpdateState(motor_encoder_runtime_t *rt, uint16_t count, float dt_s)
 {
@@ -107,7 +127,11 @@ void Motor_Encoder_UpdateState(motor_encoder_runtime_t *rt, uint16_t count, floa
 }
 
 /**
- * @description: 机械角。
+ * @description: 由运行时与当前计数计算单圈机械角
+ * @param {const motor_encoder_runtime_t} *rt  运行时状态
+ * @param {uint16_t} count                     当前计数值
+ * @return {float} 机械角度 (rad)，归一化到 [0, 2π)
+ * @author: lkc
  */
 float Motor_Encoder_GetMechAngleState(const motor_encoder_runtime_t *rt, uint16_t count)
 {
@@ -129,7 +153,13 @@ float Motor_Encoder_GetMechAngleState(const motor_encoder_runtime_t *rt, uint16_
 }
 
 /**
- * @description: 电角度。
+ * @description: 由运行时、当前计数与极对数计算电角度
+ * @detail: elec = wrap(mech × pole_pairs − elec_offset)；绝对有效须 zero_valid=true
+ * @param {const motor_encoder_runtime_t} *rt  运行时状态
+ * @param {uint16_t} count                     当前计数值
+ * @param {float} pole_pairs                   极对数；小于 1 时按 1 处理
+ * @return {float} 电角度 (rad)，归一化到 [0, 2π)
+ * @author: lkc
  */
 float Motor_Encoder_GetElecAngleState(const motor_encoder_runtime_t *rt, uint16_t count, float pole_pairs)
 {
@@ -145,7 +175,10 @@ float Motor_Encoder_GetElecAngleState(const motor_encoder_runtime_t *rt, uint16_
 }
 
 /**
- * @description: 机械转速。
+ * @description: 读取 UpdateState 后缓存的机械转速
+ * @param {const motor_encoder_runtime_t} *rt  运行时状态
+ * @return {float} 机械转速 (RPM)；speed_valid=false 时勿当作有效零速
+ * @author: lkc
  */
 float Motor_Encoder_GetMechRpmState(const motor_encoder_runtime_t *rt)
 {
@@ -153,7 +186,10 @@ float Motor_Encoder_GetMechRpmState(const motor_encoder_runtime_t *rt)
 }
 
 /**
- * @description: 速度是否有效。
+ * @description: 查询本拍机械转速是否可信
+ * @param {const motor_encoder_runtime_t} *rt  运行时状态
+ * @return {bool} true=speed_valid；rt 为空返回 false
+ * @author: lkc
  */
 bool Motor_Encoder_IsSpeedValidState(const motor_encoder_runtime_t *rt)
 {
@@ -161,7 +197,10 @@ bool Motor_Encoder_IsSpeedValidState(const motor_encoder_runtime_t *rt)
 }
 
 /**
- * @description: 零点是否已标定。
+ * @description: 查询电角零点是否已标定（绝对电角可用）
+ * @param {const motor_encoder_runtime_t} *rt  运行时状态
+ * @return {bool} true=zero_valid；rt 为空返回 false
+ * @author: lkc
  */
 bool Motor_Encoder_IsZeroValidState(const motor_encoder_runtime_t *rt)
 {
@@ -169,7 +208,12 @@ bool Motor_Encoder_IsZeroValidState(const motor_encoder_runtime_t *rt)
 }
 
 /**
- * @description: 标定电角零点。
+ * @description: 将当前位置标为电角度 0（写入 offset 并置 zero_valid）
+ * @param {motor_encoder_runtime_t} *rt  运行时状态
+ * @param {uint16_t} count               当前计数值
+ * @param {float} pole_pairs             极对数
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Encoder_MarkZeroState(motor_encoder_runtime_t *rt, uint16_t count, float pole_pairs)
 {
@@ -182,7 +226,10 @@ void Motor_Encoder_MarkZeroState(motor_encoder_runtime_t *rt, uint16_t count, fl
 }
 
 /**
- * @description: 清除零点与速度历史。
+ * @description: 清除电角零点与速度差分历史（Reset 路径用）
+ * @param {motor_encoder_runtime_t} *rt  运行时状态
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Encoder_ClearZeroState(motor_encoder_runtime_t *rt)
 {
@@ -197,7 +244,10 @@ void Motor_Encoder_ClearZeroState(motor_encoder_runtime_t *rt)
 }
 
 /**
- * @description: 初始化 AB 编码器定时器。
+ * @description: 初始化 AB 编码器硬件与默认运行时实例
+ * @detail: 调用 Hal_Encoder_Init，按硬件每圈计数 RuntimeInit，并将计数清零
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Encoder_Init(void)
 {
@@ -208,7 +258,9 @@ void Motor_Encoder_Init(void)
 }
 
 /**
- * @description: 读取正交解码计数值。
+ * @description: 读取正交解码当前计数值
+ * @return {uint16_t} 当前计数值（硬件计数器宽度内）
+ * @author: lkc
  */
 uint16_t Motor_Encoder_GetCount(void)
 {
@@ -216,7 +268,10 @@ uint16_t Motor_Encoder_GetCount(void)
 }
 
 /**
- * @description: 计数清零并清除偏置与速度历史。
+ * @description: 硬件计数清零，并清除默认实例的电角偏置与速度历史
+ * @detail: 清零不等于已完成电角零点标定（zero_valid 会被清掉）
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Encoder_Reset(void)
 {
@@ -225,7 +280,10 @@ void Motor_Encoder_Reset(void)
 }
 
 /**
- * @description: 用 HAL 计数更新默认实例速度。
+ * @description: 用 HAL 当前计数与采样间隔更新默认实例转速
+ * @param {float} dt_s  控制/采样周期 (s)
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Encoder_Update(float dt_s)
 {
@@ -233,7 +291,9 @@ void Motor_Encoder_Update(float dt_s)
 }
 
 /**
- * @description: 机械角度。
+ * @description: 读取默认实例当前机械角（结合 HAL 计数）
+ * @return {float} 机械角度 (rad)，[0, 2π)
+ * @author: lkc
  */
 float Motor_Encoder_GetMechAngle(void)
 {
@@ -241,7 +301,10 @@ float Motor_Encoder_GetMechAngle(void)
 }
 
 /**
- * @description: 电角度。
+ * @description: 读取默认实例当前电角
+ * @detail: 极对数取自全局 motor.ol_pole_pairs；绝对有效须先 Detect
+ * @return {float} 电角度 (rad)，[0, 2π)
+ * @author: lkc
  */
 float Motor_Encoder_GetElecAngle(void)
 {
@@ -251,7 +314,9 @@ float Motor_Encoder_GetElecAngle(void)
 }
 
 /**
- * @description: 机械转速。
+ * @description: 读取默认实例已更新的机械转速
+ * @return {float} 机械转速 (RPM)；无效时勿当有效零速
+ * @author: lkc
  */
 float Motor_Encoder_GetMechRpm(void)
 {
@@ -259,7 +324,9 @@ float Motor_Encoder_GetMechRpm(void)
 }
 
 /**
- * @description: 速度是否有效。
+ * @description: 查询默认实例本拍转速是否有效
+ * @return {bool} true=速度可信
+ * @author: lkc
  */
 bool Motor_Encoder_IsSpeedValid(void)
 {
@@ -267,7 +334,9 @@ bool Motor_Encoder_IsSpeedValid(void)
 }
 
 /**
- * @description: 零点是否已标定。
+ * @description: 查询默认实例电角零点是否已标定
+ * @return {bool} true=绝对电角可用
+ * @author: lkc
  */
 bool Motor_Encoder_IsZeroValid(void)
 {
@@ -275,7 +344,10 @@ bool Motor_Encoder_IsZeroValid(void)
 }
 
 /**
- * @description: 把当前位置记为电角度 0。
+ * @description: 无 Z 相时的零点标定：把当前位置记为电角度 0
+ * @detail: 使用当前 HAL 计数与 motor.ol_pole_pairs 调用 MarkZeroState
+ * @return {*}
+ * @author: lkc
  */
 void Motor_Encoder_Detect(void)
 {
