@@ -6,7 +6,13 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-#include "includes.h"
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include "motor_encoder.h"
+#include "motor_param.h"
+#include "motor_math.h"
+#include "hal_sensor.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -48,7 +54,7 @@ void Motor_Encoder_Init(void)
     s_inverted = MOTOR_ENCODER_INVERTED;
     Hal_Encoder_Init();
     Hal_Encoder_SetCount(0U);
-    PRINTF("Encoder AB: %u count/rev\r\n", (unsigned)Hal_Encoder_CountsPerRev());
+    printf("Encoder AB: %u count/rev\r\n", (unsigned)Hal_Encoder_CountsPerRev());
 }
 
 /**
@@ -120,7 +126,7 @@ void Motor_Encoder_Detect(void)
 {
     s_elec_offset_rad = 0.0f;
     s_elec_offset_rad = Motor_Encoder_GetElecAngle();
-    PRINTF("Encoder detect: count=%u mech=%.3f rad elec0=%.3f rad\r\n",
+    printf("Encoder detect: count=%u mech=%.3f rad elec0=%.3f rad\r\n",
            (unsigned)Motor_Encoder_GetCount(),
            Motor_Encoder_GetMechAngle(),
            Motor_Encoder_GetElecAngle());

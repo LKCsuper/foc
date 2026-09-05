@@ -1,17 +1,14 @@
 /*
- * @Description: 
- * @Version: 1.0
+ * @Description: 电机模块对外调试接口
  * @Author: lkc
- * @Date: 2023-10-03 18:19:51
- * @LastEditors: lkc
- * @LastEditTime: 2023-10-03 18:21:48
- * @detail: 
  */
 #ifdef __cplusplus
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-#include "includes.h"
+#include <stdio.h>
+#include "motor.h"
+#include "motor_param.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -24,18 +21,14 @@ extern "C" {
  * @return {*}
  * @author: lkc
  */
-VOID MOTOR_ShowParam(VOID)
+void MOTOR_ShowParam(void)
 {
     MOTOR_PARAM_S *stMotorNow = &motor; 
 
-    PRINTF("Current Offset [%f] [%f] [%f]\r\n", stMotorNow->currentOffset[0], stMotorNow->currentOffset[1], stMotorNow->currentOffset[2]);
-    PRINTF("Voltage Offset [%f] [%f] [%f]\r\n", stMotorNow->voltOffset[0], stMotorNow->voltOffset[1], stMotorNow->voltOffset[2]);
-    PRINTF("Volt Un Offset [%f] [%f] [%f]\r\n", stMotorNow->voltundrivenOffset[0], stMotorNow->voltundrivenOffset[1], stMotorNow->voltundrivenOffset[2]);
-
-    return;
+    printf("Current Offset [%f] [%f] [%f]\r\n", stMotorNow->currentOffset[0], stMotorNow->currentOffset[1], stMotorNow->currentOffset[2]);
+    printf("Voltage Offset [%f] [%f] [%f]\r\n", stMotorNow->voltOffset[0], stMotorNow->voltOffset[1], stMotorNow->voltOffset[2]);
+    printf("Volt Un Offset [%f] [%f] [%f]\r\n", stMotorNow->voltundrivenOffset[0], stMotorNow->voltundrivenOffset[1], stMotorNow->voltundrivenOffset[2]);
 }
 #ifdef __cplusplus
 }
 #endif
-
-

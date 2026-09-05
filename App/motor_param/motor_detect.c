@@ -6,7 +6,19 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-#include "includes.h"
+#include <stdint.h>
+#include <stdbool.h>
+#include <math.h>
+#include <stdio.h>
+#include "FreeRTOS.h"
+#include "cmsis_os2.h"
+#include "motor_detect.h"
+#include "motor_param.h"
+#include "motor_speed.h"
+#include "motor_sensorless.h"
+#include "motor_hall.h"
+#include "hal_motor.h"
+#include "printf_color.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_DETECT_OFFSET_SAMPLES     (1000U) /* 每相采样次数 */
@@ -56,11 +68,11 @@ static void Detect_SamplePhase(uint32_t phase, uint32_t samples, float *current_
 /**
  * @description: 校准三相电流零点和驱动时相电压偏移
  * @detail: 50% 占空比依次使能 A/B/C 相采样。cal_undriven=true 时再采未驱动相电压。
- * @param {BOOL} cal_undriven  true 时额外校准未驱动相电压偏移
- * @return {ULONG} 1 成功
+ * @param {bool} cal_undriven  true 时额外校准未驱动相电压偏移
+ * @return {uint32_t} 1 成功
  * @author: lkc
  */
-ULONG DETECT_Offset(BOOL cal_undriven)
+uint32_t DETECT_Offset(bool cal_undriven)
 {
     const uint32_t samples = MOTOR_DETECT_OFFSET_SAMPLES;
     float current_sum[3] = {0.0f, 0.0f, 0.0f};
@@ -215,9 +227,9 @@ bool DETECT_Hall(void)
  * @return {*}
  * @author: lkc
  */
-VOID Detect_Init(VOID)
+void Detect_Init(void)
 {
-    DETECT_Offset(TRUE);
+    DETECT_Offset(true);
 }
 
 #ifdef __cplusplus

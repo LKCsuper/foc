@@ -20,7 +20,7 @@ extern "C" {
  * @return {*}
  * @author: lkc
  */
-VOID MOTOR_ShowParam(VOID);
+void MOTOR_ShowParam(void);
 
 #ifdef __cplusplus
 }

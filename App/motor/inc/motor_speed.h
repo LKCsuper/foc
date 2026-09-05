@@ -5,6 +5,9 @@
 #ifndef _MOTOR_SPEED_H
 #define _MOTOR_SPEED_H
 
+#include <stdbool.h>
+#include "motor_param.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

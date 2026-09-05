@@ -20,7 +20,9 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
     */
-#include "includes.h"
+#include <string.h>
+#include <stdlib.h>
+#include "motor_math.h"
 /**
  * @description: 将角度映射到 [min, max] 区间内的归一化比例。
  * @detail: 输入角度超出范围时截断到最近边界；角度单位为度 (deg)。

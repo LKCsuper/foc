@@ -9,6 +9,9 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
+#include "motor_param.h"
+
 /*
  * 无感控制状态。注意“观测器正在计算”不等于“观测器已经接管”：
  *

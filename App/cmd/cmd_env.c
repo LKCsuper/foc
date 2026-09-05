@@ -5,7 +5,7 @@
  * @Date: 2023-10-06 17:43:41
  * @LastEditors: lkc
  * @LastEditTime: 2025-07-13
- * @detail: 基于 flash_storage 直接结构体读写，不再依赖 EasyFlash
+ * @detail: 基于 flash_storage v2 固定配置/校准格式，不保存运行状态
  */
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +30,11 @@ extern "C" {
 int Cmd_Saveparam(int argc, char **argv)
 {
     motor_detect_result_t detect;
+
+    if (motor.ol_enable || Motor_Detect_IsActive() || Motor_Hall_DetectIsActive()) {
+        printf("Stop motor and finish calibration before saving.\r\n");
+        return -1;
+    }
 
     memset(&detect, 0, sizeof(detect));
     detect.version = MOTOR_DETECT_RESULT_VERSION;

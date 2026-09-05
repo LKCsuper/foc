@@ -6,7 +6,10 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-#include "includes.h"
+#include <stddef.h>
+#include "motor_sense.h"
+#include "motor_math.h"
+#include "hal_motor.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_CURRENT_OFFSET_MIN      (1000.0f)

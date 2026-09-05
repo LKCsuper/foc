@@ -8,6 +8,7 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#include "motor_param.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -29,7 +30,7 @@ void Motor_Calc_FocCurrentKpKi(MOTOR_PARAM_S *m, float tc);
  * @return {*}
  * @author: lkc
  */
-VOID MOTOR_Cal_Electric_KP_KI(VOID);
+void MOTOR_Cal_Electric_KP_KI(void);
 
 #ifdef __cplusplus
 }

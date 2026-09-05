@@ -6,7 +6,14 @@
 extern "C" {
 #endif
 
-#include "includes.h"
+#include <math.h>
+#include <string.h>
+#include <stdbool.h>
+
+#include "motor_param.h"
+#include "motor_protect.h"
+#include "motor_speed.h"
+#include "motor_sensorless.h"
 
 /*
  * 本文件只完成三件事：

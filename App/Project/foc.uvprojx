@@ -921,6 +921,11 @@
           <GroupName>Motor_Param</GroupName>
           <Files>
             <File>
+              <FileName>motor_settings.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_param\motor_settings.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_param.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor_param\motor_param.c</FilePath>

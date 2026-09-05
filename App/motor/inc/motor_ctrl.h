@@ -21,14 +21,14 @@ extern "C" {
  * @return {*}
  * @author: lkc
  */
-VOID Motor_Ctrl_OpenLoop(float speed);
+void Motor_Ctrl_OpenLoop(float speed);
 
 /**
  * @description: 开环 SVPWM 占空比输出（定时器直通版）。
  * @return {*}
  * @author: lkc
  */
-VOID Motor_Ctrl_OpenLoop1(VOID);
+void Motor_Ctrl_OpenLoop1(void);
 
 #ifdef __cplusplus
 }

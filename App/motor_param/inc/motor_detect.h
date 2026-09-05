@@ -8,12 +8,14 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#include <stdint.h>
+#include <stdbool.h>
 #include "motor_types.h"
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_DETECT_RESULT_VERSION (1U)
 /* Private typedef -----------------------------------------------------------*/
 /*
- * Flash 槽里仍保存该结构，布局不能改。R/L/磁链检测已停用，上电不再应用这些字段。
+ * 旧 v1 Flash 曾保存该结构；v2 不再存储，仅保留调用兼容。R/L/磁链检测仍停用。
  */
 typedef enum {
     MOTOR_DETECT_ERROR_NONE = 0,
@@ -50,18 +52,18 @@ typedef struct {
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 校准三相电流零点和驱动时相电压偏移
- * @param {BOOL} cal_undriven  true 时额外校准未驱动相电压偏移
- * @return {ULONG} 1 成功，0 被中止
+ * @param {bool} cal_undriven  true 时额外校准未驱动相电压偏移
+ * @return {uint32_t} 1 成功，0 被中止
  * @author: lkc
  */
-ULONG DETECT_Offset(BOOL cal_undriven);
+uint32_t DETECT_Offset(bool cal_undriven);
 
 /**
  * @description: 上电做一次电流/电压偏移校准
  * @return {*}
  * @author: lkc
  */
-VOID Detect_Init(VOID);
+void Detect_Init(void);
 
 /**
  * @description: 开环转一圈，标定霍尔状态与电角度对应表

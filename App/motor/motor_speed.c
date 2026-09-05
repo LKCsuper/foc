@@ -2,7 +2,13 @@
 extern "C" {
 #endif
 
-#include "includes.h"
+#include <math.h>
+#include <string.h>
+#include <stdbool.h>
+
+#include "motor_param.h"
+#include "motor_speed.h"
+#include "motor_protect.h"
 
 /* 速度反馈与 PI 的运行时状态，不需要写入 Flash。 */
 static struct {

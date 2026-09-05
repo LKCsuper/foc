@@ -16,10 +16,25 @@
 extern "C" {
 #endif
 
-#include "includes.h"
+#include <stdint.h>
+#include <stdbool.h>
+#include <math.h>
+
+#include "motor_param.h"
+#include "motor_it.h"
+#include "motor_sense.h"
+#include "motor_protect.h"
+#include "motor_speed.h"
+#include "motor_sensorless.h"
+#include "motor_pid.h"
+#include "motor_foc.h"
+#include "motor_math.h"
+#include "motor_hall.h"
+#include "motor_detect.h"
 #include "motor_alignment.h"
 #include "motor_hfi_start.h"
 #include "motor_if_start.h"
+#include "hal_motor.h"
 
 /* DQ 轴电压中间量，用于电流环 PI 输出与限幅之间的传递。 */
 typedef struct {
@@ -125,9 +140,9 @@ static float Motor_OpenLoop_GetVoltageLimit(MOTOR_PARAM_S *m, float v_bus)
 }
 
 /*
- * 输出安全状态 (50% 占空比，三相中点电平)。
- * 此时逆变器上下桥臂各占一半，电机绕组等效短接，不产生转矩。
- * 用于停机、欠压、未就绪等保护场景。
+ * 输出三相中点占空比（沿用旧停机路径，不等于关闭驱动输出）。
+ * PWM 模式下这是零电压矢量；旋转时仍可能产生电流和制动力矩。
+ * 现用于停机、欠压、未就绪；板级故障关断仲裁需另行验证与实现。
  */
 static void Motor_OpenLoop_OutputSafe(MOTOR_PARAM_S *m)
 {
@@ -508,7 +523,7 @@ static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq,
 {
     float v_alpha;
     float v_beta;
-    ULONG sector;
+    uint32_t sector;
     uint32_t period = Hal_Motor_PwmPeriodCounts();
 
     inverse_park(vd, vq, theta, &v_alpha, &v_beta);
@@ -875,7 +890,7 @@ static bool Motor_DmaInt_ShouldRun(void)
  * @return {*}
  * @author: lkc
  */
-VOID Motor_It_ParamCal(VOID)
+void Motor_It_ParamCal(void)
 {
     Motor_Sense_Update(&motor);
 }

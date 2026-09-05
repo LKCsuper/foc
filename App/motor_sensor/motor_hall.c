@@ -6,7 +6,19 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-#include "includes.h"
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+#include <stdio.h>
+#include <math.h>
+#include "FreeRTOS.h"
+#include "cmsis_os2.h"
+#include "motor_hall.h"
+#include "motor_param.h"
+#include "motor_protect.h"
+#include "motor_math.h"
+#include "hal_motor.h"
+#include "hal_sensor.h"
 /* Private typedef -----------------------------------------------------------*/
 typedef struct {
     volatile bool active;
@@ -222,7 +234,7 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
         return FAULT_CODE_NONE;
     }
 
-    PRINTF("HALL DETECT\r\n");
+    printf("HALL DETECT\r\n");
     memset(sin_hall, 0, sizeof(sin_hall));
     memset(cos_hall, 0, sizeof(cos_hall));
     memset(hall_iterations, 0, sizeof(hall_iterations));
@@ -263,7 +275,7 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
             if ((m->curHallABC != m->lastHallABC) && (z < 6)) {
                 m->lastHallABC = m->curHallABC;
                 m->hallABC[z] = (uint8_t)hall;
-                PRINTF("diff [%d] [%d] [%d] [%d]\r\n", z, m->hallABC[z], m->curHallABC, hall);
+                printf("diff [%d] [%d] [%d] [%d]\r\n", z, m->hallABC[z], m->curHallABC, hall);
                 z++;
             }
 
@@ -292,9 +304,9 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
 
     if (Motor_Protect_IsFaultLatched()) {
         fault = Motor_Protect_GetFault();
-        PRINTF("HALL DETECT aborted by fault: %s\r\n", Motor_Protect_GetFaultName(fault));
+        printf("HALL DETECT aborted by fault: %s\r\n", Motor_Protect_GetFaultName(fault));
     } else if (s_hall_detect.abort) {
-        PRINTF("HALL DETECT aborted\r\n");
+        printf("HALL DETECT aborted\r\n");
     } else {
         fails = 0;
         for (i = 0; i < (int)MOTOR_HALL_TABLE_SIZE; i++) {

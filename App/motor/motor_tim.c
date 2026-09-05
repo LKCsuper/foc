@@ -1,14 +1,12 @@
 /*
- * @Description: 
- * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-02-21 22:08:16
- * @FilePath: \foc\App\motor\utils.c
+ * @Description: 电机定时器相关占位（逻辑已迁至 HAL / BSP）
+ * @Author: lkc
  */
 #ifdef __cplusplus
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-#include "includes.h"
+#include "motor_tim.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/

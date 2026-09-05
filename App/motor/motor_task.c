@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-#include "includes.h"
+#include "motor_task.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -20,7 +20,7 @@ extern "C" {
  * @return {*}
  * @author: lkc
  */
-VOID Motor_PidControl(VOID)
+void Motor_PidControl(void)
 {
     return;
 }

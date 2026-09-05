@@ -6,7 +6,14 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-#include "includes.h"
+#include <stdint.h>
+#include <stdio.h>
+#include "FreeRTOS.h"
+#include "task.h"
+#include "motor_ctrl.h"
+#include "motor_foc.h"
+#include "motor_math.h"
+#include "hal_motor.h"
 /* Private define ------------------------------------------------------------*/
 #define VOLTAGE_BUSTAR                                                      (24.0f)  /* 母线电压 */
 float gfMechAngle = 0;              /* 机械角度 */
@@ -18,6 +25,8 @@ float ud, uq;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
+static void Motor_Ctrl_Pwm(float ua, float ub, float uc);
+static void Motor_Ctrl_SetVoltage(float uq, float ud, float angle);
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -29,7 +38,7 @@ float ud, uq;
  * @return {*}
  * @author: lkc
  */
-VOID Motor_Ctrl_Pwm(float ua, float ub, float uc)
+static void Motor_Ctrl_Pwm(float ua, float ub, float uc)
 {
     /* 偏置 Vbus/2：双极性相电压 -> 单极性 PWM 参考 [0, Vbus] */
     ua += 24;
@@ -49,8 +58,6 @@ VOID Motor_Ctrl_Pwm(float ua, float ub, float uc)
     utils_truncate_number(&dutyb, 0.0f, 1);
     utils_truncate_number(&dutyc, 0.0f, 1);
 
-    //PRINTF("a%f b%f c %f\r\n", dutya, dutyb, dutyc);
-
     /* 写入比较值并提交，三相占空比同步更新 */
     {
         uint32_t period = Hal_Motor_PwmPeriodCounts();
@@ -60,7 +67,6 @@ VOID Motor_Ctrl_Pwm(float ua, float ub, float uc)
                              (uint32_t)(period * dutyc));
         Hal_Motor_PwmCommit();
     }
-    return;
 }
 
 /**
@@ -72,7 +78,7 @@ VOID Motor_Ctrl_Pwm(float ua, float ub, float uc)
  * @return {*}
  * @author: lkc
  */
-VOID Motor_Ctrl_SetVoltage(float uq, float ud, float angle)
+static void Motor_Ctrl_SetVoltage(float uq, float ud, float angle)
 {
     utils_norm_angle_rad(&angle);
  
@@ -83,7 +89,6 @@ VOID Motor_Ctrl_SetVoltage(float uq, float ud, float angle)
     inverse_clarke(ualpha, ubeta, &ua, &ub, &uc);
 
     Motor_Ctrl_Pwm(ua, ub, uc);
-    return;
 }
 
 /**
@@ -94,10 +99,10 @@ VOID Motor_Ctrl_SetVoltage(float uq, float ud, float angle)
  * @return {*}
  * @author: lkc
  */
-VOID Motor_Ctrl_OpenLoop(float speed)
+void Motor_Ctrl_OpenLoop(float speed)
 {
-    ULONG ulCurTimStamp = xTaskGetTickCount();
-    static ULONG ulOpenLoopTimStampe = 0;
+    uint32_t ulCurTimStamp = xTaskGetTickCount();
+    static uint32_t ulOpenLoopTimStampe = 0;
     
         /* 计算每个loop时间间隔 */
     float Ts = (float)(ulCurTimStamp - ulOpenLoopTimStampe) * 1e-6f;
@@ -110,7 +115,8 @@ VOID Motor_Ctrl_OpenLoop(float speed)
     /* 转换角度 */
 	gfMechAngle += speed * Ts;
     gfMechAngle = DEG2RAD_f(gfMechAngle);
-    PRINTF("%f %f %d %d\r\n", gfMechAngle, Ts, ulCurTimStamp, ulOpenLoopTimStampe);
+    printf("%f %f %lu %lu\r\n", gfMechAngle, Ts,
+           (unsigned long)ulCurTimStamp, (unsigned long)ulOpenLoopTimStampe);
 
     float radian = gfMechAngle;
 
@@ -124,26 +130,25 @@ VOID Motor_Ctrl_OpenLoop(float speed)
     Motor_Ctrl_SetVoltage(uq, 0, utils_mech_to_electrical_angle(radian, 2));
 
     ulOpenLoopTimStampe = ulCurTimStamp;
-    return;
 }
 
 /**
  * @description: 开环 SVPWM 占空比输出（定时器直通版）
- * @detail: 以 Bsp_Tim 计时步长积分开环角，施加固定 uq=3V，经反 Park 后由
+ * @detail: 以 HAL 时基步长积分开环角，施加固定 uq=3V，经反 Park 后由
  *          foc_svm 直接生成三路 CCR 占空比写入定时器，不走电压偏置流程
  * @return {*}
  * @author: lkc
  */
-VOID Motor_Ctrl_OpenLoop1(VOID)
+void Motor_Ctrl_OpenLoop1(void)
 {
     float radin = 0.0f;
     ud = 0;
     uq = 3.0;
      float sector;
-    static ULONG ulUa, ulUb, ulUc;
+    static uint32_t ulUa, ulUb, ulUc;
     static float m_openloop_angle = 0.0;
-    ULONG curTim = Hal_Motor_TimeUs();
-    static ULONG lastTim = 0;
+    uint32_t curTim = Hal_Motor_TimeUs();
+    static uint32_t lastTim = 0;
     float dt = 0.0f;
     float phase = 0.0f;
 
@@ -193,8 +198,6 @@ VOID Motor_Ctrl_OpenLoop1(VOID)
     Hal_Motor_PwmCommit();
 
     lastTim = curTim;
-
-    return;
 }
 #ifdef __cplusplus
 }

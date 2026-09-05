@@ -8,6 +8,8 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#include <stdint.h>
+#include <stdbool.h>
 #include "motor_types.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -56,9 +58,9 @@ typedef struct motor_param {
     float modAlpha;
     float modBeta;
 
-    ULONG duty1;
-    ULONG duty2;
-    ULONG duty3;
+    uint32_t duty1;
+    uint32_t duty2;
+    uint32_t duty3;
 
     uint8_t curHallABC;
     uint8_t lastHallABC;
@@ -146,7 +148,7 @@ extern MOTOR_PARAM_S *gpstMotor;
  * @return {*}
  * @author: lkc
  */
-VOID MOTOR_Param_Init(VOID);
+void MOTOR_Param_Init(void);
 #ifdef __cplusplus
 }
 #endif

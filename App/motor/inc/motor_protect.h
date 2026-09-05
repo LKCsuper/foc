@@ -9,8 +9,9 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include "motor_types.h"
-
+#include "motor_param.h"
 /*
  * 电机保护参数表。
  *

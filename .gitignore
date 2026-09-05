@@ -4,3 +4,4 @@ MAlonzo/**
 *.o
 *.crf
 *.png
+.build/

@@ -23,6 +23,10 @@
 #ifndef UTILS_MATH_H_
 #define UTILS_MATH_H_
 
+#include <stdint.h>
+#include <stdbool.h>
+#include <math.h>
+
 /**
  * @description: 将角度映射到 [min, max] 区间对应的 [0, 1] 比例。
  * @param {float} angle  输入角度 (deg)

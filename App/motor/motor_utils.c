@@ -8,7 +8,11 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-#include "includes.h"
+#include <stdint.h>
+#include <math.h>
+#include <string.h>
+#include "motor_utils.h"
+#include "motor_foc.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define SIN_TABLE_SIZE  512
@@ -533,7 +537,7 @@ float data_to_float(uint8_t *data)
  * @return {*}
  * @author: lkc
  */
-UCHAR calculate_deadtime(float deadtime_ns, float core_clock_freq) 
+uint8_t calculate_deadtime(float deadtime_ns, float core_clock_freq) 
 {
 	uint8_t DTG = 0;
 	float timebase = 1.0f / (core_clock_freq / 1000000.0f) * 1000.0f;

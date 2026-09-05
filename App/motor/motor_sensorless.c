@@ -6,7 +6,16 @@
 extern "C" {
 #endif
 
-#include "includes.h"
+#include <math.h>
+#include <string.h>
+#include <stdbool.h>
+
+#include "motor_param.h"
+#include "motor_sensorless.h"
+#include "motor_foc.h"
+#include "motor_math.h"
+#include "motor_speed.h"
+#include "motor_protect.h"
 
 /*
  * ======================== 无感观测器整体流程 ========================
