@@ -15,6 +15,7 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 软件复位 MCU
+ * @author: lkc
  */
 int CMD_Reset(int argc, char *argv[])
 {

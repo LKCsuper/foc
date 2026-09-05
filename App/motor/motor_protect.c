@@ -49,6 +49,7 @@ static motor_protect_state_t s_protect = {
 
 /**
  * @description: 取三相电流绝对值峰值 (A)，用作过流/堵转判据。
+ * @author: lkc
  */
 static float Motor_Protect_CurrentPeak(const MOTOR_PARAM_S *motor)
 {
@@ -66,6 +67,7 @@ static float Motor_Protect_CurrentPeak(const MOTOR_PARAM_S *motor)
 /**
  * @description: 条件去抖：成立则累加 dt，断开则清零；满 delay 返回 true。
  * @detail: 用于滤掉采样毛刺；不能代替硬件过流关断。
+ * @author: lkc
  */
 static bool Motor_Protect_Debounce(bool condition, float dt, float delay, float *timer)
 {
@@ -79,9 +81,10 @@ static bool Motor_Protect_Debounce(bool condition, float dt, float delay, float 
 
 /**
  * @description: 首次锁存故障：写快照、置 fault_latched；已锁存则忽略（保留首因）。
+ * @author: lkc
  */
-static void Motor_Protect_LatchFaultState(motor_protect_state_t *state, mc_fault_code fault,
-                                          const MOTOR_PARAM_S *motor, const motor_protect_aux_t *aux)
+static void Motor_Protect_LatchFaultState(motor_protect_state_t *state, mc_fault_code fault, const MOTOR_PARAM_S *motor,
+                                          const motor_protect_aux_t *aux)
 {
     if (state == NULL || motor == NULL || state->fault_latched) {
         return;
@@ -137,6 +140,7 @@ static void Motor_Protect_LatchFaultState(motor_protect_state_t *state, mc_fault
 /**
  * @description: 默认包装：从无感/速度环采集锁存辅助信息（过渡期耦合点）。
  * @detail: State API 路径不要走这里；由 ISR/调用者显式填 aux。
+ * @author: lkc
  */
 static void Motor_Protect_FillAuxDefault(motor_protect_aux_t *aux, const MOTOR_PARAM_S *motor)
 {
@@ -159,9 +163,8 @@ static void Motor_Protect_FillAuxDefault(motor_protect_aux_t *aux, const MOTOR_P
     aux->observer_speed_ok = sensorless_diagnostics.speed_ok;
     aux->direction_ok = sensorless_diagnostics.direction_ok;
     aux->phase_ok = sensorless_diagnostics.phase_ok;
-    aux->iq_command = motor->speed_enable && Motor_SpeedLoop_IsFeedbackValid() ?
-                          Motor_SpeedLoop_GetIqTarget() :
-                          motor->ol_iq_set;
+    aux->iq_command =
+        motor->speed_enable && Motor_SpeedLoop_IsFeedbackValid() ? Motor_SpeedLoop_GetIqTarget() : motor->ol_iq_set;
 }
 
 /**
@@ -238,8 +241,7 @@ bool Motor_Protect_CheckOverCurrentState(motor_protect_state_t *state, const MOT
         return false;
     }
     over_current = Motor_Protect_CurrentPeak(motor) >= state->config.over_current;
-    return Motor_Protect_Debounce(over_current, dt, state->config.over_current_time,
-                                  &state->over_current_timer);
+    return Motor_Protect_Debounce(over_current, dt, state->config.over_current_time, &state->over_current_timer);
 }
 
 /**
@@ -260,8 +262,7 @@ bool Motor_Protect_CheckUnderVoltageState(motor_protect_state_t *state, const MO
     }
     running = motor->ol_enable && fabsf(motor->ol_target_rpm) > 0.0f;
     under_voltage = running && motor->v_bus < state->config.under_voltage;
-    return Motor_Protect_Debounce(under_voltage, dt, state->config.under_voltage_time,
-                                  &state->under_voltage_timer);
+    return Motor_Protect_Debounce(under_voltage, dt, state->config.under_voltage_time, &state->under_voltage_timer);
 }
 
 /**
@@ -289,8 +290,7 @@ bool Motor_Protect_CheckStallState(motor_protect_state_t *state, const MOTOR_PAR
     commanded = fabsf(motor->ol_target_rpm) >= state->config.stall_target_rpm;
     stopped = fabsf(state->speed_rpm) <= state->config.stall_speed_rpm;
     loaded = Motor_Protect_CurrentPeak(motor) >= state->config.stall_current;
-    return Motor_Protect_Debounce(commanded && stopped && loaded, dt, state->config.stall_time,
-                                  &state->stall_timer);
+    return Motor_Protect_Debounce(commanded && stopped && loaded, dt, state->config.stall_time, &state->stall_timer);
 }
 
 /**
@@ -373,8 +373,8 @@ bool Motor_Protect_RunState(motor_protect_state_t *state, const MOTOR_PARAM_S *m
  * @return {*}
  * @author: lkc
  */
-void Motor_Protect_TriggerFaultState(motor_protect_state_t *state, mc_fault_code fault,
-                                     const MOTOR_PARAM_S *motor, const motor_protect_aux_t *aux)
+void Motor_Protect_TriggerFaultState(motor_protect_state_t *state, mc_fault_code fault, const MOTOR_PARAM_S *motor,
+                                     const motor_protect_aux_t *aux)
 {
     if (fault == FAULT_CODE_NONE || state == NULL || motor == NULL) {
         return;

@@ -16,8 +16,7 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 STATIC TaskHandle_t taskPlotHandle;
 
-STATIC const osThreadAttr_t taskDutyAttr =
-{
+STATIC const osThreadAttr_t taskDutyAttr = {
     .name = "Task Plot",
     .priority = PRI_INIT,
 };
@@ -38,6 +37,7 @@ static bool Duty_AllowManualPwm(void)
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 占空比循环翻转任务（调试用，非 FOC 主路径）。
+ * @author: lkc
  */
 VOID Duty_ControlTask(VOID *argument)
 {
@@ -47,8 +47,7 @@ VOID Duty_ControlTask(VOID *argument)
 
     PRINTF("\n");
     Hal_Motor_PwmStart();
-    while (1)
-    {
+    while (1) {
         if (!Duty_AllowManualPwm()) {
             Hal_Motor_PwmSetSafe();
             osDelay(pdMS_TO_TICKS(200));
@@ -75,6 +74,7 @@ VOID Duty_ControlTask(VOID *argument)
  *   duty set <pct>    设置占空比百分比
  *   duty start        启动 PWM
  *   duty stop         停止 PWM
+ * @author: lkc
  */
 int Cmd_Motor_Duty(int argc, char *argv[])
 {

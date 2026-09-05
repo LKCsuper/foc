@@ -1,4 +1,7 @@
-/* @Description: 配置/校准快照与固定格式编码，不保存命令或实时状态。 */
+/*
+ * @Description: 配置/校准快照与固定格式编码，不保存命令或实时状态。
+ * @Author: lkc
+ */
 #ifndef MOTOR_SETTINGS_H
 #define MOTOR_SETTINGS_H
 #include <stdint.h>
@@ -73,18 +76,20 @@ typedef struct {
 /**
  * @description: 从旧电机对象提取配置/校准；调用者保证快照一致，不提取命令和积分。
  * @detail: 指针不可为空；配置单位沿用 motor_param.h，长度单位 byte。非 ISR 接口。
- * @param motor 已初始化的旧电机对象，不可为空
- * @param settings 输出快照，不可为空；失败不修改
+ * @param {const MOTOR_PARAM_S *} motor 已初始化的旧电机对象，不可为空
+ * @param {motor_settings_t *} settings 输出快照，不可为空；失败不修改
  * @return {bool} 成功返回 true
+ * @author: lkc
  */
 bool Motor_Settings_Capture(const MOTOR_PARAM_S *motor, motor_settings_t *settings);
 
 /**
  * @description: 停机时应用合法配置/校准；失败不修改对象，命令和实时状态均不改。
  * @detail: 指针不可为空；配置单位沿用 motor_param.h，长度单位 byte。非 ISR 接口。
- * @param motor 已停机的目标电机对象，不可为空
- * @param settings 已校验的配置与校准，不可为空
+ * @param {MOTOR_PARAM_S *} motor 已停机的目标电机对象，不可为空
+ * @param {const motor_settings_t *} settings 已校验的配置与校准，不可为空
  * @return {bool} 成功返回 true
+ * @author: lkc
  */
 bool Motor_Settings_Apply(MOTOR_PARAM_S *motor, const motor_settings_t *settings);
 
@@ -95,9 +100,10 @@ bool Motor_Settings_Apply(MOTOR_PARAM_S *motor, const motor_settings_t *settings
  *          V/F 斜率与补偿、斜坡、Vq/电流环增益、max/min RPM、速度 PI 增益、
  *          制动开关、I/F 高速护栏与相位混合时间，以及命令型开关
  *          speed_enable / sensorless_enable / takeover。
- * @param from 当前配置，不可为空
- * @param to 目标配置，不可为空
+ * @param {const motor_config_t *} from 当前配置，不可为空
+ * @param {const motor_config_t *} to 目标配置，不可为空
  * @return {bool} true=必须停机；空指针视为需要停机
+ * @author: lkc
  */
 bool Motor_Settings_ConfigRequiresStop(const motor_config_t *from, const motor_config_t *to);
 
@@ -105,29 +111,32 @@ bool Motor_Settings_ConfigRequiresStop(const motor_config_t *from, const motor_c
  * @description: 应用配置（不改校准、不改命令目标电流/转速 enable）。
  * @detail: 先与当前校准拼成完整 settings 校验；仅停机字段变化且电机在跑时失败。
  *          成功时只写配置相关字段。非 ISR 接口。
- * @param motor 电机对象，不可为空
- * @param config 目标配置，不可为空
+ * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
+ * @param {const motor_config_t *} config 目标配置，不可为空
  * @return {bool} 成功返回 true
+ * @author: lkc
  */
 bool Motor_Settings_ApplyConfig(MOTOR_PARAM_S *motor, const motor_config_t *config);
 
 /**
  * @description: 编码为固定小端格式；size 必须匹配，非法输入返回 false 且不写输出。
  * @detail: 指针不可为空；配置单位沿用 motor_param.h，长度单位 byte。非 ISR 接口。
- * @param settings 输入配置/校准快照
- * @param data 输出固定编码缓冲区，不可为空
- * @param size 缓冲区长度 (byte)，须等于 MOTOR_SETTINGS_WIRE_SIZE
+ * @param {const motor_settings_t *} settings 输入配置/校准快照
+ * @param {uint8_t *} data 输出固定编码缓冲区，不可为空
+ * @param {uint32_t} size 缓冲区长度 (byte)，须等于 MOTOR_SETTINGS_WIRE_SIZE
  * @return {bool} 成功返回 true
+ * @author: lkc
  */
 bool Motor_Settings_Encode(const motor_settings_t *settings, uint8_t *data, uint32_t size);
 
 /**
  * @description: 解码并校验；失败不修改输出，不依赖 MCU/RTOS 或 C 结构体填充。
  * @detail: 指针不可为空；配置单位沿用 motor_param.h，长度单位 byte。非 ISR 接口。
- * @param settings 输出快照，失败不修改
- * @param data 输入固定编码缓冲区，不可为空
- * @param size 缓冲区长度 (byte)，须等于 MOTOR_SETTINGS_WIRE_SIZE
+ * @param {motor_settings_t *} settings 输出快照，失败不修改
+ * @param {const uint8_t *} data 输入固定编码缓冲区，不可为空
+ * @param {uint32_t} size 缓冲区长度 (byte)，须等于 MOTOR_SETTINGS_WIRE_SIZE
  * @return {bool} 成功返回 true
+ * @author: lkc
  */
 bool Motor_Settings_Decode(const uint8_t *data, uint32_t size, motor_settings_t *settings);
 

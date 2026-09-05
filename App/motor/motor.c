@@ -25,12 +25,13 @@ extern "C" {
 static uint32_t motor_crit_enter(void);
 static void motor_crit_exit(uint32_t primask);
 static bool motor_is_finite(float value);
-static bool motor_command_valid(const MOTOR_PARAM_S *motor, const motor_command_t *cmd,
-                                motor_command_t *normalized);
+static bool motor_command_valid(const MOTOR_PARAM_S *motor, const motor_command_t *cmd, motor_command_t *normalized);
 /* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 进入短临界区（屏蔽 IRQ），返回进入前的 PRIMASK。
+ * @return {uint32_t} 进入前 PRIMASK；非 ARM 平台返回 0
+ * @author: lkc
  */
 static uint32_t motor_crit_enter(void)
 {
@@ -47,6 +48,9 @@ static uint32_t motor_crit_enter(void)
 
 /**
  * @description: 退出短临界区；仅当进入前 IRQ 开启时恢复。
+ * @param {uint32_t} primask 进入临界区时的 PRIMASK（0=原 IRQ 开启）
+ * @return {void} 无
+ * @author: lkc
  */
 static void motor_crit_exit(uint32_t primask)
 {
@@ -61,6 +65,9 @@ static void motor_crit_exit(uint32_t primask)
 
 /**
  * @description: 判断浮点是否为有限值（非 NaN/Inf）。
+ * @param {float} value 待检查值
+ * @return {bool} true=有限
+ * @author: lkc
  */
 static bool motor_is_finite(float value)
 {
@@ -69,9 +76,13 @@ static bool motor_is_finite(float value)
 
 /**
  * @description: 校验命令并输出限幅后的规范化副本；失败不改 normalized。
+ * @param {const MOTOR_PARAM_S *} motor 配置来源，不可为空
+ * @param {const motor_command_t *} cmd 原始命令，不可为空
+ * @param {motor_command_t *} normalized 输出规范化命令，不可为空；失败不修改
+ * @return {bool} true=命令合法
+ * @author: lkc
  */
-static bool motor_command_valid(const MOTOR_PARAM_S *motor, const motor_command_t *cmd,
-                                motor_command_t *normalized)
+static bool motor_command_valid(const MOTOR_PARAM_S *motor, const motor_command_t *cmd, motor_command_t *normalized)
 {
     motor_command_t out;
 
@@ -108,6 +119,7 @@ static bool motor_command_valid(const MOTOR_PARAM_S *motor, const motor_command_
  * @param {const MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {motor_command_t *} cmd 输出命令，不可为空
  * @return {motor_result_t} MOTOR_OK 或 MOTOR_ERR_NULL
+ * @author: lkc
  */
 motor_result_t Motor_GetCommand(const MOTOR_PARAM_S *motor, motor_command_t *cmd)
 {
@@ -138,6 +150,7 @@ motor_result_t Motor_GetCommand(const MOTOR_PARAM_S *motor, motor_command_t *cmd
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {const motor_command_t *} cmd 完整命令，不可为空
  * @return {motor_result_t} MOTOR_OK / MOTOR_ERR_NULL / MOTOR_ERR_INVALID
+ * @author: lkc
  */
 motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd)
 {
@@ -189,6 +202,7 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
  * @param {const MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {motor_status_t *} status 输出快照，不可为空
  * @return {motor_result_t} MOTOR_OK 或 MOTOR_ERR_NULL
+ * @author: lkc
  */
 motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *status)
 {
@@ -233,6 +247,7 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
  * @detail: enable=false、target_rpm=0，保留 mode/iq/id/speed_enable。
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @return {motor_result_t} MOTOR_OK 或错误码
+ * @author: lkc
  */
 motor_result_t Motor_RequestStop(MOTOR_PARAM_S *motor)
 {
@@ -254,6 +269,7 @@ motor_result_t Motor_RequestStop(MOTOR_PARAM_S *motor)
  * @param {const MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {motor_runtime_t *} runtime 输出快照，不可为空
  * @return {motor_result_t} MOTOR_OK 或 MOTOR_ERR_NULL
+ * @author: lkc
  */
 motor_result_t Motor_GetRuntime(const MOTOR_PARAM_S *motor, motor_runtime_t *runtime)
 {
@@ -303,6 +319,7 @@ motor_result_t Motor_GetRuntime(const MOTOR_PARAM_S *motor, motor_runtime_t *run
  * @detail: 短临界区；不清除采样值与校准。
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @return {motor_result_t} MOTOR_OK 或 MOTOR_ERR_NULL
+ * @author: lkc
  */
 motor_result_t Motor_ClearRuntimeControl(MOTOR_PARAM_S *motor)
 {
@@ -327,6 +344,7 @@ motor_result_t Motor_ClearRuntimeControl(MOTOR_PARAM_S *motor)
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {const motor_config_t *} config 完整配置快照，不可为空
  * @return {motor_result_t} MOTOR_OK / NULL / INVALID / BUSY
+ * @author: lkc
  */
 motor_result_t Motor_SetConfig(MOTOR_PARAM_S *motor, const motor_config_t *config)
 {
@@ -355,6 +373,10 @@ motor_result_t Motor_SetConfig(MOTOR_PARAM_S *motor, const motor_config_t *confi
 
 /**
  * @description: 设置转子反馈来源。
+ * @detail: 委托 Motor_Feedback_SetSourceDefault；I/F 下编码器/霍尔在角有效时走有感电流环。
+ * @param {motor_feedback_source_t} source 反馈源
+ * @return {motor_result_t} MOTOR_OK；非法枚举返回 MOTOR_ERR_INVALID
+ * @author: lkc
  */
 motor_result_t Motor_SetFeedbackSource(motor_feedback_source_t source)
 {
@@ -368,6 +390,8 @@ motor_result_t Motor_SetFeedbackSource(motor_feedback_source_t source)
 
 /**
  * @description: 读取当前请求的反馈来源。
+ * @return {motor_feedback_source_t} 当前源
+ * @author: lkc
  */
 motor_feedback_source_t Motor_GetFeedbackSource(void)
 {

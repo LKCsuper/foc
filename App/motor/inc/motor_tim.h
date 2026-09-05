@@ -1,8 +1,6 @@
 /*
- * @Description: 
- * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-03-26 20:12:32
- * @FilePath: \foc\App\motor\inc\utils.h
+ * @Description: 电机定时器接口占位（逻辑已迁至 HAL / BSP，头文件保留兼容）
+ * @Author: lkc
  */
 #ifndef _MOTOR_TIM_H
 #define _MOTOR_TIM_H

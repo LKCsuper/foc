@@ -1,11 +1,6 @@
 /*
- * @Description: 
- * @Version: 1.0
+ * @Description: BLDC 六步换相预留空壳（历史保留，无实现代码，未接入主控制链）
  * @Author: lkc
- * @Date: 2023-10-04 16:13:35
- * @LastEditors: lkc
- * @LastEditTime: 2023-10-04 16:14:14
- * @detail: 
  */
 #ifdef __cplusplus
 extern "C" {
@@ -20,5 +15,3 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-

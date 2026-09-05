@@ -30,6 +30,7 @@ typedef struct {
 /**
  * @description: 初始化指定速度环状态对象。
  * @param {motor_speed_state_t *} state 状态对象，不可为空
+ * @author: lkc
  */
 void Motor_Speed_InitState(motor_speed_state_t *state);
 
@@ -38,6 +39,7 @@ void Motor_Speed_InitState(motor_speed_state_t *state);
  * @param {motor_speed_state_t *} state 状态对象，不可为空
  * @param {float} rpm 机械转速 (RPM)
  * @param {bool} valid true=反馈可信
+ * @author: lkc
  */
 void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool valid);
 
@@ -46,12 +48,14 @@ void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool va
  * @param {motor_speed_state_t *} state 状态对象，不可为空
  * @param {MOTOR_PARAM_S *} motor 配置与目标来源，不可为空
  * @param {float} dt 控制周期 (s)
+ * @author: lkc
  */
 void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, float dt);
 
 /**
  * @description: 清除指定状态对象的 PI（保留反馈转速）。
  * @param {motor_speed_state_t *} state 状态对象，不可为空
+ * @author: lkc
  */
 void Motor_SpeedLoop_ResetState(motor_speed_state_t *state);
 
@@ -59,6 +63,7 @@ void Motor_SpeedLoop_ResetState(motor_speed_state_t *state);
  * @description: 预置指定状态对象的 Iq 积分与输出。
  * @param {motor_speed_state_t *} state 状态对象，不可为空
  * @param {float} iq 预置 Iq (A)
+ * @author: lkc
  */
 void Motor_SpeedLoop_PrimeIqState(motor_speed_state_t *state, float iq);
 
@@ -96,6 +101,7 @@ bool Motor_SpeedLoop_IsFeedbackValidState(const motor_speed_state_t *state);
 
 /**
  * @description: 上电初始化默认单实例速度环。
+ * @author: lkc
  */
 void Motor_Speed_Init(void);
 
@@ -103,24 +109,28 @@ void Motor_Speed_Init(void);
  * @description: 更新默认实例的真实机械转速反馈。
  * @param {float} rpm    机械转速 (RPM)，反转为负数
  * @param {bool} valid   true=反馈可信；false=当前不能用于速度闭环
+ * @author: lkc
  */
 void Motor_SpeedFeedback_Set(float rpm, bool valid);
 
 /**
  * @description: 运行默认实例速度 PI 外环。
- * @param {MOTOR_PARAM_S} *motor  电机实时参数
+ * @param {MOTOR_PARAM_S *} motor 电机实时参数
  * @param {float} dt              控制周期 (s)
+ * @author: lkc
  */
 void Motor_SpeedLoop_Run(MOTOR_PARAM_S *motor, float dt);
 
 /**
  * @description: 清除默认实例速度 PI 状态。
+ * @author: lkc
  */
 void Motor_SpeedLoop_Reset(void);
 
 /**
  * @description: 用当前等效 Iq 预置默认实例速度 PI。
  * @param {float} iq  预置 Iq 目标 (A)
+ * @author: lkc
  */
 void Motor_SpeedLoop_PrimeIq(float iq);
 

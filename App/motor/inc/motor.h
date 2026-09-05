@@ -45,17 +45,17 @@ typedef struct {
 typedef struct {
     bool enable;
     int mode;
-    float target_rpm;   /* RPM */
-    float current_rpm;  /* 斜坡转速 RPM */
-    float ia;           /* A */
-    float ib;           /* A */
-    float ic;           /* A */
-    float id;           /* A */
-    float iq;           /* A */
-    float v_bus;        /* V */
-    float theta;        /* 电角度 rad */
-    float vd_int;       /* V */
-    float vq_int;       /* V */
+    float target_rpm;  /* RPM */
+    float current_rpm; /* 斜坡转速 RPM */
+    float ia;          /* A */
+    float ib;          /* A */
+    float ic;          /* A */
+    float id;          /* A */
+    float iq;          /* A */
+    float v_bus;       /* V */
+    float theta;       /* 电角度 rad */
+    float vd_int;      /* V */
+    float vq_int;      /* V */
     bool speed_enable;
     float measured_rpm; /* 速度环反馈 RPM；无效时为 0 */
     float speed_iq;     /* 速度环 Iq 目标 A */
@@ -77,6 +77,7 @@ typedef struct {
  * @param {const MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {motor_command_t *} cmd 输出命令，不可为空
  * @return {motor_result_t} MOTOR_OK 或 MOTOR_ERR_NULL
+ * @author: lkc
  */
 motor_result_t Motor_GetCommand(const MOTOR_PARAM_S *motor, motor_command_t *cmd);
 
@@ -90,6 +91,7 @@ motor_result_t Motor_GetCommand(const MOTOR_PARAM_S *motor, motor_command_t *cmd
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {const motor_command_t *} cmd 完整命令，不可为空
  * @return {motor_result_t} MOTOR_OK / MOTOR_ERR_NULL / MOTOR_ERR_INVALID
+ * @author: lkc
  */
 motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd);
 
@@ -100,6 +102,7 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
  * @param {const MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {motor_status_t *} status 输出快照，不可为空
  * @return {motor_result_t} MOTOR_OK 或 MOTOR_ERR_NULL
+ * @author: lkc
  */
 motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *status);
 
@@ -109,6 +112,7 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
  *          不调用 HAL；调用方按需关断 PWM。可在任务上下文调用。
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @return {motor_result_t} MOTOR_OK 或错误码
+ * @author: lkc
  */
 motor_result_t Motor_RequestStop(MOTOR_PARAM_S *motor);
 
@@ -118,6 +122,7 @@ motor_result_t Motor_RequestStop(MOTOR_PARAM_S *motor);
  * @param {const MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {motor_runtime_t *} runtime 输出快照，不可为空
  * @return {motor_result_t} MOTOR_OK 或 MOTOR_ERR_NULL
+ * @author: lkc
  */
 motor_result_t Motor_GetRuntime(const MOTOR_PARAM_S *motor, motor_runtime_t *runtime);
 
@@ -126,6 +131,7 @@ motor_result_t Motor_GetRuntime(const MOTOR_PARAM_S *motor, motor_runtime_t *run
  * @detail: 短临界区；不清除采样值与校准。可在任务或 ISR 调用。
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @return {motor_result_t} MOTOR_OK 或 MOTOR_ERR_NULL
+ * @author: lkc
  */
 motor_result_t Motor_ClearRuntimeControl(MOTOR_PARAM_S *motor);
 
@@ -136,6 +142,7 @@ motor_result_t Motor_ClearRuntimeControl(MOTOR_PARAM_S *motor);
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {const motor_config_t *} config 完整配置快照，不可为空
  * @return {motor_result_t} MOTOR_OK / NULL / INVALID / BUSY
+ * @author: lkc
  */
 motor_result_t Motor_SetConfig(MOTOR_PARAM_S *motor, const motor_config_t *config);
 
@@ -145,12 +152,14 @@ motor_result_t Motor_SetConfig(MOTOR_PARAM_S *motor, const motor_config_t *confi
  *          不写 Flash。可在任务上下文调用。
  * @param {motor_feedback_source_t} source 反馈源
  * @return {motor_result_t} MOTOR_OK；非法枚举返回 MOTOR_ERR_INVALID
+ * @author: lkc
  */
 motor_result_t Motor_SetFeedbackSource(motor_feedback_source_t source);
 
 /**
  * @description: 读取当前请求的反馈来源。
  * @return {motor_feedback_source_t} 当前源
+ * @author: lkc
  */
 motor_feedback_source_t Motor_GetFeedbackSource(void);
 

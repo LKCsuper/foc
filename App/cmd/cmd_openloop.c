@@ -20,8 +20,7 @@ extern "C" {
 #include "includes.h"
 #include <stdarg.h>
 /* Private typedef -----------------------------------------------------------*/
-typedef enum
-{
+typedef enum {
     OPEN_LOOP_NONE,
     OPEN_LOOP_CREATE,
     OPEN_LOOP_DESTORY,
@@ -29,9 +28,9 @@ typedef enum
     OPEN_LOOP_START,
     OPEN_LOOP_STOP,
     OPEN_LOOP_NUM,
-}OPEN_LOOP_TYPE;
+} OPEN_LOOP_TYPE;
 /* Private macro -------------------------------------------------------------*/
-#define OL_STATUS_BUFFER_SIZE             (2048U)
+#define OL_STATUS_BUFFER_SIZE (2048U)
 /* Private variables ---------------------------------------------------------*/
 STATIC TaskHandle_t taskPlotHandle;
 /* olstatus 先在 RAM 中完成格式化，再一次性交给 UART DMA，避免逐行 printf。 */
@@ -39,8 +38,7 @@ STATIC char sgcOlStatusBuffer[OL_STATUS_BUFFER_SIZE];
 /* 防止用户开启后台 openloop 状态任务后，与手动 olstatus 同时改写静态缓冲区。 */
 STATIC volatile bool sgbOlStatusBusy = false;
 
-STATIC const osThreadAttr_t taskDutyAttr =
-{
+STATIC const osThreadAttr_t taskDutyAttr = {
     .name = "Open Loop",
     .priority = PRI_INIT,
 };
@@ -53,6 +51,7 @@ static void ol_print_config_result(motor_result_t result);
 
 /**
  * @description: 捕获当前配置快照供 Shell 修改。
+ * @author: lkc
  */
 static bool ol_capture_config(motor_config_t *cfg)
 {
@@ -67,6 +66,7 @@ static bool ol_capture_config(motor_config_t *cfg)
 
 /**
  * @description: 打印配置提交失败原因。
+ * @author: lkc
  */
 static void ol_print_config_result(motor_result_t result)
 {
@@ -177,10 +177,8 @@ static const char *ol_sensorless_state_name(motor_sensorless_state_t state)
  */
 static void ol_print_high_speed_guard_notice(float target_rpm)
 {
-    bool high_speed_request =
-        motor.ol_mode == MOTOR_OL_MODE_IF &&
-        motor.sensorless_openloop_max_rpm > 0.0f &&
-        fabsf(target_rpm) > motor.sensorless_openloop_max_rpm;
+    bool high_speed_request = motor.ol_mode == MOTOR_OL_MODE_IF && motor.sensorless_openloop_max_rpm > 0.0f &&
+                              fabsf(target_rpm) > motor.sensorless_openloop_max_rpm;
 
     if (!high_speed_request) {
         return;
@@ -189,9 +187,7 @@ static void ol_print_high_speed_guard_notice(float target_rpm)
     PRINTF("I/F safety hold: %.0f RPM until sensorless takeover is 100%% complete\n",
            motor.sensorless_openloop_max_rpm);
 
-    if (!motor.sensorless_enable ||
-        !motor.sensorless_takeover ||
-        !motor.speed_enable) {
+    if (!motor.sensorless_enable || !motor.sensorless_takeover || !motor.speed_enable) {
         PRINTF("High-speed closed loop is not fully armed; run olstop first, then:\n");
         if (!motor.sensorless_enable) {
             PRINTF("  slenable 1\n");
@@ -251,8 +247,7 @@ static void ol_print_status(void)
     ol_status_append(&used, "\n===== Open-Loop Status =====\n");
     ol_status_append(&used, "  Enable     : %s\n", status.enable ? "ON" : "OFF");
     ol_status_append(&used, "  Mode       : %d (%s)\n", status.mode,
-                     status.mode == MOTOR_OL_MODE_IF ?
-                     "I/F current-loop" : "V/F voltage");
+                     status.mode == MOTOR_OL_MODE_IF ? "I/F current-loop" : "V/F voltage");
     ol_status_append(&used, "  Target RPM : %.0f\n", status.target_rpm);
     ol_status_append(&used, "  Max RPM    : %.0f\n", motor.ol_max_rpm);
     ol_status_append(&used, "  Current RPM: %.0f\n", status.current_rpm);
@@ -260,20 +255,15 @@ static void ol_print_status(void)
     ol_status_append(&used, "  Ramp       : %.0f RPM/s\n", motor.ol_ramp_rpm_s);
     ol_status_append(&used, "  Pole pairs : %.0f\n", motor.ol_pole_pairs);
     ol_status_append(&used, "  V_bus      : %.1f V\n", status.v_bus);
-    ol_status_append(&used, "  Fault      : %d %s (%s)\n", fault,
-                     Motor_Protect_GetFaultName(fault),
+    ol_status_append(&used, "  Fault      : %d %s (%s)\n", fault, Motor_Protect_GetFaultName(fault),
                      status.fault_latched ? "LATCHED" : "CLEAR");
-    ol_status_append(&used,
-                     "  FOC loop   : %.0f Hz adc=%.0f div=%d avg=%.1fus max=%.1fus load=%.0f%%\n",
-                     foc_frequency_hz, adc_frequency_hz,
-                     FOC_CONTROL_LOOP_FREQ_DIVIDER,
-                     foc_average_us, foc_maximum_us, foc_load_percent);
-    ol_status_append(&used, "  UART TX    : %s @ %lu baud\n",
-                     Bsp_Usart_TxDmaIsReady() ? "DMA" : "POLLING",
+    ol_status_append(&used, "  FOC loop   : %.0f Hz adc=%.0f div=%d avg=%.1fus max=%.1fus load=%.0f%%\n",
+                     foc_frequency_hz, adc_frequency_hz, FOC_CONTROL_LOOP_FREQ_DIVIDER, foc_average_us, foc_maximum_us,
+                     foc_load_percent);
+    ol_status_append(&used, "  UART TX    : %s @ %lu baud\n", Bsp_Usart_TxDmaIsReady() ? "DMA" : "POLLING",
                      (unsigned long)DEBUG_USART_BAUD);
 
-    if (status.mode == MOTOR_OL_MODE_IF)
-    {
+    if (status.mode == MOTOR_OL_MODE_IF) {
         /* 电流模式 */
         ol_status_append(&used, "  Iq set     : %.2f A\n", motor.ol_iq_set);
         ol_status_append(&used, "  Id set     : %.2f A\n", motor.ol_id_set);
@@ -281,64 +271,39 @@ static void ol_print_status(void)
         ol_status_append(&used, "  Current Ki : %.2f\n", motor.ol_current_ki);
         ol_status_append(&used, "  Vq limit   : %.1f V\n", motor.ol_vq_limit);
         ol_status_append(&used, "  Start Phs  : %.2f rad\n", motor.ol_start_phase_boost);
-        ol_status_append(&used,
-                         "  Align cfg  : %s Id=%.2fA time=%.2fs angle=%.2frad\n",
-                         motor.ol_align_enable ? "ON" : "OFF",
-                         motor.ol_align_current, motor.ol_align_time,
+        ol_status_append(&used, "  Align cfg  : %s Id=%.2fA time=%.2fs angle=%.2frad\n",
+                         motor.ol_align_enable ? "ON" : "OFF", motor.ol_align_current, motor.ol_align_time,
                          motor.ol_align_angle);
-        ol_status_append(&used, "  Align run  : %s elapsed=%.3fs\n",
-                         status.aligning ? "ALIGNING" : "RAMP/IDLE",
+        ol_status_append(&used, "  Align run  : %s elapsed=%.3fs\n", status.aligning ? "ALIGNING" : "RAMP/IDLE",
                          status.align_elapsed_s);
-        ol_status_append(&used,
-                         "  HFI start   : %s V=%.2f cycles=%u min=%.2f run=%d ok=%d angle=%.3f conf=%.3f\n",
-                         motor.hfi_start_enable ? "ON" : "OFF",
-                         motor.hfi_start_voltage, motor.hfi_start_cycles,
-                         motor.hfi_start_min_confidence,
-                         Motor_HfiStart_IsRunning(), Motor_HfiStart_Succeeded(),
+        ol_status_append(&used, "  HFI start   : %s V=%.2f cycles=%u min=%.2f run=%d ok=%d angle=%.3f conf=%.3f\n",
+                         motor.hfi_start_enable ? "ON" : "OFF", motor.hfi_start_voltage, motor.hfi_start_cycles,
+                         motor.hfi_start_min_confidence, Motor_HfiStart_IsRunning(), Motor_HfiStart_Succeeded(),
                          Motor_HfiStart_GetAngle(), Motor_HfiStart_GetConfidence());
-        ol_status_append(&used, "  Ia,Ib,Ic   : %.3f %.3f %.3f A\n",
-                         status.ia, status.ib, status.ic);
+        ol_status_append(&used, "  Ia,Ib,Ic   : %.3f %.3f %.3f A\n", status.ia, status.ib, status.ic);
         ol_status_append(&used, "  Id, Iq     : %.3f %.3f A\n", status.id, status.iq);
-        ol_status_append(&used, "  Vd, Vq int : %.3f %.3f\n",
-                         status.vd_int, status.vq_int);
+        ol_status_append(&used, "  Vd, Vq int : %.3f %.3f\n", status.vd_int, status.vq_int);
         ol_status_append(&used, "  Speed loop : %s\n", status.speed_enable ? "ON" : "OFF");
         ol_status_append(&used, "  Sensorless : %s (%s)\n", sensorless_state,
                          motor.sensorless_enable ? "ENABLED" : "DISABLED");
-        ol_status_append(&used, "  SL takeover: %s\n",
-                         motor.sensorless_takeover ? "ARMED" : "BLOCKED");
-        ol_status_append(&used,
-                         "  SL checks  : F=%d S=%d D=%d P=%d lock=%.3fs blend=%.2f V=%.2fV\n",
-                         sensorless_diagnostics.flux_ok,
-                         sensorless_diagnostics.speed_ok,
-                         sensorless_diagnostics.direction_ok,
-                         sensorless_diagnostics.phase_ok,
-                         sensorless_diagnostics.lock_timer,
-                         sensorless_diagnostics.blend,
-                         sensorless_diagnostics.applied_voltage);
-        ol_status_append(&used,
-                         "  SL limits  : trans=%.0f fallback=%.0f OLmax=%.0f phase=%.2frad blend=%.2fs\n",
-                         motor.sensorless_transition_rpm,
-                         motor.sensorless_fallback_rpm,
-                         motor.sensorless_openloop_max_rpm,
-                         motor.sensorless_phase_tolerance,
+        ol_status_append(&used, "  SL takeover: %s\n", motor.sensorless_takeover ? "ARMED" : "BLOCKED");
+        ol_status_append(
+            &used, "  SL checks  : F=%d S=%d D=%d P=%d lock=%.3fs blend=%.2f V=%.2fV\n", sensorless_diagnostics.flux_ok,
+            sensorless_diagnostics.speed_ok, sensorless_diagnostics.direction_ok, sensorless_diagnostics.phase_ok,
+            sensorless_diagnostics.lock_timer, sensorless_diagnostics.blend, sensorless_diagnostics.applied_voltage);
+        ol_status_append(&used, "  SL limits  : trans=%.0f fallback=%.0f OLmax=%.0f phase=%.2frad blend=%.2fs\n",
+                         motor.sensorless_transition_rpm, motor.sensorless_fallback_rpm,
+                         motor.sensorless_openloop_max_rpm, motor.sensorless_phase_tolerance,
                          motor.sensorless_blend_time);
-        ol_status_append(&used, "  Observer RPM: %.1f\n",
-                         Motor_Sensorless_GetMechanicalRpm());
-        ol_status_append(&used, "  Flux       : %.6f Wb\n",
-                         Motor_Sensorless_GetFluxMagnitude());
-        ol_status_append(&used, "  Phase err  : %.3f rad\n",
-                         Motor_Sensorless_GetPhaseError());
+        ol_status_append(&used, "  Observer RPM: %.1f\n", Motor_Sensorless_GetMechanicalRpm());
+        ol_status_append(&used, "  Flux       : %.6f Wb\n", Motor_Sensorless_GetFluxMagnitude());
+        ol_status_append(&used, "  Phase err  : %.3f rad\n", Motor_Sensorless_GetPhaseError());
         ol_status_append(&used, "  Meas RPM   : %.1f\n", status.measured_rpm);
-        ol_status_append(&used, "  Speed err  : %.1f RPM\n",
-                         Motor_SpeedLoop_GetError());
+        ol_status_append(&used, "  Speed err  : %.1f RPM\n", Motor_SpeedLoop_GetError());
         ol_status_append(&used, "  Speed Iq   : %.3f A\n", status.speed_iq);
-        ol_status_append(&used,
-                         "  Speed PI   : Kp=%.5f Ki=%.5f Limit=%.2fA @ %.0fHz\n",
-                         motor.speed_kp, motor.speed_ki,
+        ol_status_append(&used, "  Speed PI   : Kp=%.5f Ki=%.5f Limit=%.2fA @ %.0fHz\n", motor.speed_kp, motor.speed_ki,
                          motor.speed_iq_limit, motor.speed_loop_hz);
-    }
-    else
-    {
+    } else {
         /* V/F 模式 */
         ol_status_append(&used, "  V_boost    : %.2f V\n", motor.ol_v_boost);
         ol_status_append(&used, "  Kv_f       : %.4f V/Hz\n", motor.ol_kv_f);
@@ -346,15 +311,16 @@ static void ol_print_status(void)
 
         float f_elec = fabsf(status.current_rpm) / 60.0f * motor.ol_pole_pairs;
         float vq_est = motor.ol_v_boost + motor.ol_kv_f * f_elec;
-        if (vq_est > motor.ol_vq_limit) vq_est = motor.ol_vq_limit;
+        if (vq_est > motor.ol_vq_limit)
+            vq_est = motor.ol_vq_limit;
         float mod = 0.0f;
-        if (status.v_bus > 1.0f) mod = vq_est / status.v_bus * 100.0f;
+        if (status.v_bus > 1.0f)
+            mod = vq_est / status.v_bus * 100.0f;
         ol_status_append(&used, "  Est Vq     : %.2f V (%.0f%% mod)\n", vq_est, mod);
     }
     /* 统计从状态快照到 RAM 格式化完成的墙钟时间，其中也包含 FOC 中断抢占时间。 */
     format_elapsed_us = Hal_Motor_TimeUs() - format_start;
-    ol_status_append(&used, "  Status fmt : %lu us (RAM)\n",
-                     (unsigned long)format_elapsed_us);
+    ol_status_append(&used, "  Status fmt : %lu us (RAM)\n", (unsigned long)format_elapsed_us);
     ol_status_append(&used, "=============================\n\n");
 
     Bsp_Usart_PutBuf((const UCHAR *)sgcOlStatusBuffer, (ULONG)used);
@@ -373,8 +339,7 @@ int Cmd_OlSpeed(int argc, char *argv[])
     motor_command_t cmd;
     float rpm;
 
-    if (argc < 2)
-    {
+    if (argc < 2) {
         ol_print_status();
         PRINTF("Usage: olspeed <rpm>  — set target speed, negative for reverse\n");
         return 0;
@@ -407,8 +372,7 @@ int Cmd_OlBoost(int argc, char *argv[])
     motor_config_t cfg;
     motor_result_t result;
 
-    if (argc < 2)
-    {
+    if (argc < 2) {
         PRINTF("V_boost = %.2f V  (usage: olboost <volts>)\n", motor.ol_v_boost);
         return 0;
     }
@@ -441,8 +405,7 @@ int Cmd_OlKvf(int argc, char *argv[])
     motor_config_t cfg;
     motor_result_t result;
 
-    if (argc < 2)
-    {
+    if (argc < 2) {
         PRINTF("Kv_f = %.4f V/Hz  (usage: olkvf <V/Hz>)\n", motor.ol_kv_f);
         return 0;
     }
@@ -475,8 +438,7 @@ int Cmd_OlRamp(int argc, char *argv[])
     motor_config_t cfg;
     motor_result_t result;
 
-    if (argc < 2)
-    {
+    if (argc < 2) {
         PRINTF("Ramp = %.0f RPM/s  (usage: olramp <rpm/s>)\n", motor.ol_ramp_rpm_s);
         return 0;
     }
@@ -509,8 +471,7 @@ int Cmd_OlVlimit(int argc, char *argv[])
     motor_config_t cfg;
     motor_result_t result;
 
-    if (argc < 2)
-    {
+    if (argc < 2) {
         PRINTF("Vq_limit = %.1f V  (usage: olvlimit <volts>)\n", motor.ol_vq_limit);
         return 0;
     }
@@ -543,8 +504,7 @@ int Cmd_OlMaxSpeed(int argc, char *argv[])
     motor_config_t cfg;
     motor_result_t result;
 
-    if (argc < 2)
-    {
+    if (argc < 2) {
         PRINTF("Max RPM = %.0f  (usage: olmax <rpm>)\n", motor.ol_max_rpm);
         return 0;
     }
@@ -584,8 +544,7 @@ int Cmd_OlMinSpeed(int argc, char *argv[])
     motor_config_t cfg;
     motor_result_t result;
 
-    if (argc < 2)
-    {
+    if (argc < 2) {
         PRINTF("Min RPM = %.0f  (usage: olmin <rpm>)\n", motor.ol_min_rpm);
         return 0;
     }
@@ -716,8 +675,7 @@ int Cmd_SensorlessTakeover(int argc, char *argv[])
     }
     Motor_Sensorless_Reset();
     Motor_SpeedLoop_Reset();
-    PRINTF("Sensorless takeover %s\n",
-           motor.sensorless_takeover ? "armed" : "blocked");
+    PRINTF("Sensorless takeover %s\n", motor.sensorless_takeover ? "armed" : "blocked");
     return 0;
 }
 
@@ -733,34 +691,27 @@ int Cmd_OlFault(int argc, char *argv[])
     motor_protect_snapshot_t snapshot;
 
     /* 不带 clear 参数时只查询，避免误操作解除保护。 */
-    if (argc < 2 || strcmp(argv[1], "clear") != 0)
-    {
-        PRINTF("Fault = %d %s (%s)\n", Motor_Protect_GetFault(),
-               Motor_Protect_GetFaultName(Motor_Protect_GetFault()),
+    if (argc < 2 || strcmp(argv[1], "clear") != 0) {
+        PRINTF("Fault = %d %s (%s)\n", Motor_Protect_GetFault(), Motor_Protect_GetFaultName(Motor_Protect_GetFault()),
                Motor_Protect_IsFaultLatched() ? "LATCHED" : "CLEAR");
         if (Motor_Protect_IsFaultLatched()) {
             Motor_Protect_GetSnapshot(&snapshot);
-            PRINTF("At fault: Ipeak=%.3fA Vbus=%.2fV target=%.0fRPM ramp=%.0fRPM\n",
-                   snapshot.current_peak, snapshot.bus_voltage,
-                   snapshot.target_rpm, snapshot.ramp_rpm);
+            PRINTF("At fault: Ipeak=%.3fA Vbus=%.2fV target=%.0fRPM ramp=%.0fRPM\n", snapshot.current_peak,
+                   snapshot.bus_voltage, snapshot.target_rpm, snapshot.ramp_rpm);
             if (snapshot.speed_valid) {
                 PRINTF("At fault: measured=%.1fRPM (valid)\n", snapshot.measured_rpm);
             } else {
                 PRINTF("At fault: measured speed unavailable (I/F open-loop)\n");
             }
-            PRINTF("At fault: Id=%.3fA Iq=%.3fA IqCmd=%.3fA VdInt=%.2fV VqInt=%.2fV Vout=%.2fV\n",
-                   snapshot.id, snapshot.iq, snapshot.iq_command,
-                   snapshot.vd_integrator, snapshot.vq_integrator,
+            PRINTF("At fault: Id=%.3fA Iq=%.3fA IqCmd=%.3fA VdInt=%.2fV VqInt=%.2fV Vout=%.2fV\n", snapshot.id,
+                   snapshot.iq, snapshot.iq_command, snapshot.vd_integrator, snapshot.vq_integrator,
                    snapshot.applied_voltage);
             PRINTF("At fault: SL=%s obs=%.1fRPM flux=%.6fWb phase=%.3frad lock=%.3fs blend=%.2f\n",
-                   ol_sensorless_state_name(
-                       (motor_sensorless_state_t)snapshot.sensorless_state),
-                   snapshot.observer_rpm, snapshot.flux,
-                   snapshot.phase_error, snapshot.lock_timer, snapshot.blend);
-            PRINTF("At fault: SL checks F=%d S=%d D=%d P=%d takeover=%d speedPI=%d\n",
-                   snapshot.flux_ok, snapshot.observer_speed_ok,
-                   snapshot.direction_ok, snapshot.phase_ok,
-                   snapshot.sensorless_takeover, snapshot.speed_loop_enabled);
+                   ol_sensorless_state_name((motor_sensorless_state_t)snapshot.sensorless_state), snapshot.observer_rpm,
+                   snapshot.flux, snapshot.phase_error, snapshot.lock_timer, snapshot.blend);
+            PRINTF("At fault: SL checks F=%d S=%d D=%d P=%d takeover=%d speedPI=%d\n", snapshot.flux_ok,
+                   snapshot.observer_speed_ok, snapshot.direction_ok, snapshot.phase_ok, snapshot.sensorless_takeover,
+                   snapshot.speed_loop_enabled);
         }
         PRINTF("Usage: olfault clear\n");
         return 0;
@@ -788,8 +739,7 @@ int Cmd_OlMode(int argc, char *argv[])
     motor_command_t cmd;
     int mode;
 
-    if (argc < 2)
-    {
+    if (argc < 2) {
         PRINTF("Open-loop mode = %d (%s)\n", motor.ol_mode,
                motor.ol_mode == MOTOR_OL_MODE_IF ? "I/F current-loop" : "V/F voltage");
         PRINTF("Usage: olmode <0|1>\n");
@@ -799,8 +749,7 @@ int Cmd_OlMode(int argc, char *argv[])
     }
 
     mode = atoi(argv[1]);
-    if (mode != MOTOR_OL_MODE_VF && mode != MOTOR_OL_MODE_IF)
-    {
+    if (mode != MOTOR_OL_MODE_VF && mode != MOTOR_OL_MODE_IF) {
         PRINTF("Invalid mode, use 0 or 1\n");
         return -1;
     }
@@ -813,8 +762,7 @@ int Cmd_OlMode(int argc, char *argv[])
         PRINTF("Invalid mode command\n");
         return -1;
     }
-    PRINTF("Open-loop mode set to %d (%s)\n", mode,
-           mode == 1 ? "Current-loop" : "V/F voltage");
+    PRINTF("Open-loop mode set to %d (%s)\n", mode, mode == 1 ? "Current-loop" : "V/F voltage");
     return 0;
 }
 
@@ -823,6 +771,7 @@ int Cmd_OlMode(int argc, char *argv[])
  * @param {int} argc
  * @param {char *} argv[] argv[1]= openloop|sensorless|encoder|hall 或 0..3
  * @return {int} 0 成功
+ * @author: lkc
  */
 int Cmd_OlFeedback(int argc, char *argv[])
 {
@@ -832,21 +781,21 @@ int Cmd_OlFeedback(int argc, char *argv[])
     if (argc < 2) {
         src = Motor_GetFeedbackSource();
         switch (src) {
-        case MOTOR_FEEDBACK_SRC_OPENLOOP:
-            name = "openloop";
-            break;
-        case MOTOR_FEEDBACK_SRC_SENSORLESS:
-            name = "sensorless";
-            break;
-        case MOTOR_FEEDBACK_SRC_ENCODER:
-            name = "encoder";
-            break;
-        case MOTOR_FEEDBACK_SRC_HALL:
-            name = "hall";
-            break;
-        default:
-            name = "?";
-            break;
+            case MOTOR_FEEDBACK_SRC_OPENLOOP:
+                name = "openloop";
+                break;
+            case MOTOR_FEEDBACK_SRC_SENSORLESS:
+                name = "sensorless";
+                break;
+            case MOTOR_FEEDBACK_SRC_ENCODER:
+                name = "encoder";
+                break;
+            case MOTOR_FEEDBACK_SRC_HALL:
+                name = "hall";
+                break;
+            default:
+                name = "?";
+                break;
         }
         PRINTF("feedback = %d (%s)\n", (int)src, name);
         PRINTF("Usage: olfb <openloop|sensorless|encoder|hall>\n");
@@ -888,8 +837,7 @@ int Cmd_OlIq(int argc, char *argv[])
     motor_command_t cmd;
     float iq;
 
-    if (argc < 2)
-    {
+    if (argc < 2) {
         PRINTF("Iq set = %.2f A  (usage: oliq <amps>)\n", motor.ol_iq_set);
         return 0;
     }
@@ -917,8 +865,7 @@ int Cmd_OlId(int argc, char *argv[])
 {
     motor_command_t cmd;
 
-    if (argc < 2)
-    {
+    if (argc < 2) {
         PRINTF("Id set = %.2f A  (usage: olid <amps>)\n", motor.ol_id_set);
         return 0;
     }
@@ -946,8 +893,7 @@ int Cmd_OlKp(int argc, char *argv[])
     motor_config_t cfg;
     motor_result_t result;
 
-    if (argc < 2)
-    {
+    if (argc < 2) {
         PRINTF("Current Kp = %.4f  (usage: olkp <value>)\n", motor.ol_current_kp);
         return 0;
     }
@@ -980,8 +926,7 @@ int Cmd_OlKi(int argc, char *argv[])
     motor_config_t cfg;
     motor_result_t result;
 
-    if (argc < 2)
-    {
+    if (argc < 2) {
         PRINTF("Current Ki = %.2f  (usage: olki <value>)\n", motor.ol_current_ki);
         return 0;
     }
@@ -1014,10 +959,8 @@ int Cmd_OlPhase(int argc, char *argv[])
     motor_config_t cfg;
     motor_result_t result;
 
-    if (argc < 2)
-    {
-        PRINTF("Start phase boost = %.2f rad  (usage: olphase <radians>)\n",
-               motor.ol_start_phase_boost);
+    if (argc < 2) {
+        PRINTF("Start phase boost = %.2f rad  (usage: olphase <radians>)\n", motor.ol_start_phase_boost);
         return 0;
     }
     if (!ol_capture_config(&cfg)) {
@@ -1048,8 +991,7 @@ int Cmd_OlAlign(int argc, char *argv[])
     int enable;
 
     if (argc < 4) {
-        PRINTF("Align: %s Id=%.2fA time=%.3fs angle=%.3frad\n",
-               motor.ol_align_enable ? "ON" : "OFF",
+        PRINTF("Align: %s Id=%.2fA time=%.3fs angle=%.3frad\n", motor.ol_align_enable ? "ON" : "OFF",
                motor.ol_align_current, motor.ol_align_time, motor.ol_align_angle);
         PRINTF("Usage: olalign <0|1> <Id_A> <time_s> [angle_rad]\n");
         return 0;
@@ -1081,8 +1023,7 @@ int Cmd_OlAlign(int argc, char *argv[])
 
     Motor_Sensorless_Reset();
     Motor_SpeedLoop_Reset();
-    PRINTF("Align set: %s Id=%.2fA time=%.3fs angle=%.3frad\n",
-           motor.ol_align_enable ? "ON" : "OFF",
+    PRINTF("Align set: %s Id=%.2fA time=%.3fs angle=%.3frad\n", motor.ol_align_enable ? "ON" : "OFF",
            motor.ol_align_current, motor.ol_align_time, motor.ol_align_angle);
     return 0;
 }
@@ -1102,10 +1043,8 @@ int Cmd_HfiStart(int argc, char *argv[])
     int cycles;
 
     if (argc < 4) {
-        PRINTF("HFI start: %s V=%.2f cycles=%u min_conf=%.3f\n",
-               motor.hfi_start_enable ? "ON" : "OFF",
-               motor.hfi_start_voltage, motor.hfi_start_cycles,
-               motor.hfi_start_min_confidence);
+        PRINTF("HFI start: %s V=%.2f cycles=%u min_conf=%.3f\n", motor.hfi_start_enable ? "ON" : "OFF",
+               motor.hfi_start_voltage, motor.hfi_start_cycles, motor.hfi_start_min_confidence);
         PRINTF("Usage: hfistart <0|1> <voltage_V> <cycles_per_axis> [min_confidence]\n");
         return 0;
     }
@@ -1138,10 +1077,8 @@ int Cmd_HfiStart(int argc, char *argv[])
         ol_print_config_result(result);
         return -1;
     }
-    PRINTF("HFI start set: %s V=%.2f cycles=%u min_conf=%.3f\n",
-           motor.hfi_start_enable ? "ON" : "OFF",
-           motor.hfi_start_voltage, motor.hfi_start_cycles,
-           motor.hfi_start_min_confidence);
+    PRINTF("HFI start set: %s V=%.2f cycles=%u min_conf=%.3f\n", motor.hfi_start_enable ? "ON" : "OFF",
+           motor.hfi_start_voltage, motor.hfi_start_cycles, motor.hfi_start_min_confidence);
     return 0;
 }
 
@@ -1173,8 +1110,7 @@ int Cmd_SpeedEnable(int argc, char *argv[])
     int enable;
 
     if (argc < 2) {
-        PRINTF("Speed loop = %s  (usage: spenable <0|1>)\n",
-               motor.speed_enable ? "ON" : "OFF");
+        PRINTF("Speed loop = %s  (usage: spenable <0|1>)\n", motor.speed_enable ? "ON" : "OFF");
         return 0;
     }
 
@@ -1191,8 +1127,7 @@ int Cmd_SpeedEnable(int argc, char *argv[])
         PRINTF("Clear motor fault before enabling speed loop\n");
         return -1;
     }
-    if (enable && !motor.sensorless_enable &&
-        !Motor_Feedback_IsSensoredSource(Motor_GetFeedbackSource())) {
+    if (enable && !motor.sensorless_enable && !Motor_Feedback_IsSensoredSource(Motor_GetFeedbackSource())) {
         PRINTF("Need speed feedback: slenable 1, or olfb encoder|hall\n");
         return -1;
     }
@@ -1230,8 +1165,7 @@ int Cmd_SensorlessEnable(int argc, char *argv[])
     int enable;
 
     if (argc < 2) {
-        PRINTF("Sensorless observer = %s  (usage: slenable <0|1>)\n",
-               motor.sensorless_enable ? "ON" : "OFF");
+        PRINTF("Sensorless observer = %s  (usage: slenable <0|1>)\n", motor.sensorless_enable ? "ON" : "OFF");
         return 0;
     }
     enable = atoi(argv[1]);
@@ -1257,8 +1191,7 @@ int Cmd_SensorlessEnable(int argc, char *argv[])
 
     Motor_Sensorless_Reset();
     Motor_SpeedLoop_Reset();
-    PRINTF("Sensorless observer %s\n",
-           motor.sensorless_enable ? "enabled" : "disabled");
+    PRINTF("Sensorless observer %s\n", motor.sensorless_enable ? "enabled" : "disabled");
     return 0;
 }
 
@@ -1275,8 +1208,8 @@ int Cmd_SensorlessRpm(int argc, char *argv[])
     motor_result_t result;
 
     if (argc < 3) {
-        PRINTF("Sensorless transition/fallback = %.0f/%.0f RPM\n",
-               motor.sensorless_transition_rpm, motor.sensorless_fallback_rpm);
+        PRINTF("Sensorless transition/fallback = %.0f/%.0f RPM\n", motor.sensorless_transition_rpm,
+               motor.sensorless_fallback_rpm);
         PRINTF("Usage: slrpm <transition_rpm> <fallback_rpm>\n");
         return 0;
     }
@@ -1296,8 +1229,8 @@ int Cmd_SensorlessRpm(int argc, char *argv[])
         return -1;
     }
     Motor_Sensorless_Reset();
-    PRINTF("Sensorless transition/fallback set to %.0f/%.0f RPM\n",
-           motor.sensorless_transition_rpm, motor.sensorless_fallback_rpm);
+    PRINTF("Sensorless transition/fallback set to %.0f/%.0f RPM\n", motor.sensorless_transition_rpm,
+           motor.sensorless_fallback_rpm);
     return 0;
 }
 
@@ -1317,10 +1250,8 @@ int Cmd_SensorlessGuard(int argc, char *argv[])
     float blend_time;
 
     if (argc < 4) {
-        PRINTF("Sensorless guard: OLmax=%.0fRPM phase=%.2frad blend=%.2fs\n",
-               motor.sensorless_openloop_max_rpm,
-               motor.sensorless_phase_tolerance,
-               motor.sensorless_blend_time);
+        PRINTF("Sensorless guard: OLmax=%.0fRPM phase=%.2frad blend=%.2fs\n", motor.sensorless_openloop_max_rpm,
+               motor.sensorless_phase_tolerance, motor.sensorless_blend_time);
         PRINTF("Usage: slguard <openloop_max_rpm> <phase_tolerance_rad> <blend_s>\n");
         return 0;
     }
@@ -1335,8 +1266,7 @@ int Cmd_SensorlessGuard(int argc, char *argv[])
     blend_time = fabsf((float)atof(argv[3]));
 
     /* 非零 I/F 上限必须覆盖接管门槛，否则永远到不了允许接管的转速。 */
-    if (open_loop_max_rpm > 0.0f &&
-        open_loop_max_rpm < cfg.sensorless_transition_rpm) {
+    if (open_loop_max_rpm > 0.0f && open_loop_max_rpm < cfg.sensorless_transition_rpm) {
         open_loop_max_rpm = cfg.sensorless_transition_rpm;
     }
     if (cfg.ol_max_rpm > 0.0f && open_loop_max_rpm > cfg.ol_max_rpm) {
@@ -1370,10 +1300,8 @@ int Cmd_SensorlessGuard(int argc, char *argv[])
     Motor_Sensorless_Reset();
     Motor_SpeedLoop_Reset();
 
-    PRINTF("Sensorless guard set: OLmax=%.0fRPM phase=%.2frad blend=%.2fs\n",
-           motor.sensorless_openloop_max_rpm,
-           motor.sensorless_phase_tolerance,
-           motor.sensorless_blend_time);
+    PRINTF("Sensorless guard set: OLmax=%.0fRPM phase=%.2frad blend=%.2fs\n", motor.sensorless_openloop_max_rpm,
+           motor.sensorless_phase_tolerance, motor.sensorless_blend_time);
     if (motor.sensorless_openloop_max_rpm == 0.0f) {
         PRINTF("WARNING: I/F high-speed guard is disabled\n");
     }
@@ -1393,10 +1321,8 @@ int Cmd_SensorlessMotor(int argc, char *argv[])
     motor_result_t result;
 
     if (argc < 4) {
-        PRINTF("Sensorless motor: R=%.4f ohm L=%.4f mH Flux=%.4f mWb\n",
-               motor.sensorless_motor_r,
-               motor.sensorless_motor_l * 1000.0f,
-               motor.sensorless_flux_linkage * 1000.0f);
+        PRINTF("Sensorless motor: R=%.4f ohm L=%.4f mH Flux=%.4f mWb\n", motor.sensorless_motor_r,
+               motor.sensorless_motor_l * 1000.0f, motor.sensorless_flux_linkage * 1000.0f);
         PRINTF("Usage: slmotor <R_ohm> <L_mH> <flux_mWb>\n");
         return 0;
     }
@@ -1414,10 +1340,8 @@ int Cmd_SensorlessMotor(int argc, char *argv[])
         return -1;
     }
     Motor_Sensorless_Reset();
-    PRINTF("Sensorless motor set: R=%.4f ohm L=%.4f mH Flux=%.4f mWb\n",
-           motor.sensorless_motor_r,
-           motor.sensorless_motor_l * 1000.0f,
-           motor.sensorless_flux_linkage * 1000.0f);
+    PRINTF("Sensorless motor set: R=%.4f ohm L=%.4f mH Flux=%.4f mWb\n", motor.sensorless_motor_r,
+           motor.sensorless_motor_l * 1000.0f, motor.sensorless_flux_linkage * 1000.0f);
     return 0;
 }
 
@@ -1434,9 +1358,7 @@ int Cmd_SensorlessObserver(int argc, char *argv[])
     motor_result_t result;
 
     if (argc < 4) {
-        PRINTF("Observer gain=%.1f PLL Kp=%.1f Ki=%.1f\n",
-               motor.sensorless_observer_gain,
-               motor.sensorless_pll_kp,
+        PRINTF("Observer gain=%.1f PLL Kp=%.1f Ki=%.1f\n", motor.sensorless_observer_gain, motor.sensorless_pll_kp,
                motor.sensorless_pll_ki);
         PRINTF("Usage: slobs <observer_gain> <pll_kp> <pll_ki>\n");
         return 0;
@@ -1455,9 +1377,7 @@ int Cmd_SensorlessObserver(int argc, char *argv[])
         return -1;
     }
     Motor_Sensorless_Reset();
-    PRINTF("Observer gain=%.1f PLL Kp=%.1f Ki=%.1f\n",
-           motor.sensorless_observer_gain,
-           motor.sensorless_pll_kp,
+    PRINTF("Observer gain=%.1f PLL Kp=%.1f Ki=%.1f\n", motor.sensorless_observer_gain, motor.sensorless_pll_kp,
            motor.sensorless_pll_ki);
     return 0;
 }
@@ -1475,8 +1395,7 @@ int Cmd_SensorlessPhase(int argc, char *argv[])
     motor_result_t result;
 
     if (argc < 2) {
-        PRINTF("Sensorless phase offset = %.4f rad  (usage: slphase <rad>)\n",
-               motor.sensorless_phase_offset);
+        PRINTF("Sensorless phase offset = %.4f rad  (usage: slphase <rad>)\n", motor.sensorless_phase_offset);
         return 0;
     }
     if (!ol_capture_config(&cfg)) {
@@ -1490,8 +1409,7 @@ int Cmd_SensorlessPhase(int argc, char *argv[])
         return -1;
     }
     Motor_Sensorless_Reset();
-    PRINTF("Sensorless phase offset set to %.4f rad\n",
-           motor.sensorless_phase_offset);
+    PRINTF("Sensorless phase offset set to %.4f rad\n", motor.sensorless_phase_offset);
     return 0;
 }
 
@@ -1576,8 +1494,7 @@ int Cmd_SpeedIqLimit(int argc, char *argv[])
     motor_result_t result;
 
     if (argc < 2) {
-        PRINTF("Speed Iq limit = %.3f A  (usage: spiq <amps>)\n",
-               motor.speed_iq_limit);
+        PRINTF("Speed Iq limit = %.3f A  (usage: spiq <amps>)\n", motor.speed_iq_limit);
         return 0;
     }
     if (!ol_capture_config(&cfg)) {
@@ -1609,8 +1526,7 @@ int Cmd_SpeedBrake(int argc, char *argv[])
     int enable;
 
     if (argc < 2) {
-        PRINTF("Speed braking = %s  (usage: spbrake <0|1>)\n",
-               motor.speed_allow_braking ? "ON" : "OFF");
+        PRINTF("Speed braking = %s  (usage: spbrake <0|1>)\n", motor.speed_allow_braking ? "ON" : "OFF");
         return 0;
     }
     enable = atoi(argv[1]);
@@ -1646,8 +1562,7 @@ VOID Openloop_ControlTask(VOID *argument)
     (void)argument;
 
     PRINTF("\n");
-    while (1)
-    {
+    while (1) {
         ol_print_status();
         osDelay(pdMS_TO_TICKS(1000));
     }

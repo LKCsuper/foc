@@ -1,3 +1,7 @@
+/*
+ * @Description: 通用速度 PI 外环实现（支持状态实例；默认单实例包装保留）
+ * @Author: lkc
+ */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -15,6 +19,11 @@ static motor_speed_state_t s_speed;
 
 /**
  * @description: 将 value 限幅到 [minimum, maximum]。
+ * @param {float} value 待限幅值
+ * @param {float} minimum 下限
+ * @param {float} maximum 上限
+ * @return {float} 限幅结果
+ * @author: lkc
  */
 static float Motor_Speed_Clamp(float value, float minimum, float maximum)
 {
@@ -27,6 +36,12 @@ static float Motor_Speed_Clamp(float value, float minimum, float maximum)
     return value;
 }
 
+/**
+ * @description: 初始化指定速度环状态对象（清零反馈/PI/时间）。
+ * @param {motor_speed_state_t *} state 状态对象，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Speed_InitState(motor_speed_state_t *state)
 {
     if (state == NULL) {
@@ -35,6 +50,15 @@ void Motor_Speed_InitState(motor_speed_state_t *state)
     memset(state, 0, sizeof(*state));
 }
 
+/**
+ * @description: 更新指定状态对象的机械转速反馈。
+ * @detail: 反馈无效时清零转速并复位 PI，避免用不可信值闭环。
+ * @param {motor_speed_state_t *} state 状态对象，不可为空
+ * @param {float} rpm 机械转速 (RPM)
+ * @param {bool} valid true=反馈可信
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool valid)
 {
     if (state == NULL) {
@@ -47,6 +71,12 @@ void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool va
     }
 }
 
+/**
+ * @description: 清除指定状态对象的 PI（保留反馈转速）。
+ * @param {motor_speed_state_t *} state 状态对象，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_SpeedLoop_ResetState(motor_speed_state_t *state)
 {
     if (state == NULL) {
@@ -58,6 +88,13 @@ void Motor_SpeedLoop_ResetState(motor_speed_state_t *state)
     state->iq_target = 0.0f;
 }
 
+/**
+ * @description: 预置指定状态对象的 Iq 积分与输出，清分频时间。
+ * @param {motor_speed_state_t *} state 状态对象，不可为空
+ * @param {float} iq 预置 Iq (A)
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_SpeedLoop_PrimeIqState(motor_speed_state_t *state, float iq)
 {
     if (state == NULL) {
@@ -68,6 +105,16 @@ void Motor_SpeedLoop_PrimeIqState(motor_speed_state_t *state, float iq)
     state->loop_time = 0.0f;
 }
 
+/**
+ * @description: 运行指定状态对象的速度 PI。
+ * @detail: 仅 I/F+使能且反馈有效时分频执行；输出限幅到 speed_iq_limit 并抗积分饱和，
+ *          禁止制动时按转速方向削负输出。
+ * @param {motor_speed_state_t *} state 状态对象，不可为空
+ * @param {MOTOR_PARAM_S *} motor 配置与目标来源，不可为空
+ * @param {float} dt 距上一拍时间 (s)
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, float dt)
 {
     float loop_period;
@@ -82,8 +129,7 @@ void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, 
         return;
     }
 
-    if (!motor->speed_enable || motor->ol_mode != MOTOR_OL_MODE_IF || !motor->ol_enable ||
-        !state->feedback_valid) {
+    if (!motor->speed_enable || motor->ol_mode != MOTOR_OL_MODE_IF || !motor->ol_enable || !state->feedback_valid) {
         Motor_SpeedLoop_ResetState(state);
         return;
     }
@@ -125,68 +171,143 @@ void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, 
     state->iq_target = output;
 }
 
+/**
+ * @description: 读取指定状态当前 Iq 目标。
+ * @param {const motor_speed_state_t *} state 状态对象；NULL 返回 0
+ * @return {float} Iq 目标 (A)
+ * @author: lkc
+ */
 float Motor_SpeedLoop_GetIqTargetState(const motor_speed_state_t *state)
 {
     return state == NULL ? 0.0f : state->iq_target;
 }
 
+/**
+ * @description: 读取指定状态实测机械转速。
+ * @param {const motor_speed_state_t *} state 状态对象；NULL 返回 0
+ * @return {float} 机械转速 (RPM)
+ * @author: lkc
+ */
 float Motor_SpeedLoop_GetMeasuredRpmState(const motor_speed_state_t *state)
 {
     return state == NULL ? 0.0f : state->measured_rpm;
 }
 
+/**
+ * @description: 读取指定状态速度误差（目标−实测）。
+ * @param {const motor_speed_state_t *} state 状态对象；NULL 返回 0
+ * @return {float} 速度误差 (RPM)
+ * @author: lkc
+ */
 float Motor_SpeedLoop_GetErrorState(const motor_speed_state_t *state)
 {
     return state == NULL ? 0.0f : state->error;
 }
 
+/**
+ * @description: 查询指定状态速度反馈是否可信。
+ * @param {const motor_speed_state_t *} state 状态对象；NULL 返回 false
+ * @return {bool} true=反馈可信，可用于闭环
+ * @author: lkc
+ */
 bool Motor_SpeedLoop_IsFeedbackValidState(const motor_speed_state_t *state)
 {
     return state != NULL && state->feedback_valid;
 }
 
+/**
+ * @description: 上电初始化默认单实例速度环，并向保护模块登记无效反馈。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Speed_Init(void)
 {
     Motor_Speed_InitState(&s_speed);
     Motor_Protect_SetSpeedFeedback(0.0f, false);
 }
 
+/**
+ * @description: 更新默认实例的真实机械转速反馈。
+ * @detail: 同时把转速/有效性同步给保护模块用于失速判定。
+ * @param {float} rpm 机械转速 (RPM)，反转为负数
+ * @param {bool} valid true=反馈可信；false=当前不能用于速度闭环
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_SpeedFeedback_Set(float rpm, bool valid)
 {
     Motor_SpeedFeedback_SetState(&s_speed, rpm, valid);
     Motor_Protect_SetSpeedFeedback(s_speed.measured_rpm, valid);
 }
 
+/**
+ * @description: 清除默认实例速度 PI 状态。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_SpeedLoop_Reset(void)
 {
     Motor_SpeedLoop_ResetState(&s_speed);
 }
 
+/**
+ * @description: 用当前等效 Iq 预置默认实例速度 PI。
+ * @param {float} iq 预置 Iq 目标 (A)
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_SpeedLoop_PrimeIq(float iq)
 {
     Motor_SpeedLoop_PrimeIqState(&s_speed, iq);
 }
 
+/**
+ * @description: 运行默认实例速度 PI 外环（委托 State 版本）。
+ * @param {MOTOR_PARAM_S *} motor 电机实时参数
+ * @param {float} dt 控制周期 (s)
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_SpeedLoop_Run(MOTOR_PARAM_S *motor, float dt)
 {
     Motor_SpeedLoop_RunState(&s_speed, motor, dt);
 }
 
+/**
+ * @description: 读取默认实例当前 Iq 目标。
+ * @return {float} Iq 目标 (A)
+ * @author: lkc
+ */
 float Motor_SpeedLoop_GetIqTarget(void)
 {
     return Motor_SpeedLoop_GetIqTargetState(&s_speed);
 }
 
+/**
+ * @description: 读取默认实例实测机械转速。
+ * @return {float} 机械转速 (RPM)
+ * @author: lkc
+ */
 float Motor_SpeedLoop_GetMeasuredRpm(void)
 {
     return Motor_SpeedLoop_GetMeasuredRpmState(&s_speed);
 }
 
+/**
+ * @description: 读取默认实例速度误差。
+ * @return {float} 速度误差 (RPM)
+ * @author: lkc
+ */
 float Motor_SpeedLoop_GetError(void)
 {
     return Motor_SpeedLoop_GetErrorState(&s_speed);
 }
 
+/**
+ * @description: 查询默认实例速度反馈是否可信。
+ * @return {bool} true=反馈可信
+ * @author: lkc
+ */
 bool Motor_SpeedLoop_IsFeedbackValid(void)
 {
     return Motor_SpeedLoop_IsFeedbackValidState(&s_speed);

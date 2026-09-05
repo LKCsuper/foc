@@ -12,6 +12,7 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 显示三路 Hall 传感器电平
+ * @author: lkc
  */
 int Cmd_Show(int argc, char *argv[])
 {

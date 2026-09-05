@@ -37,6 +37,7 @@ static volatile bool s_detect_active = false;
 /**
  * @description: 校准任务侧查询是否因保护锁存应中止。
  * @return {bool} true 应停采并 PwmStop
+ * @author: lkc
  */
 static bool Detect_ShouldAbort(void)
 {
@@ -48,6 +49,7 @@ static bool Detect_ShouldAbort(void)
  * @param {motor_detect_offset_t *} st 偏移状态
  * @param {uint8_t} phase 0=A，1=B，2=C
  * @return {bool} false 表示保护锁存已中止
+ * @author: lkc
  */
 static bool Detect_SamplePhaseBlocking(motor_detect_offset_t *st, uint8_t phase)
 {
@@ -60,18 +62,18 @@ static bool Detect_SamplePhaseBlocking(motor_detect_offset_t *st, uint8_t phase)
             return false;
         }
         switch (phase) {
-        case 0U:
-            i_adc = (float)Hal_Motor_CurrentAdc(0U);
-            v_sense = Hal_Motor_SenseVolts(0U);
-            break;
-        case 1U:
-            i_adc = (float)Hal_Motor_CurrentAdc(1U);
-            v_sense = Hal_Motor_SenseVolts(1U);
-            break;
-        default:
-            i_adc = (float)Hal_Motor_CurrentAdc(2U);
-            v_sense = Hal_Motor_SenseVolts(2U);
-            break;
+            case 0U:
+                i_adc = (float)Hal_Motor_CurrentAdc(0U);
+                v_sense = Hal_Motor_SenseVolts(0U);
+                break;
+            case 1U:
+                i_adc = (float)Hal_Motor_CurrentAdc(1U);
+                v_sense = Hal_Motor_SenseVolts(1U);
+                break;
+            default:
+                i_adc = (float)Hal_Motor_CurrentAdc(2U);
+                v_sense = Hal_Motor_SenseVolts(2U);
+                break;
         }
         (void)Motor_Detect_OffsetFeedDriven(st, i_adc, v_sense);
         osDelay(pdMS_TO_TICKS(1));
@@ -85,6 +87,7 @@ static bool Detect_SamplePhaseBlocking(motor_detect_offset_t *st, uint8_t phase)
  *          累加/结算走 Motor_Detect_Offset*；本函数负责停机、PWM、osDelay 与打印。
  * @param {bool} cal_undriven true 时额外校准未驱动相电压偏移
  * @return {uint32_t} 1 成功
+ * @author: lkc
  */
 uint32_t DETECT_Offset(bool cal_undriven)
 {
@@ -138,8 +141,7 @@ uint32_t DETECT_Offset(bool cal_undriven)
 
     PRINTF("ADC_RAW [%d] [%d] [%d]\r\n", (int)Hal_Motor_CurrentAdc(0U), (int)Hal_Motor_CurrentAdc(1U),
            (int)Hal_Motor_CurrentAdc(2U));
-    PRINTF("Current Offset [%f] [%f] [%f]\r\n", motor.currentOffset[0], motor.currentOffset[1],
-           motor.currentOffset[2]);
+    PRINTF("Current Offset [%f] [%f] [%f]\r\n", motor.currentOffset[0], motor.currentOffset[1], motor.currentOffset[2]);
     PRINTF("Volt Offset [%f] [%f] [%f]\r\n", motor.voltOffset[0], motor.voltOffset[1], motor.voltOffset[2]);
 
     if (st.offset_warn) {
@@ -174,14 +176,14 @@ uint32_t DETECT_Offset(bool cal_undriven)
 abort_detect:
     Hal_Motor_PwmStop();
     s_detect_active = false;
-    PRINTF("Detect offset: aborted (fault latched=%s)\r\n",
-           Motor_Protect_GetFaultName(Motor_Protect_GetFault()));
+    PRINTF("Detect offset: aborted (fault latched=%s)\r\n", Motor_Protect_GetFaultName(Motor_Protect_GetFault()));
     return 0U;
 }
 
 /**
  * @description: 查询偏移校准是否占用功率桥。
  * @return {bool} true 时 ISR 只采样+保护，不跑 FOC
+ * @author: lkc
  */
 bool Motor_Detect_IsActive(void)
 {
@@ -191,6 +193,7 @@ bool Motor_Detect_IsActive(void)
 /**
  * @description: 开环转一圈，标定霍尔状态与电角度对应表。
  * @return {bool} true 表示 6 个有效扇区标定成功
+ * @author: lkc
  */
 bool DETECT_Hall(void)
 {
@@ -220,6 +223,8 @@ bool DETECT_Hall(void)
 /**
  * @description: 上电做一次电流/电压偏移校准。
  * @detail: 校准期间 ISR 仍采样+软件保护，但不跑 FOC；失败时 fault 保持锁存。
+ * @return {void} 无
+ * @author: lkc
  */
 void Detect_Init(void)
 {

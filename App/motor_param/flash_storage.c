@@ -32,6 +32,10 @@ static const flash_storage_t *flash_storage_current(uint8_t *out_index);
 /**
  * @description: 按 32 位序号比较新旧，lhs 比 rhs 新则返回 true。
  * @detail: 采用有符号差值 (int32_t)(lhs-rhs) 判断，可正确处理序号回绕。
+ * @param {uint32_t} lhs 一侧序号
+ * @param {uint32_t} rhs 另一侧序号
+ * @return {bool} true=lhs 更新
+ * @author: lkc
  */
 static bool flash_storage_sequence_newer(uint32_t lhs, uint32_t rhs)
 {
@@ -40,6 +44,10 @@ static bool flash_storage_sequence_newer(uint32_t lhs, uint32_t rhs)
 
 /**
  * @description: 查询 Hal 槽；失败返回 false。
+ * @param {uint8_t} index 槽下标（0 或 1）
+ * @param {hal_flash_slot_t *} slot 输出槽描述，不可为空
+ * @return {bool} 查询成功返回 true
+ * @author: lkc
  */
 static bool flash_storage_get_slot(uint8_t index, hal_flash_slot_t *slot)
 {
@@ -49,6 +57,9 @@ static bool flash_storage_get_slot(uint8_t index, hal_flash_slot_t *slot)
 /**
  * @description: 校验 Flash 槽数据是否有效。
  * @detail: magic/格式版本/长度/提交标记匹配，且固定 payload 的 CRC32 正确。
+ * @param {const flash_storage_t *} storage Flash 槽首地址，不可为空
+ * @return {bool} true=槽内容有效
+ * @author: lkc
  */
 static bool flash_storage_valid(const flash_storage_t *storage)
 {
@@ -67,7 +78,8 @@ static bool flash_storage_valid(const flash_storage_t *storage)
 /**
  * @description: 返回双槽中序号最新且校验有效的一侧。
  * @param {uint8_t *} out_index 可选，输出当前槽下标；两侧无效时不写
- * @return {*} 有效槽指针；两侧都无效时返回 NULL
+ * @return {const flash_storage_t *} 有效槽指针；两侧都无效时返回 NULL
+ * @author: lkc
  */
 static const flash_storage_t *flash_storage_current(uint8_t *out_index)
 {
@@ -117,6 +129,10 @@ static const flash_storage_t *flash_storage_current(uint8_t *out_index)
 /**
  * @description: 从最新有效槽加载配置/校准，清空兼容检测结果。
  * @detail: 无有效槽时返回 false，由调用方回退默认参数。
+ * @param {MOTOR_PARAM_S *} motor 目标电机对象，须停机中，不可为空
+ * @param {motor_detect_result_t *} detect 输出检测结果，成功时清零并写版本，不可为空
+ * @return {bool} 加载并应用成功返回 true
+ * @author: lkc
  */
 bool FlashStorage_Load(MOTOR_PARAM_S *motor, motor_detect_result_t *detect)
 {
@@ -145,6 +161,10 @@ bool FlashStorage_Load(MOTOR_PARAM_S *motor, motor_detect_result_t *detect)
 /**
  * @description: 把配置/校准保存到当前未使用的一侧槽。
  * @detail: 双槽交替写入；先编码再擦除；主体写完后写 committed；写毕回读整体校验。
+ * @param {const MOTOR_PARAM_S *} motor 来源电机对象，须停机中，不可为空
+ * @param {const motor_detect_result_t *} detect 检测结果，仅判空不读取；不可为空
+ * @return {bool} 保存并通过回读校验返回 true
+ * @author: lkc
  */
 bool FlashStorage_Save(const MOTOR_PARAM_S *motor, const motor_detect_result_t *detect)
 {

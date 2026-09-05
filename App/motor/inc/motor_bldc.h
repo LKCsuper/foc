@@ -1,3 +1,7 @@
+/*
+ * @Description: BLDC 六步换相预留空壳（历史保留，无接口，未接入主控制链）
+ * @Author: lkc
+ */
 #ifndef __MOTOR_BLDC_H__
 #define __MOTOR_BLDC_H__
 #ifdef __cplusplus

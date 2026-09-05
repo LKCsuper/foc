@@ -1,8 +1,6 @@
 /*
- * @Description: 
- * @Date: 2023-02-18 23:29:45
- * @LastEditTime: 2023-02-21 22:41:44
- * @FilePath: \foc\App\motor\inc\utils.h
+ * @Description: 电机通用基础定义（历史保留 systime_t 系统时间别名）
+ * @Author: lkc
  */
 #ifndef _MOTOR_COMMON_H
 #define _MOTOR_COMMON_H

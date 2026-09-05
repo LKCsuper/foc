@@ -1,4 +1,7 @@
-/* @Description: 平台无关的配置与校准快照；保持旧控制字段兼容。 */
+/*
+ * @Description: 平台无关的配置与校准快照；保持旧控制字段兼容。
+ * @Author: lkc
+ */
 #include "motor_settings.h"
 #include <stddef.h>
 #include <string.h>
@@ -9,6 +12,13 @@
 typedef char
     motor_float_size_check[(sizeof(float) == 4 && FLT_RADIX == 2 && FLT_MANT_DIG == 24 && FLT_MAX_EXP == 128) ? 1 : -1];
 
+/**
+ * @description: 校验完整 settings 快照：所有配置为有限值且取值合法。
+ * @detail: 任一字段非法即整体拒绝；含校准数组范围与霍尔表编码合法性检查。
+ * @param {const motor_settings_t *} s 待校验快照，不可为空
+ * @return {bool} 合法返回 true
+ * @author: lkc
+ */
 static bool settings_valid(const motor_settings_t *s)
 {
     unsigned i;
@@ -229,6 +239,14 @@ static bool settings_valid(const motor_settings_t *s)
     return true;
 }
 
+/**
+ * @description: 从旧电机对象提取配置/校准；不提取命令与实时状态。
+ * @detail: 先在临时快照上校验；失败不修改输出。
+ * @param {const MOTOR_PARAM_S *} motor 已初始化的旧电机对象，不可为空
+ * @param {motor_settings_t *} settings 输出快照，不可为空；失败不修改
+ * @return {bool} 成功返回 true
+ * @author: lkc
+ */
 bool Motor_Settings_Capture(const MOTOR_PARAM_S *motor, motor_settings_t *settings)
 {
     motor_settings_t candidate;
@@ -291,6 +309,13 @@ bool Motor_Settings_Capture(const MOTOR_PARAM_S *motor, motor_settings_t *settin
     return true;
 }
 
+/**
+ * @description: 将 config 全部字段写回电机对象（仅配置域）。
+ * @param {MOTOR_PARAM_S *} motor 目标电机对象，不可为空
+ * @param {const motor_config_t *} config 来源配置，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 static void settings_write_config(MOTOR_PARAM_S *motor, const motor_config_t *config)
 {
     motor->ol_max_rpm = config->ol_max_rpm;
@@ -338,6 +363,14 @@ static void settings_write_config(MOTOR_PARAM_S *motor, const motor_config_t *co
     motor->hall_extra_samples = config->hall_extra_samples;
 }
 
+/**
+ * @description: 停机时应用合法配置/校准；失败不修改对象。
+ * @detail: 电机使能中或快照非法时拒绝；不写命令与实时状态。
+ * @param {MOTOR_PARAM_S *} motor 已停机的目标电机对象，不可为空
+ * @param {const motor_settings_t *} settings 已校验的配置与校准，不可为空
+ * @return {bool} 成功返回 true
+ * @author: lkc
+ */
 bool Motor_Settings_Apply(MOTOR_PARAM_S *motor, const motor_settings_t *settings)
 {
     if (motor == NULL || settings == NULL || motor->ol_enable || !settings_valid(settings)) {
@@ -351,6 +384,14 @@ bool Motor_Settings_Apply(MOTOR_PARAM_S *motor, const motor_settings_t *settings
     return true;
 }
 
+/**
+ * @description: 判断配置变更是否必须停机后才能应用。
+ * @detail: 停机字段含极对数、控制/速度环频率、对齐/HFI、霍尔滤波次数与无感模型参数。
+ * @param {const motor_config_t *} from 当前配置，不可为空
+ * @param {const motor_config_t *} to 目标配置，不可为空
+ * @return {bool} true=必须停机；空指针视为需要停机
+ * @author: lkc
+ */
 bool Motor_Settings_ConfigRequiresStop(const motor_config_t *from, const motor_config_t *to)
 {
     if (from == NULL || to == NULL) {
@@ -385,6 +426,14 @@ bool Motor_Settings_ConfigRequiresStop(const motor_config_t *from, const motor_c
     return false;
 }
 
+/**
+ * @description: 应用配置（不改校准、不改命令目标）。
+ * @detail: 先拼完整 settings 校验；运行中且改动停机字段时拒绝。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
+ * @param {const motor_config_t *} config 目标配置，不可为空
+ * @return {bool} 成功返回 true
+ * @author: lkc
+ */
 bool Motor_Settings_ApplyConfig(MOTOR_PARAM_S *motor, const motor_config_t *config)
 {
     motor_settings_t candidate;
@@ -406,6 +455,13 @@ bool Motor_Settings_ApplyConfig(MOTOR_PARAM_S *motor, const motor_config_t *conf
     return true;
 }
 
+/**
+ * @description: 按小端序写入 4 字节并前进指针。
+ * @param {uint8_t **} p 读写位置指针，不可为空
+ * @param {uint32_t} value 待写入值
+ * @return {void} 无
+ * @author: lkc
+ */
 static void put_word(uint8_t **p, uint32_t value)
 {
     unsigned i;
@@ -414,6 +470,12 @@ static void put_word(uint8_t **p, uint32_t value)
     }
 }
 
+/**
+ * @description: 按小端序读取 4 字节并前进指针。
+ * @param {const uint8_t **} p 读写位置指针，不可为空
+ * @return {uint32_t} 读取值
+ * @author: lkc
+ */
 static uint32_t get_word(const uint8_t **p)
 {
     uint32_t value = 0;
@@ -424,6 +486,13 @@ static uint32_t get_word(const uint8_t **p)
     return value;
 }
 
+/**
+ * @description: 以 IEEE754 位模式写入 float（小端 4 字节）。
+ * @param {uint8_t **} p 读写位置指针，不可为空
+ * @param {float} value 待写入浮点值
+ * @return {void} 无
+ * @author: lkc
+ */
 static void put_float(uint8_t **p, float value)
 {
     uint32_t bits;
@@ -431,6 +500,12 @@ static void put_float(uint8_t **p, float value)
     put_word(p, bits);
 }
 
+/**
+ * @description: 按小端序读取 4 字节并解释为 IEEE754 float。
+ * @param {const uint8_t **} p 读写位置指针，不可为空
+ * @return {float} 读取的浮点值
+ * @author: lkc
+ */
 static float get_float(const uint8_t **p)
 {
     uint32_t bits = get_word(p);
@@ -439,6 +514,15 @@ static float get_float(const uint8_t **p)
     return value;
 }
 
+/**
+ * @description: 编码为固定小端格式；size 必须匹配，非法输入返回 false 且不写输出。
+ * @detail: 布尔按 32 位字编码、浮点按 IEEE754；霍尔表原样拷贝尾部。
+ * @param {const motor_settings_t *} settings 输入配置/校准快照
+ * @param {uint8_t *} data 输出固定编码缓冲区，不可为空
+ * @param {uint32_t} size 缓冲区长度 (byte)，须等于 MOTOR_SETTINGS_WIRE_SIZE
+ * @return {bool} 成功返回 true
+ * @author: lkc
+ */
 bool Motor_Settings_Encode(const motor_settings_t *settings, uint8_t *data, uint32_t size)
 {
     uint8_t *p = data;
@@ -502,6 +586,15 @@ bool Motor_Settings_Encode(const motor_settings_t *settings, uint8_t *data, uint
     return true;
 }
 
+/**
+ * @description: 解码并校验；失败不修改输出，不依赖结构体布局。
+ * @detail: 布尔字按 0/1、cycles/滤波次数按上限校验；结尾整体走 settings_valid。
+ * @param {const uint8_t *} data 输入固定编码缓冲区，不可为空
+ * @param {uint32_t} size 缓冲区长度 (byte)，须等于 MOTOR_SETTINGS_WIRE_SIZE
+ * @param {motor_settings_t *} settings 输出快照，失败不修改
+ * @return {bool} 成功返回 true
+ * @author: lkc
+ */
 bool Motor_Settings_Decode(const uint8_t *data, uint32_t size, motor_settings_t *settings)
 {
     const uint8_t *p = data;

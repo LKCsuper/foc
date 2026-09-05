@@ -59,6 +59,10 @@ static motor_sensorless_runtime_t s_sensorless;
 
 /**
  * @description: 将 UpdateState 产生的副作用落到速度环/保护（仅默认包装使用）。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，可为 NULL（仅触发保护需要）
+ * @param {const motor_sensorless_effects_t *} effects 观测器副作用输出，不可为空
+ * @return {void} 无
+ * @author: lkc
  */
 static void Motor_Sensorless_ApplyEffects(MOTOR_PARAM_S *motor, const motor_sensorless_effects_t *effects)
 {
@@ -108,8 +112,8 @@ static float Motor_Sensorless_Clamp(float value, float minimum, float maximum)
  * 注意：这只是数值初始化，不代表开环角度一定是真实转子角度。后续仍需
  * 依靠电机转动产生的电压/电流信息，让观测器逐渐收敛。
  */
-static void Motor_Sensorless_Seed(motor_sensorless_runtime_t *rt, const MOTOR_PARAM_S *motor,
-                                  float i_alpha, float i_beta)
+static void Motor_Sensorless_Seed(motor_sensorless_runtime_t *rt, const MOTOR_PARAM_S *motor, float i_alpha,
+                                  float i_beta)
 {
     float inductance = motor->sensorless_motor_l;
     float flux = motor->sensorless_flux_linkage;
@@ -139,13 +143,11 @@ static void Motor_Sensorless_Seed(motor_sensorless_runtime_t *rt, const MOTOR_PA
  */
 static void Motor_Sensorless_RunPll(motor_sensorless_runtime_t *rt, const MOTOR_PARAM_S *motor, float dt)
 {
-    float delta = utils_angle_difference_rad(rt->observer_angle,
-                                             rt->pll_angle);
+    float delta = utils_angle_difference_rad(rt->observer_angle, rt->pll_angle);
     float max_electrical_speed;
 
     /* 先用“当前速度 + 比例相位校正”推进 PLL 角度。 */
-    rt->pll_angle +=
-        (rt->pll_speed_electrical + motor->sensorless_pll_kp * delta) * dt;
+    rt->pll_angle += (rt->pll_speed_electrical + motor->sensorless_pll_kp * delta) * dt;
     utils_norm_angle_rad(&rt->pll_angle);
 
     /* 再积分相位误差，得到能够长期跟踪转速的电角速度。 */
@@ -155,11 +157,9 @@ static void Motor_Sensorless_RunPll(motor_sensorless_runtime_t *rt, const MOTOR_
      * 将 PLL 速度限制在“最高机械转速 × 极对数 × 1.5”以内。
      * 1.5 倍留出加速余量，同时阻止噪声或参数错误把速度积分到异常大。
      */
-    max_electrical_speed = RPM2RADPS_f(fabsf(motor->ol_max_rpm) *
-                                        fmaxf(motor->ol_pole_pairs, 1.0f) * 1.5f);
+    max_electrical_speed = RPM2RADPS_f(fabsf(motor->ol_max_rpm) * fmaxf(motor->ol_pole_pairs, 1.0f) * 1.5f);
     rt->pll_speed_electrical =
-        Motor_Sensorless_Clamp(rt->pll_speed_electrical,
-                               -max_electrical_speed, max_electrical_speed);
+        Motor_Sensorless_Clamp(rt->pll_speed_electrical, -max_electrical_speed, max_electrical_speed);
 }
 
 /**
@@ -277,8 +277,7 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
     }
     Motor_Sensorless_ClearEffects(effects);
 
-    if (dt <= 0.0f || !motor->sensorless_enable ||
-        motor->ol_mode != MOTOR_OL_MODE_IF || !motor->ol_enable) {
+    if (dt <= 0.0f || !motor->sensorless_enable || motor->ol_mode != MOTOR_OL_MODE_IF || !motor->ol_enable) {
         Motor_Sensorless_ResetState(rt);
         if (effects != NULL) {
             effects->feedback_valid = false;
@@ -333,9 +332,7 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
      * 修正：当估算磁链偏小时把正误差截为 0，不主动放大低速采样噪声；
      * 当估算磁链偏大时保留负误差，把磁链拉回额定磁链圆附近。
      */
-    magnitude_error = flux * flux -
-                      (rotor_flux_alpha * rotor_flux_alpha +
-                       rotor_flux_beta * rotor_flux_beta);
+    magnitude_error = flux * flux - (rotor_flux_alpha * rotor_flux_alpha + rotor_flux_beta * rotor_flux_beta);
     if (magnitude_error > 0.0f) {
         magnitude_error = 0.0f;
     }
@@ -347,10 +344,9 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
      *
      * V-R×I 是电机电压方程；最后一项只用于抑制积分漂移和磁链发散。
      */
-    x_alpha_dot = rt->applied_v_alpha - resistance * i_alpha +
-                  0.5f * observer_gain * rotor_flux_alpha * magnitude_error;
-    x_beta_dot = rt->applied_v_beta - resistance * i_beta +
-                 0.5f * observer_gain * rotor_flux_beta * magnitude_error;
+    x_alpha_dot =
+        rt->applied_v_alpha - resistance * i_alpha + 0.5f * observer_gain * rotor_flux_alpha * magnitude_error;
+    x_beta_dot = rt->applied_v_beta - resistance * i_beta + 0.5f * observer_gain * rotor_flux_beta * magnitude_error;
     /* 欧拉积分：新磁链 = 旧磁链 + 磁链变化率 × FOC 周期。 */
     rt->x_alpha += x_alpha_dot * dt;
     rt->x_beta += x_beta_dot * dt;
@@ -360,8 +356,8 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
      * 一旦出现必须立即复位并声明速度无效，绝不能让非法角度进入 Park 变换，
      * 否则 D/Q 电流会被投影到错误方向并可能立即过流。
      */
-    if (UTILS_IS_NAN(rt->x_alpha) || UTILS_IS_INF(rt->x_alpha) ||
-        UTILS_IS_NAN(rt->x_beta) || UTILS_IS_INF(rt->x_beta)) {
+    if (UTILS_IS_NAN(rt->x_alpha) || UTILS_IS_INF(rt->x_alpha) || UTILS_IS_NAN(rt->x_beta) ||
+        UTILS_IS_INF(rt->x_beta)) {
         Motor_Sensorless_ResetState(rt);
         if (effects != NULL) {
             effects->feedback_valid = false;
@@ -376,9 +372,7 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
     rotor_flux_alpha = rt->x_alpha - inductance * i_alpha;
     rotor_flux_beta = rt->x_beta - inductance * i_beta;
     rt->flux_magnitude = NORM2_f(rotor_flux_alpha, rotor_flux_beta);
-    rt->observer_angle =
-        utils_fast_atan2(rotor_flux_beta, rotor_flux_alpha) +
-        motor->sensorless_phase_offset;
+    rt->observer_angle = utils_fast_atan2(rotor_flux_beta, rotor_flux_alpha) + motor->sensorless_phase_offset;
 
     /* phase_offset 用于补偿固定相位偏差；归一化后角度保持在标准周期内。 */
     utils_norm_angle_rad(&rt->observer_angle);
@@ -388,29 +382,23 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
      * PLL 输出电角速度；除以极对数后才是机械角速度，再换算成 RPM。
      */
     Motor_Sensorless_RunPll(rt, motor, dt);
-    rt->mechanical_rpm =
-        RADPS2RPM_f(rt->pll_speed_electrical) / pole_pairs;
+    rt->mechanical_rpm = RADPS2RPM_f(rt->pll_speed_electrical) / pole_pairs;
     /*
      * 对机械 RPM 再做一次一阶低通：
      *   filtered += alpha × (raw - filtered)
      * alpha 越接近 1 响应越快但噪声越大，越接近 0 越平滑但延迟越大。
      */
-    speed_alpha = Motor_Sensorless_Clamp(motor->sensorless_speed_filter,
-                                         0.0f, 1.0f);
-    rt->filtered_rpm += speed_alpha *
-                                 (rt->mechanical_rpm -
-                                  rt->filtered_rpm);
+    speed_alpha = Motor_Sensorless_Clamp(motor->sensorless_speed_filter, 0.0f, 1.0f);
+    rt->filtered_rpm += speed_alpha * (rt->mechanical_rpm - rt->filtered_rpm);
 
     /*
      * phase_error 比较“PLL 观测角”和“I/F 强制角”。使用最短角度差函数，
      * 可以正确处理 +π/-π 交界，避免 179° 与 -179° 被误判为相差 358°。
      */
-    rt->phase_error =
-        utils_angle_difference_rad(rt->pll_angle, motor->ol_theta);
+    rt->phase_error = utils_angle_difference_rad(rt->pll_angle, motor->ol_theta);
 
     /* 条件 1：磁链模长应在额定值的 50%~150%，过小或过大都不可信。 */
-    flux_ok = rt->flux_magnitude > flux * 0.5f &&
-              rt->flux_magnitude < flux * 1.5f;
+    flux_ok = rt->flux_magnitude > flux * 0.5f && rt->flux_magnitude < flux * 1.5f;
 
     /*
      * 条件 2：不仅要超过接管门槛，还必须与 I/F 当前斜坡速度大致一致。
@@ -426,12 +414,10 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
                fabsf(observer_rpm_abs - open_loop_rpm_abs) <= speed_error_limit;
 
     /* 条件 3：观测转速方向必须和 I/F 当前方向一致。零速时暂不检查方向。 */
-    direction_ok = motor->ol_current_rpm == 0.0f ||
-                   SIGN(rt->filtered_rpm) == SIGN(motor->ol_current_rpm);
+    direction_ok = motor->ol_current_rpm == 0.0f || SIGN(rt->filtered_rpm) == SIGN(motor->ol_current_rpm);
 
     /* 条件 4：观测角与强制角足够接近，避免接管时 Park 角度突然跳变。 */
-    phase_ok = fabsf(rt->phase_error) <=
-               motor->sensorless_phase_tolerance;
+    phase_ok = fabsf(rt->phase_error) <= motor->sensorless_phase_tolerance;
 
     /* 保存每项判断结果，Shell 和首发故障快照可以直接指出阻塞原因。 */
     rt->flux_ok = flux_ok;
@@ -450,17 +436,14 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
      * 任一条件中途失败，lock_timer 立即清零，必须重新连续稳定一整段时间。
      */
     if (rt->state != MOTOR_SENSORLESS_CLOSED) {
-        rt->state = lock_candidate ? MOTOR_SENSORLESS_LOCKING :
-                                              MOTOR_SENSORLESS_OPEN_LOOP;
-        rt->lock_timer = lock_candidate ?
-            rt->lock_timer + dt : 0.0f;
+        rt->state = lock_candidate ? MOTOR_SENSORLESS_LOCKING : MOTOR_SENSORLESS_OPEN_LOOP;
+        rt->lock_timer = lock_candidate ? rt->lock_timer + dt : 0.0f;
 
         /*
          * sensorless_takeover 是最后一道人工授权开关。即使状态已经 LOCKING，
          * 默认 takeover=false 时也只观察数据，不会让观测角控制电机。
          */
-        if (motor->sensorless_takeover &&
-            rt->lock_timer >= motor->sensorless_lock_time) {
+        if (motor->sensorless_takeover && rt->lock_timer >= motor->sensorless_lock_time) {
             /*
              * 速度 PI 接管 Iq 前，用当前 I/F 启动电流预置积分项。
              * 如果直接从 0A 开始，接管瞬间 Iq 会突然下降，电机容易减速失锁。
@@ -482,19 +465,14 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
          * 相位误差不再单独作为失锁条件，因为 CLOSED 状态会持续把 ol_theta
          * 同步到控制角；此时它不再代表一条独立的开环参考轨迹。
          */
-        bool wrong_direction = motor->ol_current_rpm != 0.0f &&
-                               SIGN(rt->filtered_rpm) !=
-                               SIGN(motor->ol_current_rpm);
-        bool lost = !flux_ok || wrong_direction ||
-                    fabsf(rt->filtered_rpm) < motor->sensorless_fallback_rpm;
+        bool wrong_direction = motor->ol_current_rpm != 0.0f && SIGN(rt->filtered_rpm) != SIGN(motor->ol_current_rpm);
+        bool lost = !flux_ok || wrong_direction || fabsf(rt->filtered_rpm) < motor->sensorless_fallback_rpm;
 
         /* 短暂噪声不会立刻回退，只有失锁条件连续超过 loss_time 才处理。 */
         rt->loss_timer = lost ? rt->loss_timer + dt : 0.0f;
         if (rt->loss_timer >= motor->sensorless_loss_time) {
-            bool above_safe_open_loop_speed =
-                motor->sensorless_openloop_max_rpm > 0.0f &&
-                fabsf(motor->ol_current_rpm) >
-                motor->sensorless_openloop_max_rpm;
+            bool above_safe_open_loop_speed = motor->sensorless_openloop_max_rpm > 0.0f &&
+                                              fabsf(motor->ol_current_rpm) > motor->sensorless_openloop_max_rpm;
 
             /*
              * 低速失锁时允许回退到 I/F，因为当前强制转速仍在启动安全区内。
@@ -536,15 +514,11 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
         float angle_difference;
 
         /* blend_time<=0 表示用户要求一拍完成切换，否则按设定时间线性增加。 */
-        blend_step = motor->sensorless_blend_time > 0.0f ?
-                     dt / motor->sensorless_blend_time : 1.0f;
-        rt->blend = Motor_Sensorless_Clamp(rt->blend + blend_step,
-                                                    0.0f, 1.0f);
+        blend_step = motor->sensorless_blend_time > 0.0f ? dt / motor->sensorless_blend_time : 1.0f;
+        rt->blend = Motor_Sensorless_Clamp(rt->blend + blend_step, 0.0f, 1.0f);
         /* 始终沿最短方向靠近 PLL 角度，避免跨 ±π 时绕远路。 */
-        angle_difference = utils_angle_difference_rad(rt->pll_angle,
-                                                       motor->ol_theta);
-        rt->control_angle = motor->ol_theta +
-                                     angle_difference * rt->blend;
+        angle_difference = utils_angle_difference_rad(rt->pll_angle, motor->ol_theta);
+        rt->control_angle = motor->ol_theta + angle_difference * rt->blend;
         utils_norm_angle_rad(&rt->control_angle);
 
         /*

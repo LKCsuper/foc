@@ -13,6 +13,7 @@ CHAR gacRunInfo[512];
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 打印所有 FreeRTOS 任务状态和运行统计
+ * @author: lkc
  */
 int Cmd_Task_Show(int argc, char *argv[])
 {
