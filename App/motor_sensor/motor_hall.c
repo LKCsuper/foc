@@ -48,7 +48,7 @@ static void Motor_Hall_DetectFinish(MOTOR_PARAM_S *m);
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 清除霍尔标定运行时上下文
+ * @description: 清除霍尔标定运行时上下文（active/abort/角度与电流目标）
  * @return {*}
  * @author: lkc
  */
@@ -62,8 +62,8 @@ static void Motor_Hall_DetectCtxReset(void)
 }
 
 /**
- * @description: 标定任务是否应退出
- * @return {bool} true 表示用户中止或保护已锁存故障
+ * @description: 判定霍尔标定任务是否应退出
+ * @return {bool} true=用户中止或保护已锁存故障
  * @author: lkc
  */
 static bool Motor_Hall_DetectShouldStop(void)
@@ -72,11 +72,11 @@ static bool Motor_Hall_DetectShouldStop(void)
 }
 
 /**
- * @description: 下发本拍角度/电流并等待 ISR 执行
+ * @description: 下发本拍强制电角度与 D 轴电流，并等待 ISR 执行
  * @param {float} theta_rad   强制电角度 (rad)
  * @param {float} id_target   D 轴目标电流 (A)
  * @param {uint32_t} delay_ms 等待时间 (ms)
- * @return {bool} true 可以继续；false 应中止
+ * @return {bool} true=可继续；false=应中止
  * @author: lkc
  */
 static bool Motor_Hall_DetectWait(float theta_rad, float id_target, uint32_t delay_ms)
@@ -88,12 +88,12 @@ static bool Motor_Hall_DetectWait(float theta_rad, float id_target, uint32_t del
 }
 
 /**
- * @description: 根据某霍尔状态的 sin/cos 累加值计算表项
- * @param {uint8_t} *hall_table  8 项输出表
+ * @description: 根据某霍尔状态的 sin/cos 累加值写入表项
+ * @param {uint8_t} *hall_table  8 项输出表，不可为空
  * @param {int} hall             霍尔状态 0~7
- * @param {float} sin_acc        sin 累加
- * @param {float} cos_acc        cos 累加
- * @param {int} samples          该状态采样次数
+ * @param {float} sin_acc        sin 累加（无量纲）
+ * @param {float} cos_acc        cos 累加（无量纲）
+ * @param {int} samples          该状态采样次数；不足门限则写 255
  * @return {*}
  * @author: lkc
  */
@@ -112,9 +112,9 @@ static void Motor_Hall_StoreTableEntry(uint8_t *hall_table, int hall,
 }
 
 /**
- * @description: 把 uint8 霍尔表写入 MOTOR_PARAM_S（255 → -1）
- * @param {uint8_t} *hall_table  标定输出表
- * @param {MOTOR_PARAM_S} *m     运行时参数
+ * @description: 把 uint8 霍尔表写入 MOTOR_PARAM_S（255 → MOTOR_HALL_TABLE_INVALID）
+ * @param {const uint8_t} *hall_table  标定输出表，不可为空
+ * @param {MOTOR_PARAM_S} *m           运行时参数，不可为空
  * @return {*}
  * @author: lkc
  */
@@ -132,8 +132,8 @@ static void Motor_Hall_TableToMotor(const uint8_t *hall_table, MOTOR_PARAM_S *m)
 }
 
 /**
- * @description: 标定结束：清上下文、停机并关闭 PWM
- * @param {MOTOR_PARAM_S} *m  运行时参数
+ * @description: 标定结束：清上下文、请求停机并关闭 PWM
+ * @param {MOTOR_PARAM_S} *m  运行时参数，不可为空
  * @return {*}
  * @author: lkc
  */
@@ -158,7 +158,7 @@ int Motor_Hall_Read(bool is_second_motor, int samples)
 
 /**
  * @description: 霍尔标定是否占用 FOC 中断路径
- * @return {bool} true 表示标定中
+ * @return {bool} true 表示标定中，motor_it 走专用电流环
  * @author: lkc
  */
 bool Motor_Hall_DetectIsActive(void)
@@ -167,7 +167,7 @@ bool Motor_Hall_DetectIsActive(void)
 }
 
 /**
- * @description: 中止正在进行的霍尔标定
+ * @description: 中止正在进行的霍尔标定（olstop 或故障时调用）
  * @return {*}
  * @author: lkc
  */
@@ -205,10 +205,11 @@ bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad,
 /**
  * @description: 开环转一圈，标定霍尔状态与电角度对应表
  * @detail: 任务上下文推进角度；ISR 通过 DetectGetTargets 输出 D 轴电流与固定角。
- * @param {float} current        对齐电流 (A)
- * @param {uint8_t} *hall_table  输出 8 项霍尔表
- * @param {bool} *result         true 表示标定成功
- * @return {int} 故障码
+ *          结果写入 hall_table；成功时同步写入 MOTOR_PARAM_S.hall_table
+ * @param {float} current        对齐电流 (A)，建议用峰值电流 / 3
+ * @param {uint8_t} *hall_table  输出 8 项霍尔表，255 表示无效扇区
+ * @param {bool} *result         true 表示标定成功（6 个有效扇区）
+ * @return {int} 故障码，FAULT_CODE_NONE 表示无故障
  * @author: lkc
  */
 int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)

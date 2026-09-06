@@ -11,6 +11,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <math.h>
 #include "FreeRTOS.h"
 #include "cmsis_os2.h"
 #include "motor_detect.h"
@@ -27,8 +28,8 @@ extern "C" {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /*
- * 校准任务会改 PWM 输出。置位后 DMA 中断仍采样+软件保护，但不跑 FOC，
- * 避免双方抢写 PWM；ADC_Value[] 由 DMA 硬件持续刷新。
+ * 校准任务会改 PWM 输出。置位后 DMA 中断仍采样换算，但不跑 FOC、不跑软件过流
+ * （零偏未定时电流不可信）；ADC_Value[] 由 DMA 硬件持续刷新。
  */
 static volatile bool s_detect_active = false;
 /* Private function prototypes -----------------------------------------------*/
@@ -94,12 +95,24 @@ uint32_t DETECT_Offset(bool cal_undriven)
     motor_detect_offset_t st;
 
     /*
-     * 先占住互斥，再停机关通道。之后 DMA 中断采样+保护，不跑 FOC，不改占空比编排。
+     * 先占住互斥，再停机关通道。之后 DMA 中断只采样换算（不跑软件过流），不跑 FOC。
      */
+    if (Motor_Protect_IsFaultLatched()) {
+        PRINTF("Detect offset: blocked, fault=%s — run: olfault clear\r\n",
+               Motor_Protect_GetFaultName(Motor_Protect_GetFault()));
+        return 0U;
+    }
+
     s_detect_active = true;
     (void)Motor_RequestStop(&motor);
     Motor_Sensorless_Reset();
     Hal_Motor_PwmStop();
+    /* 清残留 dq/相电流，避免上一拍故障快照量影响后续判断 */
+    motor.ia = 0.0f;
+    motor.ib = 0.0f;
+    motor.ic = 0.0f;
+    motor.Id = 0.0f;
+    motor.Iq = 0.0f;
     PRINTF("Detect offset: begin\r\n");
 
     Motor_Detect_OffsetReset(&st, cal_undriven, MOTOR_DETECT_OFFSET_DEFAULT_SAMPLES,
@@ -176,7 +189,18 @@ uint32_t DETECT_Offset(bool cal_undriven)
 abort_detect:
     Hal_Motor_PwmStop();
     s_detect_active = false;
-    PRINTF("Detect offset: aborted (fault latched=%s)\r\n", Motor_Protect_GetFaultName(Motor_Protect_GetFault()));
+    {
+        float ipeak = fabsf(motor.ia);
+        if (fabsf(motor.ib) > ipeak) {
+            ipeak = fabsf(motor.ib);
+        }
+        if (fabsf(motor.ic) > ipeak) {
+            ipeak = fabsf(motor.ic);
+        }
+        PRINTF("Detect offset: aborted (latched=%d fault=%d %s Ipeak=%.3fA)\r\n",
+               Motor_Protect_IsFaultLatched() ? 1 : 0, (int)Motor_Protect_GetFault(),
+               Motor_Protect_GetFaultName(Motor_Protect_GetFault()), (double)ipeak);
+    }
     return 0U;
 }
 

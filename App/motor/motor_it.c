@@ -368,20 +368,15 @@ static void Motor_DmaInt_Foc(void)
 }
 
 /**
- * @description: 偏移校准占用桥时：仍采样并跑软件保护，不跑 FOC
- * @detail: 故障锁存后调用 PwmStop（关通道），不用中点 SAFE，以免与逐相 EnablePhase 打架
+ * @description: 偏移校准占用桥时：只采样换算，不跑 FOC、不跑软件过流
+ * @detail: 零偏标定前 ia/ib/ic 不可信，软件 ABS_OVER_CURRENT 易误锁存；硬件过流/Break 仍生效。
+ *          不用中点 SAFE，以免与逐相 EnablePhase 打架。
  * @return {*}
  * @author: lkc
  */
 static void Motor_DmaInt_WhileDetect(void)
 {
-    float protection_dt;
-
     Motor_It_ParamCal();
-    protection_dt = Motor_OpenLoop_GetAdcDt(&motor);
-    if (Motor_Protect_Run(&motor, protection_dt)) {
-        Hal_Motor_PwmStop();
-    }
 }
 
 /**

@@ -2,8 +2,8 @@
  * @Description: 三相霍尔读取与霍尔表标定
  * @Author: lkc
  */
-#ifndef _MOTOR_HALL_H
-#define _MOTOR_HALL_H
+#ifndef MOTOR_HALL_H
+#define MOTOR_HALL_H
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -16,8 +16,6 @@ extern "C" {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
-/* Private functions ---------------------------------------------------------*/
-
 /**
  * @description: 读取三相霍尔状态（bit0=A, bit1=B, bit2=C）
  * @param {bool} is_second_motor  true 时读第二路霍尔口
@@ -55,7 +53,7 @@ bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad,
 
 /**
  * @description: 开环转一圈，标定霍尔状态与电角度对应表
- * @detail: 通过 MOTOR_PARAM_S 与 motor_it 电流环驱动电机；结果写入 hall_table 输出缓冲。
+ * @detail: 通过 MOTOR_PARAM_S 与 motor_it 电流环驱动电机；结果写入 hall_table 输出缓冲
  * @param {float} current        对齐电流 (A)，建议用峰值电流 / 3
  * @param {uint8_t} *hall_table  输出 8 项霍尔表，255 表示无效扇区
  * @param {bool} *result         true 表示标定成功（6 个有效扇区）
@@ -63,7 +61,7 @@ bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad,
  * @author: lkc
  */
 int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result);
-
+/* Private functions ---------------------------------------------------------*/
 #ifdef __cplusplus
 }
 #endif

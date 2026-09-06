@@ -546,9 +546,17 @@ static motor_control_result_t Motor_Control_RunHallDetect(MOTOR_PARAM_S *motor, 
         return Motor_Control_ResultSafe();
     }
 
+    /*
+     * 强制电角扫圆时转子往往跟不住，Park 后会出现很大“假 Iq”。
+     * 若仍跑 Q 轴 PI，Vq 积分会顶满并把相电流打穿过流门限。
+     * 标定只需要 Id 对齐：Iq 目标置 0，且强制 Vq=0、清 Q 积分。
+     */
+    (void)iq_target;
     v_limit = Motor_Control_GetVoltageLimit(motor, v_bus);
     Motor_Current_FeedbackUpdateDq(motor, theta);
-    voltage = Motor_Current_RunPi(motor, id_target, iq_target, dt, v_limit);
+    voltage = Motor_Current_RunPi(motor, id_target, 0.0f, dt, v_limit);
+    voltage.vq = 0.0f;
+    motor->ol_vq_int = 0.0f;
     return Motor_Control_ResultDq(voltage.vd, voltage.vq, theta);
 }
 
