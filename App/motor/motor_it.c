@@ -53,14 +53,6 @@ static motor_foc_divider_t s_foc_divider = {
  */
 static volatile float s_foc_runtime_average_us = 0.0f;
 static volatile float s_foc_runtime_maximum_us = 0.0f;
-static volatile bool s_selftest_active = false;
-static volatile float s_selftest_theta = 0.0f;
-static volatile float s_selftest_vq = 0.0f;
-static volatile uint32_t s_selftest_samples = 0U;
-static volatile float s_selftest_current_adc[3];
-static volatile float s_selftest_phase_raw_v[3];
-static volatile float s_selftest_current_a[3];
-static volatile float s_selftest_phase_v[3];
 /* HD75 实机线序为 A-C-B；保留 olmap 命令用于接线排查，但默认直接使用已验证映射。 */
 static volatile bool s_pwm_swap_bc = true;
 /* Private function prototypes -----------------------------------------------*/
@@ -74,7 +66,6 @@ static bool Motor_DmaInt_ShouldRun(void);
 static void Motor_DmaInt_Foc(void);
 static void Motor_DmaInt_WhileDetect(void);
 static void Motor_DmaInt_RunLegacyVf(MOTOR_PARAM_S *m);
-static void Motor_DmaInt_RunSelfTest(MOTOR_PARAM_S *m);
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -355,93 +346,6 @@ static void Motor_DmaInt_RunLegacyVf(MOTOR_PARAM_S *m)
     Motor_Foc_OutputVoltage(m, 0.0f, legacy_vq, m->theta, m->v_bus);
 }
 
-static void Motor_DmaInt_RunSelfTest(MOTOR_PARAM_S *m)
-{
-    Motor_It_ParamCal();
-    if (Motor_Protect_Run(m, Motor_OpenLoop_GetAdcDt(m))) {
-        s_selftest_active = false;
-        Motor_OpenLoop_OutputSafe(m);
-        return;
-    }
-    if (m->v_bus >= 1.0f) {
-        Motor_Foc_OutputVoltage(m, 0.0f, s_selftest_vq, s_selftest_theta, m->v_bus);
-    }
-
-    s_selftest_current_adc[0] += (float)m->currentAdc[0];
-    s_selftest_current_adc[1] += (float)m->currentAdc[1];
-    s_selftest_current_adc[2] += (float)m->currentAdc[2];
-    s_selftest_phase_raw_v[0] += m->voltAdc[0];
-    s_selftest_phase_raw_v[1] += m->voltAdc[1];
-    s_selftest_phase_raw_v[2] += m->voltAdc[2];
-    s_selftest_current_a[0] += m->ia;
-    s_selftest_current_a[1] += m->ib;
-    s_selftest_current_a[2] += m->ic;
-    s_selftest_phase_v[0] += m->va;
-    s_selftest_phase_v[1] += m->vb;
-    s_selftest_phase_v[2] += m->vc;
-    s_selftest_samples++;
-}
-
-bool Motor_SelfTest_Begin(float vq)
-{
-    if (!isfinite(vq) || vq < 0.5f || vq > 4.0f || Motor_Protect_IsFaultLatched()) {
-        return false;
-    }
-    __disable_irq();
-    s_selftest_vq = vq;
-    s_selftest_theta = 0.0f;
-    s_selftest_active = true;
-    __enable_irq();
-    return true;
-}
-
-void Motor_SelfTest_SetAngle(float theta)
-{
-    __disable_irq();
-    s_selftest_theta = theta;
-    s_selftest_samples = 0U;
-    s_selftest_current_adc[0] = s_selftest_current_adc[1] = s_selftest_current_adc[2] = 0.0f;
-    s_selftest_phase_raw_v[0] = s_selftest_phase_raw_v[1] = s_selftest_phase_raw_v[2] = 0.0f;
-    s_selftest_current_a[0] = s_selftest_current_a[1] = s_selftest_current_a[2] = 0.0f;
-    s_selftest_phase_v[0] = s_selftest_phase_v[1] = s_selftest_phase_v[2] = 0.0f;
-    __enable_irq();
-}
-
-bool Motor_SelfTest_GetSample(motor_selftest_sample_t *sample)
-{
-    uint32_t count;
-    unsigned int i;
-
-    if (sample == NULL) {
-        return false;
-    }
-    __disable_irq();
-    count = s_selftest_samples;
-    if (count > 0U) {
-        sample->samples = count;
-        for (i = 0U; i < 3U; i++) {
-            sample->current_adc[i] = s_selftest_current_adc[i] / (float)count;
-            sample->phase_raw_v[i] = s_selftest_phase_raw_v[i] / (float)count;
-            sample->current_a[i] = s_selftest_current_a[i] / (float)count;
-            sample->phase_v[i] = s_selftest_phase_v[i] / (float)count;
-        }
-        sample->duty[0] = motor.duty1;
-        sample->duty[1] = s_pwm_swap_bc ? motor.duty3 : motor.duty2;
-        sample->duty[2] = s_pwm_swap_bc ? motor.duty2 : motor.duty3;
-    }
-    __enable_irq();
-    return count > 0U;
-}
-
-void Motor_SelfTest_End(void)
-{
-    __disable_irq();
-    s_selftest_active = false;
-    __enable_irq();
-    Motor_OpenLoop_OutputSafe(&motor);
-    Hal_Motor_PwmStop();
-}
-
 /**
  * @description: 采样换算入口：捕获 ADC 帧并换算为电流/电压物理量
  * @detail: 内部为 SampleCapture → ApplyFrame；每拍 ADC 回调均可调用
@@ -526,15 +430,6 @@ void Motor_DmaInt(void *p, uint32_t flags)
 
     (void)p;
     (void)flags;
-
-    if (s_selftest_active) {
-        runtime_start = Hal_Motor_TimeUs();
-        if (Motor_DmaInt_ShouldRun()) {
-            Motor_DmaInt_RunSelfTest(&motor);
-        }
-        Motor_DmaInt_RecordRuntime(runtime_start);
-        return;
-    }
 
     if (Motor_Detect_IsActive()) {
         Motor_DmaInt_WhileDetect();

@@ -9,14 +9,6 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
-typedef struct {
-    uint32_t samples;
-    float current_adc[3];
-    float phase_raw_v[3];
-    float current_a[3];
-    float phase_v[3];
-    uint32_t duty[3];
-} motor_selftest_sample_t;
 /* Private define ------------------------------------------------------------*/
 /*
  * ADC 在中心对齐 PWM 的上、下半周期各完成一次采样，因此当前硬件每秒产生
@@ -128,12 +120,6 @@ float Motor_DmaInt_GetControlFrequencyHz(void);
  * @author: lkc
  */
 void Motor_It_ParamCal(void);
-
-/** 进入/切换/读取/退出无位置传感器六角度诊断。 */
-bool Motor_SelfTest_Begin(float vq);
-void Motor_SelfTest_SetAngle(float theta);
-bool Motor_SelfTest_GetSample(motor_selftest_sample_t *sample);
-void Motor_SelfTest_End(void);
 
 /** 设置/读取最终 PWM 相序；swap_bc=true 时交换 B、C 两相。 */
 void Motor_PwmMap_SetSwapBc(bool swap_bc);
