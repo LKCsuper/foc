@@ -12,6 +12,7 @@ typedef enum tagDetectType {
     DETECT_NONE,
     DETECT_OFFSET,
     DETECT_HALL,
+    DETECT_PHASE,
 } DETECT_TYPE;
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -29,6 +30,7 @@ static void Detect_PrintUsage(void)
     PRINTF("Usage:\n");
     PRINTF("  detect | detect offset | detect 1\n");
     PRINTF("  detect hall | detect 2\n");
+    PRINTF("  detect phase | detect 3   — UVW order vs hall steps\n");
 }
 
 /**
@@ -49,11 +51,14 @@ static DETECT_TYPE Detect_ParseType(int argc, char *argv[])
     if (strcmp(argv[1], "2") == 0 || strcmp(argv[1], "hall") == 0) {
         return DETECT_HALL;
     }
+    if (strcmp(argv[1], "3") == 0 || strcmp(argv[1], "phase") == 0) {
+        return DETECT_PHASE;
+    }
     return DETECT_NONE;
 }
 
 /**
- * @description: 电流/电压偏移校准，或霍尔表检测
+ * @description: 电流/电压偏移、霍尔表或 UVW 线序检测
  * @param {int} argc
  * @param {char} *argv[]
  * @return {int} 0 成功，-1 失败
@@ -63,6 +68,7 @@ int Cmd_Detect(int argc, char *argv[])
 {
     DETECT_TYPE detect_type = Detect_ParseType(argc, argv);
     bool success = false;
+    motor_phase_order_report_t phase_report;
 
     if (detect_type == DETECT_NONE) {
         Detect_PrintUsage();
@@ -78,6 +84,9 @@ int Cmd_Detect(int argc, char *argv[])
         break;
     case DETECT_HALL:
         success = DETECT_Hall();
+        break;
+    case DETECT_PHASE:
+        success = Motor_PhaseOrder_Detect(&phase_report) == MOTOR_PHASE_ORDER_OK;
         break;
     default:
         break;

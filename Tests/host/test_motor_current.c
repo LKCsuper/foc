@@ -29,7 +29,9 @@ int main(void)
 
     /* 对齐目标：Id=align，Iq=0。 */
     ctx.alignment_running = true;
+    ctx.alignment_current_scale = 1.0f;
     ctx.if_iq_scale = 0.5f;
+    ctx.soft_current_scale = 1.0f;
     ctx.speed_loop_active = false;
     ctx.speed_iq_target = 2.0f;
     Motor_Current_GetTargets(&a, &ctx, &id_t, &iq_t);
@@ -38,6 +40,7 @@ int main(void)
 
     /* I/F 缩放目标。 */
     ctx.alignment_running = false;
+    ctx.alignment_current_scale = 0.0f;
     ctx.if_iq_scale = 0.5f;
     Motor_Current_GetTargets(&a, &ctx, &id_t, &iq_t);
     assert(fabsf(iq_t - 0.5f) < 1e-6f);
@@ -48,9 +51,18 @@ int main(void)
     Motor_Current_GetTargets(&a, &ctx, &id_t, &iq_t);
     assert(fabsf(iq_t - 1.25f) < 1e-6f);
 
+    /* 拖转交接中点：定角 Id 下降，速度环 Iq 同比例上升。 */
+    ctx.alignment_current_scale = 0.5f;
+    ctx.soft_current_scale = 0.5f;
+    Motor_Current_GetTargets(&a, &ctx, &id_t, &iq_t);
+    assert(fabsf(id_t - 0.25f) < 1e-6f);
+    assert(fabsf(iq_t - 0.625f) < 1e-6f);
+
     /* 双实例 PI：不同 Iq 反馈，积分互不影响。 */
     ctx.alignment_running = false;
+    ctx.alignment_current_scale = 0.0f;
     ctx.if_iq_scale = 1.0f;
+    ctx.soft_current_scale = 1.0f;
     ctx.speed_loop_active = false;
     a.ia = 0.0f;
     a.ib = 0.0f;
@@ -87,6 +99,7 @@ int main(void)
     a.ib = -0.25f;
     a.ic = -0.25f;
     ctx.alignment_running = false;
+    ctx.alignment_current_scale = 0.0f;
     ctx.if_iq_scale = 1.0f;
     ctx.speed_loop_active = false;
     va = Motor_Current_Step(&a, 0.0f, &ctx, dt, v_limit, &id_t, &iq_t);

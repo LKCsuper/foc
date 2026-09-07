@@ -1134,6 +1134,11 @@
               <FilePath>..\motor_sensor\motor_encoder.c</FilePath>
             </File>
             <File>
+              <FileName>motor_phase_order.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_sensor\motor_phase_order.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_feedback.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor_sensor\motor_feedback.c</FilePath>

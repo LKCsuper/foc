@@ -25,9 +25,17 @@ extern "C" {
  * @description: 启动链状态（对齐 + I/F 派生 + HFI）
  */
 typedef struct {
+    /** 启动阶段：电流爬升 → 可选定角保持 → 平滑拖转。 */
+    enum {
+        MOTOR_STARTUP_CURRENT_RAMP = 0,
+        MOTOR_STARTUP_ANGLE_HOLD,
+        MOTOR_STARTUP_DRAG_RAMP
+    } phase;
     motor_alignment_t alignment;
     motor_if_start_t if_start;
     motor_hfi_start_t hfi_start;
+    float soft_current_scale; /* 0..1，定角电流/开环电压爬升 */
+    float drag_current_scale; /* 0..1，Id 到 Iq 的平滑交接 */
 } motor_control_startup_t;
 
 /**
@@ -35,6 +43,7 @@ typedef struct {
  */
 typedef struct {
     motor_control_startup_t startup;
+    int last_mode; /* 上一控制模式；-1 表示尚未运行 */
 } motor_control_t;
 
 /**
@@ -76,7 +85,7 @@ void Motor_Control_Init(motor_control_t *ctrl);
 void Motor_Control_ResetRuntime(motor_control_t *ctrl, MOTOR_PARAM_S *motor);
 
 /**
- * @description: 计算电压限幅：min(ol_vq_limit, 0.75×Vbus)，且非负
+ * @description: 计算电压限幅：min(ol_vq_limit, Vbus/sqrt(3))，且非负
  * @param {const MOTOR_PARAM_S} *motor  含 ol_vq_limit
  * @param {float} v_bus                 母线电压 (V)
  * @return {float} 限幅 (V)
@@ -192,8 +201,7 @@ float Motor_Control_HfiGetConfidence(const motor_control_t *ctrl);
  * @return {motor_control_result_t} 最终允许应用的输出
  * @author: lkc
  */
-motor_control_result_t Motor_Control_ArbitrateOutput(bool fault_latched,
-                                                     const motor_control_result_t *proposed);
+motor_control_result_t Motor_Control_ArbitrateOutput(bool fault_latched, const motor_control_result_t *proposed);
 /* Private functions ---------------------------------------------------------*/
 #ifdef __cplusplus
 }

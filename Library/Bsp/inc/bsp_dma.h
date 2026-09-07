@@ -12,8 +12,8 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-/* 串口接收缓冲区大小 */
-#define USART_RX_BUF_SIZE                  (128U)
+/* 串口接收缓冲区大小（须能容纳一次粘贴的多行命令；过小会丢字节） */
+#define USART_RX_BUF_SIZE                  (1024U)
 
 /* USART RX DMA destination buffer, defined in bsp_dma.c. */
 extern UCHAR gucURxBuf[USART_RX_BUF_SIZE];

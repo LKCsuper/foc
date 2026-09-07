@@ -25,7 +25,7 @@ static const motor_protect_config_t s_default_config = {
     .stall_speed_rpm = 30.0f,
     .stall_current = 0.8f,
     .speed_loss_ratio = 0.2f,
-    .over_current_time = 0.0001f,
+    .over_current_time = 0.001f,
     .under_voltage_time = 0.1f,
     .stall_time = 1.0f,
     .speed_loss_time = 0.3f,
@@ -42,11 +42,12 @@ static motor_protect_state_t s_protect = {
             .stall_speed_rpm = 30.0f,
             .stall_current = 0.8f,
             .speed_loss_ratio = 0.2f,
-            .over_current_time = 0.0001f,
+            .over_current_time = 0.001f,
             .under_voltage_time = 0.1f,
             .stall_time = 1.0f,
             .speed_loss_time = 0.3f,
         },
+    .fault_latched = false,
     .fault = FAULT_CODE_NONE,
 };
 /* Private function prototypes -----------------------------------------------*/
@@ -221,6 +222,7 @@ void Motor_Protect_ClearFaultState(motor_protect_state_t *state)
     memset(state, 0, sizeof(*state));
     state->config = cfg;
     state->fault = FAULT_CODE_NONE;
+    state->fault_latched = false;
 }
 
 /**
@@ -367,6 +369,10 @@ bool Motor_Protect_RunState(motor_protect_state_t *state, const MOTOR_PARAM_S *m
     if (state == NULL || motor == NULL) {
         return false;
     }
+    /* 自愈：只有锁存标志、无故障码时清掉脏状态，避免误拦校准/启动 */
+    if (state->fault_latched && state->fault == FAULT_CODE_NONE) {
+        state->fault_latched = false;
+    }
     if (state->fault_latched) {
         return true;
     }
@@ -410,7 +416,11 @@ void Motor_Protect_TriggerFaultState(motor_protect_state_t *state, mc_fault_code
  */
 bool Motor_Protect_IsFaultLatchedState(const motor_protect_state_t *state)
 {
-    return state != NULL && state->fault_latched;
+    if (state == NULL) {
+        return false;
+    }
+    /* 仅当锁存且有有效故障码才算故障；latched+NONE 视为脏状态（未锁存） */
+    return state->fault_latched && state->fault != FAULT_CODE_NONE;
 }
 
 /**

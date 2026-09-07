@@ -114,7 +114,7 @@ int main(void)
     cmd.target_rpm = 500.0f;
     cmd.iq_set = 0.5f;
     cmd.id_set = 0.0f;
-    cmd.mode = MOTOR_OL_MODE_IF;
+    cmd.mode = motor.ol_mode; /* 保持默认模式，避免仅因切模式触发 SpeedLoop_Reset */
     cmd.speed_enable = false;
     speed_reset_calls = 0;
     pwm_start_calls = 0;

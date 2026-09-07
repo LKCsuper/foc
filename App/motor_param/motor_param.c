@@ -76,30 +76,30 @@ void MOTOR_Param_Init(void)
      * 需要转动时由 Shell 的 olspeed/olstart 明确启动。
      */
     gpstMotorDefault->ol_enable = false;
+    /* 默认 I/F：低阻电机用电流限幅拖转；V/F 高压易过流。 */
     gpstMotorDefault->ol_mode = MOTOR_OL_MODE_IF;
-    gpstMotorDefault->ol_target_rpm = 500.0f;             /* 首次手动 olstart 的安全目标转速 RPM */
+    gpstMotorDefault->ol_target_rpm = 40.0f;              /* 首次手动 olstart 的安全目标转速 RPM */
     gpstMotorDefault->ol_max_rpm = MOTOR_FIXED_RATED_RPM; /* 不超过额定转速 */
-    gpstMotorDefault->ol_v_boost = 1.0f;                  /* 启动补偿 V */
+    gpstMotorDefault->ol_v_boost = 1.5f;                  /* V/F 启动补偿；硬件有 2V 绝对帽 */
     gpstMotorDefault->ol_kv_f = 0.057f;                   /* V/Hz */
-    gpstMotorDefault->ol_ramp_rpm_s = 50.0f;              /* 软启动速率 — 越慢越稳 */
-    gpstMotorDefault->ol_vq_limit = 18.0f;                /* 最大 75% 调制 */
+    gpstMotorDefault->ol_ramp_rpm_s = 10.0f;              /* 软启动速率 — 越慢越稳 */
+    gpstMotorDefault->ol_vq_limit = 18.0f;                /* 配置上限；运行时再受 Vbus/sqrt(3) 限制 */
     gpstMotorDefault->ol_foc_freq = 30000.0f;             /* ADC-DMA 基准频率；实际 FOC 频率还要除以分频系数 */
-    gpstMotorDefault->ol_min_rpm = 30.0f;                 /* 最低转速地板 RPM */
+    gpstMotorDefault->ol_min_rpm = 15.0f;                 /* 旧启动策略兼容参数；平滑启动不作转速地板 */
     /* 开环电流模式参数 */
-    gpstMotorDefault->ol_iq_set = 0.3f;                   /* 首次 I/F 起步目标 Iq 电流 A */
+    gpstMotorDefault->ol_iq_set = 0.6f;                   /* 首次 I/F 起步目标 Iq 电流 A */
     gpstMotorDefault->ol_id_set = 0.0f;                   /* 目标 Id 电流 A */
     gpstMotorDefault->ol_current_kp = 0.2f;               /* 电流环 Kp */
     gpstMotorDefault->ol_current_ki = 30.0f;              /* 电流环 Ki */
     gpstMotorDefault->ol_start_phase_boost = M_PI / 2.0f; /* 仅 ol_align_enable=false 时兼容旧启动方式 */
     /*
-     * 无感启动先预对齐再加速：0.5A Id 固定 0.3 秒。
-     * 若电机只轻微摆动或对齐力不足，优先小步增加到 0.6A，而不是直接提高 Iq。
+     * 默认关对齐/HFI：开环先拖转；切 I/F 后再按需 olalign / hfistart。
      */
-    gpstMotorDefault->ol_align_enable = true;
+    gpstMotorDefault->ol_align_enable = false;
     gpstMotorDefault->ol_align_current = 0.5f;
     gpstMotorDefault->ol_align_time = 0.3f;
     gpstMotorDefault->ol_align_angle = 0.0f;
-    gpstMotorDefault->hfi_start_enable = true;
+    gpstMotorDefault->hfi_start_enable = false;
     gpstMotorDefault->hfi_start_voltage = 2.0f;
     gpstMotorDefault->hfi_start_cycles = 8U;
     gpstMotorDefault->hfi_start_min_confidence = 0.05f;
@@ -111,7 +111,7 @@ void MOTOR_Param_Init(void)
     gpstMotorDefault->speed_iq_limit = 2.0f;
     gpstMotorDefault->speed_loop_hz = 1000.0f;
     /* 无感参数必须使用 Ω、H、Wb，不能直接填 mΩ、uH、mWb 数字。 */
-    gpstMotorDefault->sensorless_enable = true;
+    gpstMotorDefault->sensorless_enable = false;
     gpstMotorDefault->sensorless_takeover = false;
     gpstMotorDefault->sensorless_motor_r = MOTOR_FIXED_LINE_RESISTANCE;
     gpstMotorDefault->sensorless_motor_l = MOTOR_FIXED_LINE_INDUCTANCE;

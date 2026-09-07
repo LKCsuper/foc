@@ -75,6 +75,8 @@ void Motor_Control_Init(motor_control_t *ctrl)
     ctrl->startup.alignment.stopped = true;
     ctrl->startup.if_start.first_cycle = true;
     ctrl->startup.if_start.iq_scale = 1.0f;
+    ctrl->startup.phase = MOTOR_STARTUP_CURRENT_RAMP;
+    ctrl->last_mode = -1;
 }
 
 /**
@@ -101,11 +103,14 @@ void Motor_Control_ResetRuntime(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
         MotorAlignment_Reset(&ctrl->startup.alignment);
         MotorIfStart_Reset(&ctrl->startup.if_start);
         MotorHfiStart_Reset(&ctrl->startup.hfi_start);
+        ctrl->startup.phase = MOTOR_STARTUP_CURRENT_RAMP;
+        ctrl->startup.soft_current_scale = 0.0f;
+        ctrl->startup.drag_current_scale = 0.0f;
     }
 }
 
 /**
- * @description: 电压限幅 = min(配置, 0.75×母线)。
+ * @description: 电压限幅 = min(配置, Vbus/sqrt(3))。
  * @param {const MOTOR_PARAM_S} *motor  配置
  * @param {float} v_bus  母线 (V)
  * @return {float} 限幅 (V)
@@ -122,9 +127,9 @@ float Motor_Control_GetVoltageLimit(const MOTOR_PARAM_S *motor, float v_bus)
     if (limit < 0.0f) {
         limit = 0.0f;
     }
-    /* SVPWM 保守限制到母线 75%，减轻过调制与积分饱和。 */
-    if (limit > v_bus * 0.75f) {
-        limit = v_bus * 0.75f;
+    /* 当前 alpha/beta 定义下，Vbus/sqrt(3) 保证任意角度都处在线性调制区。 */
+    if (limit > v_bus * ONE_BY_SQRT3) {
+        limit = v_bus * ONE_BY_SQRT3;
     }
     return limit;
 }
@@ -301,8 +306,7 @@ void Motor_Control_UpdateSpeed(MOTOR_PARAM_S *motor, float dt, bool sensorless_t
      * 将 openloop_max 设为 0 可关闭此保护。
      */
     if (motor->ol_mode == MOTOR_OL_MODE_IF && !sensorless_takeover_complete &&
-        motor->sensorless_openloop_max_rpm > 0.0f &&
-        fabsf(target) > motor->sensorless_openloop_max_rpm) {
+        motor->sensorless_openloop_max_rpm > 0.0f && fabsf(target) > motor->sensorless_openloop_max_rpm) {
         target = SIGN(target) * motor->sensorless_openloop_max_rpm;
     }
 
@@ -337,13 +341,12 @@ void Motor_Control_UpdateTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor, floa
     if (ctrl == NULL || motor == NULL) {
         return;
     }
-    motor->ol_theta +=
-        RPM2RADPS_f(ctrl->startup.if_start.angle_rpm) * motor->ol_pole_pairs * dt;
+    motor->ol_theta += RPM2RADPS_f(ctrl->startup.if_start.angle_rpm) * motor->ol_pole_pairs * dt;
     utils_norm_angle_rad(&motor->ol_theta);
 }
 
 /**
- * @description: V/F 启动：低于最小转速时抬升到 min_rpm，并同步 I/F 角度转速。
+ * @description: V/F 启动：同步斜坡生成的转速，不额外制造最低转速跳变。
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   开环转速状态
  * @return {*}
@@ -351,12 +354,6 @@ void Motor_Control_UpdateTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor, floa
  */
 static void Motor_Control_StartupVf(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
 {
-    float target = motor->ol_target_rpm;
-    float rpm = motor->ol_current_rpm;
-
-    if (fabsf(rpm) < motor->ol_min_rpm && fabsf(target) >= motor->ol_min_rpm) {
-        motor->ol_current_rpm = SIGN(target) * motor->ol_min_rpm;
-    }
     MotorIfStart_SetVfRpm(&ctrl->startup.if_start, motor->ol_current_rpm);
 }
 
@@ -373,8 +370,7 @@ static bool Motor_Control_RunAlignment(motor_control_t *ctrl, MOTOR_PARAM_S *mot
     motor_alignment_config_t config = {motor->ol_align_enable, motor->ol_align_current, motor->ol_align_time,
                                        motor->ol_align_angle};
     motor_alignment_output_t output;
-    motor_alignment_result_t result =
-        MotorAlignment_Step(&ctrl->startup.alignment, &config, dt, &output);
+    motor_alignment_result_t result = MotorAlignment_Step(&ctrl->startup.alignment, &config, dt, &output);
 
     if (result == MOTOR_ALIGNMENT_STARTED) {
         MotorIfStart_SetNeutral(&ctrl->startup.if_start);
@@ -402,7 +398,7 @@ static bool Motor_Control_RunAlignment(motor_control_t *ctrl, MOTOR_PARAM_S *mot
 }
 
 /**
- * @description: I/F 启动一步：更新相位提升与 iq 缩放；未对齐时标记跳过。
+ * @description: I/F 启动一步：同步平滑转速，定角建立后不再叠加旧式相位提升。
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   电机对象
  * @return {*}
@@ -410,14 +406,15 @@ static bool Motor_Control_RunAlignment(motor_control_t *ctrl, MOTOR_PARAM_S *mot
  */
 static void Motor_Control_StartupIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
 {
-    motor_if_start_config_t config = {motor->ol_min_rpm, motor->ol_start_phase_boost, 0.1f};
-    motor_if_start_input_t input = {motor->ol_target_rpm, motor->ol_current_rpm,
-                                    ctrl->startup.alignment.complete};
+    /* 前两阶段已经用 D 轴建立方向；拖转从 0 RPM 连续起步并由 Id→Iq 交接控制转矩。 */
+    motor_if_start_config_t config = {
+        0.0f,
+        0.0f,
+        1.0f,
+    };
+    motor_if_start_input_t input = {motor->ol_target_rpm, motor->ol_current_rpm, true};
 
     MotorIfStart_Step(&ctrl->startup.if_start, &config, &input);
-    if (!ctrl->startup.alignment.complete && !ctrl->startup.if_start.first_cycle) {
-        MotorAlignment_MarkSkipped(&ctrl->startup.alignment);
-    }
 }
 
 /**
@@ -468,13 +465,63 @@ static void Motor_Control_PublishSensoredSpeed(MOTOR_PARAM_S *motor)
  * @return {*}
  * @author: lkc
  */
-static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *motor,
-                                         motor_current_target_ctx_t *ctx)
+static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *motor, motor_current_target_ctx_t *ctx)
 {
-    ctx->alignment_running = ctrl->startup.alignment.running;
+    ctx->alignment_running = ctrl->startup.phase != MOTOR_STARTUP_DRAG_RAMP;
+    ctx->alignment_current_scale =
+        ctx->alignment_running ? ctrl->startup.soft_current_scale : 1.0f - ctrl->startup.drag_current_scale;
     ctx->if_iq_scale = ctrl->startup.if_start.iq_scale;
+    ctx->soft_current_scale =
+        ctx->alignment_running ? ctrl->startup.soft_current_scale : ctrl->startup.drag_current_scale;
     ctx->speed_loop_active = motor->speed_enable && Motor_SpeedLoop_IsFeedbackValid();
     ctx->speed_iq_target = ctx->speed_loop_active ? Motor_SpeedLoop_GetIqTarget() : 0.0f;
+}
+
+/**
+ * @description: 推进电流软起比例（约 0.8 s 到满幅），停机时清零
+ * @param {motor_control_t} *ctrl  控制实例
+ * @param {const MOTOR_PARAM_S} *motor  使能状态
+ * @param {float} dt  控制周期 (s)
+ * @return {*}
+ * @author: lkc
+ */
+static void Motor_Control_UpdateSoftCurrent(motor_control_t *ctrl, const MOTOR_PARAM_S *motor, float dt)
+{
+    const float soft_time_s = 0.8f;
+
+    if (ctrl == NULL || motor == NULL) {
+        return;
+    }
+    if (!motor->ol_enable) {
+        ctrl->startup.soft_current_scale = 0.0f;
+        return;
+    }
+    if (dt <= 0.0f) {
+        return;
+    }
+    ctrl->startup.soft_current_scale += dt / soft_time_s;
+    if (ctrl->startup.soft_current_scale > 1.0f) {
+        ctrl->startup.soft_current_scale = 1.0f;
+    }
+}
+
+/**
+ * @description: 推进 Id→Iq 交接比例，0.25 s 内平滑进入拖转电流。
+ * @param {motor_control_t} *ctrl 控制实例
+ * @param {float} dt 控制周期 (s)
+ * @return {*}
+ */
+static void Motor_Control_UpdateDragCurrent(motor_control_t *ctrl, float dt)
+{
+    const float transition_time_s = 0.25f;
+
+    if (ctrl == NULL || dt <= 0.0f) {
+        return;
+    }
+    ctrl->startup.drag_current_scale += dt / transition_time_s;
+    if (ctrl->startup.drag_current_scale > 1.0f) {
+        ctrl->startup.drag_current_scale = 1.0f;
+    }
 }
 
 /**
@@ -486,30 +533,37 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
  * @return {motor_control_result_t} DQ 电压请求
  * @author: lkc
  */
-static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus,
-                                                    float dt)
+static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus, float dt)
 {
     float theta = Motor_Control_GetCurrentTheta(ctrl, motor);
     float v_limit = Motor_Control_GetVoltageLimit(motor, v_bus);
+    float soft;
     motor_current_target_ctx_t ctx;
     motor_dq_voltage_t voltage;
 
     Motor_Control_FillCurrentCtx(ctrl, motor, &ctx);
+    soft = ctrl->startup.soft_current_scale;
+    if (soft < 1.0f) {
+        v_limit *= soft;
+    }
     voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, NULL, NULL);
     return Motor_Control_ResultDq(voltage.vd, voltage.vq, theta);
 }
 
 /**
  * @description: V/F 路径：按电气频率计算 Vq，固定 Vd=0，用开环电角输出。
+ * @detail: 电压软起并受统一线性调制电压上限约束。
+ * @param {motor_control_t} *ctrl  控制实例（取软起比例）
  * @param {MOTOR_PARAM_S} *motor  电机对象
  * @param {float} v_bus  母线 (V)
  * @return {motor_control_result_t} DQ 电压请求
  * @author: lkc
  */
-static motor_control_result_t Motor_Control_RunVf(MOTOR_PARAM_S *motor, float v_bus)
+static motor_control_result_t Motor_Control_RunVf(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus)
 {
     float vq_limit = Motor_Control_GetVoltageLimit(motor, v_bus);
     float f_elec = fabsf(motor->ol_current_rpm) / 60.0f * motor->ol_pole_pairs;
+    float soft;
     float vq;
 
     if (motor->ol_v_boost < 0.0f) {
@@ -519,7 +573,15 @@ static motor_control_result_t Motor_Control_RunVf(MOTOR_PARAM_S *motor, float v_
         motor->ol_kv_f = 0.0f;
     }
 
-    vq = motor->ol_v_boost + motor->ol_kv_f * f_elec;
+    soft = (ctrl != NULL) ? ctrl->startup.soft_current_scale : 1.0f;
+    if (soft < 0.0f) {
+        soft = 0.0f;
+    }
+    if (soft > 1.0f) {
+        soft = 1.0f;
+    }
+
+    vq = (motor->ol_v_boost + motor->ol_kv_f * f_elec) * soft;
     if (vq > vq_limit) {
         vq = vq_limit;
     }
@@ -527,7 +589,8 @@ static motor_control_result_t Motor_Control_RunVf(MOTOR_PARAM_S *motor, float v_
 }
 
 /**
- * @description: 霍尔标定路径：取标定目标电流/角，跑电流 PI 并输出 DQ。
+ * @description: 霍尔标定路径：I/F 电流闭环（对齐用 Id，扫角用 Iq）+ 强制电角慢转。
+ * @detail: 开环电压易过流；纯 Id 扫角易卡齿槽。扫角阶段用 Iq 拖动，PI 限流。
  * @param {MOTOR_PARAM_S} *motor  电机对象
  * @param {float} v_bus  母线 (V)
  * @param {float} dt  控制周期 (s)
@@ -546,17 +609,15 @@ static motor_control_result_t Motor_Control_RunHallDetect(MOTOR_PARAM_S *motor, 
         return Motor_Control_ResultSafe();
     }
 
-    /*
-     * 强制电角扫圆时转子往往跟不住，Park 后会出现很大“假 Iq”。
-     * 若仍跑 Q 轴 PI，Vq 积分会顶满并把相电流打穿过流门限。
-     * 标定只需要 Id 对齐：Iq 目标置 0，且强制 Vq=0、清 Q 积分。
-     */
-    (void)iq_target;
     v_limit = Motor_Control_GetVoltageLimit(motor, v_bus);
+    if (v_limit > v_bus * 0.35f) {
+        v_limit = v_bus * 0.35f;
+    }
+    if (v_limit > 10.0f) {
+        v_limit = 10.0f;
+    }
     Motor_Current_FeedbackUpdateDq(motor, theta);
-    voltage = Motor_Current_RunPi(motor, id_target, 0.0f, dt, v_limit);
-    voltage.vq = 0.0f;
-    motor->ol_vq_int = 0.0f;
+    voltage = Motor_Current_RunPi(motor, id_target, iq_target, dt, v_limit);
     return Motor_Control_ResultDq(voltage.vd, voltage.vq, theta);
 }
 
@@ -573,8 +634,8 @@ static motor_control_result_t Motor_Control_RunHallDetect(MOTOR_PARAM_S *motor, 
 static bool Motor_Control_RunHfi(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus,
                                  motor_control_result_t *result)
 {
-    motor_hfi_start_config_t config = {motor->hfi_start_enable, motor->hfi_start_voltage,
-                                       motor->hfi_start_cycles, motor->hfi_start_min_confidence, 0.20f};
+    motor_hfi_start_config_t config = {motor->hfi_start_enable, motor->hfi_start_voltage, motor->hfi_start_cycles,
+                                       motor->hfi_start_min_confidence, 0.20f};
     motor_hfi_start_output_t output;
     motor_hfi_start_result_t hfi_result;
     bool starting;
@@ -592,8 +653,7 @@ static bool Motor_Control_RunHfi(motor_control_t *ctrl, MOTOR_PARAM_S *motor, fl
     }
 
     clarke_transform(motor->ia, motor->ib, motor->ic, &motor->Ialpha, &motor->Ibeta);
-    hfi_result = MotorHfiStart_Step(&ctrl->startup.hfi_start, &config, motor->Ialpha, motor->Ibeta, v_bus,
-                                    &output);
+    hfi_result = MotorHfiStart_Step(&ctrl->startup.hfi_start, &config, motor->Ialpha, motor->Ibeta, v_bus, &output);
     if (hfi_result == MOTOR_HFI_START_RUNNING) {
         *result = Motor_Control_ResultDq(output.vd, 0.0f, output.theta);
         return true;
@@ -633,6 +693,12 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
         return Motor_Control_ResultSafe();
     }
 
+    /* 模式变化由控制实例自己识别，确保内部启动上下文也被完整复位。 */
+    if (ctrl->last_mode >= 0 && ctrl->last_mode != motor->ol_mode) {
+        Motor_Control_ResetRuntime(ctrl, motor);
+    }
+    ctrl->last_mode = motor->ol_mode;
+
     /* 欠压：复位并请求安全输出。 */
     if (v_bus < 1.0f) {
         Motor_Control_ResetRuntime(ctrl, motor);
@@ -658,12 +724,30 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
         if (Motor_Control_RunHfi(ctrl, motor, v_bus, &hfi_result)) {
             return hfi_result;
         }
-        if (!Motor_Control_RunAlignment(ctrl, motor, dt)) {
+        if (ctrl->startup.phase == MOTOR_STARTUP_CURRENT_RAMP) {
+            Motor_Control_UpdateSoftCurrent(ctrl, motor, dt);
+            motor->ol_current_rpm = 0.0f;
+            MotorIfStart_SetNeutral(&ctrl->startup.if_start);
+            if (ctrl->startup.soft_current_scale >= 1.0f) {
+                if (motor->ol_align_enable && !ctrl->startup.alignment.complete) {
+                    ctrl->startup.phase = MOTOR_STARTUP_ANGLE_HOLD;
+                } else {
+                    MotorAlignment_MarkComplete(&ctrl->startup.alignment);
+                    ctrl->startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+                    motor->ol_vd_int = 0.0f;
+                    motor->ol_vq_int = 0.0f;
+                }
+            }
+        } else if (ctrl->startup.phase == MOTOR_STARTUP_ANGLE_HOLD) {
+            if (!Motor_Control_RunAlignment(ctrl, motor, dt)) {
+                ctrl->startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+                ctrl->startup.drag_current_scale = 0.0f;
+            }
+        }
+
+        if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
             bool sensored = Motor_Feedback_IsSensoredSource(Motor_Feedback_GetSourceDefault());
-            /*
-             * 有感电流+速度环：跳过无感观测器；PublishSensoredSpeed 在角/速均有效时
-             * 才置 SpeedFeedback，供 SpeedLoop_Run → Current 目标 Iq。
-             */
+            Motor_Control_UpdateDragCurrent(ctrl, dt);
             Motor_Control_UpdateSpeed(motor, dt, sensored || Motor_Sensorless_IsTakeoverComplete());
             Motor_Control_StartupIf(ctrl, motor);
             Motor_Control_UpdateTheta(ctrl, motor, dt);
@@ -677,11 +761,14 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
         return Motor_Control_RunIf(ctrl, motor, v_bus, dt);
     }
 
+    /* V/F：电压软起 + 幅值上限；与转速同时斜坡（不做高压直流励磁）。 */
     Motor_SpeedLoop_Reset();
     Motor_Sensorless_Reset();
+    Motor_Control_UpdateSoftCurrent(ctrl, motor, dt);
+    Motor_Control_UpdateSpeed(motor, dt, true);
     Motor_Control_StartupVf(ctrl, motor);
     Motor_Control_UpdateTheta(ctrl, motor, dt);
-    return Motor_Control_RunVf(motor, v_bus);
+    return Motor_Control_RunVf(ctrl, motor, v_bus);
 }
 
 /**
@@ -757,8 +844,7 @@ float Motor_Control_HfiGetConfidence(const motor_control_t *ctrl)
  * @return {motor_control_result_t} 最终输出
  * @author: lkc
  */
-motor_control_result_t Motor_Control_ArbitrateOutput(bool fault_latched,
-                                                     const motor_control_result_t *proposed)
+motor_control_result_t Motor_Control_ArbitrateOutput(bool fault_latched, const motor_control_result_t *proposed)
 {
     motor_control_result_t none;
 

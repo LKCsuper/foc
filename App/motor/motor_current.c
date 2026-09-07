@@ -44,8 +44,8 @@ void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
  * @return {*}
  * @author: lkc
  */
-void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_target_ctx_t *ctx,
-                              float *id_target, float *iq_target)
+void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_target_ctx_t *ctx, float *id_target,
+                              float *iq_target)
 {
     motor_current_target_ctx_t local;
 
@@ -55,7 +55,9 @@ void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_ta
 
     if (ctx == NULL) {
         local.alignment_running = false;
+        local.alignment_current_scale = 0.0f;
         local.if_iq_scale = 1.0f;
+        local.soft_current_scale = 1.0f;
         local.speed_loop_active = false;
         local.speed_iq_target = 0.0f;
         ctx = &local;
@@ -63,21 +65,25 @@ void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_ta
 
     if (ctx->alignment_running) {
         /*
-         * 对齐必须使用 D 轴电流而不是 Q 轴电流。Q 轴电流负责转矩，会让
-         * 转子继续摆动；D 轴磁场固定后，转子会自行吸到已知电角位置。
+         * 对齐 / 软起定角必须用 D 轴电流。Q 轴会产转矩并在定角上把电压积分顶满。
+         * align_current≤0 时回退到 |ol_iq_set|，保证软起仍有吸合力。
          */
-        *id_target = motor->ol_align_current;
+        float id_mag = motor->ol_align_current;
+        if (id_mag <= 0.0f) {
+            id_mag = fabsf(motor->ol_iq_set);
+        }
+        *id_target = id_mag * ctx->soft_current_scale;
         *iq_target = 0.0f;
         return;
     }
 
-    *id_target = motor->ol_id_set;
+    *id_target = motor->ol_align_current * ctx->alignment_current_scale + motor->ol_id_set * ctx->soft_current_scale;
     if (ctx->speed_loop_active) {
         /* 无感闭环建立后，速度 PI 的输出作为电流内环 Iq 目标。 */
-        *iq_target = ctx->speed_iq_target;
+        *iq_target = ctx->speed_iq_target * ctx->soft_current_scale;
     } else {
         /* 观测器锁定前必须保留 I/F 启动电流，否则无感电机无法从零速起转。 */
-        *iq_target = motor->ol_iq_set * ctx->if_iq_scale;
+        *iq_target = motor->ol_iq_set * ctx->if_iq_scale * ctx->soft_current_scale;
     }
 }
 
@@ -91,8 +97,7 @@ void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_ta
  * @return {*}
  * @author: lkc
  */
-void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, float id_err, float iq_err,
-                                float v_limit)
+void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, float id_err, float iq_err, float v_limit)
 {
     if (motor == NULL || v == NULL) {
         return;
@@ -118,8 +123,7 @@ void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, flo
  * @return {motor_dq_voltage_t} vd/vq (V)
  * @author: lkc
  */
-motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, float iq_target, float dt,
-                                       float v_limit)
+motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, float iq_target, float dt, float v_limit)
 {
     motor_dq_voltage_t v = {0.0f, 0.0f};
 
@@ -127,10 +131,10 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
         return v;
     }
 
-    v.vd = Motor_Current_PI_Run(id_target, motor->Id, &motor->ol_vd_int, motor->ol_current_kp,
-                                motor->ol_current_ki, dt, v_limit);
-    v.vq = Motor_Current_PI_Run(iq_target, motor->Iq, &motor->ol_vq_int, motor->ol_current_kp,
-                                motor->ol_current_ki, dt, v_limit);
+    v.vd = Motor_Current_PI_Run(id_target, motor->Id, &motor->ol_vd_int, motor->ol_current_kp, motor->ol_current_ki, dt,
+                                v_limit);
+    v.vq = Motor_Current_PI_Run(iq_target, motor->Iq, &motor->ol_vq_int, motor->ol_current_kp, motor->ol_current_ki, dt,
+                                v_limit);
 
     Motor_Current_LimitVoltage(motor, &v, id_target - motor->Id, iq_target - motor->Iq, v_limit);
     return v;

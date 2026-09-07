@@ -251,7 +251,7 @@ static void ol_print_status(void)
     ol_status_append(&used, "  Target RPM : %.0f\n", status.target_rpm);
     ol_status_append(&used, "  Max RPM    : %.0f\n", motor.ol_max_rpm);
     ol_status_append(&used, "  Current RPM: %.0f\n", status.current_rpm);
-    ol_status_append(&used, "  Min RPM    : %.0f\n", motor.ol_min_rpm);
+    ol_status_append(&used, "  Start RPM  : %.0f\n", motor.ol_min_rpm);
     ol_status_append(&used, "  Ramp       : %.0f RPM/s\n", motor.ol_ramp_rpm_s);
     ol_status_append(&used, "  Pole pairs : %.0f\n", motor.ol_pole_pairs);
     ol_status_append(&used, "  V_bus      : %.1f V\n", status.v_bus);
@@ -349,13 +349,13 @@ int Cmd_OlSpeed(int argc, char *argv[])
     if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
         return -1;
     }
+    /* 只改目标转速，保留 enable；启动/停止必须用 olstart / olstop，避免 olspeed 误启动过流 */
     cmd.target_rpm = rpm;
-    cmd.enable = (rpm != 0.0f);
     if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) {
         PRINTF("Invalid speed command\n");
         return -1;
     }
-    PRINTF("Target RPM set to %.0f\n", motor.ol_target_rpm);
+    PRINTF("Target RPM set to %.0f (%s)\n", motor.ol_target_rpm, motor.ol_enable ? "running" : "stopped, use olstart");
     ol_print_high_speed_guard_notice(motor.ol_target_rpm);
     return 0;
 }
@@ -533,7 +533,7 @@ int Cmd_OlMaxSpeed(int argc, char *argv[])
 }
 
 /**
- * @description: olmin 命令 — 设置开环最小转速（启动默认值）。
+ * @description: olmin 命令 — 设置目标为零时 olstart 使用的默认启动转速。
  * @param {int} argc 参数个数
  * @param {char *} argv[] 参数列表，argv[1] 为最小转速 (RPM)
  * @return {int} 0 成功
@@ -545,7 +545,7 @@ int Cmd_OlMinSpeed(int argc, char *argv[])
     motor_result_t result;
 
     if (argc < 2) {
-        PRINTF("Min RPM = %.0f  (usage: olmin <rpm>)\n", motor.ol_min_rpm);
+        PRINTF("Start RPM = %.0f  (usage: olmin <rpm>)\n", motor.ol_min_rpm);
         return 0;
     }
 
@@ -565,7 +565,7 @@ int Cmd_OlMinSpeed(int argc, char *argv[])
         ol_print_config_result(result);
         return -1;
     }
-    PRINTF("Min RPM set to %.0f\n", motor.ol_min_rpm);
+    PRINTF("Start RPM set to %.0f\n", motor.ol_min_rpm);
     return 0;
 }
 
@@ -594,7 +594,13 @@ int Cmd_OlStart(int argc, char *argv[])
         PRINTF("Invalid start command\n");
         return -1;
     }
-    PRINTF("Open-loop started, target %.0f RPM\n", motor.ol_target_rpm);
+    PRINTF("Open-loop started (%s), target %.0f RPM",
+           (motor.ol_mode == MOTOR_OL_MODE_VF) ? "V/F" : "I/F", motor.ol_target_rpm);
+    if (motor.ol_mode == MOTOR_OL_MODE_VF) {
+        PRINTF(", boost=%.1fV\n", motor.ol_v_boost);
+    } else {
+        PRINTF(", Iq=%.2fA\n", motor.ol_iq_set);
+    }
     ol_print_high_speed_guard_notice(motor.ol_target_rpm);
     return 0;
 }
@@ -948,7 +954,7 @@ int Cmd_OlKi(int argc, char *argv[])
 }
 
 /**
- * @description: olphase 命令 — 设置 I/F 启动相位超前补偿。
+ * @description: olphase 命令 — 保留旧 I/F 启动相位参数，当前平滑启动流程不使用。
  * @param {int} argc 参数个数
  * @param {char *} argv[] 参数列表，argv[1] 为相位补偿 (rad)
  * @return {int} 0 成功
@@ -960,7 +966,8 @@ int Cmd_OlPhase(int argc, char *argv[])
     motor_result_t result;
 
     if (argc < 2) {
-        PRINTF("Start phase boost = %.2f rad  (usage: olphase <radians>)\n", motor.ol_start_phase_boost);
+        PRINTF("Legacy phase boost = %.2f rad (unused by smooth startup; usage: olphase <radians>)\n",
+               motor.ol_start_phase_boost);
         return 0;
     }
     if (!ol_capture_config(&cfg)) {
@@ -973,7 +980,8 @@ int Cmd_OlPhase(int argc, char *argv[])
         ol_print_config_result(result);
         return -1;
     }
-    PRINTF("Start phase boost set to %.2f rad\n", motor.ol_start_phase_boost);
+    PRINTF("Legacy phase boost stored as %.2f rad; smooth startup does not use it\n",
+           motor.ol_start_phase_boost);
     return 0;
 }
 

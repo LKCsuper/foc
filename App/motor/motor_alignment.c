@@ -52,7 +52,8 @@ void MotorAlignment_MarkComplete(motor_alignment_t *state)
 
 /**
  * @description: 将状态机标记为“跳过对齐”
- * @detail: 预对齐未使能时调用，清除 running/complete 等状态
+ * @detail: 供独立对齐状态机的调用者记录本次未执行保持阶段；主控制启动状态机
+ *          会先完成定角电流爬升，再决定是否进入保持阶段。
  * @param {motor_alignment_t} *state   对齐状态机；为 NULL 时直接返回
  * @return {*}
  * @author: lkc

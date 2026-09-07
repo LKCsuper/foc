@@ -102,6 +102,7 @@ uint32_t DETECT_Offset(bool cal_undriven)
                Motor_Protect_GetFaultName(Motor_Protect_GetFault()));
         return 0U;
     }
+    Motor_Protect_ClearFault();
 
     s_detect_active = true;
     (void)Motor_RequestStop(&motor);
@@ -225,7 +226,8 @@ bool DETECT_Hall(void)
     bool res;
     int i;
 
-    Motor_Hall_Detect(6.0f / 3.0f, hall_tab, &res);
+    /* I/F 扫角电流；PI 限流，避免开环电压过流 */
+    Motor_Hall_Detect(1.2f, hall_tab, &res);
 
     if (res) {
         INFO("DETECT HALL Success.\r\n");

@@ -65,6 +65,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor hall angle host compilation failed' }
     & .build/host/test_motor_hall_angle.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor hall angle host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_PHASE_ORDER_HOST_TEST -IApp/motor_sensor/inc App/motor_sensor/motor_phase_order.c Tests/host/test_motor_phase_order.c -o .build/host/test_motor_phase_order.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor phase order host compilation failed' }
+    & .build/host/test_motor_phase_order.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor phase order host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE "-Dassert_param(x)=((void)0)" -IApp/motor/inc App/motor/motor_foc.c App/motor/motor_utils.c Examples/01_transform/main.c -o .build/host/example_01_transform.exe
     if ($LASTEXITCODE -ne 0) { throw 'Example 01 transform compilation failed' }
     & .build/host/example_01_transform.exe

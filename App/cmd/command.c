@@ -14,7 +14,7 @@ extern "C" {
 #include "includes.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define CMD_BUF_SIZE        128U        /* 输入缓冲大小 */
+#define CMD_BUF_SIZE        160U        /* 单行输入缓冲 */
 #define CMD_MAX_ARGS        8U          /* 最多参数个数（含命令名） */
 /* Private macro -------------------------------------------------------------*/
 /* -- 前向声明：所有命令函数统一签名 int func(int argc, char *argv[]) ----------*/
@@ -65,7 +65,7 @@ extern "C" {
 /* -- 命令表 ----------------------------------------------------------------*/
 static const cmd_entry_t s_cmd_table[] = {
     /* 偏移校准 / 霍尔检测 */
-    { "detect",     Cmd_Detect,             "detect offset/hall" },
+    { "detect",     Cmd_Detect,             "detect offset/hall/phase" },
     /* Flash 存储 */
     { "saveparam",  Cmd_Saveparam,          "save motor params to Flash" },
     /* 开环 V/F 控制 */
@@ -129,7 +129,7 @@ const osThreadAttr_t taskCmdAttr = {
 };
 
 QueueHandle_t queueCmdHandle;
-#define CMD_QUEUE_LENGTH    2
+#define CMD_QUEUE_LENGTH    8
 #define CMD_QUEUE_SIZE      sizeof(CMD_QUEUE_ITEM)
 
 /* -- 解析 & 分发 ------------------------------------------------------------*/

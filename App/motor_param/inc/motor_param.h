@@ -139,7 +139,7 @@ typedef struct motor_param {
     /* ---- config ---- */
     float ol_foc_freq;       /* ADC-DMA 基准频率 Hz */
     float ol_pole_pairs;     /* 电机极对数 */
-    float ol_min_rpm;        /* 最低转速地板 RPM */
+    float ol_min_rpm;        /* 旧启动策略兼容参数；平滑启动不作转速地板 */
     /* ---- command ---- */
     float ol_iq_set;         /* 目标 Iq 电流 A */
     float ol_id_set;         /* 目标 Id 电流 A */

@@ -30,10 +30,12 @@ typedef struct {
  * @description: 电流目标选择时由调用者注入的上下文（对齐/I/F/速度环）
  */
 typedef struct {
-    bool alignment_running; /* true=预对齐：Id=align_current, Iq=0 */
-    float if_iq_scale;      /* I/F 低速 Iq 缩放，通常 0..1 */
-    bool speed_loop_active; /* true=使用速度环 Iq 替代 ol_iq_set */
-    float speed_iq_target;  /* 速度环给出的 Iq (A) */
+    bool alignment_running;        /* true=预对齐：Id=align_current, Iq=0 */
+    float alignment_current_scale; /* Id 定角电流比例；拖转交接时由 1 降到 0 */
+    float if_iq_scale;             /* I/F 低速 Iq 缩放，通常 0..1 */
+    float soft_current_scale;      /* 运行电流比例；拖转交接时由 0 升到 1 */
+    bool speed_loop_active;        /* true=使用速度环 Iq 替代 ol_iq_set */
+    float speed_iq_target;         /* 速度环给出的 Iq (A) */
 } motor_current_target_ctx_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -57,8 +59,8 @@ void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta);
  * @return {*}
  * @author: lkc
  */
-void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_target_ctx_t *ctx,
-                              float *id_target, float *iq_target);
+void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_target_ctx_t *ctx, float *id_target,
+                              float *iq_target);
 
 /**
  * @description: 对 vd/vq 做合成矢量限幅，并回写 PI 积分抗饱和
@@ -70,8 +72,7 @@ void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_ta
  * @return {*}
  * @author: lkc
  */
-void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, float id_err, float iq_err,
-                                float v_limit);
+void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, float id_err, float iq_err, float v_limit);
 
 /**
  * @description: 运行 d/q 双轴电流 PI，并做矢量限幅
@@ -83,8 +84,7 @@ void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, flo
  * @return {motor_dq_voltage_t} 限幅后的 vd/vq (V)
  * @author: lkc
  */
-motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, float iq_target, float dt,
-                                       float v_limit);
+motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, float iq_target, float dt, float v_limit);
 
 /**
  * @description: 电流环一步：反馈变换 + 取目标 + PI（不含 PWM）

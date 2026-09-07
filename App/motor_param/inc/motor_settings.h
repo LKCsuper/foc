@@ -19,7 +19,7 @@ typedef struct {
     float ol_vq_limit;          /* Vq 上限 V */
     float ol_foc_freq;          /* ADC-DMA 基准频率 Hz */
     float ol_pole_pairs;        /* 电机极对数 */
-    float ol_min_rpm;           /* 最低转速地板 RPM */
+    float ol_min_rpm;           /* 旧启动策略兼容参数；平滑启动不作转速地板 */
     float ol_current_kp;        /* 开环电流环 Kp */
     float ol_current_ki;        /* 开环电流环 Ki */
     float ol_start_phase_boost; /* 兼容旧启动方式的一拍相位补偿 rad */

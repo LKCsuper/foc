@@ -1,0 +1,14 @@
+---
+description: 本仓库 AI 编码硬性约束，写代码、改代码、提交前必须遵守
+alwaysApply: true
+---
+
+严格遵守仓库根目录 `AI_CODE.md`。冲突时以该文档为准。
+
+- 一模块一文件：`.c` + `.h`，独立函数封装；新 `.h` 挂到 `App/User/includes.h` 对应分组。
+- 业务 `.c` 只 `#include "includes.h"`，禁止重排 include。
+- 格式以根目录 `.clang-format` 为准（4 空格、120 列、Linux 大括号、指针靠右）。只格式化自己改过的文件。
+- 新建文件用 `AI_CODE.md` 里的 `.c` / `.h` 骨架；公开函数用 `@description` / `@param` / `@return` 中文注释，带单位。
+- FOC 变换、PID 三环、起步、堵转保护、霍尔、编码器分文件，不要混写。
+- 提交（仅当用户要求时）：`feat:` / `fix:` 等 + 中文摘要。
+- 只改任务相关文件；第三方库默认只读；控制中断路径禁止阻塞。

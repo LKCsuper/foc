@@ -29,10 +29,11 @@ typedef struct {
     float iq_target;   /* Q 轴目标电流 (A) */
 } motor_hall_detect_ctx_t;
 /* Private define ------------------------------------------------------------*/
-#define MOTOR_HALL_DETECT_ALIGN_STEPS   (1000U)
-#define MOTOR_HALL_DETECT_SWEEP_LOOPS    (3U)
+#define MOTOR_HALL_DETECT_ALIGN_STEPS   (800U)
+#define MOTOR_HALL_DETECT_SWEEP_LOOPS    (2U)
 #define MOTOR_HALL_DETECT_DEG_STEPS      (360U)
-#define MOTOR_HALL_DETECT_STEP_DELAY_MS  (5U)
+#define MOTOR_HALL_DETECT_STEP_DELAY_MS  (25U)
+#define MOTOR_HALL_DETECT_HOLD_MS        (600U)
 #define MOTOR_HALL_DETECT_MIN_SAMPLES    (30U)
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -40,7 +41,7 @@ static motor_hall_detect_ctx_t s_hall_detect;
 /* Private function prototypes -----------------------------------------------*/
 static void Motor_Hall_DetectCtxReset(void);
 static bool Motor_Hall_DetectShouldStop(void);
-static bool Motor_Hall_DetectWait(float theta_rad, float id_target, uint32_t delay_ms);
+static bool Motor_Hall_DetectWait(float theta_rad, float id_target, float iq_target, uint32_t delay_ms);
 static void Motor_Hall_StoreTableEntry(uint8_t *hall_table, int hall,
                                        float sin_acc, float cos_acc, int samples);
 static void Motor_Hall_TableToMotor(const uint8_t *hall_table, MOTOR_PARAM_S *m);
@@ -72,17 +73,19 @@ static bool Motor_Hall_DetectShouldStop(void)
 }
 
 /**
- * @description: 下发本拍强制电角度与 D 轴电流，并等待 ISR 执行
+ * @description: 下发本拍强制电角度与 d/q 电流目标，并等待 ISR 执行
  * @param {float} theta_rad   强制电角度 (rad)
  * @param {float} id_target   D 轴目标电流 (A)
+ * @param {float} iq_target   Q 轴目标电流 (A)
  * @param {uint32_t} delay_ms 等待时间 (ms)
  * @return {bool} true=可继续；false=应中止
  * @author: lkc
  */
-static bool Motor_Hall_DetectWait(float theta_rad, float id_target, uint32_t delay_ms)
+static bool Motor_Hall_DetectWait(float theta_rad, float id_target, float iq_target, uint32_t delay_ms)
 {
     s_hall_detect.theta_rad = theta_rad;
     s_hall_detect.id_target = id_target;
+    s_hall_detect.iq_target = iq_target;
     osDelay(pdMS_TO_TICKS(delay_ms));
     return !Motor_Hall_DetectShouldStop();
 }
@@ -206,7 +209,7 @@ bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad,
  * @description: 开环转一圈，标定霍尔状态与电角度对应表
  * @detail: 任务上下文推进角度；ISR 通过 DetectGetTargets 输出 D 轴电流与固定角。
  *          结果写入 hall_table；成功时同步写入 MOTOR_PARAM_S.hall_table
- * @param {float} current        对齐电流 (A)，建议用峰值电流 / 3
+ * @param {float} current        对齐/拖动电流 (A)；对齐用 Id，扫角用 Iq（I/F）
  * @param {uint8_t} *hall_table  输出 8 项霍尔表，255 表示无效扇区
  * @param {bool} *result         true 表示标定成功（6 个有效扇区）
  * @return {int} 故障码，FAULT_CODE_NONE 表示无故障
@@ -233,11 +236,19 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
         return FAULT_CODE_NONE;
     }
 
-    printf("HALL DETECT\r\n");
+    printf("HALL DETECT I/F align+Iq=%.2fA slow crawl\r\n", (double)current);
     memset(sin_hall, 0, sizeof(sin_hall));
     memset(cos_hall, 0, sizeof(cos_hall));
     memset(hall_iterations, 0, sizeof(hall_iterations));
     *result = false;
+
+    if (Motor_Protect_IsFaultLatched()) {
+        printf("HALL DETECT blocked by fault: %s — run olfault clear\r\n",
+               Motor_Protect_GetFaultName(Motor_Protect_GetFault()));
+        return Motor_Protect_GetFault();
+    }
+    /* 清 latched+NONE 等脏状态，避免误拦 */
+    Motor_Protect_ClearFault();
 
     m->ol_enable = true;
     m->ol_target_rpm = 1.0f;
@@ -249,12 +260,19 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
     s_hall_detect.active = true;
     Hal_Motor_PwmStart();
 
+    /* 先 Id 对齐到 θ=0，再改用 Iq 拖动扫角（I/F），电流闭环限流 */
     for (step = 0; step < MOTOR_HALL_DETECT_ALIGN_STEPS; step++) {
         if (!Motor_Hall_DetectWait(0.0f,
-                                   (float)step * current / (float)MOTOR_HALL_DETECT_ALIGN_STEPS,
+                                   (float)step * current / (float)MOTOR_HALL_DETECT_ALIGN_STEPS, 0.0f,
                                    1U)) {
             stopped = true;
             break;
+        }
+    }
+
+    if (!stopped) {
+        if (!Motor_Hall_DetectWait(0.0f, current, 0.0f, MOTOR_HALL_DETECT_HOLD_MS)) {
+            stopped = true;
         }
     }
 
@@ -262,7 +280,7 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
     m->lastHallABC = 0U;
     for (i = 0; !stopped && i < (int)MOTOR_HALL_DETECT_SWEEP_LOOPS; i++) {
         for (j = 0; j <= (int)MOTOR_HALL_DETECT_DEG_STEPS; j++) {
-            if (!Motor_Hall_DetectWait(DEG2RAD_f((float)j), current,
+            if (!Motor_Hall_DetectWait(DEG2RAD_f((float)j), 0.0f, current,
                                        MOTOR_HALL_DETECT_STEP_DELAY_MS)) {
                 stopped = true;
                 break;
@@ -286,7 +304,7 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
 
     for (i = 0; !stopped && i < (int)MOTOR_HALL_DETECT_SWEEP_LOOPS; i++) {
         for (j = (int)MOTOR_HALL_DETECT_DEG_STEPS; j >= 0; j--) {
-            if (!Motor_Hall_DetectWait(DEG2RAD_f((float)j), current,
+            if (!Motor_Hall_DetectWait(DEG2RAD_f((float)j), 0.0f, current,
                                        MOTOR_HALL_DETECT_STEP_DELAY_MS)) {
                 stopped = true;
                 break;
@@ -316,6 +334,12 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
         *result = (fails == 2);
         if (*result) {
             Motor_Hall_TableToMotor(hall_table, m);
+        } else {
+            printf("HALL DETECT fail: invalid=%d (need 2). table/samples:\r\n", fails);
+            for (i = 0; i < (int)MOTOR_HALL_TABLE_SIZE; i++) {
+                printf("  [%d] tab=%d n=%d\r\n", i, (int)hall_table[i], hall_iterations[i]);
+            }
+            printf("hint: shaft free? need 6 hall sectors; try higher Iq or slower crawl\r\n");
         }
     }
 
