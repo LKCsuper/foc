@@ -172,13 +172,10 @@ void Bsp_Gpio_Init(void)
 	GPIO_Init(HW_HALL_A_PORT, &GPIO_InitStructure);
 	
 	/*
-	 * Phase-voltage RC filter control. The ODR has no effect while this pin
-	 * remains in its reset/input mode, so configure it before first use.
+	 * 保持 3e5d564 已上板验证过的电气状态：PC13 不配置为输出。
+	 * 当前板型对该引脚的真实用途尚未重新核实，主动拉高/拉低可能改变
+	 * 外部模拟开关或驱动相关电路。确认原理图前只保留输入态。
 	 */
-#ifdef HW_HAS_PHASE_FILTERS
-	Bsp_Gpio_Mode(PHASE_FILTER_GPIO, PHASE_FILTER_PIN, GPIO_Mode_OUT);
-	PHASE_FILTER_OFF();
-#endif
 
 	// /* Fault */
 	// Bsp_Gpio_Mode(PHASE_FILTER_PORT, PHASE_FILTER_PIN, GPIO_Mode_IN);

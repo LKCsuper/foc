@@ -23,12 +23,10 @@
 //#define MCCONF_FOC_F_ZV         1000
 /* my definition */
 
-#define HW_NAME					"BM75"
+#define HW_NAME					"HD75"
 
 // HW properties
 #define HW_HAS_3_SHUNTS
-/* 实机验证：TIM1 CH2/CH3 对应的电机 B/C 相需交换后旋转磁场方向才连续。 */
-#define HW_PWM_PHASE_BC_SWAP
 #define HW_HAS_PHASE_FILTERS
 
 /*
@@ -61,8 +59,9 @@
 
 #define PHASE_FILTER_GPIO		GPIOC
 #define PHASE_FILTER_PIN		GPIO_Pin_13
-#define PHASE_FILTER_ON()		GPIO_SetBits(PHASE_FILTER_GPIO, PHASE_FILTER_PIN)
-#define PHASE_FILTER_OFF()		GPIO_ResetBits(PHASE_FILTER_GPIO, PHASE_FILTER_PIN)
+/* 当前板先保持 3e5d564 的输入态行为，核实原理图后再主动驱动 PC13。 */
+#define PHASE_FILTER_ON()
+#define PHASE_FILTER_OFF()
 
 #define PHASE_FILTER_ON_M2()		
 #define PHASE_FILTER_OFF_M2()		

@@ -23,6 +23,7 @@ extern "C" {
 #include "motor_control.h"
 #include "motor_foc_divider.h"
 #include "motor_foc.h"
+#include "motor_math.h"
 #include "motor_sensorless.h"
 #include "motor_detect.h"
 #include "motor_hall.h"
@@ -52,6 +53,15 @@ static motor_foc_divider_t s_foc_divider = {
  */
 static volatile float s_foc_runtime_average_us = 0.0f;
 static volatile float s_foc_runtime_maximum_us = 0.0f;
+static volatile bool s_selftest_active = false;
+static volatile float s_selftest_theta = 0.0f;
+static volatile float s_selftest_vq = 0.0f;
+static volatile uint32_t s_selftest_samples = 0U;
+static volatile float s_selftest_current_adc[3];
+static volatile float s_selftest_phase_raw_v[3];
+static volatile float s_selftest_current_a[3];
+static volatile float s_selftest_phase_v[3];
+static volatile bool s_pwm_swap_bc = false;
 /* Private function prototypes -----------------------------------------------*/
 static void Motor_DmaInt_RecordRuntime(uint32_t start_time);
 static float Motor_OpenLoop_GetAdcDt(MOTOR_PARAM_S *m);
@@ -62,6 +72,8 @@ static void Motor_It_ApplyControlResult(MOTOR_PARAM_S *m, float v_bus, const mot
 static bool Motor_DmaInt_ShouldRun(void);
 static void Motor_DmaInt_Foc(void);
 static void Motor_DmaInt_WhileDetect(void);
+static void Motor_DmaInt_RunLegacyVf(MOTOR_PARAM_S *m);
+static void Motor_DmaInt_RunSelfTest(MOTOR_PARAM_S *m);
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -166,8 +178,22 @@ static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq, float 
     inverse_park(vd, vq, theta, &v_alpha, &v_beta);
     Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
     svm_hqd(v_alpha, v_beta, v_bus, period, &m->duty1, &m->duty2, &m->duty3, &sector);
-    Hal_Motor_PwmSetDuty(m->duty1, m->duty2, m->duty3);
+    if (s_pwm_swap_bc) {
+        Hal_Motor_PwmSetDuty(m->duty1, m->duty3, m->duty2);
+    } else {
+        Hal_Motor_PwmSetDuty(m->duty1, m->duty2, m->duty3);
+    }
     Hal_Motor_PwmCommit();
+}
+
+void Motor_PwmMap_SetSwapBc(bool swap_bc)
+{
+    s_pwm_swap_bc = swap_bc;
+}
+
+bool Motor_PwmMap_GetSwapBc(void)
+{
+    return s_pwm_swap_bc;
 }
 
 /**
@@ -309,6 +335,113 @@ static bool Motor_DmaInt_ShouldRun(void)
 }
 
 /**
+ * @description: 复现 3e5d564 已上板成功的最小 V/F 电压开环路径。
+ * @detail: 仅供 V/F 基线验证；固定 Vq=5V、每个 15kHz 控制拍推进 0.001rad，
+ *          绕过新版启动编排，以判断回归是否位于 Motor_Control_Step。
+ * @param {MOTOR_PARAM_S} *m 电机对象
+ * @return {*}
+ */
+static void Motor_DmaInt_RunLegacyVf(MOTOR_PARAM_S *m)
+{
+    const float legacy_vq = 5.0f;
+    const float legacy_theta_step = 0.001f;
+
+    m->ol_current_rpm = legacy_theta_step * Motor_DmaInt_GetControlFrequencyHz() /
+                        (RPM2RADPS_f(1.0f) * m->ol_pole_pairs);
+    m->theta += legacy_theta_step;
+    utils_norm_angle_rad(&m->theta);
+    m->ol_theta = m->theta;
+    Motor_Foc_OutputVoltage(m, 0.0f, legacy_vq, m->theta, m->v_bus);
+}
+
+static void Motor_DmaInt_RunSelfTest(MOTOR_PARAM_S *m)
+{
+    Motor_It_ParamCal();
+    if (Motor_Protect_Run(m, Motor_OpenLoop_GetAdcDt(m))) {
+        s_selftest_active = false;
+        Motor_OpenLoop_OutputSafe(m);
+        return;
+    }
+    if (m->v_bus >= 1.0f) {
+        Motor_Foc_OutputVoltage(m, 0.0f, s_selftest_vq, s_selftest_theta, m->v_bus);
+    }
+
+    s_selftest_current_adc[0] += (float)m->currentAdc[0];
+    s_selftest_current_adc[1] += (float)m->currentAdc[1];
+    s_selftest_current_adc[2] += (float)m->currentAdc[2];
+    s_selftest_phase_raw_v[0] += m->voltAdc[0];
+    s_selftest_phase_raw_v[1] += m->voltAdc[1];
+    s_selftest_phase_raw_v[2] += m->voltAdc[2];
+    s_selftest_current_a[0] += m->ia;
+    s_selftest_current_a[1] += m->ib;
+    s_selftest_current_a[2] += m->ic;
+    s_selftest_phase_v[0] += m->va;
+    s_selftest_phase_v[1] += m->vb;
+    s_selftest_phase_v[2] += m->vc;
+    s_selftest_samples++;
+}
+
+bool Motor_SelfTest_Begin(float vq)
+{
+    if (!isfinite(vq) || vq < 0.5f || vq > 4.0f || Motor_Protect_IsFaultLatched()) {
+        return false;
+    }
+    __disable_irq();
+    s_selftest_vq = vq;
+    s_selftest_theta = 0.0f;
+    s_selftest_active = true;
+    __enable_irq();
+    return true;
+}
+
+void Motor_SelfTest_SetAngle(float theta)
+{
+    __disable_irq();
+    s_selftest_theta = theta;
+    s_selftest_samples = 0U;
+    s_selftest_current_adc[0] = s_selftest_current_adc[1] = s_selftest_current_adc[2] = 0.0f;
+    s_selftest_phase_raw_v[0] = s_selftest_phase_raw_v[1] = s_selftest_phase_raw_v[2] = 0.0f;
+    s_selftest_current_a[0] = s_selftest_current_a[1] = s_selftest_current_a[2] = 0.0f;
+    s_selftest_phase_v[0] = s_selftest_phase_v[1] = s_selftest_phase_v[2] = 0.0f;
+    __enable_irq();
+}
+
+bool Motor_SelfTest_GetSample(motor_selftest_sample_t *sample)
+{
+    uint32_t count;
+    unsigned int i;
+
+    if (sample == NULL) {
+        return false;
+    }
+    __disable_irq();
+    count = s_selftest_samples;
+    if (count > 0U) {
+        sample->samples = count;
+        for (i = 0U; i < 3U; i++) {
+            sample->current_adc[i] = s_selftest_current_adc[i] / (float)count;
+            sample->phase_raw_v[i] = s_selftest_phase_raw_v[i] / (float)count;
+            sample->current_a[i] = s_selftest_current_a[i] / (float)count;
+            sample->phase_v[i] = s_selftest_phase_v[i] / (float)count;
+        }
+        sample->duty[0] = motor.duty1;
+        sample->duty[1] = s_pwm_swap_bc ? motor.duty3 : motor.duty2;
+        sample->duty[2] = s_pwm_swap_bc ? motor.duty2 : motor.duty3;
+    }
+    __enable_irq();
+    return count > 0U;
+}
+
+void Motor_SelfTest_End(void)
+{
+    __disable_irq();
+    s_selftest_active = false;
+    __enable_irq();
+    Motor_OpenLoop_OutputSafe(&motor);
+    Hal_Motor_PwmStop();
+}
+
+/**
  * @description: 采样换算入口：捕获 ADC 帧并换算为电流/电压物理量
  * @detail: 内部为 SampleCapture → ApplyFrame；每拍 ADC 回调均可调用
  * @return {*}
@@ -388,11 +521,42 @@ static void Motor_DmaInt_WhileDetect(void)
  */
 void Motor_DmaInt(void *p, uint32_t flags)
 {
+    uint32_t runtime_start;
+
     (void)p;
     (void)flags;
 
+    if (s_selftest_active) {
+        runtime_start = Hal_Motor_TimeUs();
+        if (Motor_DmaInt_ShouldRun()) {
+            Motor_DmaInt_RunSelfTest(&motor);
+        }
+        Motor_DmaInt_RecordRuntime(runtime_start);
+        return;
+    }
+
     if (Motor_Detect_IsActive()) {
         Motor_DmaInt_WhileDetect();
+        return;
+    }
+
+    /*
+     * V/F 实机回归基线：严格保持 3e5d564 的执行顺序——先分频，命中控制拍后
+     * 才采样并直接更新 PWM。这样不会让新增的编码器/霍尔/软件保护计算占满
+     * 每个 30kHz ADC 中断，便于确认问题是否源自实时预算被破坏。
+     * 该路径仅用于短时低压验证；硬件 Break 仍须有效。
+     */
+    if (motor.ol_enable && motor.ol_mode == MOTOR_OL_MODE_VF) {
+        runtime_start = Hal_Motor_TimeUs();
+        if (!Motor_DmaInt_ShouldRun()) {
+            Motor_DmaInt_RecordRuntime(runtime_start);
+            return;
+        }
+        Motor_It_ParamCal();
+        if (motor.v_bus >= 1.0f) {
+            Motor_DmaInt_RunLegacyVf(&motor);
+        }
+        Motor_DmaInt_RecordRuntime(runtime_start);
         return;
     }
 

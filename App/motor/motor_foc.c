@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
+#include <stddef.h>
 #include <math.h>
 #include "motor_foc.h"
 #include "motor_math.h"
@@ -101,8 +102,9 @@ void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float
 {
 	float s = sin_f32(Theta);
 	float c = cos_f32(Theta);
-	*mod_alpha = mod_d * c - mod_q * s;
-	*mod_beta  = mod_d * s + mod_q * c;
+	/* 保持当前功率板已经上板验证过的电压矢量极性（3e5d564）。 */
+	*mod_alpha = -(mod_d * c - mod_q * s);
+	*mod_beta  = -(mod_d * s + mod_q * c);
 	
 	return;
 }
@@ -387,7 +389,7 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 
 /**
  * @description: 慧驱动 SVPWM，将 αβ 电压矢量转为三路 PWM 比较值。
- * @detail: 含 min/max 共模注入与过调制缩放，占空比以 50% 为中心分布。
+ * @detail: 使用当前功率板在 3e5d564 已验证能稳定开环旋转的扇区映射。
  * @param {float} Valpha   α 轴电压 (V)
  * @param {float} Vbeta    β 轴电压 (V)
  * @param {float} Udc      母线电压 (V)
@@ -401,19 +403,25 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
  */
 void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcmp1, uint32_t *pTcmp2, uint32_t *pTcmp3, uint32_t *pSector)
 {
-    float va;
-    float vb;
-    float vc;
-    float v_max;
-    float v_min;
-    float v_span;
-    float scale = 1.0f;
-    float v_common;
-    float duty_a;
-    float duty_b;
-    float duty_c;
-    uint32_t sector;
+    float Vref1;
+    float Vref2;
+    float Vref3;
+    float ta;
+    float tb;
+    float tc;
+    float X;
+    float Y;
+    float Z;
+    uint32_t Tcmp1 = 0U;
+    uint32_t Tcmp2 = 0U;
+    uint32_t Tcmp3 = 0U;
+    uint32_t sector = 0U;
+    float T1 = 0.0f;
+    float T2 = 0.0f;
 
+    if (pTcmp1 == NULL || pTcmp2 == NULL || pTcmp3 == NULL || pSector == NULL) {
+        return;
+    }
     if (Udc <= 0.0f || Tpwm == 0U) {
         *pTcmp1 = 0U;
         *pTcmp2 = 0U;
@@ -422,49 +430,61 @@ void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcm
         return;
     }
 
-    /* Alpha/beta voltage vector -> three phase-to-neutral voltages. */
-    va = Valpha;
-    vb = -0.5f * Valpha + SQRT3_BY_2 * Vbeta;
-    vc = -0.5f * Valpha - SQRT3_BY_2 * Vbeta;
-
-    v_max = fmaxf(va, fmaxf(vb, vc));
-    v_min = fminf(va, fminf(vb, vc));
-    v_span = v_max - v_min;
-    if (v_span > Udc) {
-        scale = Udc / v_span;
-        va *= scale;
-        vb *= scale;
-        vc *= scale;
-        v_max *= scale;
-        v_min *= scale;
+    Vref1 = Vbeta;
+    Vref2 = (ONE_BY_SQRT3 * Valpha - Vbeta) / 2.0f;
+    Vref3 = (-ONE_BY_SQRT3 * Valpha - Vbeta) / 2.0f;
+    if (Vref1 > 0.0f) {
+        sector = 1U;
+    }
+    if (Vref2 > 0.0f) {
+        sector += 2U;
+    }
+    if (Vref3 > 0.0f) {
+        sector += 4U;
     }
 
-    /* Min/max common-mode injection centres all duties around 50%. */
-    v_common = -0.5f * (v_max + v_min);
-    duty_a = 0.5f + (va + v_common) / Udc;
-    duty_b = 0.5f + (vb + v_common) / Udc;
-    duty_c = 0.5f + (vc + v_common) / Udc;
-    utils_truncate_number(&duty_a, 0.0f, 1.0f);
-    utils_truncate_number(&duty_b, 0.0f, 1.0f);
-    utils_truncate_number(&duty_c, 0.0f, 1.0f);
+    X = ONE_BY_SQRT3 * Vbeta * (float)Tpwm / Udc;
+    /*
+     * 严格复现 3e5d564 的 ARMCC 数值语义：旧源码中的 3 / 2 是整数除法，
+     * 实际系数为 1.0，而不是数学上直觉性的 1.5。这里先保持实机基线，
+     * 等恢复旋转后再单独验证/更换标准 SVPWM。
+     */
+    Y = (float)Tpwm / Udc * (Valpha + 0.5f * ONE_BY_SQRT3 * Vbeta);
+    Z = (float)Tpwm / Udc * (-Valpha + 0.5f * ONE_BY_SQRT3 * Vbeta);
 
-    if (Vbeta >= 0.0f) {
-        if (Valpha >= 0.0f) {
-            sector = (ONE_BY_SQRT3 * Vbeta > Valpha) ? 2U : 1U;
-        } else {
-            sector = (-ONE_BY_SQRT3 * Vbeta > Valpha) ? 3U : 2U;
-        }
-    } else {
-        if (Valpha >= 0.0f) {
-            sector = (-ONE_BY_SQRT3 * Vbeta > Valpha) ? 5U : 6U;
-        } else {
-            sector = (ONE_BY_SQRT3 * Vbeta > Valpha) ? 4U : 5U;
-        }
+    switch (sector) {
+        case 1U: T1 = Z;  T2 = Y;  break;
+        case 2U: T1 = Y;  T2 = -X; break;
+        case 3U: T1 = -Z; T2 = X;  break;
+        case 4U: T1 = -X; T2 = Z;  break;
+        case 5U: T1 = X;  T2 = -Y; break;
+        case 6U: T1 = -Y; T2 = -Z; break;
+        default: break;
     }
 
-    *pTcmp1 = (uint32_t)(duty_a * (float)Tpwm);
-    *pTcmp2 = (uint32_t)(duty_b * (float)Tpwm);
-    *pTcmp3 = (uint32_t)(duty_c * (float)Tpwm);
+    if ((T1 + T2) > (float)Tpwm) {
+        float sum = T1 + T2;
+        T1 = T1 / sum * (float)Tpwm;
+        T2 = T2 / sum * (float)Tpwm;
+    }
+
+    ta = ((float)Tpwm - (T1 + T2)) / 4.0f;
+    tb = ta + T1 / 2.0f;
+    tc = tb + T2 / 2.0f;
+
+    switch (sector) {
+        case 1U: Tcmp1 = (uint32_t)tb; Tcmp2 = (uint32_t)ta; Tcmp3 = (uint32_t)tc; break;
+        case 2U: Tcmp1 = (uint32_t)ta; Tcmp2 = (uint32_t)tc; Tcmp3 = (uint32_t)tb; break;
+        case 3U: Tcmp1 = (uint32_t)ta; Tcmp2 = (uint32_t)tb; Tcmp3 = (uint32_t)tc; break;
+        case 4U: Tcmp1 = (uint32_t)tc; Tcmp2 = (uint32_t)tb; Tcmp3 = (uint32_t)ta; break;
+        case 5U: Tcmp1 = (uint32_t)tc; Tcmp2 = (uint32_t)ta; Tcmp3 = (uint32_t)tb; break;
+        case 6U: Tcmp1 = (uint32_t)tb; Tcmp2 = (uint32_t)tc; Tcmp3 = (uint32_t)ta; break;
+        default: break;
+    }
+
+    *pTcmp1 = Tcmp1;
+    *pTcmp2 = Tcmp2;
+    *pTcmp3 = Tcmp3;
     *pSector = sector;
 
     return;

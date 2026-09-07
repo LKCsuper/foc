@@ -78,9 +78,14 @@ void MOTOR_Param_Init(void)
     gpstMotorDefault->ol_enable = false;
     /* 默认 I/F：低阻电机用电流限幅拖转；V/F 高压易过流。 */
     gpstMotorDefault->ol_mode = MOTOR_OL_MODE_IF;
-    gpstMotorDefault->ol_target_rpm = 40.0f;              /* 首次手动 olstart 的安全目标转速 RPM */
+    gpstMotorDefault->ol_target_rpm = 72.0f;              /* 对齐已上板成功的旧开环等效转速 */
     gpstMotorDefault->ol_max_rpm = MOTOR_FIXED_RATED_RPM; /* 不超过额定转速 */
-    gpstMotorDefault->ol_v_boost = 1.5f;                  /* V/F 启动补偿；硬件有 2V 绝对帽 */
+    /*
+     * 旧开环基线 3e5d564 在当前 24 V 电机/功率板上以固定 Vq=5 V、约 72 RPM
+     * 能稳定旋转。1.5 V 实测只能令转子往返摆动，因此先恢复已验证的启动强度；
+     * 仍由 ol_vq_limit 与 Vbus/sqrt(3) 统一限幅，后续上板再向下寻找最低可靠值。
+     */
+    gpstMotorDefault->ol_v_boost = 5.0f;
     gpstMotorDefault->ol_kv_f = 0.057f;                   /* V/Hz */
     gpstMotorDefault->ol_ramp_rpm_s = 10.0f;              /* 软启动速率 — 越慢越稳 */
     gpstMotorDefault->ol_vq_limit = 18.0f;                /* 配置上限；运行时再受 Vbus/sqrt(3) 限制 */

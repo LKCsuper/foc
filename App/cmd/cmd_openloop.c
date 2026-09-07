@@ -30,7 +30,7 @@ typedef enum {
     OPEN_LOOP_NUM,
 } OPEN_LOOP_TYPE;
 /* Private macro -------------------------------------------------------------*/
-#define OL_STATUS_BUFFER_SIZE (2048U)
+#define OL_STATUS_BUFFER_SIZE (3072U)
 /* Private variables ---------------------------------------------------------*/
 STATIC TaskHandle_t taskPlotHandle;
 /* olstatus 先在 RAM 中完成格式化，再一次性交给 UART DMA，避免逐行 printf。 */
@@ -244,7 +244,7 @@ static void ol_print_status(void)
     /* 平均耗时包含轻/重两种 ADC 回调，所以乘 30kHz ADC 频率才是总 ISR 占用。 */
     foc_load_percent = foc_average_us * adc_frequency_hz / 10000.0f;
 
-    ol_status_append(&used, "\n===== Open-Loop Status =====\n");
+    ol_status_append(&used, "\n===== Open-Loop Status [VF-LEGACY-R3] =====\n");
     ol_status_append(&used, "  Enable     : %s\n", status.enable ? "ON" : "OFF");
     ol_status_append(&used, "  Mode       : %d (%s)\n", status.mode,
                      status.mode == MOTOR_OL_MODE_IF ? "I/F current-loop" : "V/F voltage");
@@ -254,7 +254,35 @@ static void ol_print_status(void)
     ol_status_append(&used, "  Start RPM  : %.0f\n", motor.ol_min_rpm);
     ol_status_append(&used, "  Ramp       : %.0f RPM/s\n", motor.ol_ramp_rpm_s);
     ol_status_append(&used, "  Pole pairs : %.0f\n", motor.ol_pole_pairs);
+    ol_status_append(&used, "  PWM map    : %s\n", Motor_PwmMap_GetSwapBc() ? "ACB (B/C swapped)" : "ABC");
     ol_status_append(&used, "  V_bus      : %.1f V\n", status.v_bus);
+    ol_status_append(&used, "  Theta/CCR  : %.4f rad / %lu %lu %lu\n", status.theta,
+                     (unsigned long)status.duty1, (unsigned long)status.duty2,
+                     (unsigned long)status.duty3);
+    /*
+     * 无示波器诊断：同时打印算法快照、ADC 反馈与 TIM1 的真实寄存器。
+     * 这能区分“只算出了 CCR”和“高级定时器确实放行了六路 PWM”。
+     */
+    ol_status_append(&used, "  ADC current: %lu %lu %lu raw\n",
+                     (unsigned long)motor.currentAdc[0], (unsigned long)motor.currentAdc[1],
+                     (unsigned long)motor.currentAdc[2]);
+    ol_status_append(&used, "  ADC phase  : %.3f %.3f %.3f V(raw)\n",
+                     motor.voltAdc[0], motor.voltAdc[1], motor.voltAdc[2]);
+    ol_status_append(&used, "  Phase Vabc : %.3f %.3f %.3f V\n", motor.va, motor.vb, motor.vc);
+    ol_status_append(&used, "  Current abc: %.3f %.3f %.3f A\n", status.ia, status.ib, status.ic);
+    ol_status_append(&used, "  TIM1 actual: ARR=%lu CCR=%lu/%lu/%lu CNT=%lu\n",
+                     (unsigned long)TIM1->ARR, (unsigned long)TIM1->CCR1,
+                     (unsigned long)TIM1->CCR2, (unsigned long)TIM1->CCR3,
+                     (unsigned long)TIM1->CNT);
+    ol_status_append(&used, "  TIM1 gate  : CEN=%d MOE=%d BKE=%d BIF=%d CCER=%04lX\n",
+                     (TIM1->CR1 & TIM_CR1_CEN) != 0U, (TIM1->BDTR & TIM_BDTR_MOE) != 0U,
+                     (TIM1->BDTR & TIM_BDTR_BKE) != 0U, (TIM1->SR & TIM_SR_BIF) != 0U,
+                     (unsigned long)(TIM1->CCER & 0xFFFFU));
+    ol_status_append(&used, "  TIM1 ch    : U=%d/%d V=%d/%d W=%d/%d mode=%lX/%lX\n",
+                     (TIM1->CCER & TIM_CCER_CC1E) != 0U, (TIM1->CCER & TIM_CCER_CC1NE) != 0U,
+                     (TIM1->CCER & TIM_CCER_CC2E) != 0U, (TIM1->CCER & TIM_CCER_CC2NE) != 0U,
+                     (TIM1->CCER & TIM_CCER_CC3E) != 0U, (TIM1->CCER & TIM_CCER_CC3NE) != 0U,
+                     (unsigned long)TIM1->CCMR1, (unsigned long)TIM1->CCMR2);
     ol_status_append(&used, "  Fault      : %d %s (%s)\n", fault, Motor_Protect_GetFaultName(fault),
                      status.fault_latched ? "LATCHED" : "CLEAR");
     ol_status_append(&used, "  FOC loop   : %.0f Hz adc=%.0f div=%d avg=%.1fus max=%.1fus load=%.0f%%\n",
@@ -638,6 +666,99 @@ int Cmd_OlStatus(int argc, char *argv[])
     (void)argv;
 
     ol_print_status();
+    return 0;
+}
+
+/**
+ * @description: 无霍尔/编码器/示波器条件下的六电角度低压自检。
+ * @detail: 每档先等待磁场稳定，再平均 200ms ADC 数据；结束必定关闭 PWM。
+ */
+int Cmd_OlSelfTest(int argc, char *argv[])
+{
+    static const float angles_deg[6] = {0.0f, 60.0f, 120.0f, 180.0f, 240.0f, 300.0f};
+    motor_selftest_sample_t sample;
+    unsigned int step;
+    float theta;
+    float vq = 2.0f;
+
+    (void)argc;
+    (void)argv;
+
+    if (motor.ol_enable) {
+        PRINTF("SELFTEST blocked: run olstop first\n");
+        return -1;
+    }
+    if (Motor_Protect_IsFaultLatched()) {
+        PRINTF("SELFTEST blocked: run olfault clear first\n");
+        return -1;
+    }
+
+    PRINTF("SELFTEST begin: 6 fixed angles, Vq=%.1fV; motor may make six small steps\n", vq);
+    if (!Motor_SelfTest_Begin(vq)) {
+        PRINTF("SELFTEST failed to start\n");
+        return -1;
+    }
+    Hal_Motor_PwmStart();
+
+    for (step = 0U; step < 6U; step++) {
+        theta = angles_deg[step] * (float)M_PI / 180.0f;
+        Motor_SelfTest_SetAngle(theta);
+        osDelay(pdMS_TO_TICKS(150));
+        /* 丢掉切换角度后的过渡样本，只统计稳定段。 */
+        Motor_SelfTest_SetAngle(theta);
+        osDelay(pdMS_TO_TICKS(200));
+
+        if (Motor_Protect_IsFaultLatched()) {
+            PRINTF("SELFTEST aborted: fault=%s\n", Motor_Protect_GetFaultName(Motor_Protect_GetFault()));
+            Motor_SelfTest_End();
+            return -1;
+        }
+
+        if (!Motor_SelfTest_GetSample(&sample)) {
+            PRINTF("STEP %u angle=%.0f NO_SAMPLES\n", step, angles_deg[step]);
+            Motor_SelfTest_End();
+            return -1;
+        }
+        PRINTF("STEP %u angle=%3.0f n=%lu CCR=%lu/%lu/%lu\n", step, angles_deg[step],
+               (unsigned long)sample.samples, (unsigned long)sample.duty[0],
+               (unsigned long)sample.duty[1], (unsigned long)sample.duty[2]);
+        PRINTF("  Iraw=%.1f/%.1f/%.1f  Iabc=%.3f/%.3f/%.3f A\n",
+               sample.current_adc[0], sample.current_adc[1], sample.current_adc[2],
+               sample.current_a[0], sample.current_a[1], sample.current_a[2]);
+        PRINTF("  Vraw=%.3f/%.3f/%.3f  Vabc=%.3f/%.3f/%.3f V\n",
+               sample.phase_raw_v[0], sample.phase_raw_v[1], sample.phase_raw_v[2],
+               sample.phase_v[0], sample.phase_v[1], sample.phase_v[2]);
+    }
+
+    Motor_SelfTest_End();
+    PRINTF("SELFTEST end: PWM stopped\n");
+    return 0;
+}
+
+/**
+ * @description: 停机时选择最终三相 PWM 映射，用于无传感器相序实机判定。
+ */
+int Cmd_OlMap(int argc, char *argv[])
+{
+    if (argc < 2) {
+        PRINTF("PWM map = %s  (usage: olmap abc|acb)\n",
+               Motor_PwmMap_GetSwapBc() ? "acb" : "abc");
+        return 0;
+    }
+    if (motor.ol_enable) {
+        PRINTF("Stop motor before changing PWM map: olstop\n");
+        return -1;
+    }
+    if (strcmp(argv[1], "abc") == 0) {
+        Motor_PwmMap_SetSwapBc(false);
+    } else if (strcmp(argv[1], "acb") == 0) {
+        Motor_PwmMap_SetSwapBc(true);
+    } else {
+        PRINTF("Usage: olmap abc|acb\n");
+        return -1;
+    }
+    Hal_Motor_PwmSetSafe();
+    PRINTF("PWM map set to %s\n", Motor_PwmMap_GetSwapBc() ? "ACB (B/C swapped)" : "ABC");
     return 0;
 }
 

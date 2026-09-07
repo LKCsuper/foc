@@ -47,6 +47,8 @@ extern "C" {
 /* cmd_openloop.c     */ extern int Cmd_OlKi(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlPhase(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlAlign(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlSelfTest(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlMap(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_HfiStart(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_SpeedStatus(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_SpeedEnable(int argc, char *argv[]);
@@ -88,6 +90,8 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olki",       Cmd_OlKi,               "openloop current Ki" },
     { "olphase",    Cmd_OlPhase,            "openloop start phase boost <deg>" },
     { "olalign",    Cmd_OlAlign,            "startup rotor alignment config" },
+    { "olselftest", Cmd_OlSelfTest,         "six-angle PWM/current self test" },
+    { "olmap",      Cmd_OlMap,              "PWM phase map abc|acb" },
     { "hfistart",   Cmd_HfiStart,           "HFI startup: <0|1> <V> <cycles> [confidence]" },
     /* 速度环 */
     { "speed",      Cmd_SpeedStatus,        "show speed loop status" },

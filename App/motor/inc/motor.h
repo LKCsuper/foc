@@ -54,6 +54,9 @@ typedef struct {
     float iq;          /* A */
     float v_bus;       /* V */
     float theta;       /* 电角度 rad */
+    uint32_t duty1;    /* TIM1 CCR1 */
+    uint32_t duty2;    /* TIM1 CCR2 */
+    uint32_t duty3;    /* TIM1 CCR3 */
     float vd_int;      /* V */
     float vq_int;      /* V */
     bool speed_enable;
