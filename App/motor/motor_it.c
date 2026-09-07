@@ -320,15 +320,22 @@ static bool Motor_DmaInt_ShouldRun(void)
  */
 static void Motor_DmaInt_RunLegacyVf(MOTOR_PARAM_S *m)
 {
-    const float legacy_vq = 5.0f;
     const float legacy_theta_step = 0.001f;
+    float vq = m->ol_v_boost;
+
+    if (vq < 0.0f) {
+        vq = 0.0f;
+    }
+    if (vq > m->ol_vq_limit) {
+        vq = m->ol_vq_limit;
+    }
 
     m->ol_current_rpm = legacy_theta_step * Motor_DmaInt_GetControlFrequencyHz() /
                         (RPM2RADPS_f(1.0f) * m->ol_pole_pairs);
     m->theta += legacy_theta_step;
     utils_norm_angle_rad(&m->theta);
     m->ol_theta = m->theta;
-    Motor_Foc_OutputVoltage(m, 0.0f, legacy_vq, m->theta, m->v_bus);
+    Motor_Foc_OutputVoltage(m, 0.0f, vq, m->theta, m->v_bus);
 }
 
 /**
