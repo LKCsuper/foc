@@ -63,7 +63,7 @@ static void Motor_It_ApplyControlResult(MOTOR_PARAM_S *m, float v_bus, const mot
 static bool Motor_DmaInt_ShouldRun(void);
 static void Motor_DmaInt_Foc(void);
 static void Motor_DmaInt_WhileDetect(void);
-static void Motor_DmaInt_RunLegacyVf(MOTOR_PARAM_S *m);
+static void Motor_DmaInt_RunFastVf(MOTOR_PARAM_S *m);
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -318,9 +318,9 @@ static bool Motor_DmaInt_ShouldRun(void)
  * @param {MOTOR_PARAM_S} *m 电机对象
  * @return {*}
  */
-static void Motor_DmaInt_RunLegacyVf(MOTOR_PARAM_S *m)
+static void Motor_DmaInt_RunFastVf(MOTOR_PARAM_S *m)
 {
-    const float legacy_theta_step = 0.001f;
+    const float theta_step = 0.001f;
     float vq = m->ol_v_boost;
 
     if (vq < 0.0f) {
@@ -330,9 +330,9 @@ static void Motor_DmaInt_RunLegacyVf(MOTOR_PARAM_S *m)
         vq = m->ol_vq_limit;
     }
 
-    m->ol_current_rpm = legacy_theta_step * Motor_DmaInt_GetControlFrequencyHz() /
+    m->ol_current_rpm = theta_step * Motor_DmaInt_GetControlFrequencyHz() /
                         (RPM2RADPS_f(1.0f) * m->ol_pole_pairs);
-    m->theta += legacy_theta_step;
+    m->theta += theta_step;
     utils_norm_angle_rad(&m->theta);
     m->ol_theta = m->theta;
     Motor_Foc_OutputVoltage(m, 0.0f, vq, m->theta, m->v_bus);
@@ -442,7 +442,7 @@ void Motor_DmaInt(void *p, uint32_t flags)
         }
         Motor_It_ParamCal();
         if (motor.v_bus >= 1.0f) {
-            Motor_DmaInt_RunLegacyVf(&motor);
+            Motor_DmaInt_RunFastVf(&motor);
         }
         Motor_DmaInt_RecordRuntime(runtime_start);
         return;

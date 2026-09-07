@@ -244,7 +244,7 @@ static void ol_print_status(void)
     /* 平均耗时包含轻/重两种 ADC 回调，所以乘 30kHz ADC 频率才是总 ISR 占用。 */
     foc_load_percent = foc_average_us * adc_frequency_hz / 10000.0f;
 
-    ol_status_append(&used, "\n===== Open-Loop Status [VF-LEGACY-R3] =====\n");
+    ol_status_append(&used, "\n===== Open-Loop Status [VF-FAST] =====\n");
     ol_status_append(&used, "  Enable     : %s\n", status.enable ? "ON" : "OFF");
     ol_status_append(&used, "  Mode       : %d (%s)\n", status.mode,
                      status.mode == MOTOR_OL_MODE_IF ? "I/F current-loop" : "V/F voltage");
