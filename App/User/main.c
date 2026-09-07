@@ -40,8 +40,15 @@ float target;
  */
 void Task_Init(void *argument)
 {
-    Bsp_Init();           // 初始化硬件
-    Motor_Encoder_Init(); // TIM4 AB 编码器
+    /*
+     * 保持 3e5d564 已验证的上电时序：先等待电源与栅极驱动稳定，再初始化
+     * PWM/ADC。过早校准会把驱动上电过程中的瞬态当成零偏。
+     */
+    osDelay(pdMS_TO_TICKS(5000));
+    Bsp_Init(); // 初始化硬件
+
+    /* 当前实机没有 AB 编码器。不要把 PB6/PB7 切到 TIM4 复用；其中 PB7
+     * 在本板定义中同时是驱动故障输入。需要编码器时再由板型配置显式启用。 */
     MOTOR_Param_Init();   // 初始化Flash参数（直接结构体读写，无需EasyFlash）
 
     /*

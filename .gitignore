@@ -5,3 +5,7 @@ MAlonzo/**
 *.crf
 *.png
 .build/
+
+# Keil/J-Link generated logs and per-user UI state
+/App/Project/JLinkLog.txt
+/App/Project/*.uvguix.*
