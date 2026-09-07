@@ -61,7 +61,8 @@ static volatile float s_selftest_current_adc[3];
 static volatile float s_selftest_phase_raw_v[3];
 static volatile float s_selftest_current_a[3];
 static volatile float s_selftest_phase_v[3];
-static volatile bool s_pwm_swap_bc = false;
+/* HD75 实机线序为 A-C-B；保留 olmap 命令用于接线排查，但默认直接使用已验证映射。 */
+static volatile bool s_pwm_swap_bc = true;
 /* Private function prototypes -----------------------------------------------*/
 static void Motor_DmaInt_RecordRuntime(uint32_t start_time);
 static float Motor_OpenLoop_GetAdcDt(MOTOR_PARAM_S *m);
