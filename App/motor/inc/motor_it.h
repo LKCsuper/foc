@@ -121,10 +121,6 @@ float Motor_DmaInt_GetControlFrequencyHz(void);
  */
 void Motor_It_ParamCal(void);
 
-/** 设置/读取最终 PWM 相序；swap_bc=true 时交换 B、C 两相。 */
-void Motor_PwmMap_SetSwapBc(bool swap_bc);
-bool Motor_PwmMap_GetSwapBc(void);
-
 #ifdef __cplusplus
 }
 #endif

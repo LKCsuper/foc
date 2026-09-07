@@ -254,7 +254,7 @@ static void ol_print_status(void)
     ol_status_append(&used, "  Start RPM  : %.0f\n", motor.ol_min_rpm);
     ol_status_append(&used, "  Ramp       : %.0f RPM/s\n", motor.ol_ramp_rpm_s);
     ol_status_append(&used, "  Pole pairs : %.0f\n", motor.ol_pole_pairs);
-    ol_status_append(&used, "  PWM map    : %s\n", Motor_PwmMap_GetSwapBc() ? "ACB (B/C swapped)" : "ABC");
+    ol_status_append(&used, "  PWM map    : ACB (B/C swapped)\n");
     ol_status_append(&used, "  V_bus      : %.1f V\n", status.v_bus);
     ol_status_append(&used, "  Theta/CCR  : %.4f rad / %lu %lu %lu\n", status.theta,
                      (unsigned long)status.duty1, (unsigned long)status.duty2,
@@ -666,33 +666,6 @@ int Cmd_OlStatus(int argc, char *argv[])
     (void)argv;
 
     ol_print_status();
-    return 0;
-}
-
-/**
- * @description: 停机时选择最终三相 PWM 映射，用于无传感器相序实机判定。
- */
-int Cmd_OlMap(int argc, char *argv[])
-{
-    if (argc < 2) {
-        PRINTF("PWM map = %s  (usage: olmap abc|acb)\n",
-               Motor_PwmMap_GetSwapBc() ? "acb" : "abc");
-        return 0;
-    }
-    if (motor.ol_enable) {
-        PRINTF("Stop motor before changing PWM map: olstop\n");
-        return -1;
-    }
-    if (strcmp(argv[1], "abc") == 0) {
-        Motor_PwmMap_SetSwapBc(false);
-    } else if (strcmp(argv[1], "acb") == 0) {
-        Motor_PwmMap_SetSwapBc(true);
-    } else {
-        PRINTF("Usage: olmap abc|acb\n");
-        return -1;
-    }
-    Hal_Motor_PwmSetSafe();
-    PRINTF("PWM map set to %s\n", Motor_PwmMap_GetSwapBc() ? "ACB (B/C swapped)" : "ABC");
     return 0;
 }
 

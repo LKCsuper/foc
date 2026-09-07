@@ -53,8 +53,6 @@ static motor_foc_divider_t s_foc_divider = {
  */
 static volatile float s_foc_runtime_average_us = 0.0f;
 static volatile float s_foc_runtime_maximum_us = 0.0f;
-/* HD75 实机线序为 A-C-B；保留 olmap 命令用于接线排查，但默认直接使用已验证映射。 */
-static volatile bool s_pwm_swap_bc = true;
 /* Private function prototypes -----------------------------------------------*/
 static void Motor_DmaInt_RecordRuntime(uint32_t start_time);
 static float Motor_OpenLoop_GetAdcDt(MOTOR_PARAM_S *m);
@@ -170,22 +168,9 @@ static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq, float 
     inverse_park(vd, vq, theta, &v_alpha, &v_beta);
     Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
     svm_hqd(v_alpha, v_beta, v_bus, period, &m->duty1, &m->duty2, &m->duty3, &sector);
-    if (s_pwm_swap_bc) {
-        Hal_Motor_PwmSetDuty(m->duty1, m->duty3, m->duty2);
-    } else {
-        Hal_Motor_PwmSetDuty(m->duty1, m->duty2, m->duty3);
-    }
+    /* HD75 实机验证的相序为 A-C-B。 */
+    Hal_Motor_PwmSetDuty(m->duty1, m->duty3, m->duty2);
     Hal_Motor_PwmCommit();
-}
-
-void Motor_PwmMap_SetSwapBc(bool swap_bc)
-{
-    s_pwm_swap_bc = swap_bc;
-}
-
-bool Motor_PwmMap_GetSwapBc(void)
-{
-    return s_pwm_swap_bc;
 }
 
 /**
