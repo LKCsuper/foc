@@ -38,7 +38,7 @@ extern "C" {
  * 在对应 .c 中于 #include "includes.h" 之前定义 HAL_INTERNAL。
  */
 #ifdef HAL_INTERNAL
-#ifdef HW_HAS_3_SHUNTS
+#ifndef HW_PWM_PHASE_BC_SWAP
 #define TIMER_UPDATE_DUTY_M1(duty1, duty2, duty3) \
 		TIM1->CR1 |= TIM_CR1_UDIS; \
 		TIM1->CCR1 = duty1; \

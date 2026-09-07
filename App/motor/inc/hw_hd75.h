@@ -27,6 +27,8 @@
 
 // HW properties
 #define HW_HAS_3_SHUNTS
+/* 实机验证：TIM1 CH2/CH3 对应的电机 B/C 相需交换后旋转磁场方向才连续。 */
+#define HW_PWM_PHASE_BC_SWAP
 #define HW_HAS_PHASE_FILTERS
 
 /*
