@@ -320,8 +320,21 @@ static bool Motor_DmaInt_ShouldRun(void)
  */
 static void Motor_DmaInt_RunFastVf(MOTOR_PARAM_S *m)
 {
-    const float theta_step = 0.001f;
+    float rpm = m->ol_target_rpm;
+    float rpm_abs = fabsf(rpm);
+    float control_hz = Motor_DmaInt_GetControlFrequencyHz();
+    float theta_step;
     float vq = m->ol_v_boost;
+
+    /* 低于实机可稳定拖动的转速时使用启动转速地板；保留目标方向。 */
+    if (rpm_abs > 0.0f && rpm_abs < m->ol_min_rpm) {
+        rpm = (rpm < 0.0f) ? -m->ol_min_rpm : m->ol_min_rpm;
+    }
+    if (control_hz <= 1.0f || m->ol_pole_pairs <= 0.0f) {
+        Motor_OpenLoop_OutputSafe(m);
+        return;
+    }
+    theta_step = RPM2RADPS_f(rpm) * m->ol_pole_pairs / control_hz;
 
     if (vq < 0.0f) {
         vq = 0.0f;
@@ -330,8 +343,7 @@ static void Motor_DmaInt_RunFastVf(MOTOR_PARAM_S *m)
         vq = m->ol_vq_limit;
     }
 
-    m->ol_current_rpm = theta_step * Motor_DmaInt_GetControlFrequencyHz() /
-                        (RPM2RADPS_f(1.0f) * m->ol_pole_pairs);
+    m->ol_current_rpm = rpm;
     m->theta += theta_step;
     utils_norm_angle_rad(&m->theta);
     m->ol_theta = m->theta;

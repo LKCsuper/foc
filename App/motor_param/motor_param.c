@@ -90,7 +90,7 @@ void MOTOR_Param_Init(void)
     gpstMotorDefault->ol_ramp_rpm_s = 10.0f;              /* 软启动速率 — 越慢越稳 */
     gpstMotorDefault->ol_vq_limit = 18.0f;                /* 配置上限；运行时再受 Vbus/sqrt(3) 限制 */
     gpstMotorDefault->ol_foc_freq = 30000.0f;             /* ADC-DMA 基准频率；实际 FOC 频率还要除以分频系数 */
-    gpstMotorDefault->ol_min_rpm = 15.0f;                 /* 旧启动策略兼容参数；平滑启动不作转速地板 */
+    gpstMotorDefault->ol_min_rpm = 72.0f;                 /* HD75 实机验证的最低稳定开环拖动转速 */
     /* 开环电流模式参数 */
     gpstMotorDefault->ol_iq_set = 0.6f;                   /* 首次 I/F 起步目标 Iq 电流 A */
     gpstMotorDefault->ol_id_set = 0.0f;                   /* 目标 Id 电流 A */
