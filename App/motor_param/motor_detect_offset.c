@@ -188,6 +188,28 @@ void Motor_Detect_OffsetApply(const motor_detect_offset_t *st, MOTOR_PARAM_S *mo
     }
 }
 
+/**
+ * @description: 判断电机对象是否已有可复用的电流偏移
+ * @param {const MOTOR_PARAM_S} *motor 电机对象
+ * @return {bool} true=三相电流零点均在可用范围内
+ * @author: lkc
+ */
+bool Motor_Detect_OffsetIsStored(const MOTOR_PARAM_S *motor)
+{
+    uint8_t i;
+
+    if (motor == NULL) {
+        return false;
+    }
+    for (i = 0U; i < 3U; i++) {
+        if (motor->currentOffset[i] < MOTOR_DETECT_OFFSET_STORED_MIN ||
+            motor->currentOffset[i] > MOTOR_DETECT_OFFSET_STORED_MAX) {
+            return false;
+        }
+    }
+    return true;
+}
+
 #ifdef __cplusplus
 }
 #endif

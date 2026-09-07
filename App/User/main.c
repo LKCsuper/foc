@@ -3,8 +3,8 @@
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
- * @LastEditors: lkc
- * @LastEditTime: 2023-10-24 23:23:22
+ * @LastEditors: Please set LastEditors
+ * @LastEditTime: 2026-09-07 23:21:04
  */
 #ifdef __cplusplus
 extern "C" {
@@ -40,11 +40,6 @@ float target;
  */
 void Task_Init(void *argument)
 {
-    /*
-     * 保持 3e5d564 已验证的上电时序：先等待电源与栅极驱动稳定，再初始化
-     * PWM/ADC。过早校准会把驱动上电过程中的瞬态当成零偏。
-     */
-    osDelay(pdMS_TO_TICKS(5000));
     Bsp_Init(); // 初始化硬件
 
     /* 当前实机没有 AB 编码器。不要把 PB6/PB7 切到 TIM4 复用；其中 PB7
@@ -52,10 +47,10 @@ void Task_Init(void *argument)
     MOTOR_Param_Init();   // 初始化Flash参数（直接结构体读写，无需EasyFlash）
 
     /*
-     * 开机只做电流/电压偏移校准。会阻塞约 5 秒并撤销运行命令，结束后保持停机，
-     * 需要转动时由 Shell 的 olspeed/olstart 明确启动。
+     * 开机偏移：Flash 已有有效电流零点则直接使用；否则校准约 5 秒并自动存 Flash。
+     * 会撤销运行命令，结束后保持停机，需要转动时由 olspeed/olstart 明确启动。
      */
-    Detect_Init();     // 开机偏移校准
+    Detect_Init();     // 开机偏移校准（有 Flash 则跳过）
     MOTOR_ShowParam(); // 显示参数（在Shell启动前打印完，避免抢UART）
     PRINTF("Init Task period=%lu\r\n", (unsigned long)Hal_Motor_PwmPeriodCounts());
     // RTT_Debug_Init();

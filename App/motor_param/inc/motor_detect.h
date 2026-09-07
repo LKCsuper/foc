@@ -53,6 +53,7 @@ typedef struct {
 /**
  * @description: 校准三相电流零点和驱动时相电压偏移（应用包装：含 RTOS 延时与 PWM）。
  * @detail: 累加/结算见 Motor_Detect_Offset*（可裸机逐步喂样本）；本接口供 Shell/上电调用。
+ *          成功后自动把配置/校准写入 Flash；失败不写 Flash。
  * @param {bool} cal_undriven  true 时额外校准未驱动相电压偏移
  * @return {uint32_t} 1 成功，0 被中止
  * @author: lkc
@@ -60,7 +61,7 @@ typedef struct {
 uint32_t DETECT_Offset(bool cal_undriven);
 
 /**
- * @description: 上电做一次电流/电压偏移校准
+ * @description: 上电偏移校准：Flash 已有有效电流零点则跳过，否则检测并写入 Flash
  * @return {*}
  * @author: lkc
  */

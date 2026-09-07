@@ -15,6 +15,9 @@ extern "C" {
 #define MOTOR_DETECT_OFFSET_DEFAULT_SAMPLES (1000U)
 #define MOTOR_DETECT_OFFSET_DEFAULT_ADC_SCALE (4096.0f)
 #define MOTOR_DETECT_OFFSET_WARN_PERCENT (5.0f)
+/* 与 Motor_Sense 可用电流零点范围一致；全 0 表示尚未校准 */
+#define MOTOR_DETECT_OFFSET_STORED_MIN (1000.0f)
+#define MOTOR_DETECT_OFFSET_STORED_MAX (3000.0f)
 /* Private typedef -----------------------------------------------------------*/
 /**
  * @description: 偏移校准累加状态（由调用方持有，可多实例）
@@ -105,6 +108,16 @@ void Motor_Detect_OffsetFinalizeUndriven(motor_detect_offset_t *st);
  * @author: lkc
  */
 void Motor_Detect_OffsetApply(const motor_detect_offset_t *st, MOTOR_PARAM_S *motor, bool apply_undriven);
+
+/**
+ * @description: 判断电机对象是否已有可复用的电流偏移（Flash/上次校准）
+ * @detail: 三相 currentOffset 均在 STORED_MIN..MAX（ADC 计数）内视为已校准。
+ *          默认全 0 或越界值返回 false，上电应重新检测。
+ * @param {const MOTOR_PARAM_S} *motor 电机对象
+ * @return {bool} true=可跳过上电检测，直接使用已存偏移
+ * @author: lkc
+ */
+bool Motor_Detect_OffsetIsStored(const MOTOR_PARAM_S *motor);
 /* Private functions ---------------------------------------------------------*/
 #ifdef __cplusplus
 }

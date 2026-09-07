@@ -61,6 +61,22 @@ int main(void)
     Motor_Detect_OffsetApply(&st, &motor, true);
     assert(fabsf(motor.currentOffset[1] - 2050.0f) < 1e-4f);
     assert(fabsf(motor.voltundrivenOffset[1] - 0.2f) < 1e-5f);
+    assert(Motor_Detect_OffsetIsStored(&motor));
+
+    /* 未校准（全 0）或越界不能当作已存偏移 */
+    {
+        MOTOR_PARAM_S empty;
+        MOTOR_PARAM_S bad;
+
+        memset(&empty, 0, sizeof(empty));
+        assert(!Motor_Detect_OffsetIsStored(&empty));
+        assert(!Motor_Detect_OffsetIsStored(NULL));
+        bad = motor;
+        bad.currentOffset[2] = 0.0f;
+        assert(!Motor_Detect_OffsetIsStored(&bad));
+        bad.currentOffset[2] = 4000.0f;
+        assert(!Motor_Detect_OffsetIsStored(&bad));
+    }
 
     /* 严重偏离中点应告警 */
     Motor_Detect_OffsetReset(&st, false, 4U, 4096.0f);

@@ -58,7 +58,7 @@ typedef struct {
 } motor_config_t;
 
 typedef struct {
-    float current_offset[3];                   /* ADC count；0 允许表示尚未校准，上电仍执行校准 */
+    float current_offset[3];                   /* ADC count；0 表示尚未校准，上电检测后写入 Flash */
     float voltage_offset[3];                   /* 采样点 V */
     float undriven_offset[3];                  /* 采样点 V */
     uint8_t hall_table[MOTOR_HALL_TABLE_SIZE]; /* 0..200，255 未标定；保留旧表字节编码 */

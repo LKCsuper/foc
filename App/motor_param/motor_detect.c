@@ -11,11 +11,13 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 #include "FreeRTOS.h"
 #include "cmsis_os2.h"
 #include "motor_detect.h"
 #include "motor_detect_offset.h"
+#include "flash_storage.h"
 #include "motor_param.h"
 #include "motor_sensorless.h"
 #include "motor_hall.h"
@@ -43,6 +45,25 @@ static volatile bool s_detect_active = false;
 static bool Detect_ShouldAbort(void)
 {
     return Motor_Protect_IsFaultLatched();
+}
+
+/**
+ * @description: 将当前 RAM 中的配置/校准写入 Flash（须已停机且未占用功率桥）
+ * @return {bool} true=保存成功
+ * @author: lkc
+ */
+static bool Detect_SaveOffsetToFlash(void)
+{
+    motor_detect_result_t detect;
+
+    memset(&detect, 0, sizeof(detect));
+    detect.version = MOTOR_DETECT_RESULT_VERSION;
+    if (!FlashStorage_Save(&motor, &detect)) {
+        PRINTF("Detect offset: flash save failed\r\n");
+        return false;
+    }
+    PRINTF("Detect offset: saved to flash\r\n");
+    return true;
 }
 
 /**
@@ -86,6 +107,7 @@ static bool Detect_SamplePhaseBlocking(motor_detect_offset_t *st, uint8_t phase)
  * @description: 校准三相电流零点和驱动时相电压偏移。
  * @detail: 50% 占空比依次使能 A/B/C 相采样。cal_undriven=true 时再采未驱动相电压。
  *          累加/结算走 Motor_Detect_Offset*；本函数负责停机、PWM、osDelay 与打印。
+ *          成功后自动写入 Flash；中止路径不保存。
  * @param {bool} cal_undriven true 时额外校准未驱动相电压偏移
  * @return {uint32_t} 1 成功
  * @author: lkc
@@ -185,6 +207,7 @@ uint32_t DETECT_Offset(bool cal_undriven)
     Hal_Motor_PwmStop();
     s_detect_active = false;
     PRINTF("Detect offset: done\r\n");
+    (void)Detect_SaveOffsetToFlash();
     return 1U;
 
 abort_detect:
@@ -247,13 +270,23 @@ bool DETECT_Hall(void)
 }
 
 /**
- * @description: 上电做一次电流/电压偏移校准。
+ * @description: 上电偏移校准：已有 Flash 电流零点则跳过，否则检测并写入 Flash。
  * @detail: 校准期间 ISR 仍采样+软件保护，但不跑 FOC；失败时 fault 保持锁存。
  * @return {void} 无
  * @author: lkc
  */
 void Detect_Init(void)
 {
+    if (Motor_Detect_OffsetIsStored(&motor)) {
+        PRINTF("Detect_Init: skip, using stored offset\r\n");
+        PRINTF("Current Offset [%f] [%f] [%f]\r\n", motor.currentOffset[0], motor.currentOffset[1],
+               motor.currentOffset[2]);
+        PRINTF("Volt Offset [%f] [%f] [%f]\r\n", motor.voltOffset[0], motor.voltOffset[1], motor.voltOffset[2]);
+        PRINTF("Undriven Offset [%f] [%f] [%f]\r\n", motor.voltundrivenOffset[0], motor.voltundrivenOffset[1],
+               motor.voltundrivenOffset[2]);
+        return;
+    }
+
     if (DETECT_Offset(true) == 0U) {
         PRINTF("Detect_Init: offset aborted\r\n");
     }
