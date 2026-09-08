@@ -35,8 +35,8 @@ static float Motor_Sense_CurrentOffsetValid(float offset)
 
 /**
  * @description: 用已捕获的采样帧换算三相电流/相电压/母线，写入运行时
- * @detail: 不访问 ADC 寄存器。vb/vc 相对 SENS 通道仍按本板历史映射：
- *          va←SENS1、vb←SENS3、vc←SENS2（与 voltundrivenOffset 下标一致）
+ * @detail: 不访问 ADC 寄存器。电流与相电压均按本板历史 ACB 映射：
+ *          ia←CURR1、ib←CURR3、ic←CURR2；va←SENS1、vb←SENS3、vc←SENS2。
  * @param {MOTOR_PARAM_S} *m 电机运行时，不可为空
  * @param {const hal_motor_sample_t} *sample 本周期采样帧，不可为空
  * @param {float} i_scale 电流比例 (A/count)
@@ -69,11 +69,16 @@ void Motor_Sense_ApplyFrame(MOTOR_PARAM_S *m, const hal_motor_sample_t *sample, 
     if ((sample->current_mask & 0x01U) != 0U) {
         m->ia = ((float)sample->current_adc[0] - current_offset0) * i_scale;
     }
-    if ((sample->current_mask & 0x02U) != 0U) {
-        m->ib = ((float)sample->current_adc[1] - current_offset1) * i_scale;
-    }
+    /*
+     * 与 Motor_Foc_OutputVoltage 的 ACB PWM（B/C 对调）及相电压 SENS 映射一致：
+     *   ib ← CURR3 / SENS3，ic ← CURR2 / SENS2。
+     * 电流仍按 ADC 下标 1=B、2=C 换算时，I/F 的 dq 与电压矢量错相，表现为来回摆并易过流。
+     */
     if ((sample->current_mask & 0x04U) != 0U) {
-        m->ic = ((float)sample->current_adc[2] - current_offset2) * i_scale;
+        m->ib = ((float)sample->current_adc[2] - current_offset2) * i_scale;
+    }
+    if ((sample->current_mask & 0x02U) != 0U) {
+        m->ic = ((float)sample->current_adc[1] - current_offset1) * i_scale;
     }
 
     /*

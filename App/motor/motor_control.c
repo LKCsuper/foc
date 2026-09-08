@@ -537,15 +537,11 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
 {
     float theta = Motor_Control_GetCurrentTheta(ctrl, motor);
     float v_limit = Motor_Control_GetVoltageLimit(motor, v_bus);
-    float soft;
     motor_current_target_ctx_t ctx;
     motor_dq_voltage_t voltage;
 
     Motor_Control_FillCurrentCtx(ctrl, motor, &ctx);
-    soft = ctrl->startup.soft_current_scale;
-    if (soft < 1.0f) {
-        v_limit *= soft;
-    }
+    /* 电流目标已按 soft/drag 比例爬升；电压上限不再叠乘 soft，避免积分顶满后过流。 */
     voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, NULL, NULL);
     return Motor_Control_ResultDq(voltage.vd, voltage.vq, theta);
 }
@@ -734,8 +730,6 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
                 } else {
                     MotorAlignment_MarkComplete(&ctrl->startup.alignment);
                     ctrl->startup.phase = MOTOR_STARTUP_DRAG_RAMP;
-                    motor->ol_vd_int = 0.0f;
-                    motor->ol_vq_int = 0.0f;
                 }
             }
         } else if (ctrl->startup.phase == MOTOR_STARTUP_ANGLE_HOLD) {

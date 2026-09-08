@@ -55,8 +55,9 @@ int main(void)
     Motor_Sense_ApplyFrame(&m, &sample, i_scale, v_gain);
 
     assert(fabsf(m.ia - 1.0f) < 1e-5f);
-    assert(fabsf(m.ib - (-1.0f)) < 1e-5f);
-    assert(fabsf(m.ic) < 1e-5f);
+    /* ACB：adc[2]→ib，adc[1]→ic，与 PWM B/C 对调一致 */
+    assert(fabsf(m.ib) < 1e-5f);
+    assert(fabsf(m.ic - (-1.0f)) < 1e-5f);
     assert(fabsf(m.va - (1.2f - 1.0f) * v_gain) < 1e-5f);
     assert(fabsf(m.vb - (1.6f - 1.0f) * v_gain) < 1e-5f);
     assert(fabsf(m.vc - (1.4f - 1.0f) * v_gain) < 1e-5f);
@@ -70,11 +71,11 @@ int main(void)
     Motor_Sense_ApplyFrame(&m, &sample, i_scale, v_gain);
     assert(fabsf(m.ia - 1.0f) < 1e-5f);
 
-    /* current_mask 缺 C 相时不改写 ic */
-    m.ic = 9.0f;
+    /* current_mask 缺硬件 C 相（bit2）时不改写算法 ib */
+    m.ib = 9.0f;
     sample.current_mask = 0x03U;
     Motor_Sense_ApplyFrame(&m, &sample, i_scale, v_gain);
-    assert(fabsf(m.ic - 9.0f) < 1e-5f);
+    assert(fabsf(m.ib - 9.0f) < 1e-5f);
 
     puts("test_motor_sense: pass");
     return 0;

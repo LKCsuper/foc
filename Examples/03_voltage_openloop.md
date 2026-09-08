@@ -6,6 +6,8 @@
 - 默认 `olmode` 与 I/F 电流、对齐电流见根 README；先用保守 `olspeed` / `oliq`。
 - 反馈默认开环角；本示例不要求 `olfb`。
 
+上板空载开环验证见 [开环稳定性验证](../Doc/doc/开环稳定性验证.md)（粘贴 `olstatus`，审核与达标由后续对话填写）。
+
 ## 调用顺序（上板）
 
 1. `olstatus` 确认 enable=0、无故障。
