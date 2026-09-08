@@ -26,6 +26,14 @@ typedef struct {
 } cmd_entry_t;
 
 /**
+ * @description: 把上电以来的时基格式化为 `[T+秒.毫秒s]`，便于截图对照命令间隔。
+ * @param {char *} buf 输出缓冲，不可为空
+ * @param {unsigned} buf_size 缓冲字节数，建议不少于 16
+ * @return {*}
+ */
+void Cmd_FormatUptime(char *buf, unsigned buf_size);
+
+/**
  * @description: 初始化命令行框架。
  * @detail: 创建串口命令消息队列并启动命令处理任务。
  * @return {*}

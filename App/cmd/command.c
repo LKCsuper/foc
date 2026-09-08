@@ -161,6 +161,28 @@ static void cmd_dispatch(char *line)
 static char     s_cmd_buf[CMD_BUF_SIZE];
 static uint8_t  s_cmd_len;
 
+/**
+ * @description: 把上电以来的时基格式化为 `[T+秒.毫秒s]`。
+ * @param {char *} buf 输出缓冲，不可为空
+ * @param {unsigned} buf_size 缓冲字节数
+ * @return {*}
+ */
+void Cmd_FormatUptime(char *buf, unsigned buf_size)
+{
+    uint32_t us;
+    unsigned sec;
+    unsigned ms;
+
+    if ((buf == NULL) || (buf_size == 0U)) {
+        return;
+    }
+
+    us = Hal_Motor_TimeUs();
+    sec = (unsigned)(us / 1000000UL);
+    ms = (unsigned)((us / 1000UL) % 1000UL);
+    (void)snprintf(buf, buf_size, "[T+%u.%03us]", sec, ms);
+}
+
 static void cmd_putc(char c)
 {
     Bsp_Usart_PutChar((uint8_t)c);
@@ -168,8 +190,18 @@ static void cmd_putc(char c)
 
 static void cmd_put_prompt(void)
 {
-    cmd_putc('$');
-    cmd_putc(' ');
+    char ts[20];
+
+    Cmd_FormatUptime(ts, sizeof(ts));
+    printf("%s $ ", ts);
+}
+
+static void cmd_print_run_stamp(const char *line)
+{
+    char ts[20];
+
+    Cmd_FormatUptime(ts, sizeof(ts));
+    printf("%s > %s\r\n", ts, line);
 }
 
 static void cmd_handle_char(char c)
@@ -179,6 +211,7 @@ static void cmd_handle_char(char c)
         cmd_putc('\n');
         if (s_cmd_len > 0) {
             s_cmd_buf[s_cmd_len] = '\0';
+            cmd_print_run_stamp(s_cmd_buf);
             if (strcmp(s_cmd_buf, "help") == 0) {
                 unsigned int i;
                 printf("Commands:\r\n");
