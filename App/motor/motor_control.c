@@ -25,6 +25,7 @@ extern "C" {
 /* Private function prototypes -----------------------------------------------*/
 static motor_control_result_t Motor_Control_ResultSafe(void);
 static motor_control_result_t Motor_Control_ResultDq(float vd, float vq, float theta);
+static motor_control_result_t Motor_Control_PublishTheta(MOTOR_PARAM_S *motor, motor_control_result_t result);
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -57,6 +58,21 @@ static motor_control_result_t Motor_Control_ResultDq(float vd, float vq, float t
     result.vd = vd;
     result.vq = vq;
     result.theta = theta;
+    return result;
+}
+
+/**
+ * @description: 把本拍 Park/PWM 电角写回 motor->theta，供 olstatus 快照。
+ * @detail: I/F 只积分 ol_theta；若不回写，状态页 Theta 会停在旧值而 CCR 仍在变。
+ * @param {MOTOR_PARAM_S *} motor  电机对象
+ * @param {motor_control_result_t} result  本拍控制结果
+ * @return {motor_control_result_t} 原样返回 result
+ */
+static motor_control_result_t Motor_Control_PublishTheta(MOTOR_PARAM_S *motor, motor_control_result_t result)
+{
+    if (motor != NULL && result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ) {
+        motor->theta = result.theta;
+    }
     return result;
 }
 
@@ -467,14 +483,25 @@ static void Motor_Control_PublishSensoredSpeed(MOTOR_PARAM_S *motor)
  */
 static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *motor, motor_current_target_ctx_t *ctx)
 {
-    ctx->alignment_running = ctrl->startup.phase != MOTOR_STARTUP_DRAG_RAMP;
-    ctx->alignment_current_scale =
-        ctx->alignment_running ? ctrl->startup.soft_current_scale : 1.0f - ctrl->startup.drag_current_scale;
+    bool dragging = ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP;
+
+    ctx->alignment_running = !dragging;
     ctx->if_iq_scale = ctrl->startup.if_start.iq_scale;
-    ctx->soft_current_scale =
-        ctx->alignment_running ? ctrl->startup.soft_current_scale : ctrl->startup.drag_current_scale;
     ctx->speed_loop_active = motor->speed_enable && Motor_SpeedLoop_IsFeedbackValid();
     ctx->speed_iq_target = ctx->speed_loop_active ? Motor_SpeedLoop_GetIqTarget() : 0.0f;
+    if (!dragging) {
+        ctx->alignment_current_scale = ctrl->startup.soft_current_scale;
+        ctx->soft_current_scale = ctrl->startup.soft_current_scale;
+        return;
+    }
+    if (!motor->ol_align_enable) {
+        /* 未开对齐：没有定角 Id 可交接，按 drag 比例给运行 Iq，避免 0.5 A 直轴把转子按进齿槽。 */
+        ctx->alignment_current_scale = 0.0f;
+        ctx->soft_current_scale = ctrl->startup.drag_current_scale;
+        return;
+    }
+    ctx->alignment_current_scale = 1.0f - ctrl->startup.drag_current_scale;
+    ctx->soft_current_scale = ctrl->startup.drag_current_scale;
 }
 
 /**
@@ -543,6 +570,10 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
     Motor_Control_FillCurrentCtx(ctrl, motor, &ctx);
     /* 电流目标已按 soft/drag 比例爬升；电压上限不再叠乘 soft，避免积分顶满后过流。 */
     voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, NULL, NULL);
+    /*
+     * I/F 的 Park 角是开环磁场角，不是转子角。ωψf 前馈必须在转子 dq 上；
+     * 加在 I/F 轴上会随转速把 Id/Iq 打偏（72 RPM 还行，300 RPM 见过 0.17 A 或 1.0/1.1 A）。
+     */
     return Motor_Control_ResultDq(voltage.vd, voltage.vq, theta);
 }
 
@@ -711,16 +742,20 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
         if (result.action == MOTOR_CONTROL_ACTION_SAFE) {
             Motor_Control_ResetRuntime(ctrl, motor);
         }
-        return result;
+        return Motor_Control_PublishTheta(motor, result);
     }
 
     Motor_Control_NormalizeConfig(motor);
 
     if (motor->ol_mode == MOTOR_OL_MODE_IF) {
         if (Motor_Control_RunHfi(ctrl, motor, v_bus, &hfi_result)) {
-            return hfi_result;
+            return Motor_Control_PublishTheta(motor, hfi_result);
         }
-        if (ctrl->startup.phase == MOTOR_STARTUP_CURRENT_RAMP) {
+        if (!motor->ol_align_enable && ctrl->startup.phase == MOTOR_STARTUP_CURRENT_RAMP) {
+            /* 验证默认 olalign 0：定角灌 Id 会把转子吸进齿槽，随后 10 RPM/s 的 Iq 拖不动。 */
+            ctrl->startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+            ctrl->startup.drag_current_scale = 0.0f;
+        } else if (ctrl->startup.phase == MOTOR_STARTUP_CURRENT_RAMP) {
             Motor_Control_UpdateSoftCurrent(ctrl, motor, dt);
             motor->ol_current_rpm = 0.0f;
             MotorIfStart_SetNeutral(&ctrl->startup.if_start);
@@ -752,7 +787,7 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
             }
             Motor_SpeedLoop_Run(motor, dt);
         }
-        return Motor_Control_RunIf(ctrl, motor, v_bus, dt);
+        return Motor_Control_PublishTheta(motor, Motor_Control_RunIf(ctrl, motor, v_bus, dt));
     }
 
     /* V/F：电压软起 + 幅值上限；与转速同时斜坡（不做高压直流励磁）。 */
@@ -762,7 +797,7 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
     Motor_Control_UpdateSpeed(motor, dt, true);
     Motor_Control_StartupVf(ctrl, motor);
     Motor_Control_UpdateTheta(ctrl, motor, dt);
-    return Motor_Control_RunVf(ctrl, motor, v_bus);
+    return Motor_Control_PublishTheta(motor, Motor_Control_RunVf(ctrl, motor, v_bus));
 }
 
 /**

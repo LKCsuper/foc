@@ -1,0 +1,100 @@
+# ol_verify
+# hash: 660a9399
+# time: 2026-09-09 21:53:31
+# items: V5
+# script: Scripts/ol_verify_serial.py
+
+######## wake ########
+
+[T+33.707s] $ 
+######## V0 ########
+olstop
+[T+34.106s] > olstop
+
+Open-loop stopped
+[T+34.106s] $ olalign 0
+[T+34.492s] > olalign 0
+
+Align: OFF Id=0.50A time=0.300s angle=0.000rad
+Usage: olalign <0|1> <Id_A> <time_s> [angle_rad]
+[T+34.493s] $ hfistart 0
+[T+34.897s] > hfistart 0
+
+HFI start: OFF V=2.00 cycles=8 min_conf=0.050
+Usage: hfistart <0|1> <voltage_V> <cycles_per_axis> [min_confidence]
+[T+34.898s] $ olfb openloop
+[T+35.289s] > olfb openloop
+
+feedback set to 0
+[T+35.289s] $ spenable 0
+[T+35.677s] > spenable 0
+
+Speed loop disabled
+[T+35.678s] $ slenable 0
+[T+36.067s] > slenable 0
+
+Sensorless observer disabled
+[T+36.067s] $ 
+######## IF-cfg72 ########
+olstop
+[T+36.470s] > olstop
+
+Open-loop stopped
+[T+36.470s] $ olmode 1
+[T+36.857s] > olmode 1
+
+Open-loop mode set to 1 (Current-loop)
+[T+36.858s] $ oliq 0.6
+[T+37.245s] > oliq 0.6
+
+Iq set to 0.60 A
+[T+37.246s] $ olid 0
+[T+37.635s] > olid 0
+
+Id set to 0.00 A
+[T+37.635s] $ olkp 0.2
+[T+38.037s] > olkp 0.2
+
+Current Kp set to 0.2000
+[T+38.038s] $ olki 30
+[T+38.426s] > olki 30
+
+Current Ki set to 30.00
+[T+38.427s] $ olramp 10
+[T+38.817s] > olramp 10
+
+Ramp set to 10 RPM/s
+[T+38.818s] $ olspeed 72
+[T+39.207s] > olspeed 72
+
+Target RPM set to 72 (stopped, use olstart)
+[T+39.208s] $ 
+######## IF-start72 ########
+olstart
+[T+39.596s] > olstart
+
+Open-loop started (I/F), target 72 RPM, Iq=0.60A
+[T+39.598s] $ 
+######## wait 10s ########
+I/F 72 RPM：烧新固件后轴应马上开始转；脚本在读串口，不是卡死
+
+######## wait 8s ########
+I/F 72 RPM 再保持
+
+######## V5 ########
+olsnap
+[T+58.243s] > olsnap
+
+
+===== Open-Loop Snap [T+58.245s] =====
+  Enable     : ON
+  Target RPM : 72
+  Current RPM: 72
+  V_bus      : 24.1 V
+  Theta/CCR  : 0.7494 rad / 1309 1490 1445
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.504 0.588 -0.374 A
+  Id, Iq     : 0.029 0.668 A
+  Vd, Vq int : -0.767 1.187
+=============================
+[T+58.266s] $ 

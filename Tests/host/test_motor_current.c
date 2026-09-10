@@ -109,6 +109,19 @@ int main(void)
     assert(fabsf(a.Id - 0.5f) < 0.05f);
     assert(fabsf(va.vd) < 0.05f);
 
+    /* 反电势前馈：ωe·ψf 加到 vq；ωe=0 时电压不变。仅转子 dq。 */
+    {
+        motor_dq_voltage_t ff = {1.0f, 2.0f};
+        motor_dq_voltage_t z = {1.0f, 2.0f};
+
+        Motor_Current_ApplySpeedFeedforward(&z, 0.0f, 0.0008f, 0.02573f, 0.0f, 0.6f, 18.0f);
+        assert(fabsf(z.vd - 1.0f) < 1e-6f);
+        assert(fabsf(z.vq - 2.0f) < 1e-6f);
+        Motor_Current_ApplySpeedFeedforward(&ff, 62.832f, 0.0008f, 0.02573f, 0.0f, 0.6f, 18.0f);
+        assert(ff.vq > 2.0f);
+        assert(ff.vd < 1.0f);
+    }
+
     printf("test_motor_current: pass\n");
     return 0;
 }

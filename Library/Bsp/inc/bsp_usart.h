@@ -66,6 +66,7 @@ VOID  Bsp_Usart_Flush(VOID);
 VOID  Bsp_Usart_Handler(VOID);
 VOID  Bsp_Usart_TxDmaInit(VOID);
 VOID  Bsp_Usart_TxDmaHandler(VOID);
+VOID  Bsp_Usart_TxDmaPoll(VOID);
 bool  Bsp_Usart_TxDmaIsReady(VOID);
 VOID Bsp_Usart_PutBuf(const UCHAR *cStr, ULONG ulLen);
 ULONG Bsp_Usart_GetBuf(UCHAR *ucBuf, ULONG ulLen);

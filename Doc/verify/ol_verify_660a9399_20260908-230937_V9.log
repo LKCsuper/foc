@@ -1,0 +1,78 @@
+# ol_verify
+# hash: 660a9399
+# time: 2026-09-08 23:09:38
+# items: V9
+# script: Scripts/ol_verify_serial.py
+
+######## wake ########
+
+[T+9.564s] $ 
+######## V0 ########
+olstop
+[T+9.965s] > olstop
+
+Open-loop stopped
+[T+9.966s] $ olalign 0
+[T+10.374s] > olalign 0
+
+Align: OFF Id=0.50A time=0.300s angle=0.000rad
+Usage: olalign <0|1> <Id_A> <time_s> [angle_rad]
+[T+10.376s] $ hfistart 0
+[T+10.790s] > hfistart 0
+
+HFI start: OFF V=2.00 cycles=8 min_conf=0.050
+Usage: hfistart <0|1> <voltage_V> <cycles_per_axis> [min_confidence]
+[T+10.792s] $ olfb openloop
+[T+11.208s] > olfb openloop
+
+feedback set to 0
+[T+11.208s] $ spenable 0
+[T+11.620s] > spenable 0
+
+Speed loop disabled
+[T+11.620s] $ slenable 0
+[T+12.021s] > slenable 0
+
+Sensorless observer disabled
+[T+12.022s] $ 
+######## IF-start72 ########
+olstop
+[T+12.436s] > olstop
+
+Open-loop stopped
+[T+12.437s] $ olmode 1
+[T+12.837s] > olmode 1
+
+Open-loop mode set to 1 (Current-loop)
+[T+12.838s] $ oliq 0.6
+[T+13.239s] > oliq 0.6
+
+Iq set to 0.60 A
+[T+13.240s] $ olid 0
+[T+13.651s] > olid 0
+
+Id set to 0.00 A
+[T+13.651s] $ olkp 0.2
+[T+14.038s] > olkp 0.2
+
+Current Kp set to 0.2000
+[T+14.039s] $ olki 30
+[T+14.433s] > olki 30
+
+Current Ki set to 30.00
+[T+14.435s] $ olramp 10
+[T+14.835s] > olramp 10
+
+Ramp set to 10 RPM/s
+[T+14.837s] $ olspeed 72
+[T+15.237s] > olspeed 72
+
+Target RPM set to 72 (stopped, use olstart)
+[T+15.238s] $ olstart
+[T+15.651s] > olstart
+
+Open-loop started (I/F), target 72 RPM, Iq=0.60A
+[T+15.654s] $ 
+######## ABORT ########
+uart-keepalive
+######## stop ########

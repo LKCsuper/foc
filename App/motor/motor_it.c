@@ -372,14 +372,24 @@ static void Motor_DmaInt_Foc(void)
     uint32_t runtime_start = Hal_Motor_TimeUs();
     float protection_dt;
     float dt;
+    motor_feedback_source_t feedback_source;
     motor_control_result_t result;
 
     Motor_It_ParamCal();
     protection_dt = Motor_OpenLoop_GetAdcDt(&motor);
-    /* 编码器速度/新鲜度每拍更新；未选 ENCODER 源时也不伤，仅维护差分 */
-    Motor_Encoder_Update(protection_dt);
-    Motor_Hall_AngleUpdateDefault(motor.hall_table, Motor_Hall_Read(false, motor.hall_extra_samples),
-                                  motor.ol_pole_pairs, protection_dt);
+    feedback_source = Motor_Feedback_GetSourceDefault();
+    /*
+     * 纯开环不用编码器/霍尔，不应在每个 30 kHz ADC 中断做它们的浮点计算。
+     * 旧路径在 72 RPM 已占用约 90% CPU，会饿死 USART IDLE 中断和命令任务。
+     * 被选为反馈源时仍保持原来的每 ADC 拍更新频率。
+     */
+    if (feedback_source == MOTOR_FEEDBACK_SRC_ENCODER) {
+        Motor_Encoder_Update(protection_dt);
+    }
+    if (feedback_source == MOTOR_FEEDBACK_SRC_HALL) {
+        Motor_Hall_AngleUpdateDefault(motor.hall_table, Motor_Hall_Read(false, motor.hall_extra_samples),
+                                      motor.ol_pole_pairs, protection_dt);
+    }
 
     if (Motor_Protect_Run(&motor, protection_dt)) {
         Motor_Control_ResetRuntime(&s_control, &motor);

@@ -1,0 +1,202 @@
+# ol_verify
+# hash: 660a9399
+# time: 2026-09-09 00:01:43
+# items: V5,V9
+# script: Scripts/ol_verify_serial.py
+
+######## wake ########
+
+[T+12.152s] $ 
+######## V0 ########
+olstop
+[T+12.552s] > olstop
+
+Open-loop stopped
+[T+12.553s] $ olalign 0
+[T+12.954s] > olalign 0
+
+Align: OFF Id=0.50A time=0.300s angle=0.000rad
+Usage: olalign <0|1> <Id_A> <time_s> [angle_rad]
+[T+12.955s] $ hfistart 0
+[T+13.361s] > hfistart 0
+
+HFI start: OFF V=2.00 cycles=8 min_conf=0.050
+Usage: hfistart <0|1> <voltage_V> <cycles_per_axis> [min_confidence]
+[T+13.362s] $ olfb openloop
+[T+13.764s] > olfb openloop
+
+feedback set to 0
+[T+13.765s] $ spenable 0
+[T+14.154s] > spenable 0
+
+Speed loop disabled
+[T+14.154s] $ slenable 0
+[T+14.542s] > slenable 0
+
+Sensorless observer disabled
+[T+14.543s] $ 
+######## IF-start72 ########
+olstop
+[T+14.931s] > olstop
+
+Open-loop stopped
+[T+14.931s] $ olmode 1
+[T+15.320s] > olmode 1
+
+Open-loop mode set to 1 (Current-loop)
+[T+15.320s] $ oliq 0.6
+[T+15.709s] > oliq 0.6
+
+Iq set to 0.60 A
+[T+15.710s] $ olid 0
+[T+16.112s] > olid 0
+
+Id set to 0.00 A
+[T+16.113s] $ olkp 0.2
+[T+16.500s] > olkp 0.2
+
+Current Kp set to 0.2000
+[T+16.502s] $ olki 30
+[T+16.890s] > olki 30
+
+Current Ki set to 30.00
+[T+16.892s] $ olramp 10
+[T+17.282s] > olramp 10
+
+Ramp set to 10 RPM/s
+[T+17.284s] $ olspeed 72
+[T+17.672s] > olspeed 72
+
+Target RPM set to 72 (stopped, use olstart)
+[T+17.673s] $ olstart
+[T+18.076s] > olstart
+
+Open-loop started (I/F), target 72 RPM, Iq=0.60A
+[T+18.627s] $ 
+######## wait 10s ########
+I/F 72 RPM：烧新固件后轴应马上开始转；脚本在读串口，不是卡死
+
+######## wait 8s ########
+I/F 72 RPM 再保持
+
+######## V5 ########
+olstatus
+[T+38.030s] > olstatus
+
+
+===== Open-Loop Status [T+38.116s] =====
+  Uptime     : [T+38.116s]
+  Enable     : ON
+  Mode       : 1 (I/F current-loop)
+  Target RPM : 72
+  Max RPM    : 3000
+  Current RPM: 72
+  Start RPM  : 72
+  Ramp       : 10 RPM/s
+  Pole pairs : 2
+  PWM map    : ACB (B/C swapped)
+  V_bus      : 24.1 V
+  Theta/CCR  : 2.3726 rad / 1357 1341 1458
+  ADC current: 2043 2050 2043 raw
+  ADC phase  : 0.238 0.208 0.208 V(raw)
+  Phase Vabc : 6.236 6.172 6.625 V
+  Current abc: -0.585 -0.056 0.271 A
+  TIM1 actual: ARR=5600 CCR=1390/1462/1337 CNT=5213
+  TIM1 gate  : CEN=1 MOE=1 BKE=0 BIF=0 CCER=1555
+  TIM1 ch    : U=1/1 V=1/1 W=1/1 mode=6868/6868
+  Fault      : 0 NONE (CLEAR)
+  FOC loop   : 15000 Hz adc=30000 div=2 avg=31.5us max=46.0us load=94%
+  UART TX    : DMA @ 460800 baud
+  Iq set     : 0.60 A
+  Id set     : 0.00 A
+  Current Kp : 0.2000
+  Current Ki : 30.00
+  Vq limit   : 18.0 V
+  Start Phs  : 1.57 rad
+  Align cfg  : OFF Id=0.50A time=0.30s angle=0.00rad
+  Align run  : RAMP/IDLE elapsed=0.000s
+  HFI start   : OFF V=2.00 cycles=8 min=0.05 run=0 ok=0 angle=0.000 conf=0.000
+  Ia,Ib,Ic   : -0.585 -0.056 0.271 A
+  Id, Iq     : -0.032 0.426 A
+  Vd, Vq int : -0.974 1.871
+  Speed loop : OFF
+  Sensorless : OPEN_LOOP (DISABLED)
+  SL takeover: BLOCKED
+  SL checks  : F=0 S=0 D=0 P=0 lock=0.000s blend=0.00 V=1.80V
+  SL limits  : trans=500 fallback=300 OLmax=800 phase=1.40rad blend=0.20s
+  Observer RPM: 0.0
+  Flux       : 0.000000 Wb
+  Phase err  : 0.000 rad
+  Meas RPM   : 0.0
+  Speed err  : 0.0 RPM
+  Speed Iq   : 0.000 A
+  Speed PI   : Kp=0.00300 Ki=0.01000 Limit=2.00A @ 1000Hz
+  Status fmt : 4634456 us (RAM)
+=============================
+
+[T+44.072s] $ 
+######## V9-set300 ########
+olspeed 300
+[T+44.739s] > olspeed 300
+
+Target RPM set to 300 (running)
+[T+44.905s] $ 
+######## wait 36s ########
+升到 300 RPM
+
+######## V9 ########
+olstatus
+[T+81.725s] > olstatus
+
+
+===== Open-Loop Status [T+81.916s] =====
+  Uptime     : [T+81.916s]
+  Enable     : ON
+  Mode       : 1 (I/F current-loop)
+  Target RPM : 300
+  Max RPM    : 3000
+  Current RPM: 300
+  Start RPM  : 72
+  Ramp       : 10 RPM/s
+  Pole pairs : 2
+  PWM map    : ACB (B/C swapped)
+  V_bus      : 24.1 V
+  Theta/CCR  : 1.8554 rad / 1162 1254 1545
+  ADC current: 2048 2043 2039 raw
+  ADC phase  : 0.285 0.243 0.207 V(raw)
+  Phase Vabc : 7.344 5.852 7.094 V
+  Current abc: -1.310 1.394 0.271 A
+  TIM1 actual: ARR=5600 CCR=1225/1552/1247 CNT=419
+  TIM1 gate  : CEN=1 MOE=1 BKE=0 BIF=0 CCER=1555
+  TIM1 ch    : U=1/1 V=1/1 W=1/1 mode=6868/6868
+  Fault      : 0 NONE (CLEAR)
+  FOC loop   : 15000 Hz adc=30000 div=2 avg=31.5us max=46.0us load=95%
+  UART TX    : DMA @ 460800 baud
+  Iq set     : 0.60 A
+  Id set     : 0.00 A
+  Current Kp : 0.2000
+  Current Ki : 30.00
+  Vq limit   : 18.0 V
+  Start Phs  : 1.57 rad
+  Align cfg  : OFF Id=0.50A time=0.30s angle=0.00rad
+  Align run  : RAMP/IDLE elapsed=0.000s
+  HFI start   : OFF V=2.00 cycles=8 min=0.05 run=0 ok=0 angle=0.000 conf=0.000
+  Ia,Ib,Ic   : -1.310 1.394 0.271 A
+  Id, Iq     : 0.993 1.086 A
+  Vd, Vq int : -3.438 4.899
+  Speed loop : OFF
+  Sensorless : OPEN_LOOP (DISABLED)
+  SL takeover: BLOCKED
+  SL checks  : F=0 S=0 D=0 P=0 lock=0.000s blend=0.00 V=4.81V
+  SL limits  : trans=500 fallback=300 OLmax=800 phase=1.40rad blend=0.20s
+  Observer RPM: 0.0
+  Flux       : 0.000000 Wb
+  Phase err  : 0.000 rad
+  Meas RPM   : 0.0
+  Speed err  : 0.0 RPM
+  Speed Iq   : 0.000 A
+  Speed PI   : Kp=0.00300 Ki=0.01000 Limit=2.00A @ 1000Hz
+  Status fmt : 4944673 us (RAM)
+=============================
+
+[T+88.265s] $ 

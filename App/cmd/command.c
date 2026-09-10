@@ -30,6 +30,7 @@ extern "C" {
 /* cmd_openloop.c     */ extern int Cmd_Motor_OpenLoop(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlSpeed(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlStatus(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlSnap(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlBoost(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlKvf(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlRamp(int argc, char *argv[]);
@@ -71,6 +72,7 @@ static const cmd_entry_t s_cmd_table[] = {
     /* 开环 V/F 控制 */
     { "olspeed",    Cmd_OlSpeed,            "openloop V/F speed set <rpm>" },
     { "olstatus",   Cmd_OlStatus,           "show openloop current and fault status" },
+    { "olsnap",     Cmd_OlSnap,             "short Id/Iq/RPM/fault snapshot while running" },
     { "olboost",    Cmd_OlBoost,            "openloop V/F boost voltage <V>" },
     { "olkvf",      Cmd_OlKvf,              "openloop V/F slope <V/Hz>" },
     { "olramp",     Cmd_OlRamp,             "openloop V/F ramp rate <rpm/s>" },
@@ -254,11 +256,13 @@ void Cmd_Task(void *argument)
     cmd_put_prompt();
 
     while (1) {
-        osMessageQueueGet(queueCmdHandle, &rx_item, NULL, portMAX_DELAY);
-
-        for (i = 0; i < rx_item.len; i++) {
-            cmd_handle_char((char)rx_item.data[i]);
+        if (osMessageQueueGet(queueCmdHandle, &rx_item, NULL, pdMS_TO_TICKS(1)) == osOK) {
+            for (i = 0; i < rx_item.len; i++) {
+                cmd_handle_char((char)rx_item.data[i]);
+            }
         }
+        /* FOC 高负载时 UART TX DMA 完成中断经常进不来；空闲 1ms 补一轮，把回绕后的下一段发出去。 */
+        Bsp_Usart_TxDmaPoll();
     }
 }
 

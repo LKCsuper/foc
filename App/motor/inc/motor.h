@@ -53,7 +53,7 @@ typedef struct {
     float id;          /* A */
     float iq;          /* A */
     float v_bus;       /* V */
-    float theta;       /* 电角度 rad */
+    float theta;       /* 本拍 Park/PWM 电角度 rad */
     uint32_t duty1;    /* TIM1 CCR1 */
     uint32_t duty2;    /* TIM1 CCR2 */
     uint32_t duty3;    /* TIM1 CCR3 */

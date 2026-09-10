@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
+#include <math.h>
 
 #include "motor_current.h"
 #include "motor_foc.h"
@@ -172,6 +173,43 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
         *iq_target_out = iq_target;
     }
     return Motor_Current_RunPi(motor, id_target, iq_target, dt, v_limit);
+}
+
+/**
+ * @description: 按电角速度叠加 PMSM 交叉解耦与反电势前馈，再做矢量限幅。
+ * @detail: 教科书符号；I/F 开环路径不调用。
+ * @param {motor_dq_voltage_t *} v     输入/输出电压 (V)
+ * @param {float} omega_e              电角速度 (rad/s)
+ * @param {float} inductance           相电感 (H)
+ * @param {float} flux                 永磁磁链 (Wb)
+ * @param {float} id_ref               Id 参考 (A)
+ * @param {float} iq_ref               Iq 参考 (A)
+ * @param {float} v_limit              电压矢量模长上限 (V)
+ * @return {*}
+ */
+void Motor_Current_ApplySpeedFeedforward(motor_dq_voltage_t *v, float omega_e, float inductance, float flux,
+                                         float id_ref, float iq_ref, float v_limit)
+{
+    if (v == NULL) {
+        return;
+    }
+    if (!isfinite(omega_e) || !isfinite(inductance) || !isfinite(flux) || !isfinite(id_ref) || !isfinite(iq_ref)) {
+        return;
+    }
+    if (inductance < 0.0f) {
+        inductance = 0.0f;
+    }
+    if (flux < 0.0f) {
+        flux = 0.0f;
+    }
+
+    /* vd 去耦 −ωe L Iq；vq 去耦 +ωe L Id，并补偿 ωe ψf（反电势）。仅转子对齐的 dq 可调用。 */
+    v->vd -= omega_e * inductance * iq_ref;
+    v->vq += omega_e * inductance * id_ref + omega_e * flux;
+
+    if (v_limit > 0.0f) {
+        (void)utils_saturate_vector_2d(&v->vd, &v->vq, v_limit);
+    }
 }
 
 #ifdef __cplusplus

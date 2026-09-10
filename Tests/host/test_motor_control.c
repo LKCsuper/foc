@@ -288,7 +288,7 @@ int main(void)
         assert(fabsf(m.ol_theta - theta0) > 1e-4f);
     }
 
-    /* I/F：电流爬升后从 0 RPM 按配置斜坡拖转，不跳到 min_rpm。 */
+    /* I/F 未开对齐：跳过定角灌 Id，同一拍进入拖转，转速从 0 斜坡、不跳到 min_rpm。 */
     {
         motor_control_t ctrl;
         MOTOR_PARAM_S m;
@@ -308,18 +308,45 @@ int main(void)
         m.ol_iq_set = 0.6f;
         m.ol_vq_limit = 18.0f;
         m.ol_theta = 0.4f;
-        ctrl.startup.soft_current_scale = 0.3f;
         theta0 = m.ol_theta;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
+        assert(ctrl.startup.phase == MOTOR_STARTUP_DRAG_RAMP);
+        assert(fabsf(m.ol_theta - theta0) > 1e-6f);
+        assert(fabsf(m.theta - result.theta) < 1e-6f);
+        assert(m.ol_current_rpm > 0.0f && m.ol_current_rpm < m.ol_min_rpm);
+        assert(ctrl.startup.drag_current_scale > 0.0f && ctrl.startup.drag_current_scale < 0.01f);
+        assert(!s_last_alignment_running);
+        assert(s_last_soft_current_scale > 0.0f && s_last_soft_current_scale < 0.01f);
+    }
+
+    /* I/F 开对齐：电流爬升阶段电角与转速保持不动。 */
+    {
+        motor_control_t ctrl;
+        MOTOR_PARAM_S m;
+        float theta0;
+
+        memset(&m, 0, sizeof(m));
+        Motor_Control_Init(&ctrl);
+        m.ol_enable = true;
+        m.ol_mode = MOTOR_OL_MODE_IF;
+        m.ol_target_rpm = 40.0f;
+        m.ol_pole_pairs = 2.0f;
+        m.ol_ramp_rpm_s = 100.0f;
+        m.ol_align_enable = true;
+        m.ol_align_current = 0.5f;
+        m.ol_align_time = 0.3f;
+        m.hfi_start_enable = false;
+        m.ol_iq_set = 0.6f;
+        m.ol_vq_limit = 18.0f;
+        m.ol_theta = 0.4f;
+        theta0 = m.ol_theta;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
+        assert(ctrl.startup.phase == MOTOR_STARTUP_CURRENT_RAMP);
         assert(fabsf(m.ol_theta - theta0) < 1e-6f);
         assert(fabsf(m.ol_current_rpm) < 1e-6f);
-        ctrl.startup.soft_current_scale = 1.0f;
-        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
-        assert(fabsf(m.ol_theta - theta0) > 1e-6f);
-        assert(m.ol_current_rpm > 0.0f && m.ol_current_rpm < m.ol_min_rpm);
-        assert(ctrl.startup.phase == MOTOR_STARTUP_DRAG_RAMP);
-        assert(ctrl.startup.drag_current_scale > 0.0f && ctrl.startup.drag_current_scale < 0.01f);
+        assert(s_last_alignment_running);
     }
 
     /* 对齐保持只在电流爬升完成后计时，并按完整 align_current 保持。 */
@@ -382,9 +409,10 @@ int main(void)
         m.ol_align_enable = false;
         m.hfi_start_enable = false;
         (void)Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
-        assert(ctrl.startup.phase == MOTOR_STARTUP_CURRENT_RAMP);
+        assert(ctrl.startup.phase == MOTOR_STARTUP_DRAG_RAMP);
         assert(ctrl.startup.soft_current_scale < 0.01f);
-        assert(fabsf(m.ol_current_rpm) < 1e-6f);
+        assert(ctrl.startup.drag_current_scale > 0.0f && ctrl.startup.drag_current_scale < 0.01f);
+        assert(m.ol_current_rpm > 0.0f && m.ol_current_rpm < 1.0f);
     }
 
     /* 有感电流+速度环：encoder 角/速有效且 speed_enable → 电流环用速度 Iq */

@@ -36,6 +36,8 @@ STATIC volatile bool sgbUsartTxDmaReady = false;
 /* Private function prototypes -----------------------------------------------*/
 STATIC VOID Bsp_Usart_PollingPutChar(UCHAR ucData);
 STATIC VOID Bsp_Usart_TxDmaStartLocked(VOID);
+STATIC VOID Bsp_Usart_TxDmaCompleteLocked(VOID);
+STATIC VOID Bsp_Usart_TxDmaPollLocked(VOID);
 STATIC bool Bsp_Usart_TxQueueByte(UCHAR ucData);
 /* Private functions ---------------------------------------------------------*/
 
@@ -94,13 +96,53 @@ STATIC VOID Bsp_Usart_TxDmaStartLocked(VOID)
 }
 
 /**
+ * @brief  处理一次 TX DMA 完成：释放已发送段并启动下一段。
+ * @note   调用前必须关中断。FOC 高负载时 UART DMA 中断可能迟迟不到，任务侧也会调用。
+ */
+STATIC VOID Bsp_Usart_TxDmaCompleteLocked(VOID)
+{
+	volatile uint32_t ulTimeout = 1000U;
+
+	sgulUsartTxTail = (sgulUsartTxTail + sgulUsartTxDmaLen) & USART_TX_BUF_MASK;
+	sgulUsartTxDmaLen = 0U;
+	sgbUsartTxDmaBusy = false;
+
+	/* 普通模式硬件会清 EN；任务侧补轮询时偶发 EN 仍为 1，不关掉就无法启动下一段。 */
+	DMA_Cmd(DEBUG_USART_TX_DMA_STREAM, DISABLE);
+	while ((DMA_GetCmdStatus(DEBUG_USART_TX_DMA_STREAM) != DISABLE) &&
+		   (ulTimeout > 0U)) {
+		ulTimeout--;
+	}
+
+	Bsp_Usart_TxDmaStartLocked();
+}
+
+/**
+ * @brief  任务侧补看 TX DMA 完成标志，并在队列非空时尝试启动下一段。
+ * @note   调用前必须关中断。FOC 约 95% 时 UART DMA 完成中断经常进不来；
+ *         队列未满时 TxQueueByte 不会空转，必须在这里把回绕后的下一段发出去。
+ */
+STATIC VOID Bsp_Usart_TxDmaPollLocked(VOID)
+{
+	if (sgbUsartTxDmaBusy &&
+	    (DMA_GetITStatus(DEBUG_USART_TX_DMA_STREAM, DEBUG_USART_TX_DMA_TC_IT) != RESET)) {
+		DMA_ClearITPendingBit(DEBUG_USART_TX_DMA_STREAM, DEBUG_USART_TX_DMA_TC_IT);
+		Bsp_Usart_TxDmaCompleteLocked();
+		return;
+	}
+
+	if (!sgbUsartTxDmaBusy) {
+		Bsp_Usart_TxDmaStartLocked();
+	}
+}
+
+/**
  * @brief  将一个字节放入发送环形缓冲区。
  * @retval true  入队成功。
  * @retval false 当前在中断/临界区中且缓冲区已满，为避免死锁而放弃该字节。
  *
- * 普通任务遇到缓冲区满时可以等待，因为 DMA 和 DMA 完成中断仍会继续运行；
- * 中断上下文或已经关闭中断的临界区不能等待，否则 DMA 完成中断无法推进 tail，
- * 会形成永久死锁。因此这些特殊上下文在满队列时直接返回 false。
+ * 普通任务遇到缓冲区满时可以等待；不能只空转等 UART DMA 中断，因为其优先级
+ * 低于 FOC，约 95% 负载时中断长期跑不到，olstatus 会把命令任务卡死。
  */
 STATIC bool Bsp_Usart_TxQueueByte(UCHAR ucData)
 {
@@ -116,6 +158,7 @@ STATIC bool Bsp_Usart_TxQueueByte(UCHAR ucData)
 			sgucUsartTxBuf[sgulUsartTxHead] = ucData;
 			sgulUsartTxHead = ulNextHead;
 			Bsp_Usart_TxDmaStartLocked();
+			Bsp_Usart_TxDmaPollLocked();
 
 			if (0U == ulPrimask) {
 				__enable_irq();
@@ -132,8 +175,12 @@ STATIC bool Bsp_Usart_TxQueueByte(UCHAR ucData)
 			return false;
 		}
 
-		/* 普通任务仅在超过 2KB 的连续输出时短暂等待 DMA 腾出一个字节。 */
-		__NOP();
+		ulPrimask = __get_PRIMASK();
+		__disable_irq();
+		Bsp_Usart_TxDmaPollLocked();
+		if (0U == ulPrimask) {
+			__enable_irq();
+		}
 	}
 }
 /**
@@ -302,24 +349,32 @@ VOID Bsp_Usart_TxDmaHandler(VOID)
 {
 	uint32_t ulPrimask;
 
-	if (RESET == DMA_GetITStatus(DEBUG_USART_TX_DMA_STREAM,
-								  DEBUG_USART_TX_DMA_TC_IT)) {
+	/* 先关中断再看 TC：任务侧可能已经把同一完成标志清掉并启动了下一段。 */
+	ulPrimask = __get_PRIMASK();
+	__disable_irq();
+	if (DMA_GetITStatus(DEBUG_USART_TX_DMA_STREAM, DEBUG_USART_TX_DMA_TC_IT) != RESET) {
+		DMA_ClearITPendingBit(DEBUG_USART_TX_DMA_STREAM, DEBUG_USART_TX_DMA_TC_IT);
+		Bsp_Usart_TxDmaCompleteLocked();
+	}
+	if (0U == ulPrimask) {
+		__enable_irq();
+	}
+}
+
+/**
+ * @brief  在命令任务空闲时补轮询 TX DMA，不依赖完成中断。
+ */
+VOID Bsp_Usart_TxDmaPoll(VOID)
+{
+	uint32_t ulPrimask;
+
+	if (!sgbUsartTxDmaReady) {
 		return;
 	}
 
-	DMA_ClearITPendingBit(DEBUG_USART_TX_DMA_STREAM,
-						  DEBUG_USART_TX_DMA_TC_IT);
-
 	ulPrimask = __get_PRIMASK();
 	__disable_irq();
-
-	/* 释放刚刚完成的连续数据段，随后尝试发送环形缓冲区中的下一段。 */
-	sgulUsartTxTail = (sgulUsartTxTail + sgulUsartTxDmaLen) &
-					 USART_TX_BUF_MASK;
-	sgulUsartTxDmaLen = 0U;
-	sgbUsartTxDmaBusy = false;
-	Bsp_Usart_TxDmaStartLocked();
-
+	Bsp_Usart_TxDmaPollLocked();
 	if (0U == ulPrimask) {
 		__enable_irq();
 	}
@@ -395,8 +450,8 @@ void Bsp_Usart_PutChar(UCHAR cKey)
 
 /**
  * @brief 等待发送队列清空，并等待最后一个字符完全从 TX 引脚发出。
- * @note  普通 printf 和 Shell 返回值不调用本函数，它们依靠同一个 FIFO 队列
- *        保证顺序。只有关机、切换串口参数等必须确认物理发送完成的场景才调用。
+ * @note  等待期间轮询 DMA 完成标志，不依赖 UART DMA 中断。olstart / olsnap
+ *        在 FOC 高负载下必须调用，否则回绕后的下一段会永远留在环形缓冲区里。
  */
 VOID Bsp_Usart_Flush(VOID)
 {
@@ -407,6 +462,7 @@ VOID Bsp_Usart_Flush(VOID)
 		do {
 			ulPrimask = __get_PRIMASK();
 			__disable_irq();
+			Bsp_Usart_TxDmaPollLocked();
 			bQueueEmpty = (sgulUsartTxHead == sgulUsartTxTail) &&
 						  !sgbUsartTxDmaBusy;
 			if (0U == ulPrimask) {

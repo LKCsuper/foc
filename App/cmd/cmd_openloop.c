@@ -358,6 +358,7 @@ static void ol_print_status(void)
     ol_status_append(&used, "=============================\n\n");
 
     Bsp_Usart_PutBuf((const UCHAR *)sgcOlStatusBuffer, (ULONG)used);
+    Bsp_Usart_Flush();
     ol_status_unlock();
 }
 
@@ -382,6 +383,15 @@ int Cmd_OlSpeed(int argc, char *argv[])
     rpm = atof(argv[1]);
     if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
         return -1;
+    }
+    /* 运行中禁止直接过零反转：零速附近 Iq 仍在，轴会顿一下。 */
+    if (cmd.enable) {
+        float ref_rpm = (fabsf(motor.ol_current_rpm) > 1.0f) ? motor.ol_current_rpm : cmd.target_rpm;
+
+        if (rpm != 0.0f && ref_rpm != 0.0f && ((rpm > 0.0f) != (ref_rpm > 0.0f))) {
+            PRINTF("Reverse while running: olstop first, then olspeed / olstart\n");
+            return -1;
+        }
     }
     /* 只改目标转速，保留 enable；启动/停止必须用 olstart / olstop，避免 olspeed 误启动过流 */
     cmd.target_rpm = rpm;
@@ -623,19 +633,22 @@ int Cmd_OlStart(int argc, char *argv[])
     if (cmd.target_rpm == 0.0f) {
         cmd.target_rpm = motor.ol_min_rpm;
     }
-    cmd.enable = true;
-    if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) {
-        PRINTF("Invalid start command\n");
-        return -1;
-    }
+    /* 先打完串口再使能：FOC 一起转 UART DMA 完成中断会被饿死，连 “started” 都发不出去。 */
     PRINTF("Open-loop started (%s), target %.0f RPM",
-           (motor.ol_mode == MOTOR_OL_MODE_VF) ? "V/F" : "I/F", motor.ol_target_rpm);
+           (motor.ol_mode == MOTOR_OL_MODE_VF) ? "V/F" : "I/F", cmd.target_rpm);
     if (motor.ol_mode == MOTOR_OL_MODE_VF) {
         PRINTF(", boost=%.1fV\n", motor.ol_v_boost);
     } else {
         PRINTF(", Iq=%.2fA\n", motor.ol_iq_set);
     }
-    ol_print_high_speed_guard_notice(motor.ol_target_rpm);
+    ol_print_high_speed_guard_notice(cmd.target_rpm);
+    Bsp_Usart_Flush();
+
+    cmd.enable = true;
+    if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) {
+        PRINTF("Invalid start command\n");
+        return -1;
+    }
     return 0;
 }
 
@@ -672,6 +685,45 @@ int Cmd_OlStatus(int argc, char *argv[])
     (void)argv;
 
     ol_print_status();
+    return 0;
+}
+
+/**
+ * @description: olsnap 命令 — 运行中短快照（Enable/转速/故障/IdIq），避免 olstatus 大页卡死 UART。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 无额外参数
+ * @return {int} 0 成功
+ */
+int Cmd_OlSnap(int argc, char *argv[])
+{
+    motor_status_t status;
+    mc_fault_code fault;
+    char ts[20];
+
+    (void)argc;
+    (void)argv;
+
+    if (Motor_GetStatus(&motor, &status) != MOTOR_OK) {
+        PRINTF("Snap failed\n");
+        return -1;
+    }
+    fault = status.fault;
+    Cmd_FormatUptime(ts, sizeof(ts));
+    PRINTF("\n===== Open-Loop Snap %s =====\n", ts);
+    PRINTF("  Enable     : %s\n", status.enable ? "ON" : "OFF");
+    PRINTF("  Target RPM : %.0f\n", status.target_rpm);
+    PRINTF("  Current RPM: %.0f\n", status.current_rpm);
+    PRINTF("  V_bus      : %.1f V\n", status.v_bus);
+    PRINTF("  Theta/CCR  : %.4f rad / %lu %lu %lu\n", status.theta, (unsigned long)status.duty1,
+           (unsigned long)status.duty2, (unsigned long)status.duty3);
+    PRINTF("  Fault      : %d %s (%s)\n", fault, Motor_Protect_GetFaultName(fault),
+           status.fault_latched ? "LATCHED" : "CLEAR");
+    PRINTF("  Ia,Ib,Ic   : %.3f %.3f %.3f A\n", status.ia, status.ib, status.ic);
+    PRINTF("  Id, Iq     : %.3f %.3f A\n", status.id, status.iq);
+    PRINTF("  Vd, Vq int : %.3f %.3f\n", status.vd_int, status.vq_int);
+    PRINTF("=============================\n");
+    /* 300 RPM 时第一段 DMA 发出后完成中断进不来；不 Flush 则 V_bus 之后整页卡死。 */
+    Bsp_Usart_Flush();
     return 0;
 }
 

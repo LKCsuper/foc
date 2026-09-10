@@ -443,14 +443,19 @@ void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcm
         sector += 4U;
     }
 
-    X = ONE_BY_SQRT3 * Vbeta * (float)Tpwm / Udc;
+    /*
+     * 下方时间合成会再除以 2；β 项若仍用旧系数，其实际调制增益
+     * 只有 α 轴的一半。实机 300 RPM 的 Id/Iq 因此出现强烈二倍电角波动。
+     * 将所有 β 分量系数同比乘 2，保留原扇区、整体极性和 A-C-B 映射。
+     */
+    X = TWO_BY_SQRT3 * Vbeta * (float)Tpwm / Udc;
     /*
      * 严格复现 3e5d564 的 ARMCC 数值语义：旧源码中的 3 / 2 是整数除法，
      * 实际系数为 1.0，而不是数学上直觉性的 1.5。这里先保持实机基线，
      * 等恢复旋转后再单独验证/更换标准 SVPWM。
      */
-    Y = (float)Tpwm / Udc * (Valpha + 0.5f * ONE_BY_SQRT3 * Vbeta);
-    Z = (float)Tpwm / Udc * (-Valpha + 0.5f * ONE_BY_SQRT3 * Vbeta);
+    Y = (float)Tpwm / Udc * (Valpha + ONE_BY_SQRT3 * Vbeta);
+    Z = (float)Tpwm / Udc * (-Valpha + ONE_BY_SQRT3 * Vbeta);
 
     switch (sector) {
         case 1U: T1 = Z;  T2 = Y;  break;

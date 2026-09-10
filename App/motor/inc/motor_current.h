@@ -100,6 +100,22 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
  */
 motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const motor_current_target_ctx_t *ctx,
                                       float dt, float v_limit, float *id_target_out, float *iq_target_out);
+
+/**
+ * @description: 按电角速度叠加 PMSM 交叉解耦与反电势前馈，再做矢量限幅。
+ * @detail: 教科书 vd -= ωe·L·Iq*、vq += ωe·L·Id* + ωe·ψf。只用于转子 dq（编码器/霍尔）。
+ *          I/F 开环角不得调用：反电势不在该坐标系。不改 PI 积分。
+ * @param {motor_dq_voltage_t *} v     输入/输出电压 (V)，不可为空
+ * @param {float} omega_e              电角速度 (rad/s)
+ * @param {float} inductance           相电感 (H)
+ * @param {float} flux                 永磁磁链 (Wb)
+ * @param {float} id_ref               Id 参考 (A)
+ * @param {float} iq_ref               Iq 参考 (A)
+ * @param {float} v_limit              电压矢量模长上限 (V)；≤0 则不限幅
+ * @return {*}
+ */
+void Motor_Current_ApplySpeedFeedforward(motor_dq_voltage_t *v, float omega_e, float inductance, float flux,
+                                         float id_ref, float iq_ref, float v_limit);
 /* Private functions ---------------------------------------------------------*/
 #ifdef __cplusplus
 }

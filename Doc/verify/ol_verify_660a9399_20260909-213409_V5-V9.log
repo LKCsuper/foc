@@ -1,0 +1,88 @@
+# ol_verify
+# hash: 660a9399
+# time: 2026-09-09 21:34:09
+# items: V5,V9
+# script: Scripts/ol_verify_serial.py
+
+######## wake ########
+
+[T+15.463s] $ 
+######## V0 ########
+olstop
+[T+15.877s] > olstop
+
+Open-loop stopped
+[T+15.878s] $ olalign 0
+[T+16.267s] > olalign 0
+
+Align: OFF Id=0.50A time=0.300s angle=0.000rad
+Usage: olalign <0|1> <Id_A> <time_s> [angle_rad]
+[T+16.269s] $ hfistart 0
+[T+16.670s] > hfistart 0
+
+HFI start: OFF V=2.00 cycles=8 min_conf=0.050
+Usage: hfistart <0|1> <voltage_V> <cycles_per_axis> [min_confidence]
+[T+16.673s] $ olfb openloop
+[T+17.076s] > olfb openloop
+
+feedback set to 0
+[T+17.077s] $ spenable 0
+[T+17.479s] > spenable 0
+
+Speed loop disabled
+[T+17.480s] $ slenable 0
+[T+17.868s] > slenable 0
+
+Sensorless observer disabled
+[T+17.870s] $ 
+######## IF-cfg72 ########
+olstop
+[T+18.272s] > olstop
+
+Open-loop stopped
+[T+18.273s] $ olmode 1
+[T+18.659s] > olmode 1
+
+Open-loop mode set to 1 (Current-loop)
+[T+18.660s] $ oliq 0.6
+[T+19.076s] > oliq 0.6
+
+Iq set to 0.60 A
+[T+19.078s] $ olid 0
+[T+19.466s] > olid 0
+
+Id set to 0.00 A
+[T+19.467s] $ olkp 0.2
+[T+19.870s] > olkp 0.2
+
+Current Kp set to 0.2000
+[T+19.872s] $ olki 30
+[T+20.287s] > olki 30
+
+Current Ki set to 30.00
+[T+20.289s] $ olramp 10
+[T+20.691s] > olramp 10
+
+Ramp set to 10 RPM/s
+[T+20.693s] $ olspeed 72
+[T+21.097s] > olspeed 72
+
+Target RPM set to 72 (stopped, use olstart)
+[T+21.098s] $ 
+######## IF-start72 ########
+olstart
+[T+21.502s] > olstart
+
+Open-loop started (I/F), target 72 RPM, Iq=0.60A
+
+######## wait 10s ########
+I/F 72 RPM：烧新固件后轴应马上开始转；脚本在读串口，不是卡死
+
+######## wait 8s ########
+I/F 72 RPM 再保持
+
+######## V5 ########
+
+######## ABORT ########
+V5 empty
+######## stop ########
