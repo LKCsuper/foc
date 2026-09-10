@@ -256,7 +256,7 @@ static void ol_print_status(void)
                      status.mode == MOTOR_OL_MODE_IF ? "I/F current-loop" : "V/F voltage");
     ol_status_append(&used, "  Target RPM : %.0f\n", status.target_rpm);
     ol_status_append(&used, "  Max RPM    : %.0f\n", motor.ol_max_rpm);
-    ol_status_append(&used, "  Current RPM: %.0f\n", status.current_rpm);
+    ol_status_append(&used, "  Ramp RPM   : %.0f\n", status.current_rpm);
     ol_status_append(&used, "  Start RPM  : %.0f\n", motor.ol_min_rpm);
     ol_status_append(&used, "  Ramp       : %.0f RPM/s\n", motor.ol_ramp_rpm_s);
     ol_status_append(&used, "  Pole pairs : %.0f\n", motor.ol_pole_pairs);
@@ -333,8 +333,14 @@ static void ol_print_status(void)
         ol_status_append(&used, "  Flux       : %.6f Wb\n", Motor_Sensorless_GetFluxMagnitude());
         ol_status_append(&used, "  Phase err  : %.3f rad\n", Motor_Sensorless_GetPhaseError());
         ol_status_append(&used, "  Meas RPM   : %.1f\n", status.measured_rpm);
-        ol_status_append(&used, "  Speed err  : %.1f RPM\n", Motor_SpeedLoop_GetError());
+        ol_status_append(&used, "  Speed err  : %.1f RPM\n", status.speed_error);
         ol_status_append(&used, "  Speed Iq   : %.3f A\n", status.speed_iq);
+        if (status.feedback.used_source == MOTOR_FEEDBACK_SRC_HALL) {
+            ol_status_append(&used, "  Hall RPM   : raw=%.1f filtered=%.1f age=%.1fms state=%d valid=%d\n",
+                             status.feedback.mech_rpm_raw, status.feedback.mech_rpm,
+                             status.feedback.sample_age_s * 1000.0f, status.feedback.sensor_state,
+                             status.feedback.speed_valid);
+        }
         ol_status_append(&used, "  Speed PI   : Kp=%.5f Ki=%.5f Limit=%.2fA @ %.0fHz\n", motor.speed_kp, motor.speed_ki,
                          motor.speed_iq_limit, motor.speed_loop_hz);
     } else {
@@ -712,7 +718,14 @@ int Cmd_OlSnap(int argc, char *argv[])
     PRINTF("\n===== Open-Loop Snap %s =====\n", ts);
     PRINTF("  Enable     : %s\n", status.enable ? "ON" : "OFF");
     PRINTF("  Target RPM : %.0f\n", status.target_rpm);
-    PRINTF("  Current RPM: %.0f\n", status.current_rpm);
+    PRINTF("  Ramp RPM   : %.0f\n", status.current_rpm);
+    PRINTF("  Meas RPM   : %.1f (%s)\n", status.measured_rpm,
+           status.feedback.speed_valid ? "valid" : "invalid");
+    if (status.feedback.used_source == MOTOR_FEEDBACK_SRC_HALL) {
+        PRINTF("  Hall RPM   : raw=%.1f filtered=%.1f age=%.1fms state=%d\n",
+               status.feedback.mech_rpm_raw, status.feedback.mech_rpm,
+               status.feedback.sample_age_s * 1000.0f, status.feedback.sensor_state);
+    }
     PRINTF("  V_bus      : %.1f V\n", status.v_bus);
     PRINTF("  Theta/CCR  : %.4f rad / %lu %lu %lu\n", status.theta, (unsigned long)status.duty1,
            (unsigned long)status.duty2, (unsigned long)status.duty3);

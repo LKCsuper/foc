@@ -51,6 +51,8 @@ static bool s_hall_angle_valid;
 static bool s_hall_speed_valid;
 static float s_hall_theta = 2.0f;
 static float s_hall_rpm = 50.0f;
+static float s_hall_raw_rpm = 55.0f;
+static float s_hall_age = 0.004f;
 
 bool Motor_Hall_AngleIsAngleValid(void)
 {
@@ -65,6 +67,21 @@ float Motor_Hall_AngleGetTheta(void)
 float Motor_Hall_AngleGetMechRpm(void)
 {
     return s_hall_rpm;
+}
+
+float Motor_Hall_AngleGetRawMechRpm(void)
+{
+    return s_hall_raw_rpm;
+}
+
+float Motor_Hall_AngleGetEdgeAge(void)
+{
+    return s_hall_age;
+}
+
+int Motor_Hall_AngleGetState(void)
+{
+    return 3;
 }
 
 bool Motor_Hall_AngleIsSpeedValid(void)
@@ -142,6 +159,9 @@ int main(void)
     assert(sample.angle_valid);
     assert(fabsf(sample.elec_angle_rad - 2.2f) < 1e-6f);
     assert(sample.speed_valid);
+    assert(fabsf(sample.mech_rpm_raw - 55.0f) < 1e-6f);
+    assert(fabsf(sample.sample_age_s - 0.004f) < 1e-6f);
+    assert(sample.sensor_state == 3);
 
     /* 霍尔无效：回退开环 */
     s_hall_angle_valid = false;

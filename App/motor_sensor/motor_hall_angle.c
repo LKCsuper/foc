@@ -115,6 +115,8 @@ bool Motor_Hall_DecodeAngle(const int8_t *table, int hall_state, float *theta_ra
  */
 void Motor_Hall_AngleReset(motor_hall_angle_t *st)
 {
+    int i;
+
     if (st == NULL) {
         return;
     }
@@ -122,9 +124,17 @@ void Motor_Hall_AngleReset(motor_hall_angle_t *st)
     st->have_state = false;
     st->theta_rad = 0.0f;
     st->mech_rpm = 0.0f;
+    st->mech_rpm_raw = 0.0f;
     st->angle_valid = false;
     st->speed_valid = false;
     st->sector_timer_s = 0.0f;
+    st->period_sum_s = 0.0f;
+    st->period_count = 0U;
+    st->period_index = 0U;
+    st->direction = 0;
+    for (i = 0; i < (int)MOTOR_HALL_SPEED_WINDOW; i++) {
+        st->periods_s[i] = 0.0f;
+    }
 }
 
 /**
@@ -179,6 +189,10 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
         float theta_prev;
 
         if (st->sector_timer_s > 1.0e-6f && Motor_Hall_DecodeAngle(table, st->last_state, &theta_prev)) {
+            float abs_d_theta;
+            float period_s = st->sector_timer_s;
+            int8_t direction;
+
             d_theta = theta - theta_prev;
             while (d_theta > (float)M_PI) {
                 d_theta -= 2.0f * (float)M_PI;
@@ -186,9 +200,31 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
             while (d_theta < -(float)M_PI) {
                 d_theta += 2.0f * (float)M_PI;
             }
-            elec_rps = (d_theta / (2.0f * (float)M_PI)) / st->sector_timer_s;
-            st->mech_rpm = (elec_rps * 60.0f) / pp;
-            st->speed_valid = true;
+            abs_d_theta = fabsf(d_theta);
+            /* 合法相邻霍尔边沿约跨 60°；拒绝毛刺、重复码和跨扇区跳码。 */
+            if (abs_d_theta >= ((float)M_PI / 6.0f) && abs_d_theta <= ((float)M_PI / 2.0f)) {
+                direction = d_theta > 0.0f ? 1 : -1;
+                if (st->direction != 0 && direction != st->direction) {
+                    st->period_sum_s = 0.0f;
+                    st->period_count = 0U;
+                    st->period_index = 0U;
+                }
+                st->direction = direction;
+
+                /* 每个合法边沿固定跨 1/6 电角周，避免标定表角间距误差污染测速。 */
+                st->mech_rpm_raw = (float)direction * 10.0f / (pp * period_s);
+                if (st->period_count == MOTOR_HALL_SPEED_WINDOW) {
+                    st->period_sum_s -= st->periods_s[st->period_index];
+                } else {
+                    st->period_count++;
+                }
+                st->periods_s[st->period_index] = period_s;
+                st->period_sum_s += period_s;
+                st->period_index = (uint8_t)((st->period_index + 1U) % MOTOR_HALL_SPEED_WINDOW);
+                elec_rps = ((float)st->period_count / 6.0f) / st->period_sum_s;
+                st->mech_rpm = (float)direction * (elec_rps * 60.0f) / pp;
+                st->speed_valid = true;
+            }
         }
         st->last_state = hall_state;
         st->sector_timer_s = 0.0f;
@@ -198,7 +234,12 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
     /* 同扇区：超时无换向 → 停转，转速有效为 0 */
     if (st->sector_timer_s >= MOTOR_HALL_ANGLE_STALL_S) {
         st->mech_rpm = 0.0f;
+        st->mech_rpm_raw = 0.0f;
         st->speed_valid = true;
+        st->period_sum_s = 0.0f;
+        st->period_count = 0U;
+        st->period_index = 0U;
+        st->direction = 0;
     }
 }
 
@@ -244,6 +285,21 @@ float Motor_Hall_AngleGetTheta(void)
 float Motor_Hall_AngleGetMechRpm(void)
 {
     return s_hall_angle.mech_rpm;
+}
+
+float Motor_Hall_AngleGetRawMechRpm(void)
+{
+    return s_hall_angle.mech_rpm_raw;
+}
+
+float Motor_Hall_AngleGetEdgeAge(void)
+{
+    return s_hall_angle.sector_timer_s;
+}
+
+int Motor_Hall_AngleGetState(void)
+{
+    return s_hall_angle.have_state ? s_hall_angle.last_state : -1;
 }
 
 /**

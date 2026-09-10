@@ -62,14 +62,25 @@ int main(void)
     assert(st.speed_valid);
     assert(fabsf(st.mech_rpm) < 1e-4f);
 
-    /* 换向 1→3（+60° 电角）/ 0.05s → elec = 1/6 / 0.05 rps */
+    /* 换向 1→3（固定 1/6 电角周）/ 0.05s，1 极对 → 200RPM */
     Motor_Hall_AngleReset(&st);
     Motor_Hall_AngleUpdate(&st, table, 1, 1.0f, 0.01f);
     Motor_Hall_AngleUpdate(&st, table, 3, 1.0f, 0.05f);
     assert(st.angle_valid);
     assert(st.speed_valid);
-    expect = (33.0f / 200.0f / 0.05f) * 60.0f; /* entry 33 ≈ 60° */
+    expect = 200.0f;
     assert(fabsf(st.mech_rpm - expect) < 1.0f);
+    assert(fabsf(st.mech_rpm_raw - expect) < 1.0f);
+
+    /* 六个略有抖动的边沿周期采用总时间平均，而非平均瞬时 RPM。 */
+    Motor_Hall_AngleUpdate(&st, table, 2, 1.0f, 0.04f);
+    Motor_Hall_AngleUpdate(&st, table, 6, 1.0f, 0.06f);
+    Motor_Hall_AngleUpdate(&st, table, 4, 1.0f, 0.05f);
+    Motor_Hall_AngleUpdate(&st, table, 5, 1.0f, 0.04f);
+    Motor_Hall_AngleUpdate(&st, table, 1, 1.0f, 0.06f);
+    assert(st.period_count == MOTOR_HALL_SPEED_WINDOW);
+    assert(fabsf(st.mech_rpm - 200.0f) < 1.0f);
+    assert(fabsf(st.mech_rpm_raw - (10.0f / 0.06f)) < 1.0f);
 
     /* 非法扇区：角无效 */
     Motor_Hall_AngleUpdate(&st, table, 0, 1.0f, 0.01f);

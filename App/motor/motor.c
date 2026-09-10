@@ -232,10 +232,12 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
     snap.vd_int = motor->ol_vd_int;
     snap.vq_int = motor->ol_vq_int;
     snap.speed_enable = motor->speed_enable;
+    Motor_Feedback_SampleDefault(motor, motor->ol_theta, &snap.feedback);
+    snap.measured_rpm = Motor_SpeedLoop_GetMeasuredRpm();
+    snap.speed_error = Motor_SpeedLoop_GetError();
+    snap.speed_iq = Motor_SpeedLoop_GetIqTarget();
     motor_crit_exit(primask);
 
-    snap.measured_rpm = Motor_SpeedLoop_GetMeasuredRpm();
-    snap.speed_iq = Motor_SpeedLoop_GetIqTarget();
     snap.aligning = Motor_OpenLoop_IsAligning();
     snap.align_elapsed_s = Motor_OpenLoop_GetAlignElapsed();
     snap.fault = Motor_Protect_GetFault();

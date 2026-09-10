@@ -61,7 +61,9 @@ typedef struct {
     float vq_int;      /* V */
     bool speed_enable;
     float measured_rpm; /* 速度环反馈 RPM；无效时为 0 */
+    float speed_error;  /* 与 measured_rpm 同一快照时刻的速度误差 RPM */
     float speed_iq;     /* 速度环 Iq 目标 A */
+    motor_feedback_sample_t feedback; /* 同一时刻的统一转子反馈样本 */
     bool aligning;
     float align_elapsed_s; /* s */
     mc_fault_code fault;

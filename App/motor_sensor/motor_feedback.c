@@ -82,6 +82,9 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
 
     out->elec_angle_rad = open_loop_theta;
     out->mech_rpm = 0.0f;
+    out->mech_rpm_raw = 0.0f;
+    out->sample_age_s = 0.0f;
+    out->sensor_state = -1;
     out->angle_valid = false;
     out->speed_valid = false;
     out->used_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
@@ -130,6 +133,7 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
             out->used_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
         }
         out->mech_rpm = Motor_Encoder_GetMechRpm();
+        out->mech_rpm_raw = out->mech_rpm;
         out->speed_valid = Motor_Encoder_IsSpeedValid();
         break;
 
@@ -149,6 +153,9 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
             out->used_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
         }
         out->mech_rpm = Motor_Hall_AngleGetMechRpm();
+        out->mech_rpm_raw = Motor_Hall_AngleGetRawMechRpm();
+        out->sample_age_s = Motor_Hall_AngleGetEdgeAge();
+        out->sensor_state = Motor_Hall_AngleGetState();
         out->speed_valid = Motor_Hall_AngleIsSpeedValid();
         break;
 

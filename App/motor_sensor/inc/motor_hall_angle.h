@@ -18,6 +18,7 @@ extern "C" {
 #include "motor_types.h"
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_HALL_ANGLE_STALL_S (0.2f) /* 无换向超过该时间视为停转 (s) */
+#define MOTOR_HALL_SPEED_WINDOW  (6U)    /* 最近边沿周期窗口 */
 /* Private typedef -----------------------------------------------------------*/
 /**
  * @description: 霍尔角度运行时（默认单实例 + *State 可测）
@@ -26,10 +27,16 @@ typedef struct {
     int last_state;       /* 上一霍尔状态 0..7；-1 表示尚无 */
     bool have_state;      /* 是否已采过有效扇区 */
     float theta_rad;      /* 最近有效电角 (rad) */
-    float mech_rpm;       /* 机械转速 (RPM) */
+    float mech_rpm;       /* 多边沿周期滤波机械转速 (RPM) */
+    float mech_rpm_raw;   /* 最近单边沿周期机械转速 (RPM) */
     bool angle_valid;     /* 本拍电角是否可信 */
     bool speed_valid;     /* 本拍转速是否可信 */
     float sector_timer_s; /* 距上次换向时间 (s) */
+    float period_sum_s;   /* 滤波窗口周期总和 (s) */
+    float periods_s[MOTOR_HALL_SPEED_WINDOW];
+    uint8_t period_count;
+    uint8_t period_index;
+    int8_t direction;     /* +1 正转，-1 反转，0 未知 */
 } motor_hall_angle_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -104,6 +111,15 @@ float Motor_Hall_AngleGetTheta(void);
  * @author: lkc
  */
 float Motor_Hall_AngleGetMechRpm(void);
+
+/** @description: 默认实例最近单边沿原始机械转速 (RPM) */
+float Motor_Hall_AngleGetRawMechRpm(void);
+
+/** @description: 默认实例距最近霍尔边沿的时间 (s) */
+float Motor_Hall_AngleGetEdgeAge(void);
+
+/** @description: 默认实例当前霍尔状态；尚无有效状态返回 -1 */
+int Motor_Hall_AngleGetState(void);
 
 /**
  * @description: 默认实例电角是否有效
