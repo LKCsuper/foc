@@ -46,6 +46,11 @@ int main(void)
     assert(!Motor_Hall_TableReady(table));
     fill_ready_table(table);
 
+    /* 六个有效状态若全映射到同一电角，不得误报标定成功。 */
+    table[1] = table[2] = table[3] = table[4] = table[5] = table[6] = 13;
+    assert(!Motor_Hall_TableReady(table));
+    fill_ready_table(table);
+
     Motor_Hall_AngleReset(&st);
     Motor_Hall_AngleUpdate(&st, table, 1, 2.0f, 0.01f);
     assert(st.angle_valid);

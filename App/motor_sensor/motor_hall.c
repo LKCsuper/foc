@@ -20,6 +20,7 @@ extern "C" {
 #include "hal_motor.h"
 #include "hal_sensor.h"
 #include "motor.h"
+#include "motor_hall_angle.h"
 /* Private typedef -----------------------------------------------------------*/
 typedef struct {
     volatile bool active;
@@ -106,7 +107,12 @@ static void Motor_Hall_StoreTableEntry(uint8_t *hall_table, int hall,
     float ang;
 
     if (samples > (int)MOTOR_HALL_DETECT_MIN_SAMPLES) {
-        ang = RAD2DEG_f(atan2f(sin_acc, cos_acc));
+        /*
+         * 标定以 +Iq 慢速拖动：定子电流矢量位于强制 Park 角的 +90°。
+         * 空载慢爬时转子磁链跟随该电流矢量，因此霍尔表应保存转子 d 轴角，
+         * 而不是原始强制角；否则运行时再次施加 +Iq 会得到近零转矩。
+         */
+        ang = RAD2DEG_f(atan2f(sin_acc, cos_acc)) + 90.0f;
         utils_norm_angle(&ang);
         hall_table[hall] = (uint8_t)(ang * 200.0f / 360.0f);
     } else {
@@ -295,7 +301,9 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
                 z++;
             }
 
-            arm_sin_cos_f32(s_hall_detect.theta_rad, &s, &c);
+            /* 标定上下文统一使用弧度；直接调用标准函数，避免 CMSIS 版本/链接差异。 */
+            s = sinf(s_hall_detect.theta_rad);
+            c = cosf(s_hall_detect.theta_rad);
             sin_hall[hall] += s;
             cos_hall[hall] += c;
             hall_iterations[hall]++;
@@ -311,7 +319,8 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
             }
 
             hall = Motor_Hall_Read(false, m->hall_extra_samples);
-            arm_sin_cos_f32(s_hall_detect.theta_rad, &s, &c);
+            s = sinf(s_hall_detect.theta_rad);
+            c = cosf(s_hall_detect.theta_rad);
             sin_hall[hall] += s;
             cos_hall[hall] += c;
             hall_iterations[hall]++;
@@ -331,10 +340,12 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
                 fails++;
             }
         }
-        *result = (fails == 2);
-        if (*result) {
+        *result = false;
+        if (fails == 2) {
             Motor_Hall_TableToMotor(hall_table, m);
-        } else {
+            *result = Motor_Hall_TableReady(m->hall_table);
+        }
+        if (!*result) {
             printf("HALL DETECT fail: invalid=%d (need 2). table/samples:\r\n", fails);
             for (i = 0; i < (int)MOTOR_HALL_TABLE_SIZE; i++) {
                 printf("  [%d] tab=%d n=%d\r\n", i, (int)hall_table[i], hall_iterations[i]);

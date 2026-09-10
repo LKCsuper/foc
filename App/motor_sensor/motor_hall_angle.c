@@ -27,6 +27,7 @@ static motor_hall_angle_t s_hall_angle;
 bool Motor_Hall_TableReady(const int8_t *table)
 {
     int i;
+    int j;
     int valid = 0;
     int invalid = 0;
 
@@ -45,7 +46,40 @@ bool Motor_Hall_TableReady(const int8_t *table)
             return false;
         }
     }
-    return (valid == 6) && (invalid == 2);
+    if ((valid != 6) || (invalid != 2)) {
+        return false;
+    }
+
+    /*
+     * 六个有效扇区不能是同一个（或几乎同一个）电角。
+     * 标准间距约为 200/6=33；小于 10（18°）说明标定单位/采样异常。
+     */
+    for (i = 0; i < (int)MOTOR_HALL_TABLE_SIZE; i++) {
+        uint8_t a = (uint8_t)table[i];
+
+        if (a == 255U) {
+            continue;
+        }
+        for (j = i + 1; j < (int)MOTOR_HALL_TABLE_SIZE; j++) {
+            uint8_t b = (uint8_t)table[j];
+            int distance;
+
+            if (b == 255U) {
+                continue;
+            }
+            distance = (int)a - (int)b;
+            if (distance < 0) {
+                distance = -distance;
+            }
+            if (distance > 100) {
+                distance = 200 - distance;
+            }
+            if (distance < 10) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 /**
