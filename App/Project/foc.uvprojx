@@ -681,6 +681,11 @@
               <FilePath>..\..\Library\Hal\port\stm32f4\hal_motor_stm32f4.c</FilePath>
             </File>
             <File>
+              <FileName>hal_motor_bldc_stm32f4.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Library\Hal\port\stm32f4\hal_motor_bldc_stm32f4.c</FilePath>
+            </File>
+            <File>
               <FileName>hal_flash_stm32f4.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\Library\Hal\port\stm32f4\hal_flash_stm32f4.c</FilePath>
@@ -1027,6 +1032,21 @@
               <FileName>motor_control.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_bldc_six_step.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_bldc_six_step.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_bldc_sensorless.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_bldc_sensorless.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_bldc_six_step_hal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_bldc_six_step_hal.c</FilePath>
             </File>
             <File>
               <FileName>motor_protect.c</FileName>

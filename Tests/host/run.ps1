@@ -65,6 +65,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor hall angle host compilation failed' }
     & .build/host/test_motor_hall_angle.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor hall angle host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_bldc_six_step.c Tests/host/test_motor_bldc_six_step.c -o .build/host/test_motor_bldc_six_step.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC six-step host compilation failed' }
+    & .build/host/test_motor_bldc_six_step.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC six-step host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_bldc_six_step.c App/motor/motor_bldc_sensorless.c Tests/host/test_motor_bldc_sensorless.c -o .build/host/test_motor_bldc_sensorless.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC sensorless host compilation failed' }
+    & .build/host/test_motor_bldc_sensorless.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC sensorless host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_PHASE_ORDER_HOST_TEST -IApp/motor_sensor/inc App/motor_sensor/motor_phase_order.c Tests/host/test_motor_phase_order.c -o .build/host/test_motor_phase_order.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor phase order host compilation failed' }
     & .build/host/test_motor_phase_order.exe
