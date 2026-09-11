@@ -50,6 +50,11 @@ float Motor_SpeedLoop_GetIqTarget(void)
     return 0.45f;
 }
 
+float Motor_SpeedLoop_GetError(void)
+{
+    return -7.0f;
+}
+
 bool Motor_OpenLoop_IsAligning(void)
 {
     return false;
@@ -91,6 +96,19 @@ void Motor_Feedback_SetSourceDefault(motor_feedback_source_t source)
 motor_feedback_source_t Motor_Feedback_GetSourceDefault(void)
 {
     return MOTOR_FEEDBACK_SRC_SENSORLESS;
+}
+
+void Motor_Feedback_SampleDefault(const MOTOR_PARAM_S *m, float open_loop_theta, motor_feedback_sample_t *out)
+{
+    (void)m;
+    memset(out, 0, sizeof(*out));
+    out->elec_angle_rad = open_loop_theta;
+    out->sensor_state = -1;
+    out->used_source = MOTOR_FEEDBACK_SRC_SENSORLESS;
+}
+
+void Motor_Hall_AngleResetDefault(void)
+{
 }
 
 int main(void)

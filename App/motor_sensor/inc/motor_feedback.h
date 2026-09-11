@@ -35,6 +35,7 @@ typedef struct {
     float elec_angle_rad;                /* 供 Park/反 Park 的电角度 (rad) */
     float mech_rpm;                      /* 滤波机械转速 (RPM)；speed_valid=false 时勿使用 */
     float mech_rpm_raw;                  /* 最近一次反馈原始机械转速 (RPM) */
+    float mech_rpm_fast;                 /* 快速机械转速 (RPM)，供速度控制使用 */
     float sample_age_s;                  /* 距最近传感器事件的时间；不适用时为 0 */
     int sensor_state;                    /* 传感器离散状态；不适用时为 -1 */
     bool angle_valid;                    /* 电角是否来自选定传感器且可信 */

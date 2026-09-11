@@ -149,6 +149,8 @@ static void Motor_Hall_TableToMotor(const uint8_t *hall_table, MOTOR_PARAM_S *m)
 static void Motor_Hall_DetectFinish(MOTOR_PARAM_S *m)
 {
     Motor_Hall_DetectCtxReset();
+    /* 标定可能改写同一张表，令默认估算器重新执行结构校验并清除旧速度。 */
+    Motor_Hall_AngleResetDefault();
     (void)Motor_RequestStop(m);
     Hal_Motor_PwmStop();
 }

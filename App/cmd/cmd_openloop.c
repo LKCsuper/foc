@@ -336,8 +336,9 @@ static void ol_print_status(void)
         ol_status_append(&used, "  Speed err  : %.1f RPM\n", status.speed_error);
         ol_status_append(&used, "  Speed Iq   : %.3f A\n", status.speed_iq);
         if (status.feedback.used_source == MOTOR_FEEDBACK_SRC_HALL) {
-            ol_status_append(&used, "  Hall RPM   : raw=%.1f filtered=%.1f age=%.1fms state=%d valid=%d\n",
+            ol_status_append(&used, "  Hall RPM   : raw=%.1f filtered=%.1f fast=%.1f age=%.1fms state=%d valid=%d\n",
                              status.feedback.mech_rpm_raw, status.feedback.mech_rpm,
+                             status.feedback.mech_rpm_fast,
                              status.feedback.sample_age_s * 1000.0f, status.feedback.sensor_state,
                              status.feedback.speed_valid);
         }
@@ -722,8 +723,8 @@ int Cmd_OlSnap(int argc, char *argv[])
     PRINTF("  Meas RPM   : %.1f (%s)\n", status.measured_rpm,
            status.feedback.speed_valid ? "valid" : "invalid");
     if (status.feedback.used_source == MOTOR_FEEDBACK_SRC_HALL) {
-        PRINTF("  Hall RPM   : raw=%.1f filtered=%.1f age=%.1fms state=%d\n",
-               status.feedback.mech_rpm_raw, status.feedback.mech_rpm,
+        PRINTF("  Hall RPM   : raw=%.1f filtered=%.1f fast=%.1f age=%.1fms state=%d\n",
+               status.feedback.mech_rpm_raw, status.feedback.mech_rpm, status.feedback.mech_rpm_fast,
                status.feedback.sample_age_s * 1000.0f, status.feedback.sensor_state);
     }
     PRINTF("  V_bus      : %.1f V\n", status.v_bus);
@@ -733,6 +734,7 @@ int Cmd_OlSnap(int argc, char *argv[])
            status.fault_latched ? "LATCHED" : "CLEAR");
     PRINTF("  Ia,Ib,Ic   : %.3f %.3f %.3f A\n", status.ia, status.ib, status.ic);
     PRINTF("  Id, Iq     : %.3f %.3f A\n", status.id, status.iq);
+    PRINTF("  Speed Iq   : %.3f A\n", status.speed_iq);
     PRINTF("  Vd, Vq int : %.3f %.3f\n", status.vd_int, status.vq_int);
     PRINTF("=============================\n");
     /* 300 RPM 时第一段 DMA 发出后完成中断进不来；不 Flush 则 V_bus 之后整页卡死。 */

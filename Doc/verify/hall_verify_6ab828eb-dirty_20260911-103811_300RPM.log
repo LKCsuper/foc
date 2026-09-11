@@ -1,0 +1,222 @@
+# hall_verify
+# workspace: 6ab828eb-dirty
+# time: 2026-09-11 10:38:12
+# max_rpm: 300
+# samples: 3
+# script: Scripts/hall_verify_serial.py
+
+######## wake ########
+
+[T+18.842s] $ 
+######## H0-config ########
+olstop
+[T+19.240s] > olstop
+
+Open-loop stopped
+[T+19.240s] $ olfault clear
+[T+19.639s] > olfault clear
+
+Motor fault cleared; use olstart to restart
+[T+19.640s] $ olmode 1
+[T+20.034s] > olmode 1
+
+Open-loop mode set to 1 (Current-loop)
+[T+20.034s] $ olfb hall
+[T+20.436s] > olfb hall
+
+feedback set to 3
+[T+20.437s] $ slenable 0
+[T+20.845s] > slenable 0
+
+Sensorless observer disabled
+[T+20.847s] $ spkp 0.006
+[T+21.243s] > spkp 0.006
+
+Speed Kp set to 0.006000 A/RPM
+[T+21.245s] $ spki 0.003
+[T+21.647s] > spki 0.003
+
+Speed Ki set to 0.003000 A/(RPM*s)
+[T+21.649s] $ spiq 0.8
+[T+22.038s] > spiq 0.8
+
+Speed Iq limit set to 0.800 A
+[T+22.039s] $ spbrake 0
+[T+22.445s] > spbrake 0
+
+Speed braking disabled
+[T+22.447s] $ oliq 0.6
+[T+22.843s] > oliq 0.6
+
+Iq set to 0.60 A
+[T+22.844s] $ olid 0
+[T+23.249s] > olid 0
+
+Id set to 0.00 A
+[T+23.250s] $ olkp 0.2
+[T+23.651s] > olkp 0.2
+
+Current Kp set to 0.2000
+[T+23.653s] $ olki 30
+[T+24.052s] > olki 30
+
+Current Ki set to 30.00
+[T+24.054s] $ olramp 50
+[T+24.447s] > olramp 50
+
+Ramp set to 50 RPM/s
+[T+24.449s] $ olspeed 150
+[T+24.848s] > olspeed 150
+
+Target RPM set to 150 (stopped, use olstart)
+[T+24.850s] $ spenable 1
+[T+25.252s] > spenable 1
+
+Speed loop enabled
+Waiting: encoder Detect / hall table, and speed_valid
+[T+25.253s] $ olstart
+[T+25.644s] > olstart
+
+Open-loop started (I/F), target 150 RPM, Iq=0.60A
+[T+25.646s] $ 
+######## wait 6s ########
+Hall 闭环升速并稳定到 150 RPM
+
+######## H150-1 ########
+olsnap
+[T+32.058s] > olsnap
+
+
+===== Open-Loop Snap [T+32.069s] =====
+  Enable     : ON
+  Target RPM : 150
+  Ramp RPM   : 150
+  Meas RPM   : 102.8 (valid)
+  Hall RPM   : raw=104.2 filtered=128.5 fast=102.8 age=19.1ms state=4
+  V_bus      : 24.2 V
+  Theta/CCR  : 0.0314 rad / 1397 1497 1302
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.101 0.266 -0.293 A
+  Id, Iq     : -0.127 0.373 A
+  Speed Iq   : 0.000 A
+  Vd, Vq int : -0.000 1.415
+=============================
+[T+32.221s] $ 
+######## H150-2 ########
+olsnap
+[T+33.746s] > olsnap
+
+
+===== Open-Loop Snap [T+33.755s] =====
+  Enable     : ON
+  Target RPM : 150
+  Ramp RPM   : 150
+  Meas RPM   : 127.8 (valid)
+  Hall RPM   : raw=163.4 filtered=135.9 fast=127.8 age=2.1ms state=2
+  V_bus      : 24.2 V
+  Theta/CCR  : 2.1363 rad / 1219 1333 1466
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.262 -0.621 0.352 A
+  Id, Iq     : -0.539 0.284 A
+  Speed Iq   : 0.133 A
+  Vd, Vq int : -0.114 1.885
+=============================
+[T+33.888s] $ 
+######## H150-3 ########
+olsnap
+[T+35.403s] > olsnap
+
+
+===== Open-Loop Snap [T+35.414s] =====
+  Enable     : ON
+  Target RPM : 150
+  Ramp RPM   : 150
+  Meas RPM   : 127.7 (valid)
+  Hall RPM   : raw=163.2 filtered=135.6 fast=127.7 age=33.3ms state=2
+  V_bus      : 24.2 V
+  Theta/CCR  : 2.1363 rad / 1241 1332 1467
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.504 0.105 -0.051 A
+  Id, Iq     : 0.348 0.294 A
+  Speed Iq   : 0.136 A
+  Vd, Vq int : -0.051 1.731
+=============================
+[T+35.555s] $ 
+######## H300-set ########
+olspeed 300
+[T+35.967s] > olspeed 300
+
+Target RPM set to 300 (running)
+[T+35.986s] $ 
+######## wait 7s ########
+Hall 闭环升速并稳定到 300 RPM
+
+######## H300-1 ########
+olsnap
+[T+43.520s] > olsnap
+
+
+===== Open-Loop Snap [T+43.529s] =====
+  Enable     : ON
+  Target RPM : 300
+  Ramp RPM   : 300
+  Meas RPM   : 289.8 (valid)
+  Hall RPM   : raw=255.1 filtered=292.6 fast=289.8 age=12.7ms state=4
+  V_bus      : 24.2 V
+  Theta/CCR  : 0.2353 rad / 1317 1599 1200
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.141 0.347 -0.212 A
+  Id, Iq     : 0.108 0.354 A
+  Speed Iq   : 0.341 A
+  Vd, Vq int : 0.029 3.079
+=============================
+[T+43.671s] $ 
+######## H300-2 ########
+olsnap
+[T+45.184s] > olsnap
+
+
+===== Open-Loop Snap [T+45.192s] =====
+  Enable     : ON
+  Target RPM : 300
+  Ramp RPM   : 300
+  Meas RPM   : 290.4 (valid)
+  Hall RPM   : raw=261.3 filtered=295.0 fast=290.4 age=13.6ms state=4
+  V_bus      : 24.2 V
+  Theta/CCR  : 0.3156 rad / 1288 1596 1203
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.141 0.347 -0.132 A
+  Id, Iq     : 0.147 0.292 A
+  Speed Iq   : 0.345 A
+  Vd, Vq int : 0.025 3.085
+=============================
+[T+45.327s] $ 
+######## H300-3 ########
+olsnap
+[T+46.834s] > olsnap
+
+
+===== Open-Loop Snap [T+46.842s] =====
+  Enable     : ON
+  Target RPM : 300
+  Ramp RPM   : 300
+  Meas RPM   : 291.5 (valid)
+  Hall RPM   : raw=256.8 filtered=294.1 fast=291.5 age=6.4ms state=4
+  V_bus      : 24.2 V
+  Theta/CCR  : -0.0958 rad / 1434 1605 1194
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.221 0.105 -0.374 A
+  Id, Iq     : 0.232 0.346 A
+  Speed Iq   : 0.343 A
+  Vd, Vq int : 0.047 3.088
+=============================
+[T+46.981s] $ 
+######## PASS ########
+Hall stability verification passed
+
+######## STOP ########
+olstop
+[T+47.704s] > olstop
+
+Open-loop stopped
+[T+47.714s] $ 

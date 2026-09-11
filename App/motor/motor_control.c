@@ -470,7 +470,23 @@ static void Motor_Control_PublishSensoredSpeed(MOTOR_PARAM_S *motor)
     utils_norm_angle_rad(&open);
     Motor_Feedback_SampleDefault(motor, open, &feedback);
     publish = feedback.angle_valid && feedback.speed_valid;
-    Motor_SpeedFeedback_Set(publish ? feedback.mech_rpm : 0.0f, publish);
+    /* Hall 用快速支路闭环；六边沿滤波值保留给状态显示和稳定性审核。 */
+    Motor_SpeedFeedback_Set(publish ? feedback.mech_rpm_fast : 0.0f, publish);
+}
+
+/**
+ * @description: 判断当前转速是否已达到速度 PI 的平滑接管门槛
+ * @detail: 门槛至少为启动转速的一半，并随斜坡目标提高到 50%；未达到时禁止 PI 后台积分。
+ */
+static bool Motor_Control_SpeedLoopReady(const MOTOR_PARAM_S *motor)
+{
+    float release_rpm;
+
+    if (motor == NULL || !motor->speed_enable || !Motor_SpeedLoop_IsFeedbackValid()) {
+        return false;
+    }
+    release_rpm = fmaxf(0.5f * fabsf(motor->ol_min_rpm), 0.5f * fabsf(motor->ol_current_rpm));
+    return fabsf(Motor_SpeedLoop_GetMeasuredRpm()) >= release_rpm;
 }
 
 /**
@@ -487,7 +503,11 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
 
     ctx->alignment_running = !dragging;
     ctx->if_iq_scale = ctrl->startup.if_start.iq_scale;
-    ctx->speed_loop_active = motor->speed_enable && Motor_SpeedLoop_IsFeedbackValid();
+    /*
+     * “反馈有效的零速”不等于“已经起转”。低于启动门槛时保留 oliq 启动转矩；
+     * 达到门槛后才让速度 PI 接管，运行中失速跌回门槛以下也自动恢复。
+     */
+    ctx->speed_loop_active = Motor_Control_SpeedLoopReady(motor);
     ctx->speed_iq_target = ctx->speed_loop_active ? Motor_SpeedLoop_GetIqTarget() : 0.0f;
     if (!dragging) {
         ctx->alignment_current_scale = ctrl->startup.soft_current_scale;
@@ -785,7 +805,12 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
             } else {
                 Motor_Sensorless_Update(motor, dt);
             }
-            Motor_SpeedLoop_Run(motor, dt);
+            if (Motor_Control_SpeedLoopReady(motor)) {
+                Motor_SpeedLoop_Run(motor, dt);
+            } else {
+                /* 启动 Iq 正在接管时不得让未使用的 PI 输出在后台积分饱和。 */
+                Motor_SpeedLoop_Reset();
+            }
         }
         return Motor_Control_PublishTheta(motor, Motor_Control_RunIf(ctrl, motor, v_bus, dt));
     }

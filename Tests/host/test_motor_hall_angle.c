@@ -71,8 +71,16 @@ int main(void)
     expect = 200.0f;
     assert(fabsf(st.mech_rpm - expect) < 1.0f);
     assert(fabsf(st.mech_rpm_raw - expect) < 1.0f);
+    assert(fabsf(st.mech_rpm_fast - expect) < 1.0f);
+    /* 200RPM 位于渐入区：扇区中心与完整插值各占一部分。 */
+    assert(fabsf(st.theta_rad - (5.0f * (float)M_PI / 18.0f)) < 0.02f);
+    Motor_Hall_AngleUpdate(&st, table, 3, 1.0f, 0.025f);
+    assert(fabsf(st.theta_rad - ((float)M_PI / 3.0f)) < 0.02f);
 
     /* 六个略有抖动的边沿周期采用总时间平均，而非平均瞬时 RPM。 */
+    Motor_Hall_AngleReset(&st);
+    Motor_Hall_AngleUpdate(&st, table, 1, 1.0f, 0.01f);
+    Motor_Hall_AngleUpdate(&st, table, 3, 1.0f, 0.05f);
     Motor_Hall_AngleUpdate(&st, table, 2, 1.0f, 0.04f);
     Motor_Hall_AngleUpdate(&st, table, 6, 1.0f, 0.06f);
     Motor_Hall_AngleUpdate(&st, table, 4, 1.0f, 0.05f);
@@ -81,6 +89,19 @@ int main(void)
     assert(st.period_count == MOTOR_HALL_SPEED_WINDOW);
     assert(fabsf(st.mech_rpm - 200.0f) < 1.0f);
     assert(fabsf(st.mech_rpm_raw - (10.0f / 0.06f)) < 1.0f);
+
+    /* 边沿迟到时快速值立即受年龄上限约束，不等待 0.2s 停转超时。 */
+    Motor_Hall_AngleUpdate(&st, table, 1, 1.0f, 0.10f);
+    assert(fabsf(st.mech_rpm_fast) <= 100.1f);
+
+    /* 反转同样按速度渐入；200RPM 时边界偏移为完整值的 1/3。 */
+    Motor_Hall_AngleReset(&st);
+    Motor_Hall_AngleUpdate(&st, table, 3, 1.0f, 0.01f);
+    Motor_Hall_AngleUpdate(&st, table, 1, 1.0f, 0.05f);
+    assert(st.direction == -1);
+    assert(fabsf(st.theta_rad - ((float)M_PI / 18.0f)) < 0.02f);
+    Motor_Hall_AngleUpdate(&st, table, 1, 1.0f, 0.025f);
+    assert(fabsf(st.theta_rad) < 0.02f);
 
     /* 非法扇区：角无效 */
     Motor_Hall_AngleUpdate(&st, table, 0, 1.0f, 0.01f);

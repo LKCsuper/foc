@@ -83,6 +83,7 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
     out->elec_angle_rad = open_loop_theta;
     out->mech_rpm = 0.0f;
     out->mech_rpm_raw = 0.0f;
+    out->mech_rpm_fast = 0.0f;
     out->sample_age_s = 0.0f;
     out->sensor_state = -1;
     out->angle_valid = false;
@@ -134,6 +135,7 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
         }
         out->mech_rpm = Motor_Encoder_GetMechRpm();
         out->mech_rpm_raw = out->mech_rpm;
+        out->mech_rpm_fast = out->mech_rpm;
         out->speed_valid = Motor_Encoder_IsSpeedValid();
         break;
 
@@ -154,6 +156,7 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
         }
         out->mech_rpm = Motor_Hall_AngleGetMechRpm();
         out->mech_rpm_raw = Motor_Hall_AngleGetRawMechRpm();
+        out->mech_rpm_fast = Motor_Hall_AngleGetFastMechRpm();
         out->sample_age_s = Motor_Hall_AngleGetEdgeAge();
         out->sensor_state = Motor_Hall_AngleGetState();
         out->speed_valid = Motor_Hall_AngleIsSpeedValid();
@@ -185,6 +188,10 @@ void Motor_Feedback_ResetDefault(void)
  */
 void Motor_Feedback_SetSourceDefault(motor_feedback_source_t source)
 {
+    if (source == MOTOR_FEEDBACK_SRC_HALL) {
+        /* 同一反馈源重新选择也视为新会话，清除旧边沿周期与缓存表状态。 */
+        Motor_Hall_AngleResetDefault();
+    }
     Motor_Feedback_SetSource(&s_feedback, source);
 }
 

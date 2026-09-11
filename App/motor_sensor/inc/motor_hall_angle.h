@@ -19,6 +19,9 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_HALL_ANGLE_STALL_S (0.2f) /* 无换向超过该时间视为停转 (s) */
 #define MOTOR_HALL_SPEED_WINDOW  (6U)    /* 最近边沿周期窗口 */
+#define MOTOR_HALL_FAST_ALPHA    (0.35f) /* 单边沿标定速度低通系数 */
+#define MOTOR_HALL_INTERP_START_RPM (150.0f) /* 以下保持扇区中心，保证低速启动转矩 */
+#define MOTOR_HALL_INTERP_FULL_RPM  (300.0f) /* 以上使用完整扇区内角度预测 */
 /* Private typedef -----------------------------------------------------------*/
 /**
  * @description: 霍尔角度运行时（默认单实例 + *State 可测）
@@ -29,9 +32,12 @@ typedef struct {
     float theta_rad;      /* 最近有效电角 (rad) */
     float mech_rpm;       /* 多边沿周期滤波机械转速 (RPM) */
     float mech_rpm_raw;   /* 最近单边沿周期机械转速 (RPM) */
+    float mech_rpm_fast;  /* 标定扇区角差快速速度，供速度环使用 (RPM) */
     bool angle_valid;     /* 本拍电角是否可信 */
     bool speed_valid;     /* 本拍转速是否可信 */
+    bool table_ready;     /* 本实例已完成霍尔表结构校验 */
     float sector_timer_s; /* 距上次换向时间 (s) */
+    float last_period_s;  /* 最近合法边沿周期 (s) */
     float period_sum_s;   /* 滤波窗口周期总和 (s) */
     float periods_s[MOTOR_HALL_SPEED_WINDOW];
     uint8_t period_count;
@@ -114,6 +120,9 @@ float Motor_Hall_AngleGetMechRpm(void);
 
 /** @description: 默认实例最近单边沿原始机械转速 (RPM) */
 float Motor_Hall_AngleGetRawMechRpm(void);
+
+/** @description: 默认实例快速机械转速，供控制环使用 (RPM) */
+float Motor_Hall_AngleGetFastMechRpm(void);
 
 /** @description: 默认实例距最近霍尔边沿的时间 (s) */
 float Motor_Hall_AngleGetEdgeAge(void);

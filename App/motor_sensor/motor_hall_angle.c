@@ -16,7 +16,44 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 static motor_hall_angle_t s_hall_angle;
 /* Private function prototypes -----------------------------------------------*/
+static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, float sector_center, float pole_pairs);
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: 在当前 60° 霍尔扇区内按滤波速度推进电角度
+ * @detail: 标定表保存扇区中心；进入扇区时从中心前 30° 起步，并限制不越过后边界。
+ */
+static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, float sector_center, float pole_pairs)
+{
+    float progress;
+    float blend;
+    float delta;
+    float theta;
+    float rpm_abs;
+
+    if (st == NULL || st->direction == 0 || !st->speed_valid || fabsf(st->mech_rpm_fast) < 1.0f) {
+        return;
+    }
+
+    rpm_abs = fabsf(st->mech_rpm_fast);
+    if (rpm_abs <= MOTOR_HALL_INTERP_START_RPM) {
+        return;
+    }
+    blend = (rpm_abs - MOTOR_HALL_INTERP_START_RPM) /
+            (MOTOR_HALL_INTERP_FULL_RPM - MOTOR_HALL_INTERP_START_RPM);
+    if (blend > 1.0f) {
+        blend = 1.0f;
+    }
+
+    progress = rpm_abs * pole_pairs * (2.0f * (float)M_PI / 60.0f) * st->sector_timer_s;
+    if (progress > (float)M_PI / 3.0f) {
+        progress = (float)M_PI / 3.0f;
+    }
+    delta = (float)st->direction * (progress - ((float)M_PI / 6.0f));
+    theta = sector_center + blend * delta;
+    utils_norm_angle_rad(&theta);
+    st->theta_rad = theta;
+}
 
 /**
  * @description: 判断霍尔表是否可用于运行（恰 6 个有效扇区、2 个无效）
@@ -125,9 +162,12 @@ void Motor_Hall_AngleReset(motor_hall_angle_t *st)
     st->theta_rad = 0.0f;
     st->mech_rpm = 0.0f;
     st->mech_rpm_raw = 0.0f;
+    st->mech_rpm_fast = 0.0f;
     st->angle_valid = false;
     st->speed_valid = false;
+    st->table_ready = false;
     st->sector_timer_s = 0.0f;
+    st->last_period_s = 0.0f;
     st->period_sum_s = 0.0f;
     st->period_count = 0U;
     st->period_index = 0U;
@@ -166,7 +206,10 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
     }
 
     st->angle_valid = false;
-    if (!Motor_Hall_TableReady(table) || !Motor_Hall_DecodeAngle(table, hall_state, &theta)) {
+    if (!st->table_ready) {
+        st->table_ready = Motor_Hall_TableReady(table);
+    }
+    if (!st->table_ready || !Motor_Hall_DecodeAngle(table, hall_state, &theta)) {
         st->speed_valid = false;
         st->mech_rpm = 0.0f;
         return;
@@ -191,6 +234,7 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
         if (st->sector_timer_s > 1.0e-6f && Motor_Hall_DecodeAngle(table, st->last_state, &theta_prev)) {
             float abs_d_theta;
             float period_s = st->sector_timer_s;
+            float calibrated_rpm;
             int8_t direction;
 
             d_theta = theta - theta_prev;
@@ -213,6 +257,17 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
 
                 /* 每个合法边沿固定跨 1/6 电角周，避免标定表角间距误差污染测速。 */
                 st->mech_rpm_raw = (float)direction * 10.0f / (pp * period_s);
+                /*
+                 * 快速支路按标定表的实际扇区角差换算，避免不等宽扇区造成单边沿周期偏差；
+                 * 低通只承担抗抖，六边沿支路仍保留给显示和稳态审核。
+                 */
+                calibrated_rpm = (d_theta / (2.0f * (float)M_PI)) * 60.0f / (pp * period_s);
+                if (fabsf(st->mech_rpm_fast) < 1.0f || st->period_count == 0U) {
+                    st->mech_rpm_fast = calibrated_rpm;
+                } else {
+                    st->mech_rpm_fast += MOTOR_HALL_FAST_ALPHA * (calibrated_rpm - st->mech_rpm_fast);
+                }
+                st->last_period_s = period_s;
                 if (st->period_count == MOTOR_HALL_SPEED_WINDOW) {
                     st->period_sum_s -= st->periods_s[st->period_index];
                 } else {
@@ -228,6 +283,7 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
         }
         st->last_state = hall_state;
         st->sector_timer_s = 0.0f;
+        Motor_Hall_InterpolateTheta(st, theta, pp);
         return;
     }
 
@@ -235,12 +291,21 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
     if (st->sector_timer_s >= MOTOR_HALL_ANGLE_STALL_S) {
         st->mech_rpm = 0.0f;
         st->mech_rpm_raw = 0.0f;
+        st->mech_rpm_fast = 0.0f;
         st->speed_valid = true;
         st->period_sum_s = 0.0f;
         st->period_count = 0U;
         st->period_index = 0U;
         st->direction = 0;
+    } else if (st->direction != 0 && st->last_period_s > 1.0e-6f &&
+               st->sector_timer_s > (1.5f * st->last_period_s)) {
+        /* 未等到预期边沿时，按当前边沿年龄限制可能速度，避免 PI 长时间使用旧高速。 */
+        float age_limit_rpm = 10.0f / (pp * st->sector_timer_s);
+        if (fabsf(st->mech_rpm_fast) > age_limit_rpm) {
+            st->mech_rpm_fast = (float)st->direction * age_limit_rpm;
+        }
     }
+    Motor_Hall_InterpolateTheta(st, theta, pp);
 }
 
 /**
@@ -290,6 +355,11 @@ float Motor_Hall_AngleGetMechRpm(void)
 float Motor_Hall_AngleGetRawMechRpm(void)
 {
     return s_hall_angle.mech_rpm_raw;
+}
+
+float Motor_Hall_AngleGetFastMechRpm(void)
+{
+    return s_hall_angle.mech_rpm_fast;
 }
 
 float Motor_Hall_AngleGetEdgeAge(void)
