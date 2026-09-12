@@ -726,6 +726,11 @@
               <FilePath>..\cmd\cmd_openloop.c</FilePath>
             </File>
             <File>
+              <FileName>cmd_bldc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_bldc.c</FilePath>
+            </File>
+            <File>
               <FileName>cmd_misc.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\cmd\cmd_misc.c</FilePath>

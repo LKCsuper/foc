@@ -8,7 +8,36 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#include <stdbool.h>
+#include "motor_bldc_sensorless.h"
+#include "motor_types.h"
 /* Private typedef -----------------------------------------------------------*/
+typedef struct {
+    bool selected;
+    bool running;
+    float duty;
+    uint8_t step;
+    motor_bldc_direction_t direction;
+    motor_bldc_sensorless_mode_t mode;
+    motor_bldc_sensorless_fault_t fault;
+    mc_fault_code motor_fault;
+    float bemf_v;
+    float bemf_min_v;
+    float bemf_max_v;
+    float sector_elapsed_s;
+    float commutation_period_s;
+    float minimum_commutation_period_s;
+    float maximum_commutation_period_s;
+    float bemf_integral_vs;
+    float bemf_integral_threshold_vs;
+    uint32_t bemf_sample_count;
+    uint32_t armed_sectors;
+    uint32_t integral_commutations;
+    uint16_t step_armed_sectors[6];
+    float step_last_period_s[6];
+    float step_bemf_min_v[6];
+    float step_bemf_max_v[6];
+} motor_bldc_status_t;
 /* Private define ------------------------------------------------------------*/
 /*
  * ADC 在中心对齐 PWM 的上、下半周期各完成一次采样，因此当前硬件每秒产生
@@ -120,6 +149,68 @@ float Motor_DmaInt_GetControlFrequencyHz(void);
  * @author: lkc
  */
 void Motor_It_ParamCal(void);
+
+/**
+ * @description: 选择并启动默认无感 BLDC 六步控制实例。
+ * @detail: 仅允许在 FOC 停机且保护未锁存时调用；成功后 ADC 中断不再执行 FOC 输出。
+ * @param {motor_bldc_direction_t} direction 转向，只允许 CW 或 CCW
+ * @param {float} duty PWM 占空比，范围 (0,0.25]
+ * @return {bool} 成功进入 BLDC 定向状态返回 true
+ * @author: lkc
+ */
+bool Motor_Bldc_Start(motor_bldc_direction_t direction, float duty);
+
+/**
+ * @description: 启动固定扇区周期的开环 BLDC 六步诊断。
+ * @detail: 完成定向后不读取 BEMF、不接管闭环；用于区分功率换相与无感检测问题。
+ * @param {motor_bldc_direction_t} direction 转向，只允许 CW 或 CCW
+ * @param {float} duty PWM 占空比，范围 (0,0.25]
+ * @param {float} sector_period_s 每个 60° 电气扇区周期 (s)，范围 [0.5ms,500ms]
+ * @return {bool} 成功进入 BLDC 定向状态返回 true
+ * @author: lkc
+ */
+bool Motor_Bldc_StartOpenLoop(motor_bldc_direction_t direction, float duty,
+                              float sector_period_s);
+
+/**
+ * @description: 停机时设置默认 BLDC 积分换相调试参数。
+ * @param {float} integral_threshold_vs BEMF 积分阈值 (V*s)
+ * @param {float} minimum_period_s 闭环最短 60° 换相周期 (s)
+ * @return {bool} 参数有效且停机时返回 true
+ * @author: lkc
+ */
+bool Motor_Bldc_SetTuning(float integral_threshold_vs, float minimum_period_s);
+
+/**
+ * @description: 停止默认 BLDC 控制，但继续保留 PWM 出口选择权。
+ * @detail: 请求三相悬空；须另调用 Motor_Bldc_Exit 才允许 FOC 再次启动。
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Bldc_Stop(void);
+
+/**
+ * @description: 停止 BLDC 并释放其对 PWM 出口的选择权。
+ * @detail: 退出后恢复原 FOC 调度，但不会自动提交 FOC 启动命令。
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Bldc_Exit(void);
+
+/**
+ * @description: 查询 BLDC 是否占用主 PWM 控制出口。
+ * @return {bool} BLDC 已选择返回 true
+ * @author: lkc
+ */
+bool Motor_Bldc_IsSelected(void);
+
+/**
+ * @description: 获取默认 BLDC 控制实例的只读状态快照。
+ * @param {motor_bldc_status_t *} status 输出状态，不可为空
+ * @return {bool} 成功获取返回 true
+ * @author: lkc
+ */
+bool Motor_Bldc_GetStatus(motor_bldc_status_t *status);
 
 #ifdef __cplusplus
 }

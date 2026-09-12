@@ -1,5 +1,5 @@
 /*
- * @Description: 传统 BLDC 反电动势过零无感六步控制器
+ * @Description: 传统 BLDC 反电动势积分无感六步控制器
  * @Author: lkc
  */
 #ifndef MOTOR_BLDC_SENSORLESS_H
@@ -17,6 +17,7 @@ typedef enum {
     MOTOR_BLDC_SENSORLESS_IDLE = 0,
     MOTOR_BLDC_SENSORLESS_ALIGN,
     MOTOR_BLDC_SENSORLESS_OPEN_LOOP,
+    MOTOR_BLDC_SENSORLESS_OPEN_LOOP_FIXED,
     MOTOR_BLDC_SENSORLESS_CLOSED_LOOP,
     MOTOR_BLDC_SENSORLESS_FAULT,
 } motor_bldc_sensorless_mode_t;
@@ -26,7 +27,7 @@ typedef enum {
     MOTOR_BLDC_SENSORLESS_FAULT_INVALID_CONFIG,
     MOTOR_BLDC_SENSORLESS_FAULT_COMMUTATOR,
     MOTOR_BLDC_SENSORLESS_FAULT_STARTUP_TIMEOUT,
-    MOTOR_BLDC_SENSORLESS_FAULT_ZERO_CROSS_LOST,
+    MOTOR_BLDC_SENSORLESS_FAULT_BEMF_LOST,
     MOTOR_BLDC_SENSORLESS_FAULT_INVALID_SAMPLE,
 } motor_bldc_sensorless_fault_t;
 
@@ -37,10 +38,15 @@ typedef struct {
     float startup_ramp_time_s;       /* 从 initial 线性降到 final 的时间 */
     float startup_timeout_s;         /* 未接管前最长运行时间 */
     float commutation_blanking_s;    /* 每次换相后的 BEMF 消隐时间 */
-    float zero_cross_threshold_v;    /* 过零迟滞阈值，按电机端实际电压 */
     float bemf_filter_alpha;         /* 一阶滤波系数 (0,1]；1=不滤波 */
-    uint8_t takeover_crossings;      /* 连续有效过零次数达到该值后接管 */
+    bool step0_rising;               /* CW step0 的期望 BEMF 极性 */
+    uint8_t bemf_invert_phase_mask;  /* 按位反转 A/B/C 相的 BEMF 极性 */
+    float period_filter_alpha;       /* 闭环换相周期滤波系数 (0,1] */
+    float period_change_limit;       /* 单次周期最大变化比例 (0,1) */
+    float closed_loop_min_period_s;  /* 闭环允许的最短 60° 换相周期 */
     float closed_loop_timeout_s;     /* 闭环单个扇区允许的最长时间 */
+    float bemf_integral_threshold_vs; /* 每个扇区的 BEMF 积分阈值 (V*s) */
+    float bemf_integral_noise_v;     /* 积分法忽略的 BEMF 噪声带 (V) */
 } motor_bldc_sensorless_config_t;
 
 typedef struct {
@@ -52,13 +58,23 @@ typedef struct {
     float state_elapsed_s;
     float startup_elapsed_s;
     float sector_elapsed_s;
-    float scheduled_delay_s;
+    float filtered_commutation_period_s;
+    float minimum_commutation_period_s;
+    float maximum_commutation_period_s;
+    float fixed_open_loop_period_s;
     float filtered_bemf_v;
+    float bemf_integral_vs;
+    float startup_bemf_min_v;
+    float startup_bemf_max_v;
     uint8_t step;
-    uint8_t valid_crossings;
+    uint32_t armed_sectors;
+    uint32_t integral_commutations;
+    uint16_t step_armed_sectors[6];
+    float step_last_period_s[6];
+    float step_bemf_min_v[6];
+    float step_bemf_max_v[6];
     bool crossing_armed;
-    bool crossing_seen;
-    bool commutation_scheduled;
+    bool fixed_open_loop_enabled;
     bool initialized;
 } motor_bldc_sensorless_t;
 /* Private macro -------------------------------------------------------------*/
@@ -99,6 +115,20 @@ bool Motor_BldcSensorless_Start(motor_bldc_sensorless_t *control,
                                 motor_bldc_direction_t direction, float duty);
 
 /**
+ * @description: 启动固定周期的开环六步诊断。
+ * @detail: 完成定向后仅按指定 60° 周期强制换相，不检测 BEMF，也不接管闭环。
+ * @param {motor_bldc_sensorless_t *} control 控制实例，不可为空
+ * @param {motor_bldc_direction_t} direction 转向，只允许 CW 或 CCW
+ * @param {float} duty PWM 占空比，自动限制到 [0,1]
+ * @param {float} sector_period_s 每个 60° 电气扇区的固定周期 (s)，范围 [0.5ms,500ms]
+ * @return {bool} 成功进入定向状态返回 true
+ * @author: lkc
+ */
+bool Motor_BldcSensorless_StartOpenLoop(motor_bldc_sensorless_t *control,
+                                        motor_bldc_direction_t direction, float duty,
+                                        float sector_period_s);
+
+/**
  * @description: 停止无感六步状态机。
  * @detail: 同时停止关联的六步输出实例并请求三相悬空；保留故障码。
  * @param {motor_bldc_sensorless_t *} control 无感控制实例；NULL 时忽略
@@ -109,7 +139,7 @@ void Motor_BldcSensorless_Stop(motor_bldc_sensorless_t *control);
 
 /**
  * @description: 推进一个无感六步控制周期。
- * @detail: 根据悬空相相对软件中性点的 BEMF 过零推进开环接管或闭环 30° 延迟换相。
+ * @detail: 根据悬空相相对软件中性点的 BEMF 伏秒积分推进换相。
  * @param {motor_bldc_sensorless_t *} control 无感控制实例，不可为空
  * @param {const float [3]} phase_voltage 控制器逻辑 A/B/C 相端电压 (V)，不可为空
  * @param {float} bus_voltage 直流母线电压 (V)，须为有限正值

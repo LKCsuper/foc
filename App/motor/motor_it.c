@@ -15,7 +15,9 @@ extern "C" {
 #include <stdbool.h>
 #include <stddef.h>
 #include <math.h>
+#include <string.h>
 
+#include "stm32f4xx.h"
 #include "motor_param.h"
 #include "motor_it.h"
 #include "motor_sense.h"
@@ -27,6 +29,9 @@ extern "C" {
 #include "motor_sensorless.h"
 #include "motor_detect.h"
 #include "motor_hall.h"
+#include "motor_bldc_sensorless.h"
+#include "motor_bldc_six_step.h"
+#include "motor_bldc_six_step_hal.h"
 #include "hal_motor.h"
 #include "motor.h"
 #include "motor_encoder.h"
@@ -47,6 +52,10 @@ static motor_control_t s_control = {
 static motor_foc_divider_t s_foc_divider = {
     .divider = FOC_CONTROL_LOOP_FREQ_DIVIDER,
 };
+static motor_bldc_six_step_t s_bldc_commutator;
+static motor_bldc_sensorless_t s_bldc_sensorless;
+static volatile bool s_bldc_selected = false;
+static bool s_bldc_initialized = false;
 /*
  * ADC-DMA 中断执行时间统计。
  * TIM5 在 BSP 中配置为 1MHz，所以计数差值直接等于微秒数。
@@ -55,6 +64,11 @@ static volatile float s_foc_runtime_average_us = 0.0f;
 static volatile float s_foc_runtime_maximum_us = 0.0f;
 /* Private function prototypes -----------------------------------------------*/
 static void Motor_DmaInt_RecordRuntime(uint32_t start_time);
+static bool Motor_Bldc_InitDefault(void);
+static bool Motor_Bldc_StartInternal(motor_bldc_direction_t direction, float duty,
+                                     bool fixed_open_loop, float sector_period_s);
+static uint32_t Motor_Bldc_StatusLock(void);
+static void Motor_Bldc_StatusUnlock(uint32_t primask);
 static float Motor_OpenLoop_GetAdcDt(MOTOR_PARAM_S *m);
 static float Motor_OpenLoop_GetDt(MOTOR_PARAM_S *m);
 static void Motor_OpenLoop_OutputSafe(MOTOR_PARAM_S *m);
@@ -62,9 +76,266 @@ static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq, float 
 static void Motor_It_ApplyControlResult(MOTOR_PARAM_S *m, float v_bus, const motor_control_result_t *result);
 static bool Motor_DmaInt_ShouldRun(void);
 static void Motor_DmaInt_Foc(void);
+static void Motor_DmaInt_Bldc(void);
 static void Motor_DmaInt_WhileDetect(void);
 static void Motor_DmaInt_RunFastVf(MOTOR_PARAM_S *m);
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: 初始化默认 BLDC 六步与无感控制实例。
+ * @detail: 只建立状态和 HAL 输出回调，不启动功率输出。
+ * @return {bool} 初始化成功返回 true
+ * @author: lkc
+ */
+static bool Motor_Bldc_InitDefault(void)
+{
+    motor_bldc_six_step_config_t six_config;
+    motor_bldc_sensorless_config_t sensorless_config;
+
+    Motor_BldcSixStep_DefaultConfig(&six_config);
+    six_config.apply_output = Motor_BldcSixStep_HalApply;
+    six_config.output_user = NULL;
+    if (!Motor_BldcSixStep_Init(&s_bldc_commutator, &six_config)) {
+        return false;
+    }
+    Motor_BldcSensorless_DefaultConfig(&sensorless_config);
+    /* 24 V 实测 8%/12ms 基本同步，14ms 明显抖动；启动终点固定在已验证工作点。 */
+    sensorless_config.startup_initial_period_s = 0.080f;
+    sensorless_config.startup_final_period_s = 0.012f;
+    sensorless_config.startup_ramp_time_s = 3.0f;
+    sensorless_config.startup_timeout_s = 5.0f;
+    sensorless_config.closed_loop_timeout_s = 0.150f;
+    /* 积分阈值命中不得让换相周期单步骤降，否则转子会脱离旋转磁场。 */
+    sensorless_config.period_change_limit = 0.10f;
+    /* 8% 固定开环实测 12ms 可稳定、8ms 已失步，闭环不得突破该边界。 */
+    sensorless_config.closed_loop_min_period_s = 0.012f;
+    /* 积分正向 BEMF 面积换相，避免单点假过零导致高速抖动。 */
+    /* 5% 积分闭环的 1.5mV*s 实测产生约 46ms 周期，按 12ms 稳定边界缩放。 */
+    sensorless_config.bemf_integral_threshold_vs = 0.0004f;
+    sensorless_config.bemf_integral_noise_v = 0.05f;
+    /* 当前 CW 六步序列对应 VESC HD75：偶数 step 下降沿，奇数 step 上升沿。 */
+    sensorless_config.step0_rising = false;
+    if (!Motor_BldcSensorless_Init(&s_bldc_sensorless, &s_bldc_commutator, &sensorless_config)) {
+        return false;
+    }
+    s_bldc_initialized = true;
+    return true;
+}
+
+/**
+ * @description: 屏蔽 IRQ，供 BLDC 多字段状态快照使用。
+ * @return {uint32_t} 进入前的 PRIMASK
+ * @author: lkc
+ */
+static uint32_t Motor_Bldc_StatusLock(void)
+{
+    uint32_t primask = __get_PRIMASK();
+
+    __disable_irq();
+    return primask;
+}
+
+/**
+ * @description: 按进入前状态恢复 IRQ。
+ * @param {uint32_t} primask 进入临界区前的 PRIMASK
+ * @return {void} 无
+ * @author: lkc
+ */
+static void Motor_Bldc_StatusUnlock(uint32_t primask)
+{
+    if (primask == 0U) {
+        __enable_irq();
+    }
+}
+
+/**
+ * @description: 选择并启动默认无感 BLDC 六步实例。
+ * @param {motor_bldc_direction_t} direction 转向
+ * @param {float} duty PWM 占空比，范围 (0,0.25]
+ * @return {bool} 启动成功返回 true
+ * @author: lkc
+ */
+static bool Motor_Bldc_StartInternal(motor_bldc_direction_t direction, float duty,
+                                     bool fixed_open_loop, float sector_period_s)
+{
+    bool started = false;
+
+    if (motor.ol_enable || Motor_Protect_IsFaultLatched() || duty <= 0.0f || duty > 0.25f ||
+        (direction != MOTOR_BLDC_DIRECTION_CW && direction != MOTOR_BLDC_DIRECTION_CCW)) {
+        return false;
+    }
+
+    if (!s_bldc_initialized && !Motor_Bldc_InitDefault()) {
+        return false;
+    }
+    if (s_bldc_sensorless.fault != MOTOR_BLDC_SENSORLESS_FAULT_NONE ||
+        Motor_BldcSixStep_GetFault(&s_bldc_commutator) != MOTOR_BLDC_FAULT_NONE) {
+        if (!Motor_Bldc_InitDefault()) {
+            return false;
+        }
+    }
+    /* 先占用出口，避免 FOC ISR 在恢复 TIM1 模式后写入中点占空比。 */
+    s_bldc_selected = true;
+    Hal_Motor_PwmStart();
+    Hal_Motor_BldcPrepare();
+    if (fixed_open_loop) {
+        started = Motor_BldcSensorless_StartOpenLoop(&s_bldc_sensorless, direction, duty,
+                                                     sector_period_s);
+    } else {
+        started = Motor_BldcSensorless_Start(&s_bldc_sensorless, direction, duty);
+    }
+    if (!started) {
+        Hal_Motor_PwmStop();
+        s_bldc_selected = false;
+    }
+    return started;
+}
+
+/**
+ * @description: 选择并启动默认无感 BLDC 六步实例。
+ * @param {motor_bldc_direction_t} direction 转向
+ * @param {float} duty PWM 占空比，范围 (0,0.25]
+ * @return {bool} 启动成功返回 true
+ * @author: lkc
+ */
+bool Motor_Bldc_Start(motor_bldc_direction_t direction, float duty)
+{
+    return Motor_Bldc_StartInternal(direction, duty, false, 0.0f);
+}
+
+/**
+ * @description: 选择并启动固定扇区周期的开环 BLDC 六步诊断。
+ * @param {motor_bldc_direction_t} direction 转向
+ * @param {float} duty PWM 占空比，范围 (0,0.25]
+ * @param {float} sector_period_s 每个 60° 电气扇区周期 (s)
+ * @return {bool} 启动成功返回 true
+ * @author: lkc
+ */
+bool Motor_Bldc_StartOpenLoop(motor_bldc_direction_t direction, float duty,
+                              float sector_period_s)
+{
+    return Motor_Bldc_StartInternal(direction, duty, true, sector_period_s);
+}
+
+/**
+ * @description: 停机时更新 BLDC 积分阈值与最短换相周期。
+ * @param {float} integral_threshold_vs BEMF 积分阈值 (V*s)
+ * @param {float} minimum_period_s 闭环最短 60° 换相周期 (s)
+ * @return {bool} 设置成功返回 true
+ * @author: lkc
+ */
+bool Motor_Bldc_SetTuning(float integral_threshold_vs, float minimum_period_s)
+{
+    uint32_t primask;
+
+    if (!(integral_threshold_vs >= 0.00005f && integral_threshold_vs <= 0.010f) ||
+        !(minimum_period_s >= 0.0005f && minimum_period_s <= 0.100f)) {
+        return false;
+    }
+    /* 允许上电后首次启动前调参；默认初始化只建立实例，不启动 PWM。 */
+    if (!s_bldc_initialized && !Motor_Bldc_InitDefault()) {
+        return false;
+    }
+    if (Motor_BldcSixStep_IsRunning(&s_bldc_commutator)) {
+        return false;
+    }
+    primask = Motor_Bldc_StatusLock();
+    s_bldc_sensorless.config.bemf_integral_threshold_vs = integral_threshold_vs;
+    s_bldc_sensorless.config.closed_loop_min_period_s = minimum_period_s;
+    Motor_Bldc_StatusUnlock(primask);
+    return true;
+}
+
+/**
+ * @description: 停止并退出默认 BLDC 控制模式。
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Bldc_Stop(void)
+{
+    /* 保持 BLDC 出口选中，避免停机后 FOC SAFE 中点覆盖三相悬空。 */
+    s_bldc_selected = true;
+    if (s_bldc_initialized) {
+        Motor_BldcSensorless_Stop(&s_bldc_sensorless);
+    }
+    Hal_Motor_PwmStop();
+}
+
+/**
+ * @description: 停止 BLDC 并释放 PWM 出口选择权。
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Bldc_Exit(void)
+{
+    if (s_bldc_initialized) {
+        Motor_BldcSensorless_Stop(&s_bldc_sensorless);
+    }
+    Hal_Motor_PwmStop();
+    s_bldc_selected = false;
+}
+
+/**
+ * @description: 查询 BLDC 是否占用 PWM 控制出口。
+ * @return {bool} BLDC 已选择返回 true
+ * @author: lkc
+ */
+bool Motor_Bldc_IsSelected(void)
+{
+    return s_bldc_selected;
+}
+
+/**
+ * @description: 获取默认 BLDC 控制状态快照。
+ * @param {motor_bldc_status_t *} status 输出状态，不可为空
+ * @return {bool} 获取成功返回 true
+ * @author: lkc
+ */
+bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
+{
+    uint32_t primask;
+
+    if (status == NULL) {
+        return false;
+    }
+    primask = Motor_Bldc_StatusLock();
+    memset(status, 0, sizeof(*status));
+    status->selected = s_bldc_selected;
+    if (s_bldc_initialized) {
+        status->running = Motor_BldcSixStep_IsRunning(&s_bldc_commutator);
+        status->duty = s_bldc_commutator.duty;
+        status->step = s_bldc_sensorless.step;
+        status->direction = s_bldc_sensorless.direction;
+        status->mode = s_bldc_sensorless.mode;
+        status->fault = s_bldc_sensorless.fault;
+        status->motor_fault = Motor_Protect_GetFault();
+        status->bemf_v = s_bldc_sensorless.filtered_bemf_v;
+        status->bemf_min_v = s_bldc_sensorless.startup_bemf_min_v;
+        status->bemf_max_v = s_bldc_sensorless.startup_bemf_max_v;
+        status->sector_elapsed_s = s_bldc_sensorless.sector_elapsed_s;
+        status->commutation_period_s = s_bldc_sensorless.filtered_commutation_period_s;
+        status->minimum_commutation_period_s =
+            s_bldc_sensorless.minimum_commutation_period_s;
+        status->maximum_commutation_period_s =
+            s_bldc_sensorless.maximum_commutation_period_s;
+        status->bemf_integral_vs = s_bldc_sensorless.bemf_integral_vs;
+        status->bemf_integral_threshold_vs =
+            s_bldc_sensorless.config.bemf_integral_threshold_vs;
+        status->bemf_sample_count = Hal_Motor_BldcGetSampleCount();
+        status->armed_sectors = s_bldc_sensorless.armed_sectors;
+        status->integral_commutations = s_bldc_sensorless.integral_commutations;
+        memcpy(status->step_armed_sectors, s_bldc_sensorless.step_armed_sectors,
+               sizeof(status->step_armed_sectors));
+        memcpy(status->step_last_period_s, s_bldc_sensorless.step_last_period_s,
+               sizeof(status->step_last_period_s));
+        memcpy(status->step_bemf_min_v, s_bldc_sensorless.step_bemf_min_v,
+               sizeof(status->step_bemf_min_v));
+        memcpy(status->step_bemf_max_v, s_bldc_sensorless.step_bemf_max_v,
+               sizeof(status->step_bemf_max_v));
+    }
+    Motor_Bldc_StatusUnlock(primask);
+    return true;
+}
 
 /**
  * @description: 更新本拍 FOC 中断耗时统计（平均与最大值）
@@ -420,6 +691,45 @@ static void Motor_DmaInt_Foc(void)
 }
 
 /**
+ * @description: 无感 BLDC 六步模式的 ADC-DMA 快速入口。
+ * @detail: 软件保护处理全部 ADC 帧；BEMF/换相仅使用 PWM 向上计数侧样本，dt 为完整 PWM 周期。
+ * @return {void} 无
+ * @author: lkc
+ */
+static void Motor_DmaInt_Bldc(void)
+{
+    uint32_t runtime_start = Hal_Motor_TimeUs();
+    float dt;
+    float phase_voltage[3];
+
+    Motor_It_ParamCal();
+    dt = Motor_OpenLoop_GetAdcDt(&motor);
+    if (Motor_Protect_Run(&motor, dt)) {
+        Motor_BldcSensorless_Stop(&s_bldc_sensorless);
+        Motor_DmaInt_RecordRuntime(runtime_start);
+        return;
+    }
+    if (!Hal_Motor_BldcBemfSampleReady()) {
+        Motor_DmaInt_RecordRuntime(runtime_start);
+        return;
+    }
+
+    /*
+     * BLDC 六步使用原理图 INHA/B/C 与 SENS1/2/3 的直接对应关系；这里把
+     * FOC 的 ACB 运行量恢复为原理图 ABC 顺序，不改平台无关控制算法。
+     */
+    phase_voltage[0] = motor.va;
+    phase_voltage[1] = motor.vc;
+    phase_voltage[2] = motor.vb;
+    if (!Motor_BldcSensorless_Step(&s_bldc_sensorless, phase_voltage, motor.v_bus, 2.0f * dt)) {
+        /* BLDC 模式保持选中，防止下一拍 FOC SAFE 中点覆盖三相悬空。 */
+        Motor_DmaInt_RecordRuntime(runtime_start);
+        return;
+    }
+    Motor_DmaInt_RecordRuntime(runtime_start);
+}
+
+/**
  * @description: 偏移校准占用桥时：只采样换算，不跑 FOC、不跑软件过流
  * @detail: 零偏标定前 ia/ib/ic 不可信，软件 ABS_OVER_CURRENT 易误锁存；硬件过流/Break 仍生效。
  *          不用中点 SAFE，以免与逐相 EnablePhase 打架。
@@ -447,6 +757,11 @@ void Motor_DmaInt(void *p, uint32_t flags)
 
     if (Motor_Detect_IsActive()) {
         Motor_DmaInt_WhileDetect();
+        return;
+    }
+
+    if (s_bldc_selected) {
+        Motor_DmaInt_Bldc();
         return;
     }
 

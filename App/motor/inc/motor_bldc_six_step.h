@@ -136,7 +136,7 @@ bool Motor_BldcSixStep_Step(motor_bldc_six_step_t *control, uint8_t hall, float 
 
 /**
  * @description: 直接输出指定电气换相步。
- * @detail: 不经过霍尔映射，供无感启动/过零控制器调用；方向沿用 Start 配置。
+ * @detail: 不经过霍尔映射，供无感启动/BEMF 积分控制器调用；方向沿用 Start 配置。
  * @param {motor_bldc_six_step_t *} control 控制实例，不可为空且须处于运行态
  * @param {uint8_t} step 电气换相步，范围 0..5
  * @return {bool} 已发布有效换相命令返回 true

@@ -11,6 +11,12 @@
 
 static int speed_reset_calls;
 static int save_calls;
+static bool bldc_selected;
+
+bool Motor_Bldc_IsSelected(void)
+{
+    return bldc_selected;
+}
 
 bool FlashStorage_Load(MOTOR_PARAM_S *m, motor_detect_result_t *d)
 {
@@ -137,6 +143,10 @@ int main(void)
     speed_reset_calls = 0;
     pwm_start_calls = 0;
     pwm_safe_calls = 0;
+    bldc_selected = true;
+    assert(Motor_SetCommand(&motor, &cmd) == MOTOR_ERR_BUSY);
+    assert(!motor.ol_enable && pwm_start_calls == 0);
+    bldc_selected = false;
     assert(Motor_SetCommand(&motor, &cmd) == MOTOR_OK);
     assert(motor.ol_enable && motor.ol_target_rpm == 500.0f && motor.ol_iq_set == 0.5f);
     assert(speed_reset_calls == 0);

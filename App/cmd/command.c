@@ -27,6 +27,7 @@ extern "C" {
 /* cmd_duty.c         */ extern int Cmd_Motor_Duty(int argc, char *argv[]);
 /* cmd_encoder.c      */ extern int Cmd_Motor_Encoder(int argc, char *argv[]);
 /* cmd_serial_plot.c  */ extern int Cmd_Serial_Plot(int argc, char *argv[]);
+/* cmd_bldc.c         */ extern int Cmd_Bldc(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_Motor_OpenLoop(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlSpeed(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlStatus(int argc, char *argv[]);
@@ -67,6 +68,7 @@ extern "C" {
 static const cmd_entry_t s_cmd_table[] = {
     /* 偏移校准 / 霍尔检测 */
     { "detect",     Cmd_Detect,             "detect offset/hall/phase" },
+    { "bldc",       Cmd_Bldc,               "BLDC: start/open | stop | exit | status" },
     /* Flash 存储 */
     { "saveparam",  Cmd_Saveparam,          "save motor params to Flash" },
     /* 开环 V/F 控制 */

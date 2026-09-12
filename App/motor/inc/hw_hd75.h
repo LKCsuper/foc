@@ -59,9 +59,8 @@
 
 #define PHASE_FILTER_GPIO		GPIOC
 #define PHASE_FILTER_PIN		GPIO_Pin_13
-/* 当前板先保持 3e5d564 的输入态行为，核实原理图后再主动驱动 PC13。 */
-#define PHASE_FILTER_ON()
-#define PHASE_FILTER_OFF()
+#define PHASE_FILTER_ON()		palSetPad(PHASE_FILTER_GPIO, PHASE_FILTER_PIN)
+#define PHASE_FILTER_OFF()		palClearPad(PHASE_FILTER_GPIO, PHASE_FILTER_PIN)
 
 #define PHASE_FILTER_ON_M2()		
 #define PHASE_FILTER_OFF_M2()		

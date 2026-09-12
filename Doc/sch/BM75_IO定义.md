@@ -157,7 +157,7 @@ FD6288：`EN`←PB5，故障←PB7（低有效）。无 SPI 寄存器。`hw_hd75
 
 | 控制脚 | 网络 | 作用 | 当前固件 |
 | --- | --- | --- | --- |
-| PC13 | SENS_FILTER | 把约 100 nF 接到 SENS1/2/3 | `PHASE_FILTER_ON/OFF` 为空；`Bsp_Gpio_Init` 不把 PC13 配成输出 |
+| PC13 | SENS_FILTER | 把约 100 nF 接到 SENS1/2/3 | 推挽输出；上电默认拉低断开，FOC 启动接通，BLDC 启动后断开 |
 | PD2 | CURR_FILTER | 把滤波接到 SOA/SOB/SOC | `CURRENT_FILTER_ON` 为空；PD2 初始化被注释 |
 
 需要滤波时必须把对应脚配成推挽输出再拉高。只改 ODR、脚仍是输入，开关不会动作。详见 `Doc/sch/滤波.md`。

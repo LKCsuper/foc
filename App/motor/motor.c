@@ -166,6 +166,9 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
     if (!motor_command_valid(motor, cmd, &normalized)) {
         return MOTOR_ERR_INVALID;
     }
+    if (normalized.enable && Motor_Bldc_IsSelected()) {
+        return MOTOR_ERR_BUSY;
+    }
 
     primask = motor_crit_enter();
     mode_changed = (motor->ol_mode != normalized.mode);

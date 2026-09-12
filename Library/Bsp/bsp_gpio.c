@@ -133,11 +133,25 @@ VOID Bsp_Tim8_Gpio(VOID)
  */
 void Bsp_Gpio_Init(void)
 {
+	GPIO_InitTypeDef phase_filter_gpio;
+
 	/* 初始化时钟 */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
+
+	/*
+	 * BM75/HD75 的 PC13 控制三相端电压采样电容模拟开关。
+	 * 与 VESC HD75 基线一致，上电先断开滤波电容，避免控制脚悬空。
+	 */
+	PHASE_FILTER_OFF();
+	phase_filter_gpio.GPIO_Pin = PHASE_FILTER_PIN;
+	phase_filter_gpio.GPIO_Mode = GPIO_Mode_OUT;
+	phase_filter_gpio.GPIO_OType = GPIO_OType_PP;
+	phase_filter_gpio.GPIO_Speed = GPIO_Speed_100MHz;
+	phase_filter_gpio.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_Init(PHASE_FILTER_PORT, &phase_filter_gpio);
 
 	// Bsp_Gpio_Mode(HW_SHUTDOWN_GPIO, HW_SHUTDOWN_PIN, GPIO_Mode_OUT);
 	// HW_SHUTDOWN_HOLD_ON();
@@ -171,15 +185,6 @@ void Bsp_Gpio_Init(void)
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
 	GPIO_Init(HW_HALL_A_PORT, &GPIO_InitStructure);
 	
-	/*
-	 * 保持 3e5d564 已上板验证过的电气状态：PC13 不配置为输出。
-	 * 当前板型对该引脚的真实用途尚未重新核实，主动拉高/拉低可能改变
-	 * 外部模拟开关或驱动相关电路。确认原理图前只保留输入态。
-	 */
-
-	// /* Fault */
-	// Bsp_Gpio_Mode(PHASE_FILTER_PORT, PHASE_FILTER_PIN, GPIO_Mode_IN);
-
 	/* ADC */
 	Bsp_Gpio_Mode(ADC_0_PORT, ADC_0_PIN, GPIO_Mode_AN);
 	Bsp_Gpio_Mode(ADC_1_PORT, ADC_1_PIN, GPIO_Mode_AN);
