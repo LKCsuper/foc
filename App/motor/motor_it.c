@@ -293,8 +293,6 @@ bool Motor_Bldc_IsSelected(void)
 bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
 {
     uint32_t primask;
-    uint8_t i;
-
     if (status == NULL) {
         return false;
     }
@@ -320,16 +318,8 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
             s_bldc_sensorless.maximum_commutation_period_s;
         status->bemf_integral_vs = s_bldc_sensorless.bemf_integral_vs;
         status->bemf_integral_threshold_vs =
-            s_bldc_sensorless.step_integral_threshold_vs[s_bldc_sensorless.step];
-        for (i = 0U; i < 6U; i++) {
-            status->startup_integral_count +=
-                s_bldc_sensorless.step_startup_integral_count[i];
-        }
-        memcpy(status->step_integral_threshold_vs,
-               s_bldc_sensorless.step_integral_threshold_vs,
-               sizeof(status->step_integral_threshold_vs));
+            s_bldc_sensorless.config.bemf_integral_threshold_vs;
         status->bemf_sample_count = Hal_Motor_BldcGetSampleCount();
-        status->armed_sectors = s_bldc_sensorless.armed_sectors;
         status->integral_commutations = s_bldc_sensorless.integral_commutations;
         status->forced_commutations = s_bldc_sensorless.forced_commutations;
         memcpy(status->step_integral_commutations,
@@ -338,14 +328,8 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
         memcpy(status->step_forced_commutations,
                s_bldc_sensorless.step_forced_commutations,
                sizeof(status->step_forced_commutations));
-        memcpy(status->step_armed_sectors, s_bldc_sensorless.step_armed_sectors,
-               sizeof(status->step_armed_sectors));
-        memcpy(status->step_zero_crossings, s_bldc_sensorless.step_zero_crossings,
-               sizeof(status->step_zero_crossings));
         memcpy(status->step_last_period_s, s_bldc_sensorless.step_last_period_s,
                sizeof(status->step_last_period_s));
-        memcpy(status->step_zero_cross_time_s, s_bldc_sensorless.step_zero_cross_time_s,
-               sizeof(status->step_zero_cross_time_s));
         memcpy(status->step_bemf_min_v, s_bldc_sensorless.step_bemf_min_v,
                sizeof(status->step_bemf_min_v));
         memcpy(status->step_bemf_max_v, s_bldc_sensorless.step_bemf_max_v,

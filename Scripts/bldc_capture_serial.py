@@ -38,27 +38,22 @@ def match_int(pattern: str, text: str) -> int:
 def parse_status(text: str, elapsed_s: float) -> dict[str, float | int | str]:
     state = FAULT_PATTERN.search(text)
     periods = re.search(r"last_period/step=([0-9.,-]+)ms", text)
-    zero_counts = re.search(r"zero_cross/step=([0-9,]+)", text)
-    zero_times = re.search(r"zero_time/step=([0-9.,-]+)ms", text)
     integral_steps = re.search(r"integral_comm/step=([0-9,]+)", text)
     forced_steps = re.search(r"forced_comm/step=([0-9,]+)", text)
     waveforms = [re.search(rf"bemf_wave/{index}=([0-9.,-]+)V", text) for index in range(6)]
     period_range = re.search(r"period_range=\[([-+0-9.]+),([-+0-9.]+)\]ms", text)
     if (STATUS_HEADER not in text or state is None or periods is None or
-            zero_counts is None or zero_times is None or period_range is None or
+            period_range is None or
             integral_steps is None or forced_steps is None or
             any(waveform is None for waveform in waveforms)):
         raise ValueError("incomplete BLDC status; flash the latest firmware")
 
     values = [float(value) for value in periods.group(1).split(",")]
-    crossings = [int(value) for value in zero_counts.group(1).split(",")]
-    crossing_times = [float(value) for value in zero_times.group(1).split(",")]
     integral_counts = [int(value) for value in integral_steps.group(1).split(",")]
     forced_counts = [int(value) for value in forced_steps.group(1).split(",")]
     waveform_values = [[float(value) for value in waveform.group(1).split(",")]
                        for waveform in waveforms if waveform is not None]
-    if (len(values) != 6 or len(crossings) != 6 or len(crossing_times) != 6 or
-            len(integral_counts) != 6 or len(forced_counts) != 6 or
+    if (len(values) != 6 or len(integral_counts) != 6 or len(forced_counts) != 6 or
             any(len(waveform) != 8 for waveform in waveform_values)):
         raise ValueError("invalid BLDC per-step diagnostics")
     return {
@@ -69,7 +64,6 @@ def parse_status(text: str, elapsed_s: float) -> dict[str, float | int | str]:
         "step": match_int(r"\bstep=(\d+)", text),
         "commutations": match_int(r"commutations=(\d+)", text),
         "forced": match_int(r"forced=(\d+)", text),
-        "armed": match_int(r"armed=(\d+)", text),
         "bemf_v": match_float(r"\bbemf=([-+0-9.]+)V", text),
         "sector_ms": match_float(r"sector=([-+0-9.]+)ms", text),
         "period_ms": match_float(r"\bperiod=([-+0-9.]+)ms", text),
@@ -79,8 +73,6 @@ def parse_status(text: str, elapsed_s: float) -> dict[str, float | int | str]:
         "threshold_vs": match_float(r"integral=[-+0-9.]+/([-+0-9.]+)V\*s", text),
         "vbus_v": match_float(r"vbus=([-+0-9.]+)V", text),
         **{f"step{index}_period_ms": value for index, value in enumerate(values)},
-        **{f"step{index}_zero_count": value for index, value in enumerate(crossings)},
-        **{f"step{index}_zero_ms": value for index, value in enumerate(crossing_times)},
         **{f"step{index}_integral_count": value
            for index, value in enumerate(integral_counts)},
         **{f"step{index}_forced_count": value for index, value in enumerate(forced_counts)},

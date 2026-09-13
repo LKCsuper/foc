@@ -96,8 +96,6 @@ static void test_bemf_integrator_commutates(void)
     assert(sensorless.bemf_integral_vs == 0.0f);
     assert(Motor_BldcSensorless_Step(&sensorless, positive_c, 24.0f, 0.001f));
     assert(sensorless.step == 0U);
-    assert(sensorless.step_zero_crossings[0] == 1U);
-    assert(sensorless.step_zero_cross_time_s[0] > 0.0019f);
     assert(Motor_BldcSensorless_Step(&sensorless, positive_c, 24.0f, 0.001f));
     assert(sensorless.step == 1U);
     assert(sensorless.integral_commutations == 1U);
@@ -161,7 +159,7 @@ static void test_startup_preserves_integral_threshold(void)
         assert(Motor_BldcSensorless_Step(&sensorless, phase, 24.0f, 0.001f));
     }
     assert(sensorless.mode == MOTOR_BLDC_SENSORLESS_CLOSED_LOOP);
-    assert(sensorless.step_integral_threshold_vs[0] == 0.009f);
+    assert(sensorless.config.bemf_integral_threshold_vs == 0.009f);
 }
 
 static void test_closed_loop_forces_late_step_without_adapting_threshold(void)
@@ -180,14 +178,14 @@ static void test_closed_loop_forces_late_step_without_adapting_threshold(void)
     assert(Motor_BldcSensorless_Start(&sensorless, MOTOR_BLDC_DIRECTION_CW, 0.08f));
     sensorless.mode = MOTOR_BLDC_SENSORLESS_CLOSED_LOOP;
     sensorless.filtered_commutation_period_s = 0.010f;
-    sensorless.step_integral_threshold_vs[0] = 0.100f;
+    sensorless.config.bemf_integral_threshold_vs = 0.100f;
 
     for (i = 0U; i < 11U; i++) {
         assert(Motor_BldcSensorless_Step(&sensorless, positive_c, 24.0f, 0.001f));
     }
     assert(sensorless.step == 1U);
     assert(sensorless.forced_commutations == 1U);
-    assert(sensorless.step_integral_threshold_vs[0] == 0.100f);
+    assert(sensorless.config.bemf_integral_threshold_vs == 0.100f);
     assert(sensorless.filtered_commutation_period_s == 0.010f);
 }
 

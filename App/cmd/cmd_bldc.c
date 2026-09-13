@@ -87,30 +87,21 @@ static void Cmd_BldcPrintStatus(void)
     PRINTF("BLDC selected=%d running=%d mode=%s fault=%s motor_fault=%u\r\n",
            status.selected, status.running, Cmd_BldcModeName(status.mode),
            Cmd_BldcFaultName(status.fault), (unsigned)status.motor_fault);
-    PRINTF("  dir=%s duty=%.3f step=%u commutations=%lu forced=%lu armed=%lu\r\n",
+    PRINTF("  dir=%s duty=%.3f step=%u commutations=%lu forced=%lu\r\n",
            status.direction == MOTOR_BLDC_DIRECTION_CCW ? "CCW" : "CW", status.duty,
            (unsigned)status.step, (unsigned long)status.integral_commutations,
-           (unsigned long)status.forced_commutations, (unsigned long)status.armed_sectors);
+           (unsigned long)status.forced_commutations);
     PRINTF("  bemf=%.3fV range=[%.3f,%.3f]V sector=%.3fms period=%.3fms vbus=%.2fV\r\n",
            status.bemf_v, status.bemf_min_v, status.bemf_max_v,
            status.sector_elapsed_s * 1000.0f, status.commutation_period_s * 1000.0f, motor.v_bus);
     PRINTF("  period_range=[%.3f,%.3f]ms\r\n",
            status.minimum_commutation_period_s * 1000.0f,
            status.maximum_commutation_period_s * 1000.0f);
-    PRINTF("  sense=INTEGRAL integral=%.6f/%.6fV*s learned=%u\r\n",
-           status.bemf_integral_vs, status.bemf_integral_threshold_vs,
-           status.startup_integral_count);
-    PRINTF("  threshold/step=%.6f,%.6f,%.6f,%.6f,%.6f,%.6fV*s\r\n",
-           status.step_integral_threshold_vs[0], status.step_integral_threshold_vs[1],
-           status.step_integral_threshold_vs[2], status.step_integral_threshold_vs[3],
-           status.step_integral_threshold_vs[4], status.step_integral_threshold_vs[5]);
+    PRINTF("  sense=INTEGRAL integral=%.6f/%.6fV*s\r\n", status.bemf_integral_vs,
+           status.bemf_integral_threshold_vs);
     PRINTF("  adc_sample=TIM2:%lu (TIM1:%lu)\r\n",
            (unsigned long)status.bemf_sample_count,
            (unsigned long)(2U * status.bemf_sample_count));
-    PRINTF("  armed/step=%u,%u,%u,%u,%u,%u\r\n", (unsigned)status.step_armed_sectors[0],
-           (unsigned)status.step_armed_sectors[1], (unsigned)status.step_armed_sectors[2],
-           (unsigned)status.step_armed_sectors[3], (unsigned)status.step_armed_sectors[4],
-           (unsigned)status.step_armed_sectors[5]);
     PRINTF("  integral_comm/step=%u,%u,%u,%u,%u,%u\r\n",
            (unsigned)status.step_integral_commutations[0],
            (unsigned)status.step_integral_commutations[1],
@@ -129,17 +120,6 @@ static void Cmd_BldcPrintStatus(void)
            status.step_last_period_s[0] * 1000.0f, status.step_last_period_s[1] * 1000.0f,
            status.step_last_period_s[2] * 1000.0f, status.step_last_period_s[3] * 1000.0f,
            status.step_last_period_s[4] * 1000.0f, status.step_last_period_s[5] * 1000.0f);
-    PRINTF("  zero_cross/step=%u,%u,%u,%u,%u,%u\r\n",
-           (unsigned)status.step_zero_crossings[0], (unsigned)status.step_zero_crossings[1],
-           (unsigned)status.step_zero_crossings[2], (unsigned)status.step_zero_crossings[3],
-           (unsigned)status.step_zero_crossings[4], (unsigned)status.step_zero_crossings[5]);
-    PRINTF("  zero_time/step=%.3f,%.3f,%.3f,%.3f,%.3f,%.3fms\r\n",
-           status.step_zero_cross_time_s[0] * 1000.0f,
-           status.step_zero_cross_time_s[1] * 1000.0f,
-           status.step_zero_cross_time_s[2] * 1000.0f,
-           status.step_zero_cross_time_s[3] * 1000.0f,
-           status.step_zero_cross_time_s[4] * 1000.0f,
-           status.step_zero_cross_time_s[5] * 1000.0f);
     PRINTF("  min/step=%.3f,%.3f,%.3f,%.3f,%.3f,%.3fV\r\n", status.step_bemf_min_v[0],
            status.step_bemf_min_v[1], status.step_bemf_min_v[2], status.step_bemf_min_v[3],
            status.step_bemf_min_v[4], status.step_bemf_min_v[5]);
