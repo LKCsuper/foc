@@ -30,13 +30,21 @@ typedef struct {
     float maximum_commutation_period_s;
     float bemf_integral_vs;
     float bemf_integral_threshold_vs;
+    uint8_t startup_integral_count;
+    float step_integral_threshold_vs[6];
     uint32_t bemf_sample_count;
     uint32_t armed_sectors;
     uint32_t integral_commutations;
+    uint32_t forced_commutations;
+    uint16_t step_integral_commutations[6];
+    uint16_t step_forced_commutations[6];
     uint16_t step_armed_sectors[6];
+    uint16_t step_zero_crossings[6];
     float step_last_period_s[6];
+    float step_zero_cross_time_s[6];
     float step_bemf_min_v[6];
     float step_bemf_max_v[6];
+    float step_bemf_waveform_v[6][MOTOR_BLDC_BEMF_BIN_COUNT];
 } motor_bldc_status_t;
 /* Private define ------------------------------------------------------------*/
 /*

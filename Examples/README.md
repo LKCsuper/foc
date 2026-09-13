@@ -9,6 +9,7 @@
 | 3 | [03_voltage_openloop.md](03_voltage_openloop.md) | 部分（control/startup host） | 是（电压开环） |
 | 4 | [04_sensored_current.md](04_sensored_current.md) | 部分（feedback/encoder/hall/control） | 是（有感电流） |
 | 5 | [05_sensored_speed.md](05_sensored_speed.md) | 部分（control 速度 Iq） | 是（有感速度） |
+| 6 | [06_bldc_sensorless.md](06_bldc_sensorless.md) | 部分（`test_motor_bldc_sensorless`） | 是（六步 BEMF，见 [原理](../Doc/doc/BEMF原理.md)） |
 
 ## 主机通过 vs 上板通过
 

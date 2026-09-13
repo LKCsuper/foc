@@ -26,7 +26,11 @@ static uint8_t Motor_BldcSensorless_NextStep(const motor_bldc_sensorless_t *cont
 static float Motor_BldcSensorless_StartupPeriod(const motor_bldc_sensorless_t *control);
 static bool Motor_BldcSensorless_ExpectedRising(const motor_bldc_sensorless_t *control);
 static float Motor_BldcSensorless_UpdateBemf(motor_bldc_sensorless_t *control,
-                                              const float phase_voltage[3]);
+                                              const float phase_voltage[3], float bus_voltage);
+static void Motor_BldcSensorless_AccumulateIntegral(motor_bldc_sensorless_t *control,
+                                                    const float phase_voltage[3], float bus_voltage,
+                                                    float dt_s);
+static void Motor_BldcSensorless_RecordWaveform(motor_bldc_sensorless_t *control, float bemf_v);
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 判断浮点值是否为有限数。
@@ -59,8 +63,7 @@ static bool Motor_BldcSensorless_ConfigValid(const motor_bldc_sensorless_config_
            config->period_change_limit > 0.0f && config->period_change_limit < 1.0f &&
            config->closed_loop_min_period_s > 0.0f &&
            config->closed_loop_timeout_s > 0.0f &&
-           config->bemf_integral_threshold_vs > 0.0f &&
-           config->bemf_integral_noise_v >= 0.0f;
+           config->bemf_integral_threshold_vs > 0.0f && config->bemf_integral_noise_v >= 0.0f;
 }
 
 /**
@@ -75,6 +78,8 @@ static void Motor_BldcSensorless_ResetSector(motor_bldc_sensorless_t *control)
     control->filtered_bemf_v = 0.0f;
     control->bemf_integral_vs = 0.0f;
     control->crossing_armed = false;
+    control->zero_cross_negative_seen = false;
+    control->zero_cross_seen = false;
 }
 
 /**
@@ -182,14 +187,16 @@ static bool Motor_BldcSensorless_ExpectedRising(const motor_bldc_sensorless_t *c
  * @description: 计算、滤波并记录当前悬空相 BEMF。
  * @param {motor_bldc_sensorless_t *} control 无感控制实例，不可为空
  * @param {const float [3]} phase_voltage 逻辑 A/B/C 相端电压 (V)
+ * @param {float} bus_voltage 直流母线电压 (V)
  * @return {float} 滤波后的悬空相对软件中性点电压 (V)
  * @author: lkc
  */
 static float Motor_BldcSensorless_UpdateBemf(motor_bldc_sensorless_t *control,
-                                              const float phase_voltage[3])
+                                              const float phase_voltage[3], float bus_voltage)
 {
     uint8_t floating = s_floating_phase[control->step];
-    float neutral = (phase_voltage[0] + phase_voltage[1] + phase_voltage[2]) / 3.0f;
+    /* 与 VESC ADC_V_ZERO 一致：驱动相不能参与六步虚拟中性点计算。 */
+    float neutral = bus_voltage * 0.5f;
     float bemf = phase_voltage[floating] - neutral;
 
     control->filtered_bemf_v += control->config.bemf_filter_alpha *
@@ -207,6 +214,89 @@ static float Motor_BldcSensorless_UpdateBemf(motor_bldc_sensorless_t *control,
         control->step_bemf_max_v[control->step] = control->filtered_bemf_v;
     }
     return control->filtered_bemf_v;
+}
+
+/**
+ * @description: 按扇区归一化时间记录固定开环稳态 BEMF 波形。
+ * @detail: 每个 step 分成八段累计均值，仅用于诊断，不参与换相决策。
+ * @param {motor_bldc_sensorless_t *} control 无感控制实例，不可为空
+ * @param {float} bemf_v 当前滤波 BEMF (V)
+ * @return {void} 无
+ * @author: lkc
+ */
+static void Motor_BldcSensorless_RecordWaveform(motor_bldc_sensorless_t *control, float bemf_v)
+{
+    float period_s;
+    uint16_t count;
+    uint8_t bin;
+
+    if (control->mode == MOTOR_BLDC_SENSORLESS_OPEN_LOOP_FIXED) {
+        period_s = control->fixed_open_loop_period_s;
+        if (period_s <= 0.0f || control->filtered_commutation_period_s > period_s * 1.02f) {
+            return;
+        }
+    } else if (control->mode == MOTOR_BLDC_SENSORLESS_CLOSED_LOOP) {
+        period_s = control->filtered_commutation_period_s;
+    } else {
+        return;
+    }
+    if (period_s <= 0.0f) {
+        return;
+    }
+    bin = (uint8_t)(control->sector_elapsed_s * (float)MOTOR_BLDC_BEMF_BIN_COUNT / period_s);
+    if (bin >= MOTOR_BLDC_BEMF_BIN_COUNT) {
+        bin = MOTOR_BLDC_BEMF_BIN_COUNT - 1U;
+    }
+    count = control->step_bemf_waveform_count[control->step][bin];
+    if (count < 65535U) {
+        count++;
+        control->step_bemf_waveform_count[control->step][bin] = count;
+    }
+    control->step_bemf_waveform_v[control->step][bin] +=
+        (bemf_v - control->step_bemf_waveform_v[control->step][bin]) / (float)count;
+}
+
+/**
+ * @description: 累计当前扇区正确极性的 BEMF 面积。
+ * @param {motor_bldc_sensorless_t *} control 无感控制实例，不可为空
+ * @param {const float [3]} phase_voltage 逻辑 A/B/C 相端电压 (V)
+ * @param {float} bus_voltage 直流母线电压 (V)
+ * @param {float} dt_s 本控制周期时间 (s)
+ * @return {void} 无
+ * @author: lkc
+ */
+static void Motor_BldcSensorless_AccumulateIntegral(motor_bldc_sensorless_t *control,
+                                                    const float phase_voltage[3], float bus_voltage,
+                                                    float dt_s)
+{
+    float signed_bemf = Motor_BldcSensorless_UpdateBemf(control, phase_voltage, bus_voltage);
+
+    Motor_BldcSensorless_RecordWaveform(control, signed_bemf);
+
+    if (!Motor_BldcSensorless_ExpectedRising(control)) {
+        signed_bemf = -signed_bemf;
+    }
+    if (signed_bemf < -control->config.bemf_integral_noise_v) {
+        control->zero_cross_negative_seen = true;
+    } else if (control->zero_cross_negative_seen && !control->zero_cross_seen &&
+               signed_bemf > control->config.bemf_integral_noise_v) {
+        control->zero_cross_seen = true;
+        control->step_zero_cross_time_s[control->step] = control->sector_elapsed_s;
+        if (control->step_zero_crossings[control->step] < 65535U) {
+            control->step_zero_crossings[control->step]++;
+        }
+    }
+    if (signed_bemf > control->config.bemf_integral_noise_v) {
+        if (!control->crossing_armed) {
+            control->crossing_armed = true;
+            control->armed_sectors++;
+            if (control->step_armed_sectors[control->step] < 65535U) {
+                control->step_armed_sectors[control->step]++;
+            }
+        }
+        control->bemf_integral_vs +=
+            (signed_bemf - control->config.bemf_integral_noise_v) * dt_s;
+    }
 }
 
 /**
@@ -274,6 +364,8 @@ bool Motor_BldcSensorless_Init(motor_bldc_sensorless_t *control,
 bool Motor_BldcSensorless_Start(motor_bldc_sensorless_t *control,
                                 motor_bldc_direction_t direction, float duty)
 {
+    uint8_t i;
+
     if (control == NULL || !control->initialized || control->fault != MOTOR_BLDC_SENSORLESS_FAULT_NONE ||
         !Motor_BldcSixStep_Start(control->commutator, direction, duty)) {
         return false;
@@ -288,10 +380,22 @@ bool Motor_BldcSensorless_Start(motor_bldc_sensorless_t *control,
     control->fixed_open_loop_period_s = 0.0f;
     control->armed_sectors = 0U;
     control->integral_commutations = 0U;
+    control->forced_commutations = 0U;
+    for (i = 0U; i < 6U; i++) {
+        control->step_integral_threshold_vs[i] = control->config.bemf_integral_threshold_vs;
+    }
     memset(control->step_armed_sectors, 0, sizeof(control->step_armed_sectors));
+    memset(control->step_integral_commutations, 0,
+           sizeof(control->step_integral_commutations));
+    memset(control->step_forced_commutations, 0,
+           sizeof(control->step_forced_commutations));
+    memset(control->step_zero_crossings, 0, sizeof(control->step_zero_crossings));
     memset(control->step_last_period_s, 0, sizeof(control->step_last_period_s));
+    memset(control->step_zero_cross_time_s, 0, sizeof(control->step_zero_cross_time_s));
     memset(control->step_bemf_min_v, 0, sizeof(control->step_bemf_min_v));
     memset(control->step_bemf_max_v, 0, sizeof(control->step_bemf_max_v));
+    memset(control->step_bemf_waveform_v, 0, sizeof(control->step_bemf_waveform_v));
+    memset(control->step_bemf_waveform_count, 0, sizeof(control->step_bemf_waveform_count));
     control->fixed_open_loop_enabled = false;
     control->startup_bemf_min_v = 0.0f;
     control->startup_bemf_max_v = 0.0f;
@@ -357,6 +461,7 @@ bool Motor_BldcSensorless_Step(motor_bldc_sensorless_t *control,
                                const float phase_voltage[3], float bus_voltage, float dt_s)
 {
     float period_minimum;
+    float period_maximum;
     float period;
     uint8_t i;
 
@@ -397,9 +502,9 @@ bool Motor_BldcSensorless_Step(motor_bldc_sensorless_t *control,
         control->startup_elapsed_s += dt_s;
         period = Motor_BldcSensorless_StartupPeriod(control);
         control->filtered_commutation_period_s = period;
-        /* 固定开环只记录 BEMF 波形，采样结果不改变换相时刻。 */
+        /* 固定开环只记录 BEMF 波形与过零诊断，采样结果不改变换相时刻。 */
         if (control->sector_elapsed_s >= control->config.commutation_blanking_s) {
-            Motor_BldcSensorless_UpdateBemf(control, phase_voltage);
+            Motor_BldcSensorless_AccumulateIntegral(control, phase_voltage, bus_voltage, dt_s);
         }
         if (control->sector_elapsed_s >= period) {
             return Motor_BldcSensorless_Commutate(control, Motor_BldcSensorless_NextStep(control));
@@ -416,26 +521,22 @@ bool Motor_BldcSensorless_Step(motor_bldc_sensorless_t *control,
 
     if (control->mode == MOTOR_BLDC_SENSORLESS_OPEN_LOOP) {
         control->filtered_commutation_period_s = Motor_BldcSensorless_StartupPeriod(control);
+        if (control->sector_elapsed_s >= control->config.commutation_blanking_s) {
+            Motor_BldcSensorless_AccumulateIntegral(control, phase_voltage, bus_voltage, dt_s);
+        }
     }
     if (control->mode == MOTOR_BLDC_SENSORLESS_CLOSED_LOOP) {
+        period_maximum = control->config.closed_loop_timeout_s;
+        if (control->filtered_commutation_period_s > 0.0f) {
+            period = control->filtered_commutation_period_s *
+                     (1.0f + control->config.period_change_limit);
+            if (period < period_maximum) {
+                period_maximum = period;
+            }
+        }
         if (control->sector_elapsed_s >= control->config.commutation_blanking_s) {
-            float signed_bemf = Motor_BldcSensorless_UpdateBemf(control, phase_voltage);
-
-            if (!Motor_BldcSensorless_ExpectedRising(control)) {
-                signed_bemf = -signed_bemf;
-            }
             /* VESC COMM_MODE_INTEGRATE：忽略负向区，只累计正确方向的 BEMF 面积。 */
-            if (signed_bemf > control->config.bemf_integral_noise_v) {
-                if (!control->crossing_armed) {
-                    control->crossing_armed = true;
-                    control->armed_sectors++;
-                    if (control->step_armed_sectors[control->step] < 65535U) {
-                        control->step_armed_sectors[control->step]++;
-                    }
-                }
-                control->bemf_integral_vs +=
-                    (signed_bemf - control->config.bemf_integral_noise_v) * dt_s;
-            }
+            Motor_BldcSensorless_AccumulateIntegral(control, phase_voltage, bus_voltage, dt_s);
             period_minimum = control->config.closed_loop_min_period_s;
             if (control->filtered_commutation_period_s > 0.0f) {
                 period = control->filtered_commutation_period_s *
@@ -444,7 +545,7 @@ bool Motor_BldcSensorless_Step(motor_bldc_sensorless_t *control,
                     period_minimum = period;
                 }
             }
-            if (control->bemf_integral_vs >= control->config.bemf_integral_threshold_vs &&
+            if (control->bemf_integral_vs >= control->step_integral_threshold_vs[control->step] &&
                 control->sector_elapsed_s >= period_minimum) {
                 if (control->filtered_commutation_period_s <= 0.0f) {
                     control->filtered_commutation_period_s = control->sector_elapsed_s;
@@ -454,9 +555,24 @@ bool Motor_BldcSensorless_Step(motor_bldc_sensorless_t *control,
                         (control->sector_elapsed_s - control->filtered_commutation_period_s);
                 }
                 control->integral_commutations++;
+                if (control->step_integral_commutations[control->step] < 65535U) {
+                    control->step_integral_commutations[control->step]++;
+                }
                 return Motor_BldcSensorless_Commutate(control,
                                                        Motor_BldcSensorless_NextStep(control));
             }
+        }
+        if (control->sector_elapsed_s >= period_maximum) {
+            /*
+             * 无论当前扇区是否检测到正确极性，预测最长周期都必须生效；否则
+             * 漏检时会无限等待到错误边沿。保护换相不写回正常周期估计。
+            */
+            control->forced_commutations++;
+            if (control->step_forced_commutations[control->step] < 65535U) {
+                control->step_forced_commutations[control->step]++;
+            }
+            return Motor_BldcSensorless_Commutate(control,
+                                                   Motor_BldcSensorless_NextStep(control));
         }
         if (control->sector_elapsed_s >= control->config.closed_loop_timeout_s) {
             Motor_BldcSensorless_Trip(control, MOTOR_BLDC_SENSORLESS_FAULT_BEMF_LOST);

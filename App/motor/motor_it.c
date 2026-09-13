@@ -107,14 +107,13 @@ static bool Motor_Bldc_InitDefault(void)
     sensorless_config.closed_loop_timeout_s = 0.150f;
     /* 积分阈值命中不得让换相周期单步骤降，否则转子会脱离旋转磁场。 */
     sensorless_config.period_change_limit = 0.10f;
-    /* 8% 固定开环实测 12ms 可稳定、8ms 已失步，闭环不得突破该边界。 */
+    /* 当前阶段先锁住已验证的 12ms 工作点，确认实测 BEMF 极性后再开放调速范围。 */
     sensorless_config.closed_loop_min_period_s = 0.012f;
-    /* 积分正向 BEMF 面积换相，避免单点假过零导致高速抖动。 */
-    /* 5% 积分闭环的 1.5mV*s 实测产生约 46ms 周期，按 12ms 稳定边界缩放。 */
+    /* 配置阈值仅作辨识失败回退；正常启动会从末段完整扇区自动学习 BEMF 面积。 */
     sensorless_config.bemf_integral_threshold_vs = 0.0004f;
     sensorless_config.bemf_integral_noise_v = 0.05f;
-    /* 当前 CW 六步序列对应 VESC HD75：偶数 step 下降沿，奇数 step 上升沿。 */
-    sensorless_config.step0_rising = false;
+    /* 受限闭环实测：偶数 step 为正、奇数 step 为负，积分统一取正面积。 */
+    sensorless_config.step0_rising = true;
     if (!Motor_BldcSensorless_Init(&s_bldc_sensorless, &s_bldc_commutator, &sensorless_config)) {
         return false;
     }
@@ -294,6 +293,7 @@ bool Motor_Bldc_IsSelected(void)
 bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
 {
     uint32_t primask;
+    uint8_t i;
 
     if (status == NULL) {
         return false;
@@ -320,18 +320,38 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
             s_bldc_sensorless.maximum_commutation_period_s;
         status->bemf_integral_vs = s_bldc_sensorless.bemf_integral_vs;
         status->bemf_integral_threshold_vs =
-            s_bldc_sensorless.config.bemf_integral_threshold_vs;
+            s_bldc_sensorless.step_integral_threshold_vs[s_bldc_sensorless.step];
+        for (i = 0U; i < 6U; i++) {
+            status->startup_integral_count +=
+                s_bldc_sensorless.step_startup_integral_count[i];
+        }
+        memcpy(status->step_integral_threshold_vs,
+               s_bldc_sensorless.step_integral_threshold_vs,
+               sizeof(status->step_integral_threshold_vs));
         status->bemf_sample_count = Hal_Motor_BldcGetSampleCount();
         status->armed_sectors = s_bldc_sensorless.armed_sectors;
         status->integral_commutations = s_bldc_sensorless.integral_commutations;
+        status->forced_commutations = s_bldc_sensorless.forced_commutations;
+        memcpy(status->step_integral_commutations,
+               s_bldc_sensorless.step_integral_commutations,
+               sizeof(status->step_integral_commutations));
+        memcpy(status->step_forced_commutations,
+               s_bldc_sensorless.step_forced_commutations,
+               sizeof(status->step_forced_commutations));
         memcpy(status->step_armed_sectors, s_bldc_sensorless.step_armed_sectors,
                sizeof(status->step_armed_sectors));
+        memcpy(status->step_zero_crossings, s_bldc_sensorless.step_zero_crossings,
+               sizeof(status->step_zero_crossings));
         memcpy(status->step_last_period_s, s_bldc_sensorless.step_last_period_s,
                sizeof(status->step_last_period_s));
+        memcpy(status->step_zero_cross_time_s, s_bldc_sensorless.step_zero_cross_time_s,
+               sizeof(status->step_zero_cross_time_s));
         memcpy(status->step_bemf_min_v, s_bldc_sensorless.step_bemf_min_v,
                sizeof(status->step_bemf_min_v));
         memcpy(status->step_bemf_max_v, s_bldc_sensorless.step_bemf_max_v,
                sizeof(status->step_bemf_max_v));
+        memcpy(status->step_bemf_waveform_v, s_bldc_sensorless.step_bemf_waveform_v,
+               sizeof(status->step_bemf_waveform_v));
     }
     Motor_Bldc_StatusUnlock(primask);
     return true;

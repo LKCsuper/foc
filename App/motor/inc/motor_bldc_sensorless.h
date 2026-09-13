@@ -12,6 +12,7 @@ extern "C" {
 #include <stdint.h>
 #include "motor_bldc_six_step.h"
 /* Private define ------------------------------------------------------------*/
+#define MOTOR_BLDC_BEMF_BIN_COUNT 8U
 /* Private typedef -----------------------------------------------------------*/
 typedef enum {
     MOTOR_BLDC_SENSORLESS_IDLE = 0,
@@ -47,6 +48,7 @@ typedef struct {
     float closed_loop_timeout_s;     /* 闭环单个扇区允许的最长时间 */
     float bemf_integral_threshold_vs; /* 每个扇区的 BEMF 积分阈值 (V*s) */
     float bemf_integral_noise_v;     /* 积分法忽略的 BEMF 噪声带 (V) */
+    uint8_t startup_integral_samples; /* 启动末段用于辨识积分阈值的扇区数 */
 } motor_bldc_sensorless_config_t;
 
 typedef struct {
@@ -64,16 +66,28 @@ typedef struct {
     float fixed_open_loop_period_s;
     float filtered_bemf_v;
     float bemf_integral_vs;
+    float step_integral_threshold_vs[6];
+    float step_startup_integral_sum_vs[6];
     float startup_bemf_min_v;
     float startup_bemf_max_v;
     uint8_t step;
     uint32_t armed_sectors;
     uint32_t integral_commutations;
+    uint32_t forced_commutations;
+    uint16_t step_integral_commutations[6];
+    uint16_t step_forced_commutations[6];
+    uint8_t step_startup_integral_count[6];
     uint16_t step_armed_sectors[6];
+    uint16_t step_zero_crossings[6];
     float step_last_period_s[6];
+    float step_zero_cross_time_s[6];
     float step_bemf_min_v[6];
     float step_bemf_max_v[6];
+    float step_bemf_waveform_v[6][MOTOR_BLDC_BEMF_BIN_COUNT];
+    uint16_t step_bemf_waveform_count[6][MOTOR_BLDC_BEMF_BIN_COUNT];
     bool crossing_armed;
+    bool zero_cross_negative_seen;
+    bool zero_cross_seen;
     bool fixed_open_loop_enabled;
     bool initialized;
 } motor_bldc_sensorless_t;

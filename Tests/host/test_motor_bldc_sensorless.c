@@ -82,8 +82,8 @@ static void test_bemf_integrator_commutates(void)
     motor_bldc_six_step_t commutator;
     motor_bldc_sensorless_t sensorless;
     motor_bldc_sensorless_config_t config;
-    const float negative_c[3] = {0.0f, 0.0f, -1.0f};
-    const float positive_c[3] = {0.0f, 0.0f, 1.0f};
+    const float negative_c[3] = {12.0f, 12.0f, 11.0f};
+    const float positive_c[3] = {12.0f, 12.0f, 13.0f};
 
     init_pair(&commutator, &sensorless, &config);
     config.bemf_integral_threshold_vs = 0.0010f;
@@ -96,6 +96,8 @@ static void test_bemf_integrator_commutates(void)
     assert(sensorless.bemf_integral_vs == 0.0f);
     assert(Motor_BldcSensorless_Step(&sensorless, positive_c, 24.0f, 0.001f));
     assert(sensorless.step == 0U);
+    assert(sensorless.step_zero_crossings[0] == 1U);
+    assert(sensorless.step_zero_cross_time_s[0] > 0.0019f);
     assert(Motor_BldcSensorless_Step(&sensorless, positive_c, 24.0f, 0.001f));
     assert(sensorless.step == 1U);
     assert(sensorless.integral_commutations == 1U);
@@ -106,7 +108,7 @@ static void test_bemf_integrator_limits_period_reduction(void)
     motor_bldc_six_step_t commutator;
     motor_bldc_sensorless_t sensorless;
     motor_bldc_sensorless_config_t config;
-    const float positive_c[3] = {0.0f, 0.0f, 1.0f};
+    const float positive_c[3] = {12.0f, 12.0f, 13.0f};
     uint8_t i;
 
     init_pair(&commutator, &sensorless, &config);
@@ -129,6 +131,66 @@ static void test_bemf_integrator_limits_period_reduction(void)
     assert(sensorless.filtered_commutation_period_s < 0.0196f);
 }
 
+static void test_startup_preserves_integral_threshold(void)
+{
+    motor_bldc_six_step_t commutator;
+    motor_bldc_sensorless_t sensorless;
+    motor_bldc_sensorless_config_t config;
+    static const uint8_t floating_phase[6] = {2U, 1U, 0U, 2U, 1U, 0U};
+    float phase[3];
+    uint8_t i;
+
+    init_pair(&commutator, &sensorless, &config);
+    config.startup_ramp_time_s = 0.030f;
+    config.bemf_integral_threshold_vs = 0.009f;
+    assert(Motor_BldcSensorless_Init(&sensorless, &commutator, &config));
+    assert(Motor_BldcSensorless_Start(&sensorless, MOTOR_BLDC_DIRECTION_CW, 0.08f));
+    phase[0] = 12.0f;
+    phase[1] = 12.0f;
+    phase[2] = 12.0f;
+    phase[floating_phase[sensorless.step]] +=
+        (sensorless.step & 1U) == 0U ? 1.0f : -1.0f;
+    assert(Motor_BldcSensorless_Step(&sensorless, phase, 24.0f, 0.001f));
+
+    for (i = 0U; i < 30U && sensorless.mode != MOTOR_BLDC_SENSORLESS_CLOSED_LOOP; i++) {
+        phase[0] = 12.0f;
+        phase[1] = 12.0f;
+        phase[2] = 12.0f;
+        phase[floating_phase[sensorless.step]] +=
+            (sensorless.step & 1U) == 0U ? 1.0f : -1.0f;
+        assert(Motor_BldcSensorless_Step(&sensorless, phase, 24.0f, 0.001f));
+    }
+    assert(sensorless.mode == MOTOR_BLDC_SENSORLESS_CLOSED_LOOP);
+    assert(sensorless.step_integral_threshold_vs[0] == 0.009f);
+}
+
+static void test_closed_loop_forces_late_step_without_adapting_threshold(void)
+{
+    motor_bldc_six_step_t commutator;
+    motor_bldc_sensorless_t sensorless;
+    motor_bldc_sensorless_config_t config;
+    const float positive_c[3] = {12.0f, 12.0f, 13.0f};
+    uint8_t i;
+
+    init_pair(&commutator, &sensorless, &config);
+    config.bemf_integral_threshold_vs = 0.0001f;
+    config.period_change_limit = 0.10f;
+    config.period_filter_alpha = 0.25f;
+    assert(Motor_BldcSensorless_Init(&sensorless, &commutator, &config));
+    assert(Motor_BldcSensorless_Start(&sensorless, MOTOR_BLDC_DIRECTION_CW, 0.08f));
+    sensorless.mode = MOTOR_BLDC_SENSORLESS_CLOSED_LOOP;
+    sensorless.filtered_commutation_period_s = 0.010f;
+    sensorless.step_integral_threshold_vs[0] = 0.100f;
+
+    for (i = 0U; i < 11U; i++) {
+        assert(Motor_BldcSensorless_Step(&sensorless, positive_c, 24.0f, 0.001f));
+    }
+    assert(sensorless.step == 1U);
+    assert(sensorless.forced_commutations == 1U);
+    assert(sensorless.step_integral_threshold_vs[0] == 0.100f);
+    assert(sensorless.filtered_commutation_period_s == 0.010f);
+}
+
 int main(void)
 {
     test_open_loop_to_integral_closed_loop();
@@ -136,6 +198,8 @@ int main(void)
     test_invalid_sample_stops_bridge();
     test_bemf_integrator_commutates();
     test_bemf_integrator_limits_period_reduction();
+    test_startup_preserves_integral_threshold();
+    test_closed_loop_forces_late_step_without_adapting_threshold();
     puts("motor_bldc_sensorless tests passed");
     return 0;
 }

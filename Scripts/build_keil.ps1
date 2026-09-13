@@ -124,8 +124,10 @@ Write-Host "Log:     $logFile"
 $argsList = @($flag, $info.Uvprojx, "-t", $Target, "-o", $logFile, "-j0")
 $proc = Start-Process -FilePath $uv4Path -ArgumentList $argsList -Wait -PassThru -NoNewWindow
 $code = $proc.ExitCode
+$logText = ""
 
 if (Test-Path -LiteralPath $logFile) {
+    $logText = Get-Content -LiteralPath $logFile -Raw
     Write-Host "----- log (tail) -----"
     Get-Content -LiteralPath $logFile -Tail 40
     Write-Host "----- end log -----"
@@ -134,7 +136,10 @@ if (Test-Path -LiteralPath $logFile) {
 }
 
 # 0 成功；1 仅警告；2+ 失败
-$ok = ($code -eq 0) -or ((-not $StrictWarnings) -and ($code -eq 1))
+$logFailed = $logText -match "(?im)^error\s+-" -or
+             $logText -match "(?im)^Target not created\."
+$ok = (($code -eq 0) -or ((-not $StrictWarnings) -and ($code -eq 1))) -and
+      (-not $logFailed)
 if ($ok) {
     if ($code -eq 1) {
         Write-Host "Keil finished with warnings (exit $code)."
@@ -147,5 +152,8 @@ if ($ok) {
     exit 0
 }
 
+if ($logFailed -and $code -lt 2) {
+    $code = 2
+}
 Write-Error "Keil failed (exit $code). See $logFile"
 exit $code
