@@ -30,15 +30,36 @@ static void test_open_loop_to_integral_closed_loop(void)
     motor_bldc_six_step_t commutator;
     motor_bldc_sensorless_t sensorless;
     motor_bldc_sensorless_config_t config;
-    const float neutral[3] = {0.0f, 0.0f, 0.0f};
+    static const uint8_t floating_phase[6] = {2U, 1U, 0U, 2U, 1U, 0U};
+    float phase[3];
+    uint8_t i;
 
     init_pair(&commutator, &sensorless, &config);
     assert(Motor_BldcSensorless_Start(&sensorless, MOTOR_BLDC_DIRECTION_CW, 0.08f));
-    assert(Motor_BldcSensorless_Step(&sensorless, neutral, 24.0f, 0.001f));
+    phase[0] = 12.0f;
+    phase[1] = 12.0f;
+    phase[2] = 12.0f;
+    assert(Motor_BldcSensorless_Step(&sensorless, phase, 24.0f, 0.001f));
     assert(sensorless.mode == MOTOR_BLDC_SENSORLESS_OPEN_LOOP);
-    assert(Motor_BldcSensorless_Step(&sensorless, neutral, 24.0f, 0.010f));
+    for (i = 0U; i < 6U; i++) {
+        phase[0] = 12.0f;
+        phase[1] = 12.0f;
+        phase[2] = 12.0f;
+        phase[floating_phase[sensorless.step]] +=
+            (sensorless.step & 1U) == 0U ? 1.0f : -1.0f;
+        assert(Motor_BldcSensorless_Step(&sensorless, phase, 24.0f, 0.010f));
+    }
     assert(sensorless.mode == MOTOR_BLDC_SENSORLESS_CLOSED_LOOP);
-    assert(sensorless.step == 2U);
+    assert(sensorless.startup_sync_sectors == 6U);
+    assert(sensorless.startup_valid_sectors == 6U);
+    assert(sensorless.startup_invalid_sectors == 0U);
+    assert(sensorless.startup_takeover_time_s > 0.0f);
+    assert(sensorless.startup_takeover_period_s == 0.010f);
+    for (i = 0U; i < 6U; i++) {
+        assert(sensorless.step_startup_integral_vs[i] > 0.0f);
+        assert(sensorless.step_startup_reverse_integral_vs[i] == 0.0f);
+    }
+    assert(sensorless.step == 1U);
     assert(sensorless.filtered_commutation_period_s == 0.010f);
 }
 
@@ -61,6 +82,60 @@ static void test_fixed_open_loop_ignores_bemf(void)
     assert(sensorless.step == 2U);
     assert(commutator.output.step == 2U);
     assert(sensorless.config.startup_final_period_s == startup_final_period_s);
+    assert(commutator.duty == 0.08f);
+}
+
+static void test_automatic_start_uses_startup_duty_then_slews_to_target(void)
+{
+    motor_bldc_six_step_t commutator;
+    motor_bldc_sensorless_t sensorless;
+    motor_bldc_sensorless_config_t config;
+    const float neutral[3] = {12.0f, 12.0f, 12.0f};
+
+    init_pair(&commutator, &sensorless, &config);
+    config.startup_duty = 0.08f;
+    config.duty_slew_rate_per_s = 0.05f;
+    assert(Motor_BldcSensorless_Init(&sensorless, &commutator, &config));
+    assert(Motor_BldcSensorless_Start(&sensorless, MOTOR_BLDC_DIRECTION_CW, 0.12f));
+    assert(commutator.duty == 0.08f);
+    assert(sensorless.target_duty == 0.12f);
+
+    sensorless.mode = MOTOR_BLDC_SENSORLESS_CLOSED_LOOP;
+    assert(Motor_BldcSensorless_Step(&sensorless, neutral, 24.0f, 0.10f));
+    assert(commutator.duty > 0.0849f && commutator.duty < 0.0851f);
+}
+
+static void test_fixed_open_loop_uses_requested_duty(void)
+{
+    motor_bldc_six_step_t commutator;
+    motor_bldc_sensorless_t sensorless;
+    motor_bldc_sensorless_config_t config;
+
+    init_pair(&commutator, &sensorless, &config);
+    assert(Motor_BldcSensorless_StartOpenLoop(&sensorless, MOTOR_BLDC_DIRECTION_CW,
+                                              0.12f, 0.010f));
+    assert(commutator.duty == 0.12f);
+    assert(sensorless.target_duty == 0.12f);
+}
+
+static void test_open_loop_rejects_unsynchronized_bemf(void)
+{
+    motor_bldc_six_step_t commutator;
+    motor_bldc_sensorless_t sensorless;
+    motor_bldc_sensorless_config_t config;
+    const float neutral[3] = {12.0f, 12.0f, 12.0f};
+    uint8_t i;
+
+    init_pair(&commutator, &sensorless, &config);
+    assert(Motor_BldcSensorless_Start(&sensorless, MOTOR_BLDC_DIRECTION_CW, 0.08f));
+    for (i = 0U; i < 20U && sensorless.mode != MOTOR_BLDC_SENSORLESS_FAULT; i++) {
+        Motor_BldcSensorless_Step(&sensorless, neutral, 24.0f, 0.010f);
+        assert(sensorless.mode != MOTOR_BLDC_SENSORLESS_CLOSED_LOOP);
+    }
+    assert(sensorless.fault == MOTOR_BLDC_SENSORLESS_FAULT_STARTUP_TIMEOUT);
+    assert(sensorless.startup_sync_sectors == 0U);
+    assert(sensorless.startup_valid_sectors == 0U);
+    assert(sensorless.startup_invalid_sectors > 0U);
 }
 
 static void test_invalid_sample_stops_bridge(void)
@@ -147,15 +222,15 @@ static void test_startup_preserves_integral_threshold(void)
     phase[1] = 12.0f;
     phase[2] = 12.0f;
     phase[floating_phase[sensorless.step]] +=
-        (sensorless.step & 1U) == 0U ? 1.0f : -1.0f;
+        (sensorless.step & 1U) == 0U ? 2.0f : -2.0f;
     assert(Motor_BldcSensorless_Step(&sensorless, phase, 24.0f, 0.001f));
 
-    for (i = 0U; i < 30U && sensorless.mode != MOTOR_BLDC_SENSORLESS_CLOSED_LOOP; i++) {
+    for (i = 0U; i < 100U && sensorless.mode != MOTOR_BLDC_SENSORLESS_CLOSED_LOOP; i++) {
         phase[0] = 12.0f;
         phase[1] = 12.0f;
         phase[2] = 12.0f;
         phase[floating_phase[sensorless.step]] +=
-            (sensorless.step & 1U) == 0U ? 1.0f : -1.0f;
+            (sensorless.step & 1U) == 0U ? 2.0f : -2.0f;
         assert(Motor_BldcSensorless_Step(&sensorless, phase, 24.0f, 0.001f));
     }
     assert(sensorless.mode == MOTOR_BLDC_SENSORLESS_CLOSED_LOOP);
@@ -189,15 +264,44 @@ static void test_closed_loop_forces_late_step_without_adapting_threshold(void)
     assert(sensorless.filtered_commutation_period_s == 0.010f);
 }
 
+static void test_closed_loop_trips_after_one_forced_electrical_cycle(void)
+{
+    motor_bldc_six_step_t commutator;
+    motor_bldc_sensorless_t sensorless;
+    motor_bldc_sensorless_config_t config;
+    const float neutral[3] = {12.0f, 12.0f, 12.0f};
+    uint8_t i;
+
+    init_pair(&commutator, &sensorless, &config);
+    assert(Motor_BldcSensorless_Start(&sensorless, MOTOR_BLDC_DIRECTION_CW, 0.08f));
+    sensorless.mode = MOTOR_BLDC_SENSORLESS_CLOSED_LOOP;
+    sensorless.filtered_commutation_period_s = 0.010f;
+
+    for (i = 0U; i < 5U; i++) {
+        assert(Motor_BldcSensorless_Step(&sensorless, neutral, 24.0f, 0.013f));
+        assert(sensorless.mode == MOTOR_BLDC_SENSORLESS_CLOSED_LOOP);
+    }
+    assert(!Motor_BldcSensorless_Step(&sensorless, neutral, 24.0f, 0.013f));
+    assert(sensorless.mode == MOTOR_BLDC_SENSORLESS_FAULT);
+    assert(sensorless.fault == MOTOR_BLDC_SENSORLESS_FAULT_BEMF_LOST);
+    assert(sensorless.forced_commutations == 6U);
+    assert(sensorless.consecutive_forced_commutations == 6U);
+    assert(!Motor_BldcSixStep_IsRunning(&commutator));
+}
+
 int main(void)
 {
     test_open_loop_to_integral_closed_loop();
     test_fixed_open_loop_ignores_bemf();
+    test_automatic_start_uses_startup_duty_then_slews_to_target();
+    test_fixed_open_loop_uses_requested_duty();
+    test_open_loop_rejects_unsynchronized_bemf();
     test_invalid_sample_stops_bridge();
     test_bemf_integrator_commutates();
     test_bemf_integrator_limits_period_reduction();
     test_startup_preserves_integral_threshold();
     test_closed_loop_forces_late_step_without_adapting_threshold();
+    test_closed_loop_trips_after_one_forced_electrical_cycle();
     puts("motor_bldc_sensorless tests passed");
     return 0;
 }

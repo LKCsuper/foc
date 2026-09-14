@@ -34,6 +34,8 @@ typedef enum {
 
 typedef struct {
     float align_time_s;              /* 固定一步定向时间 */
+    float startup_duty;              /* 自动模式定向与开环启动占空比 */
+    float duty_slew_rate_per_s;      /* 闭环接管后的占空比变化速率 (1/s) */
     float startup_initial_period_s;  /* 开环首段 60° 换相周期 */
     float startup_final_period_s;    /* 开环斜坡末段换相周期 */
     float startup_ramp_time_s;       /* 从 initial 线性降到 final 的时间 */
@@ -55,6 +57,7 @@ typedef struct {
     motor_bldc_sensorless_mode_t mode;
     motor_bldc_sensorless_fault_t fault;
     motor_bldc_direction_t direction;
+    float target_duty;
     float state_elapsed_s;
     float startup_elapsed_s;
     float sector_elapsed_s;
@@ -64,14 +67,25 @@ typedef struct {
     float fixed_open_loop_period_s;
     float filtered_bemf_v;
     float bemf_integral_vs;
+    float bemf_reverse_integral_vs;
     float startup_bemf_min_v;
     float startup_bemf_max_v;
     uint8_t step;
     uint32_t integral_commutations;
     uint32_t forced_commutations;
+    uint8_t consecutive_forced_commutations;
+    uint32_t startup_valid_sectors;
+    uint32_t startup_invalid_sectors;
+    uint32_t startup_sync_resets;
+    float startup_takeover_time_s;
+    float startup_takeover_period_s;
+    uint8_t startup_sync_sectors;
     uint16_t step_integral_commutations[6];
     uint16_t step_forced_commutations[6];
     float step_last_period_s[6];
+    float step_last_integral_vs[6];
+    float step_startup_integral_vs[6];
+    float step_startup_reverse_integral_vs[6];
     float step_bemf_min_v[6];
     float step_bemf_max_v[6];
     float step_bemf_waveform_v[6][MOTOR_BLDC_BEMF_BIN_COUNT];

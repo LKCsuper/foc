@@ -92,9 +92,9 @@ void Hal_Motor_BldcApply(hal_motor_bldc_phase_mode_t phase_a,
     }
 
     /*
-     * TIM2 与 TIM1 在 APB1/APB2 上分别以 84/168MHz 计数，并在 TIM1
-     * 每次更新时复位。TIM2 CCR2=pulse/4 对应 TIM1 PWM 导通脉冲的中点。
-     * 停机时恢复 FOC 原有固定采样点，避免 BLDC 配置泄漏到 FOC。
+     * VESC 普通 BLDC 先以 duty/2 选取导通脉冲中点，HD75 的
+     * TIM2 计数频率又是 TIM1 的一半，因此最终写入 pulse/4。
+     * 停机时 pulse 为 0，恢复 FOC 原有的固定采样点。
      */
     if (pulse == 0U) {
         TIM2->CCR2 = HAL_MOTOR_BLDC_FOC_SAMPLE_COUNT;

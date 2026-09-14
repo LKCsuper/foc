@@ -40,20 +40,34 @@ def parse_status(text: str, elapsed_s: float) -> dict[str, float | int | str]:
     periods = re.search(r"last_period/step=([0-9.,-]+)ms", text)
     integral_steps = re.search(r"integral_comm/step=([0-9,]+)", text)
     forced_steps = re.search(r"forced_comm/step=([0-9,]+)", text)
+    last_integrals = re.search(r"last_integral/step=([0-9.,-]+)V\*s", text)
+    startup = re.search(
+        r"startup valid=(\d+) invalid=(\d+) resets=(\d+) "
+        r"takeover=([-+0-9.]+)ms@([-+0-9.]+)ms", text
+    )
+    startup_forward = re.search(r"startup_forward/step=([0-9.,-]+)V\*s", text)
+    startup_reverse = re.search(r"startup_reverse/step=([0-9.,-]+)V\*s", text)
     waveforms = [re.search(rf"bemf_wave/{index}=([0-9.,-]+)V", text) for index in range(6)]
     period_range = re.search(r"period_range=\[([-+0-9.]+),([-+0-9.]+)\]ms", text)
     if (STATUS_HEADER not in text or state is None or periods is None or
             period_range is None or
-            integral_steps is None or forced_steps is None or
+            integral_steps is None or forced_steps is None or last_integrals is None or
+            startup is None or
+            startup_forward is None or startup_reverse is None or
             any(waveform is None for waveform in waveforms)):
         raise ValueError("incomplete BLDC status; flash the latest firmware")
 
     values = [float(value) for value in periods.group(1).split(",")]
     integral_counts = [int(value) for value in integral_steps.group(1).split(",")]
     forced_counts = [int(value) for value in forced_steps.group(1).split(",")]
+    last_integral_values = [float(value) for value in last_integrals.group(1).split(",")]
+    startup_forward_values = [float(value) for value in startup_forward.group(1).split(",")]
+    startup_reverse_values = [float(value) for value in startup_reverse.group(1).split(",")]
     waveform_values = [[float(value) for value in waveform.group(1).split(",")]
                        for waveform in waveforms if waveform is not None]
     if (len(values) != 6 or len(integral_counts) != 6 or len(forced_counts) != 6 or
+            len(last_integral_values) != 6 or
+            len(startup_forward_values) != 6 or len(startup_reverse_values) != 6 or
             any(len(waveform) != 8 for waveform in waveform_values)):
         raise ValueError("invalid BLDC per-step diagnostics")
     return {
@@ -61,9 +75,18 @@ def parse_status(text: str, elapsed_s: float) -> dict[str, float | int | str]:
         "mode": state.group(1),
         "fault": state.group(2),
         "motor_fault": int(state.group(3)),
+        "duty": match_float(r"\bduty=([-+0-9.]+)", text),
+        "target_duty": match_float(r"\btarget=([-+0-9.]+)", text),
         "step": match_int(r"\bstep=(\d+)", text),
         "commutations": match_int(r"commutations=(\d+)", text),
         "forced": match_int(r"forced=(\d+)", text),
+        "consecutive_forced": match_int(r"consecutive=(\d+)", text),
+        "startup_sync": match_int(r"sync=(\d+)/6", text),
+        "startup_valid": int(startup.group(1)),
+        "startup_invalid": int(startup.group(2)),
+        "startup_resets": int(startup.group(3)),
+        "startup_takeover_ms": float(startup.group(4)),
+        "startup_takeover_period_ms": float(startup.group(5)),
         "bemf_v": match_float(r"\bbemf=([-+0-9.]+)V", text),
         "sector_ms": match_float(r"sector=([-+0-9.]+)ms", text),
         "period_ms": match_float(r"\bperiod=([-+0-9.]+)ms", text),
@@ -76,6 +99,12 @@ def parse_status(text: str, elapsed_s: float) -> dict[str, float | int | str]:
         **{f"step{index}_integral_count": value
            for index, value in enumerate(integral_counts)},
         **{f"step{index}_forced_count": value for index, value in enumerate(forced_counts)},
+        **{f"step{index}_last_integral_vs": value
+           for index, value in enumerate(last_integral_values)},
+        **{f"step{index}_startup_forward_vs": value
+           for index, value in enumerate(startup_forward_values)},
+        **{f"step{index}_startup_reverse_vs": value
+           for index, value in enumerate(startup_reverse_values)},
         **{f"step{step}_bemf_bin{bin_index}_v": value
            for step, waveform in enumerate(waveform_values)
            for bin_index, value in enumerate(waveform)},
@@ -116,6 +145,8 @@ class Capture:
 def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     if not 0.0 < args.duty <= 0.25:
         parser.error("--duty must be in (0, 0.25]")
+    if args.mode == "auto" and not 0.08 <= args.duty <= 0.10:
+        parser.error("automatic mode duty must be in the verified range [0.08, 0.10]")
     if not 1.0 <= args.duration <= 300.0:
         parser.error("--duration must be in [1, 300] seconds")
     if not 0.5 <= args.interval <= 30.0:

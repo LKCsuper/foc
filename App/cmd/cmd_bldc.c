@@ -87,10 +87,13 @@ static void Cmd_BldcPrintStatus(void)
     PRINTF("BLDC selected=%d running=%d mode=%s fault=%s motor_fault=%u\r\n",
            status.selected, status.running, Cmd_BldcModeName(status.mode),
            Cmd_BldcFaultName(status.fault), (unsigned)status.motor_fault);
-    PRINTF("  dir=%s duty=%.3f step=%u commutations=%lu forced=%lu\r\n",
+    PRINTF("  dir=%s duty=%.3f target=%.3f step=%u commutations=%lu forced=%lu consecutive=%u sync=%u/6\r\n",
            status.direction == MOTOR_BLDC_DIRECTION_CCW ? "CCW" : "CW", status.duty,
+           status.target_duty,
            (unsigned)status.step, (unsigned long)status.integral_commutations,
-           (unsigned long)status.forced_commutations);
+           (unsigned long)status.forced_commutations,
+           (unsigned)status.consecutive_forced_commutations,
+           (unsigned)status.startup_sync_sectors);
     PRINTF("  bemf=%.3fV range=[%.3f,%.3f]V sector=%.3fms period=%.3fms vbus=%.2fV\r\n",
            status.bemf_v, status.bemf_min_v, status.bemf_max_v,
            status.sector_elapsed_s * 1000.0f, status.commutation_period_s * 1000.0f, motor.v_bus);
@@ -99,6 +102,23 @@ static void Cmd_BldcPrintStatus(void)
            status.maximum_commutation_period_s * 1000.0f);
     PRINTF("  sense=INTEGRAL integral=%.6f/%.6fV*s\r\n", status.bemf_integral_vs,
            status.bemf_integral_threshold_vs);
+    PRINTF("  startup valid=%lu invalid=%lu resets=%lu takeover=%.3fms@%.3fms\r\n",
+           (unsigned long)status.startup_valid_sectors,
+           (unsigned long)status.startup_invalid_sectors,
+           (unsigned long)status.startup_sync_resets,
+           status.startup_takeover_time_s * 1000.0f,
+           status.startup_takeover_period_s * 1000.0f);
+    PRINTF("  startup_forward/step=%.6f,%.6f,%.6f,%.6f,%.6f,%.6fV*s\r\n",
+           status.step_startup_integral_vs[0], status.step_startup_integral_vs[1],
+           status.step_startup_integral_vs[2], status.step_startup_integral_vs[3],
+           status.step_startup_integral_vs[4], status.step_startup_integral_vs[5]);
+    PRINTF("  startup_reverse/step=%.6f,%.6f,%.6f,%.6f,%.6f,%.6fV*s\r\n",
+           status.step_startup_reverse_integral_vs[0],
+           status.step_startup_reverse_integral_vs[1],
+           status.step_startup_reverse_integral_vs[2],
+           status.step_startup_reverse_integral_vs[3],
+           status.step_startup_reverse_integral_vs[4],
+           status.step_startup_reverse_integral_vs[5]);
     PRINTF("  adc_sample=TIM2:%lu (TIM1:%lu)\r\n",
            (unsigned long)status.bemf_sample_count,
            (unsigned long)(2U * status.bemf_sample_count));
@@ -120,6 +140,10 @@ static void Cmd_BldcPrintStatus(void)
            status.step_last_period_s[0] * 1000.0f, status.step_last_period_s[1] * 1000.0f,
            status.step_last_period_s[2] * 1000.0f, status.step_last_period_s[3] * 1000.0f,
            status.step_last_period_s[4] * 1000.0f, status.step_last_period_s[5] * 1000.0f);
+    PRINTF("  last_integral/step=%.6f,%.6f,%.6f,%.6f,%.6f,%.6fV*s\r\n",
+           status.step_last_integral_vs[0], status.step_last_integral_vs[1],
+           status.step_last_integral_vs[2], status.step_last_integral_vs[3],
+           status.step_last_integral_vs[4], status.step_last_integral_vs[5]);
     PRINTF("  min/step=%.3f,%.3f,%.3f,%.3f,%.3f,%.3fV\r\n", status.step_bemf_min_v[0],
            status.step_bemf_min_v[1], status.step_bemf_min_v[2], status.step_bemf_min_v[3],
            status.step_bemf_min_v[4], status.step_bemf_min_v[5]);
@@ -216,7 +240,7 @@ int Cmd_Bldc(int argc, char *argv[])
         return 0;
     }
     if (!Motor_Bldc_Start(direction, duty)) {
-        PRINTF("BLDC start rejected: stop FOC, clear fault, use duty (0,0.25]\r\n");
+        PRINTF("BLDC start rejected: stop FOC, clear fault, use verified duty [0.08,0.10]\r\n");
         return 0;
     }
     PRINTF("BLDC start: duty=%.3f dir=%s\r\n", duty,

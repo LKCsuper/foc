@@ -16,6 +16,7 @@ typedef struct {
     bool selected;
     bool running;
     float duty;
+    float target_duty;
     uint8_t step;
     motor_bldc_direction_t direction;
     motor_bldc_sensorless_mode_t mode;
@@ -29,13 +30,24 @@ typedef struct {
     float minimum_commutation_period_s;
     float maximum_commutation_period_s;
     float bemf_integral_vs;
+    float bemf_reverse_integral_vs;
     float bemf_integral_threshold_vs;
     uint32_t bemf_sample_count;
     uint32_t integral_commutations;
     uint32_t forced_commutations;
+    uint8_t consecutive_forced_commutations;
+    uint32_t startup_valid_sectors;
+    uint32_t startup_invalid_sectors;
+    uint32_t startup_sync_resets;
+    float startup_takeover_time_s;
+    float startup_takeover_period_s;
+    uint8_t startup_sync_sectors;
     uint16_t step_integral_commutations[6];
     uint16_t step_forced_commutations[6];
     float step_last_period_s[6];
+    float step_last_integral_vs[6];
+    float step_startup_integral_vs[6];
+    float step_startup_reverse_integral_vs[6];
     float step_bemf_min_v[6];
     float step_bemf_max_v[6];
     float step_bemf_waveform_v[6][MOTOR_BLDC_BEMF_BIN_COUNT];
@@ -156,7 +168,7 @@ void Motor_It_ParamCal(void);
  * @description: 选择并启动默认无感 BLDC 六步控制实例。
  * @detail: 仅允许在 FOC 停机且保护未锁存时调用；成功后 ADC 中断不再执行 FOC 输出。
  * @param {motor_bldc_direction_t} direction 转向，只允许 CW 或 CCW
- * @param {float} duty PWM 占空比，范围 (0,0.25]
+ * @param {float} duty PWM 占空比，当前实测安全范围 [0.08,0.10]
  * @return {bool} 成功进入 BLDC 定向状态返回 true
  * @author: lkc
  */

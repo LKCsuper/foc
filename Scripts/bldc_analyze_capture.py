@@ -72,30 +72,70 @@ def main() -> int:
     spread = max(valid_periods) - min(valid_periods)
     spread_ratio = spread / mean_period if mean_period > 0.0 else 0.0
     print(f"  final filtered period: {float(last['period_ms']):.3f} ms")
+    if "duty" in last and "target_duty" in last:
+        print(
+            f"  duty: applied={float(last['duty']):.3f}, "
+            f"target={float(last['target_duty']):.3f}"
+        )
     print("  last period/step: " + ", ".join(f"{value:.3f}" for value in periods) + " ms")
     print(f"  step spread: {spread:.3f} ms ({spread_ratio * 100.0:.1f}%)")
+    startup_forward = [float(last[f"step{index}_startup_forward_vs"])
+                       for index in range(6)]
+    startup_reverse = [float(last[f"step{index}_startup_reverse_vs"])
+                       for index in range(6)]
+    print(
+        f"  startup: sync={last['startup_sync']}/6, valid={last['startup_valid']}, "
+        f"invalid={last['startup_invalid']}, resets={last['startup_resets']}, "
+        f"takeover={float(last['startup_takeover_ms']):.3f} ms "
+        f"at {float(last['startup_takeover_period_ms']):.3f} ms"
+    )
+    print("  startup forward/step: " +
+          ", ".join(f"{value:.6f}" for value in startup_forward) + " V*s")
+    print("  startup reverse/step: " +
+          ", ".join(f"{value:.6f}" for value in startup_reverse) + " V*s")
     print_bemf_waveform(last)
     if "step0_integral_count" in last:
         integral_counts = [int(last[f"step{index}_integral_count"]) for index in range(6)]
         forced_counts = [int(last[f"step{index}_forced_count"]) for index in range(6)]
+        last_integrals = [float(last[f"step{index}_last_integral_vs"])
+                          for index in range(6)]
         print("  integral commutation/step: " +
               ", ".join(str(value) for value in integral_counts))
         print("  forced commutation/step: " +
               ", ".join(str(value) for value in forced_counts))
-    forced = last.get("forced", "0")
+        print("  last integral/step: " +
+              ", ".join(f"{value:.6f}" for value in last_integrals) + " V*s")
+    integral_commutations = int(last["commutations"])
+    forced_commutations = int(last.get("forced", "0"))
     print(
-        f"  commutations: {last['commutations']}, forced: {forced}, "
+        f"  commutations: {integral_commutations}, forced: {forced_commutations}, "
         f"threshold: {float(last['threshold_vs']):.6f} V*s"
     )
 
     if faults:
         print("  result: FAIL - a motor or BLDC fault was reported")
         return 2
+    if int(last["startup_sync"]) < 6:
+        print("  result: FAIL - closed loop was entered without complete startup synchronization")
+        return 2
+    if any(forward <= reverse
+           for forward, reverse in zip(startup_forward, startup_reverse)):
+        print("  result: FAIL - startup BEMF polarity is not dominant on every step")
+        return 2
+    if integral_commutations == 0 and forced_commutations > 0:
+        print("  result: FAIL - closed-loop state is running only on forced commutation")
+        return 2
     if spread_ratio > 0.25:
         slow_step = periods.index(max(valid_periods))
         print(f"  result: NEEDS_TUNING - step {slow_step} is substantially slower than the others")
         return 1
-    print("  result: TIMING_ONLY - mechanical observation is still required")
+    if forced_commutations > 0:
+        print("  result: NEEDS_TUNING - synchronized startup succeeded, but forced commutation remains")
+        return 1
+    if int(last["startup_resets"]) > 0:
+        print("  result: PASS_WITH_STARTUP_RETRY - synchronization succeeded after a reset")
+        return 1
+    print("  result: PASS_SYNCHRONIZED - startup and integral commutation are both valid")
     return 0
 
 

@@ -38,6 +38,8 @@ extern "C" {
 #include "motor_hall_angle.h"
 #include "motor_hall.h"
 /* Private define ------------------------------------------------------------*/
+#define MOTOR_BLDC_AUTO_DUTY_MIN 0.08f
+#define MOTOR_BLDC_AUTO_DUTY_MAX 0.10f
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -100,16 +102,18 @@ static bool Motor_Bldc_InitDefault(void)
     }
     Motor_BldcSensorless_DefaultConfig(&sensorless_config);
     /* 24 V 实测 8%/12ms 基本同步，14ms 明显抖动；启动终点固定在已验证工作点。 */
-    sensorless_config.startup_initial_period_s = 0.080f;
+    sensorless_config.startup_duty = 0.08f;
+    sensorless_config.duty_slew_rate_per_s = 0.05f;
+    sensorless_config.startup_initial_period_s = 0.050f;
     sensorless_config.startup_final_period_s = 0.012f;
-    sensorless_config.startup_ramp_time_s = 3.0f;
-    sensorless_config.startup_timeout_s = 5.0f;
+    sensorless_config.startup_ramp_time_s = 0.60f;
+    sensorless_config.startup_timeout_s = 3.0f;
     sensorless_config.closed_loop_timeout_s = 0.150f;
     /* 积分阈值命中不得让换相周期单步骤降，否则转子会脱离旋转磁场。 */
     sensorless_config.period_change_limit = 0.10f;
     /* 当前阶段先锁住已验证的 12ms 工作点，确认实测 BEMF 极性后再开放调速范围。 */
     sensorless_config.closed_loop_min_period_s = 0.012f;
-    /* 配置阈值仅作辨识失败回退；正常启动会从末段完整扇区自动学习 BEMF 面积。 */
+    /* 使用实测统一阈值；启动过程不再自动学习或修改积分阈值。 */
     sensorless_config.bemf_integral_threshold_vs = 0.0004f;
     sensorless_config.bemf_integral_noise_v = 0.05f;
     /* 受限闭环实测：偶数 step 为正、奇数 step 为负，积分统一取正面积。 */
@@ -150,7 +154,7 @@ static void Motor_Bldc_StatusUnlock(uint32_t primask)
 /**
  * @description: 选择并启动默认无感 BLDC 六步实例。
  * @param {motor_bldc_direction_t} direction 转向
- * @param {float} duty PWM 占空比，范围 (0,0.25]
+ * @param {float} duty PWM 占空比；自动模式范围 [0.08,0.10]，固定开环范围 (0,0.25]
  * @return {bool} 启动成功返回 true
  * @author: lkc
  */
@@ -160,6 +164,8 @@ static bool Motor_Bldc_StartInternal(motor_bldc_direction_t direction, float dut
     bool started = false;
 
     if (motor.ol_enable || Motor_Protect_IsFaultLatched() || duty <= 0.0f || duty > 0.25f ||
+        (!fixed_open_loop &&
+         (duty < MOTOR_BLDC_AUTO_DUTY_MIN || duty > MOTOR_BLDC_AUTO_DUTY_MAX)) ||
         (direction != MOTOR_BLDC_DIRECTION_CW && direction != MOTOR_BLDC_DIRECTION_CCW)) {
         return false;
     }
@@ -193,7 +199,7 @@ static bool Motor_Bldc_StartInternal(motor_bldc_direction_t direction, float dut
 /**
  * @description: 选择并启动默认无感 BLDC 六步实例。
  * @param {motor_bldc_direction_t} direction 转向
- * @param {float} duty PWM 占空比，范围 (0,0.25]
+ * @param {float} duty PWM 占空比，当前实测安全范围 [0.08,0.10]
  * @return {bool} 启动成功返回 true
  * @author: lkc
  */
@@ -302,6 +308,7 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
     if (s_bldc_initialized) {
         status->running = Motor_BldcSixStep_IsRunning(&s_bldc_commutator);
         status->duty = s_bldc_commutator.duty;
+        status->target_duty = s_bldc_sensorless.target_duty;
         status->step = s_bldc_sensorless.step;
         status->direction = s_bldc_sensorless.direction;
         status->mode = s_bldc_sensorless.mode;
@@ -317,11 +324,20 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
         status->maximum_commutation_period_s =
             s_bldc_sensorless.maximum_commutation_period_s;
         status->bemf_integral_vs = s_bldc_sensorless.bemf_integral_vs;
+        status->bemf_reverse_integral_vs = s_bldc_sensorless.bemf_reverse_integral_vs;
         status->bemf_integral_threshold_vs =
             s_bldc_sensorless.config.bemf_integral_threshold_vs;
         status->bemf_sample_count = Hal_Motor_BldcGetSampleCount();
         status->integral_commutations = s_bldc_sensorless.integral_commutations;
         status->forced_commutations = s_bldc_sensorless.forced_commutations;
+        status->consecutive_forced_commutations =
+            s_bldc_sensorless.consecutive_forced_commutations;
+        status->startup_valid_sectors = s_bldc_sensorless.startup_valid_sectors;
+        status->startup_invalid_sectors = s_bldc_sensorless.startup_invalid_sectors;
+        status->startup_sync_resets = s_bldc_sensorless.startup_sync_resets;
+        status->startup_takeover_time_s = s_bldc_sensorless.startup_takeover_time_s;
+        status->startup_takeover_period_s = s_bldc_sensorless.startup_takeover_period_s;
+        status->startup_sync_sectors = s_bldc_sensorless.startup_sync_sectors;
         memcpy(status->step_integral_commutations,
                s_bldc_sensorless.step_integral_commutations,
                sizeof(status->step_integral_commutations));
@@ -330,6 +346,14 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
                sizeof(status->step_forced_commutations));
         memcpy(status->step_last_period_s, s_bldc_sensorless.step_last_period_s,
                sizeof(status->step_last_period_s));
+        memcpy(status->step_last_integral_vs, s_bldc_sensorless.step_last_integral_vs,
+               sizeof(status->step_last_integral_vs));
+        memcpy(status->step_startup_integral_vs,
+               s_bldc_sensorless.step_startup_integral_vs,
+               sizeof(status->step_startup_integral_vs));
+        memcpy(status->step_startup_reverse_integral_vs,
+               s_bldc_sensorless.step_startup_reverse_integral_vs,
+               sizeof(status->step_startup_reverse_integral_vs));
         memcpy(status->step_bemf_min_v, s_bldc_sensorless.step_bemf_min_v,
                sizeof(status->step_bemf_min_v));
         memcpy(status->step_bemf_max_v, s_bldc_sensorless.step_bemf_max_v,

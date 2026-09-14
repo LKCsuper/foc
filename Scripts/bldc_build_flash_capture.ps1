@@ -18,6 +18,12 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ($Mode -eq "auto" -and ($Duty -lt 0.08 -or $Duty -gt 0.10)) {
+    throw "Automatic BLDC duty must be in the verified range [0.08, 0.10]"
+}
+if ($Mode -eq "open" -and ($Duty -le 0.0 -or $Duty -gt 0.25)) {
+    throw "Fixed-open BLDC duty must be in (0, 0.25]"
+}
 $root = Split-Path $PSScriptRoot -Parent
 $firmware = Join-Path (Split-Path $root -Parent) "build\foc.hex"
 $runStamp = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -129,5 +135,5 @@ if ($analysisCode -eq 2) {
     throw "BLDC analysis detected a failed run"
 }
 if ($analysisCode -eq 1) {
-    Write-Warning "Run completed, but the commutation periods still need tuning."
+    Write-Warning "Run completed, but startup or commutation still has a nonfatal tuning issue."
 }
