@@ -58,6 +58,7 @@ static motor_bldc_six_step_t s_bldc_commutator;
 static motor_bldc_sensorless_t s_bldc_sensorless;
 static volatile bool s_bldc_selected = false;
 static bool s_bldc_initialized = false;
+static bool s_bldc_sample_upward = true;
 /*
  * ADC-DMA 中断执行时间统计。
  * TIM5 在 BSP 中配置为 1MHz，所以计数差值直接等于微秒数。
@@ -110,11 +111,13 @@ static bool Motor_Bldc_InitDefault(void)
     sensorless_config.startup_timeout_s = 3.0f;
     sensorless_config.closed_loop_timeout_s = 0.150f;
     /* 积分阈值命中不得让换相周期单步骤降，否则转子会脱离旋转磁场。 */
-    sensorless_config.period_change_limit = 0.10f;
-    /* 当前阶段先锁住已验证的 12ms 工作点，确认实测 BEMF 极性后再开放调速范围。 */
-    sensorless_config.closed_loop_min_period_s = 0.012f;
-    /* 使用实测统一阈值；启动过程不再自动学习或修改积分阈值。 */
-    sensorless_config.bemf_integral_threshold_vs = 0.0004f;
+    sensorless_config.period_change_limit = 0.01f;
+    /* 默认以 0.08/12ms 与 0.10/11ms 两个上板工作点插值，不在区间外推。 */
+    sensorless_config.closed_loop_min_period_s = 0.001f;
+    sensorless_config.duty_period_enabled = true;
+    sensorless_config.bemf_integral_threshold_vs = 0.004f;
+    sensorless_config.integral_auto_detect_enabled = false;
+    sensorless_config.integral_detect_scale = 1.0f;
     sensorless_config.bemf_integral_noise_v = 0.05f;
     /* 受限闭环实测：偶数 step 为正、奇数 step 为负，积分统一取正面积。 */
     sensorless_config.step0_rising = true;
@@ -164,6 +167,7 @@ static bool Motor_Bldc_StartInternal(motor_bldc_direction_t direction, float dut
     bool started = false;
 
     if (motor.ol_enable || Motor_Protect_IsFaultLatched() || duty <= 0.0f || duty > 0.25f ||
+        (!fixed_open_loop && !s_bldc_sample_upward) ||
         (!fixed_open_loop &&
          (duty < MOTOR_BLDC_AUTO_DUTY_MIN || duty > MOTOR_BLDC_AUTO_DUTY_MAX)) ||
         (direction != MOTOR_BLDC_DIRECTION_CW && direction != MOTOR_BLDC_DIRECTION_CCW)) {
@@ -223,6 +227,26 @@ bool Motor_Bldc_StartOpenLoop(motor_bldc_direction_t direction, float duty,
 }
 
 /**
+ * @description: 停机时选择 BLDC BEMF 使用的 PWM 采样半周期。
+ * @detail: 只改变 BLDC 中断路径消费哪一帧，不重配置定时器或 ADC。
+ * @param {bool} upward true=向上计数侧，false=向下计数侧
+ * @return {bool} 设置成功返回 true；运行中拒绝
+ * @author: lkc
+ */
+bool Motor_Bldc_SetSampleSide(bool upward)
+{
+    uint32_t primask;
+
+    if (s_bldc_initialized && Motor_BldcSixStep_IsRunning(&s_bldc_commutator)) {
+        return false;
+    }
+    primask = Motor_Bldc_StatusLock();
+    s_bldc_sample_upward = upward;
+    Motor_Bldc_StatusUnlock(primask);
+    return true;
+}
+
+/**
  * @description: 停机时更新 BLDC 积分阈值与最短换相周期。
  * @param {float} integral_threshold_vs BEMF 积分阈值 (V*s)
  * @param {float} minimum_period_s 闭环最短 60° 换相周期 (s)
@@ -247,6 +271,8 @@ bool Motor_Bldc_SetTuning(float integral_threshold_vs, float minimum_period_s)
     primask = Motor_Bldc_StatusLock();
     s_bldc_sensorless.config.bemf_integral_threshold_vs = integral_threshold_vs;
     s_bldc_sensorless.config.closed_loop_min_period_s = minimum_period_s;
+    s_bldc_sensorless.config.integral_auto_detect_enabled = false;
+    s_bldc_sensorless.config.duty_period_enabled = false;
     Motor_Bldc_StatusUnlock(primask);
     return true;
 }
@@ -323,13 +349,31 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
             s_bldc_sensorless.minimum_commutation_period_s;
         status->maximum_commutation_period_s =
             s_bldc_sensorless.maximum_commutation_period_s;
+        status->active_minimum_period_s = s_bldc_sensorless.active_minimum_period_s;
         status->bemf_integral_vs = s_bldc_sensorless.bemf_integral_vs;
         status->bemf_reverse_integral_vs = s_bldc_sensorless.bemf_reverse_integral_vs;
         status->bemf_integral_threshold_vs =
             s_bldc_sensorless.config.bemf_integral_threshold_vs;
+        if (s_bldc_sensorless.config.integral_auto_detect_enabled &&
+            s_bldc_sensorless.detected_integral_mask == 0x3FU &&
+            (s_bldc_sensorless.detected_integral_mask &
+             (uint8_t)(1U << s_bldc_sensorless.step)) != 0U) {
+            status->bemf_integral_threshold_vs =
+                s_bldc_sensorless.step_detected_integral_vs[s_bldc_sensorless.step];
+        }
         status->bemf_sample_count = Hal_Motor_BldcGetSampleCount();
         status->integral_commutations = s_bldc_sensorless.integral_commutations;
         status->forced_commutations = s_bldc_sensorless.forced_commutations;
+        status->phase_valid_samples = s_bldc_sensorless.phase_valid_samples;
+        status->phase_late_samples = s_bldc_sensorless.phase_late_samples;
+        status->phase_blocked_samples = s_bldc_sensorless.phase_blocked_samples;
+        status->detected_integral_mask = s_bldc_sensorless.detected_integral_mask;
+        status->integral_detect_settle_sectors =
+            s_bldc_sensorless.integral_detect_settle_sectors;
+        status->duty_period_enabled = s_bldc_sensorless.config.duty_period_enabled;
+        status->integral_auto_detect_enabled =
+            s_bldc_sensorless.config.integral_auto_detect_enabled;
+        status->sample_upward = s_bldc_sample_upward;
         status->consecutive_forced_commutations =
             s_bldc_sensorless.consecutive_forced_commutations;
         status->startup_valid_sectors = s_bldc_sensorless.startup_valid_sectors;
@@ -344,10 +388,16 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
         memcpy(status->step_forced_commutations,
                s_bldc_sensorless.step_forced_commutations,
                sizeof(status->step_forced_commutations));
+        memcpy(status->step_integral_detect_samples,
+               s_bldc_sensorless.step_integral_detect_samples,
+               sizeof(status->step_integral_detect_samples));
         memcpy(status->step_last_period_s, s_bldc_sensorless.step_last_period_s,
                sizeof(status->step_last_period_s));
         memcpy(status->step_last_integral_vs, s_bldc_sensorless.step_last_integral_vs,
                sizeof(status->step_last_integral_vs));
+        memcpy(status->step_detected_integral_vs,
+               s_bldc_sensorless.step_detected_integral_vs,
+               sizeof(status->step_detected_integral_vs));
         memcpy(status->step_startup_integral_vs,
                s_bldc_sensorless.step_startup_integral_vs,
                sizeof(status->step_startup_integral_vs));
@@ -360,6 +410,24 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
                sizeof(status->step_bemf_max_v));
         memcpy(status->step_bemf_waveform_v, s_bldc_sensorless.step_bemf_waveform_v,
                sizeof(status->step_bemf_waveform_v));
+        memcpy(status->step_floating_waveform_v,
+               s_bldc_sensorless.step_floating_waveform_v,
+               sizeof(status->step_floating_waveform_v));
+        memcpy(status->step_neutral_waveform_v,
+               s_bldc_sensorless.step_neutral_waveform_v,
+               sizeof(status->step_neutral_waveform_v));
+        memcpy(status->step_candidate_min_abs_v,
+               s_bldc_sensorless.step_candidate_min_abs_v,
+               sizeof(status->step_candidate_min_abs_v));
+        memcpy(status->step_candidate_min_time_s,
+               s_bldc_sensorless.step_candidate_min_time_s,
+               sizeof(status->step_candidate_min_time_s));
+        memcpy(status->step_bus_candidate_min_abs_v,
+               s_bldc_sensorless.step_bus_candidate_min_abs_v,
+               sizeof(status->step_bus_candidate_min_abs_v));
+        memcpy(status->step_bus_candidate_min_time_s,
+               s_bldc_sensorless.step_bus_candidate_min_time_s,
+               sizeof(status->step_bus_candidate_min_time_s));
     }
     Motor_Bldc_StatusUnlock(primask);
     return true;
@@ -737,7 +805,7 @@ static void Motor_DmaInt_Bldc(void)
         Motor_DmaInt_RecordRuntime(runtime_start);
         return;
     }
-    if (!Hal_Motor_BldcBemfSampleReady()) {
+    if (!Hal_Motor_BldcBemfSampleReady(s_bldc_sample_upward)) {
         Motor_DmaInt_RecordRuntime(runtime_start);
         return;
     }

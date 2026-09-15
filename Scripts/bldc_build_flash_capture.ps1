@@ -12,17 +12,27 @@ param(
     [string]$Mode = "auto",
     [ValidateSet("cw", "ccw")]
     [string]$Direction = "cw",
+    [ValidateSet("up", "down")]
+    [string]$SampleSide = "up",
     [double]$Duty = 0.08,
     [double]$Duration = 20.0,
-    [double]$PeriodMs = 13.0
+    [double]$PeriodMs = 13.0,
+    [Nullable[double]]$IntegralMvs = $null
 )
 
 $ErrorActionPreference = "Stop"
 if ($Mode -eq "auto" -and ($Duty -lt 0.08 -or $Duty -gt 0.10)) {
     throw "Automatic BLDC duty must be in the verified range [0.08, 0.10]"
 }
+if ($Mode -eq "auto" -and $SampleSide -ne "up") {
+    throw "Automatic BLDC mode requires SampleSide=up; down is fixed-open diagnostic-only"
+}
 if ($Mode -eq "open" -and ($Duty -le 0.0 -or $Duty -gt 0.25)) {
     throw "Fixed-open BLDC duty must be in (0, 0.25]"
+}
+if ($Mode -eq "auto" -and $null -ne $IntegralMvs -and
+    ($IntegralMvs -lt 0.05 -or $IntegralMvs -gt 10.0)) {
+    throw "Automatic BLDC integral threshold must be in [0.05, 10] mV*s"
 }
 $root = Split-Path $PSScriptRoot -Parent
 $firmware = Join-Path (Split-Path $root -Parent) "build\foc.hex"
@@ -110,11 +120,14 @@ $captureArgs = @(
     "--mode", $Mode,
     "--duty", "$Duty",
     "--direction", $Direction,
+    "--sample-side", $SampleSide,
     "--duration", "$Duration",
     "--output", $capturePrefix
 )
 if ($Mode -eq "open") {
     $captureArgs += @("--period-ms", "$PeriodMs")
+} elseif ($null -ne $IntegralMvs) {
+    $captureArgs += @("--period-ms", "$PeriodMs", "--integral-mvs", "$IntegralMvs")
 }
 python @captureArgs
 if ($LASTEXITCODE -ne 0) {

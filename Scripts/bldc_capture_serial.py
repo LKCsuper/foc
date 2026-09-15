@@ -47,14 +47,37 @@ def parse_status(text: str, elapsed_s: float) -> dict[str, float | int | str]:
     )
     startup_forward = re.search(r"startup_forward/step=([0-9.,-]+)V\*s", text)
     startup_reverse = re.search(r"startup_reverse/step=([0-9.,-]+)V\*s", text)
+    phase_gate = re.search(r"phase_gate valid=(\d+) late=(\d+) blocked=(\d+)", text)
+    detection = re.search(r"detect mask=0x([0-9A-Fa-f]+) threshold/step=([0-9.,-]+)V\*s", text)
+    detection_samples = re.search(r"detect samples/step=([0-9,]+)", text)
+    detection_settle = re.search(r"detect settle=(\d+)/12 sectors", text)
     waveforms = [re.search(rf"bemf_wave/{index}=([0-9.,-]+)V", text) for index in range(6)]
+    components = [
+        re.search(rf"bemf_component/{index} floating=([0-9.,-]+) neutral=([0-9.,-]+)V",
+                  text)
+        for index in range(6)
+    ]
+    zero_candidates = [
+        re.search(rf"zero_min/{phase} time@abs=([0-9.,@-]+) ms@V", text)
+        for phase in "ABC"
+    ]
+    halfbus_candidates = [
+        re.search(rf"halfbus_min/{phase} time@abs=([0-9.,@-]+) ms@V", text)
+        for phase in "ABC"
+    ]
     period_range = re.search(r"period_range=\[([-+0-9.]+),([-+0-9.]+)\]ms", text)
+    timing = re.search(r"timing=(AUTO_BEMF|AUTO_DUTY|MANUAL) (?:guard|floor)=([-+0-9.]+)ms", text)
+    sample_side = re.search(r"adc_sample=TIM2:\d+ \(TIM1:\d+\) side=(UP|DOWN)", text)
     if (STATUS_HEADER not in text or state is None or periods is None or
-            period_range is None or
+            period_range is None or timing is None or sample_side is None or
             integral_steps is None or forced_steps is None or last_integrals is None or
             startup is None or
-            startup_forward is None or startup_reverse is None or
-            any(waveform is None for waveform in waveforms)):
+            startup_forward is None or startup_reverse is None or phase_gate is None or
+            detection is None or detection_samples is None or detection_settle is None or
+            any(waveform is None for waveform in waveforms) or
+            any(component is None for component in components) or
+            any(candidate is None for candidate in zero_candidates) or
+            any(candidate is None for candidate in halfbus_candidates)):
         raise ValueError("incomplete BLDC status; flash the latest firmware")
 
     values = [float(value) for value in periods.group(1).split(",")]
@@ -63,12 +86,37 @@ def parse_status(text: str, elapsed_s: float) -> dict[str, float | int | str]:
     last_integral_values = [float(value) for value in last_integrals.group(1).split(",")]
     startup_forward_values = [float(value) for value in startup_forward.group(1).split(",")]
     startup_reverse_values = [float(value) for value in startup_reverse.group(1).split(",")]
+    detected_threshold_values = [float(value) for value in detection.group(2).split(",")]
+    detected_sample_values = [int(value) for value in detection_samples.group(1).split(",")]
     waveform_values = [[float(value) for value in waveform.group(1).split(",")]
                        for waveform in waveforms if waveform is not None]
+    floating_waveform_values = [
+        [float(value) for value in component.group(1).split(",")]
+        for component in components if component is not None
+    ]
+    neutral_waveform_values = [
+        [float(value) for value in component.group(2).split(",")]
+        for component in components if component is not None
+    ]
+    zero_candidate_values = [
+        [(float(pair.split("@")[0]), float(pair.split("@")[1]))
+         for pair in candidate.group(1).split(",")]
+        for candidate in zero_candidates if candidate is not None
+    ]
+    halfbus_candidate_values = [
+        [(float(pair.split("@")[0]), float(pair.split("@")[1]))
+         for pair in candidate.group(1).split(",")]
+        for candidate in halfbus_candidates if candidate is not None
+    ]
     if (len(values) != 6 or len(integral_counts) != 6 or len(forced_counts) != 6 or
             len(last_integral_values) != 6 or
             len(startup_forward_values) != 6 or len(startup_reverse_values) != 6 or
-            any(len(waveform) != 8 for waveform in waveform_values)):
+            len(detected_threshold_values) != 6 or len(detected_sample_values) != 6 or
+            any(len(waveform) != 8 for waveform in waveform_values) or
+            any(len(waveform) != 8 for waveform in floating_waveform_values) or
+            any(len(waveform) != 8 for waveform in neutral_waveform_values) or
+            any(len(candidate) != 6 for candidate in zero_candidate_values) or
+            any(len(candidate) != 6 for candidate in halfbus_candidate_values)):
         raise ValueError("invalid BLDC per-step diagnostics")
     return {
         "elapsed_s": round(elapsed_s, 3),
@@ -80,6 +128,11 @@ def parse_status(text: str, elapsed_s: float) -> dict[str, float | int | str]:
         "step": match_int(r"\bstep=(\d+)", text),
         "commutations": match_int(r"commutations=(\d+)", text),
         "forced": match_int(r"forced=(\d+)", text),
+        "phase_valid_samples": int(phase_gate.group(1)),
+        "phase_late_samples": int(phase_gate.group(2)),
+        "phase_blocked_samples": int(phase_gate.group(3)),
+        "detected_integral_mask": int(detection.group(1), 16),
+        "integral_detect_settle_sectors": int(detection_settle.group(1)),
         "consecutive_forced": match_int(r"consecutive=(\d+)", text),
         "startup_sync": match_int(r"sync=(\d+)/6", text),
         "startup_valid": int(startup.group(1)),
@@ -92,6 +145,9 @@ def parse_status(text: str, elapsed_s: float) -> dict[str, float | int | str]:
         "period_ms": match_float(r"\bperiod=([-+0-9.]+)ms", text),
         "period_min_ms": float(period_range.group(1)),
         "period_max_ms": float(period_range.group(2)),
+        "timing": timing.group(1),
+        "period_floor_ms": float(timing.group(2)),
+        "sample_side": sample_side.group(1),
         "integral_vs": match_float(r"integral=([-+0-9.]+)/", text),
         "threshold_vs": match_float(r"integral=[-+0-9.]+/([-+0-9.]+)V\*s", text),
         "vbus_v": match_float(r"vbus=([-+0-9.]+)V", text),
@@ -105,9 +161,29 @@ def parse_status(text: str, elapsed_s: float) -> dict[str, float | int | str]:
            for index, value in enumerate(startup_forward_values)},
         **{f"step{index}_startup_reverse_vs": value
            for index, value in enumerate(startup_reverse_values)},
+        **{f"step{index}_detected_threshold_vs": value
+           for index, value in enumerate(detected_threshold_values)},
+        **{f"step{index}_detected_samples": value
+           for index, value in enumerate(detected_sample_values)},
         **{f"step{step}_bemf_bin{bin_index}_v": value
            for step, waveform in enumerate(waveform_values)
            for bin_index, value in enumerate(waveform)},
+        **{f"step{step}_floating_bin{bin_index}_v": value
+           for step, waveform in enumerate(floating_waveform_values)
+           for bin_index, value in enumerate(waveform)},
+        **{f"step{step}_neutral_bin{bin_index}_v": value
+           for step, waveform in enumerate(neutral_waveform_values)
+           for bin_index, value in enumerate(waveform)},
+        **{f"step{step}_phase{phase}_zero_min_ms": zero_candidate_values[phase][step][0]
+           for phase in range(3) for step in range(6)},
+        **{f"step{step}_phase{phase}_zero_min_abs_v": zero_candidate_values[phase][step][1]
+           for phase in range(3) for step in range(6)},
+        **{f"step{step}_phase{phase}_halfbus_min_ms":
+           halfbus_candidate_values[phase][step][0]
+           for phase in range(3) for step in range(6)},
+        **{f"step{step}_phase{phase}_halfbus_min_abs_v":
+           halfbus_candidate_values[phase][step][1]
+           for phase in range(3) for step in range(6)},
     }
 
 
@@ -147,6 +223,8 @@ def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         parser.error("--duty must be in (0, 0.25]")
     if args.mode == "auto" and not 0.08 <= args.duty <= 0.10:
         parser.error("automatic mode duty must be in the verified range [0.08, 0.10]")
+    if args.mode == "auto" and args.sample_side != "up":
+        parser.error("automatic mode requires --sample-side up; down is diagnostic-only")
     if not 1.0 <= args.duration <= 300.0:
         parser.error("--duration must be in [1, 300] seconds")
     if not 0.5 <= args.interval <= 30.0:
@@ -172,6 +250,7 @@ def write_results(capture: Capture, args: argparse.Namespace, prefix: Path) -> N
         f"# period_ms: {args.period_ms}\n"
         f"# integral_mvs: {args.integral_mvs}\n"
         f"# direction: {args.direction}\n"
+        f"# sample_side: {args.sample_side}\n"
         f"# note: {args.note}\n"
     )
     body = [header]
@@ -191,6 +270,9 @@ def write_results(capture: Capture, args: argparse.Namespace, prefix: Path) -> N
 def run_capture(capture: Capture, args: argparse.Namespace) -> int:
     capture.command("pre-stop", "bldc stop")
     capture.command("pre-exit", "bldc exit")
+    selected = capture.command("sample-side", f"bldc sample {args.sample_side}")
+    if f"BLDC sample: {args.sample_side.upper()}" not in selected:
+        raise RuntimeError("BLDC sample side was rejected")
     if args.mode == "auto":
         if args.integral_mvs is not None and args.period_ms is not None:
             tune = capture.command(
@@ -240,6 +322,7 @@ def main() -> int:
     parser.add_argument("--period-ms", type=float)
     parser.add_argument("--integral-mvs", type=float)
     parser.add_argument("--direction", choices=("cw", "ccw"), default="cw")
+    parser.add_argument("--sample-side", choices=("up", "down"), default="up")
     parser.add_argument("--duration", type=float, default=20.0)
     parser.add_argument("--interval", type=float, default=2.0)
     parser.add_argument("--note", default="", help="写入日志的听感或工况备注")

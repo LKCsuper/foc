@@ -49,6 +49,14 @@ typedef struct {
     float closed_loop_timeout_s;     /* 闭环单个扇区允许的最长时间 */
     float bemf_integral_threshold_vs; /* 每个扇区的 BEMF 积分阈值 (V*s) */
     float bemf_integral_noise_v;     /* 积分法忽略的 BEMF 噪声带 (V) */
+    float phase_valid_margin_ratio;  /* 原始悬空相远离母线轨的有效裕量比例 */
+    bool integral_auto_detect_enabled; /* 启动时按六步检测 BEMF 积分阈值 */
+    float integral_detect_scale;     /* 检测面积转换为闭环阈值的比例 */
+    bool duty_period_enabled;        /* 根据占空比选择启动捕获周期 */
+    float duty_period_low_duty;      /* 已验证低占空比工作点 */
+    float duty_period_high_duty;     /* 已验证高占空比工作点 */
+    float duty_period_low_s;         /* 低占空比对应的 60° 周期 (s) */
+    float duty_period_high_s;        /* 高占空比对应的 60° 周期 (s) */
 } motor_bldc_sensorless_config_t;
 
 typedef struct {
@@ -65,6 +73,7 @@ typedef struct {
     float minimum_commutation_period_s;
     float maximum_commutation_period_s;
     float fixed_open_loop_period_s;
+    float active_minimum_period_s;
     float filtered_bemf_v;
     float bemf_integral_vs;
     float bemf_reverse_integral_vs;
@@ -73,6 +82,11 @@ typedef struct {
     uint8_t step;
     uint32_t integral_commutations;
     uint32_t forced_commutations;
+    uint32_t phase_valid_samples;
+    uint32_t phase_late_samples;
+    uint32_t phase_blocked_samples;
+    uint8_t detected_integral_mask;
+    uint8_t integral_detect_settle_sectors;
     uint8_t consecutive_forced_commutations;
     uint32_t startup_valid_sectors;
     uint32_t startup_invalid_sectors;
@@ -82,14 +96,27 @@ typedef struct {
     uint8_t startup_sync_sectors;
     uint16_t step_integral_commutations[6];
     uint16_t step_forced_commutations[6];
+    uint8_t step_integral_detect_samples[6];
     float step_last_period_s[6];
     float step_last_integral_vs[6];
+    float step_detected_integral_vs[6];
     float step_startup_integral_vs[6];
     float step_startup_reverse_integral_vs[6];
     float step_bemf_min_v[6];
     float step_bemf_max_v[6];
     float step_bemf_waveform_v[6][MOTOR_BLDC_BEMF_BIN_COUNT];
     uint16_t step_bemf_waveform_count[6][MOTOR_BLDC_BEMF_BIN_COUNT];
+    float step_floating_waveform_v[6][MOTOR_BLDC_BEMF_BIN_COUNT];
+    float step_neutral_waveform_v[6][MOTOR_BLDC_BEMF_BIN_COUNT];
+    uint16_t step_component_waveform_count[6][MOTOR_BLDC_BEMF_BIN_COUNT];
+    float candidate_min_abs_v[3];
+    float candidate_min_time_s[3];
+    float bus_candidate_min_abs_v[3];
+    float bus_candidate_min_time_s[3];
+    float step_candidate_min_abs_v[6][3];
+    float step_candidate_min_time_s[6][3];
+    float step_bus_candidate_min_abs_v[6][3];
+    float step_bus_candidate_min_time_s[6][3];
     bool fixed_open_loop_enabled;
     bool initialized;
 } motor_bldc_sensorless_t;

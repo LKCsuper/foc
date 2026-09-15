@@ -71,7 +71,8 @@ int main(void)
     expect = 200.0f;
     assert(fabsf(st.mech_rpm - expect) < 1.0f);
     assert(fabsf(st.mech_rpm_raw - expect) < 1.0f);
-    assert(fabsf(st.mech_rpm_fast - expect) < 1.0f);
+    /* 快速支路按标定表量化后的实际角差测速：60° 被编码为 33/200 周，即 198 RPM。 */
+    assert(fabsf(st.mech_rpm_fast - 198.0f) < 1.0f);
     /* 200RPM 位于渐入区：扇区中心与完整插值各占一部分。 */
     assert(fabsf(st.theta_rad - (5.0f * (float)M_PI / 18.0f)) < 0.02f);
     Motor_Hall_AngleUpdate(&st, table, 3, 1.0f, 0.025f);

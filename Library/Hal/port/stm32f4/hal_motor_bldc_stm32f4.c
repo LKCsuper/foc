@@ -119,14 +119,17 @@ void Hal_Motor_BldcApply(hal_motor_bldc_phase_mode_t phase_a,
 }
 
 /**
- * @description: 判断当前 ADC 帧是否位于 TIM1 向上计数侧。
- * @detail: TIM1 中心对齐运行，只接受底部更新后的向上计数侧；采样时刻由占空比动态放在导通脉冲中点。
- * @return {bool} 向上计数侧返回 true
+ * @description: 判断当前 ADC 帧是否位于指定的 TIM1 计数半周期。
+ * @detail: 只选择现有同步 ADC 帧，不修改 TIM1、TIM2 或 ADC 配置。
+ * @param {bool} upward_counting true=向上计数侧，false=向下计数侧
+ * @return {bool} 当前帧位于指定半周期返回 true
  * @author: lkc
  */
-bool Hal_Motor_BldcBemfSampleReady(void)
+bool Hal_Motor_BldcBemfSampleReady(bool upward_counting)
 {
-    return (TIM1->CR1 & TIM_CR1_DIR) == 0U;
+    bool is_upward = (TIM1->CR1 & TIM_CR1_DIR) == 0U;
+
+    return is_upward == upward_counting;
 }
 
 /**

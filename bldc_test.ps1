@@ -10,13 +10,16 @@ param(
     [string]$Mode = "auto",
     [ValidateSet("cw", "ccw")]
     [string]$Direction = "cw",
+    [ValidateSet("up", "down")]
+    [string]$SampleSide = "up",
     [double]$Duty = 0.08,
     [double]$Duration = 20.0,
-    [double]$PeriodMs = 13.0
+    [double]$PeriodMs = 13.0,
+    [Nullable[double]]$IntegralMvs = $null
 )
 
 $script = Join-Path $PSScriptRoot "Scripts\bldc_build_flash_capture.ps1"
 & $script -Port $Port -Baud $Baud -BuildAction $BuildAction -Uv4 $Uv4 `
     -JLink $JLink -Mode $Mode -Direction $Direction -Duty $Duty `
-    -Duration $Duration -PeriodMs $PeriodMs
+    -SampleSide $SampleSide -Duration $Duration -PeriodMs $PeriodMs -IntegralMvs $IntegralMvs
 exit $LASTEXITCODE

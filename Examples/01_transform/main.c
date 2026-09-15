@@ -1,5 +1,5 @@
 /*
- * @Description: 学习示例 01 — Clarke/Park/逆 Park/SVM 主机往返（复用生产 motor_foc）
+ * @Description: 学习示例 01 — Clarke/Park/板级逆 Park/SVM 主机检查（复用生产 motor_foc）
  * @Author: lkc
  */
 #include <math.h>
@@ -27,7 +27,7 @@ static void expect_near(const char *name, float got, float want, float eps)
 }
 
 /**
- * @description: 示例入口：Clarke/Park/逆 Park 往返与 SVM 占空比范围检查
+ * @description: 示例入口：Clarke/Park、板级逆 Park 极性与 SVM 占空比范围检查
  * @return {int} 0=通过，非 0=失败
  * @author: lkc
  */
@@ -53,8 +53,9 @@ int main(void)
     expect_near("Iq@0", iq, 0.0f, 1e-3f);
 
     inverse_park(id, iq, 0.0f, &a2, &b2);
-    expect_near("alpha_rt", a2, ialpha, 1e-3f);
-    expect_near("beta_rt", b2, ibeta, 1e-3f);
+    /* 当前功率板沿用已上板验证的反相电压矢量约定，不是数学恒等往返。 */
+    expect_near("alpha_board_polarity", a2, -ialpha, 1e-3f);
+    expect_near("beta_board_polarity", b2, -ibeta, 1e-3f);
 
     park_transform(ialpha, ibeta, (float)(3.14159265358979323846 * 0.5), &id, &iq);
     expect_near("Id@pi/2", id, 0.0f, 2e-3f);

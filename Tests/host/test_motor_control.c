@@ -61,6 +61,11 @@ bool Motor_SpeedLoop_IsFeedbackValid(void)
     return s_speed_fb_valid;
 }
 
+float Motor_SpeedLoop_GetMeasuredRpm(void)
+{
+    return s_speed_fb_rpm;
+}
+
 float Motor_SpeedLoop_GetIqTarget(void)
 {
     return s_speed_iq_out;
@@ -114,6 +119,30 @@ float Motor_Hall_AngleGetMechRpm(void)
 bool Motor_Hall_AngleIsSpeedValid(void)
 {
     return false;
+}
+
+float Motor_Hall_AngleGetRawMechRpm(void)
+{
+    return 0.0f;
+}
+
+float Motor_Hall_AngleGetFastMechRpm(void)
+{
+    return 0.0f;
+}
+
+float Motor_Hall_AngleGetEdgeAge(void)
+{
+    return 0.0f;
+}
+
+int Motor_Hall_AngleGetState(void)
+{
+    return 0;
+}
+
+void Motor_Hall_AngleResetDefault(void)
+{
 }
 
 bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad, float *id_target, float *iq_target)

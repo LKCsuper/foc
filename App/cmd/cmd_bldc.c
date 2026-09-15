@@ -97,11 +97,33 @@ static void Cmd_BldcPrintStatus(void)
     PRINTF("  bemf=%.3fV range=[%.3f,%.3f]V sector=%.3fms period=%.3fms vbus=%.2fV\r\n",
            status.bemf_v, status.bemf_min_v, status.bemf_max_v,
            status.sector_elapsed_s * 1000.0f, status.commutation_period_s * 1000.0f, motor.v_bus);
-    PRINTF("  period_range=[%.3f,%.3f]ms\r\n",
+    PRINTF("  period_range=[%.3f,%.3f]ms timing=%s guard=%.3fms\r\n",
            status.minimum_commutation_period_s * 1000.0f,
-           status.maximum_commutation_period_s * 1000.0f);
+           status.maximum_commutation_period_s * 1000.0f,
+           status.integral_auto_detect_enabled
+               ? "AUTO_BEMF"
+               : (status.duty_period_enabled ? "AUTO_DUTY" : "MANUAL"),
+           status.active_minimum_period_s * 1000.0f);
     PRINTF("  sense=INTEGRAL integral=%.6f/%.6fV*s\r\n", status.bemf_integral_vs,
            status.bemf_integral_threshold_vs);
+    PRINTF("  phase_gate valid=%lu late=%lu blocked=%lu\r\n",
+           (unsigned long)status.phase_valid_samples,
+           (unsigned long)status.phase_late_samples,
+           (unsigned long)status.phase_blocked_samples);
+    PRINTF("  detect mask=0x%02X threshold/step=%.6f,%.6f,%.6f,%.6f,%.6f,%.6fV*s\r\n",
+           (unsigned)status.detected_integral_mask,
+           status.step_detected_integral_vs[0], status.step_detected_integral_vs[1],
+           status.step_detected_integral_vs[2], status.step_detected_integral_vs[3],
+           status.step_detected_integral_vs[4], status.step_detected_integral_vs[5]);
+    PRINTF("  detect samples/step=%u,%u,%u,%u,%u,%u\r\n",
+           (unsigned)status.step_integral_detect_samples[0],
+           (unsigned)status.step_integral_detect_samples[1],
+           (unsigned)status.step_integral_detect_samples[2],
+           (unsigned)status.step_integral_detect_samples[3],
+           (unsigned)status.step_integral_detect_samples[4],
+           (unsigned)status.step_integral_detect_samples[5]);
+    PRINTF("  detect settle=%u/12 sectors\r\n",
+           (unsigned)status.integral_detect_settle_sectors);
     PRINTF("  startup valid=%lu invalid=%lu resets=%lu takeover=%.3fms@%.3fms\r\n",
            (unsigned long)status.startup_valid_sectors,
            (unsigned long)status.startup_invalid_sectors,
@@ -119,9 +141,10 @@ static void Cmd_BldcPrintStatus(void)
            status.step_startup_reverse_integral_vs[3],
            status.step_startup_reverse_integral_vs[4],
            status.step_startup_reverse_integral_vs[5]);
-    PRINTF("  adc_sample=TIM2:%lu (TIM1:%lu)\r\n",
+    PRINTF("  adc_sample=TIM2:%lu (TIM1:%lu) side=%s\r\n",
            (unsigned long)status.bemf_sample_count,
-           (unsigned long)(2U * status.bemf_sample_count));
+           (unsigned long)(2U * status.bemf_sample_count),
+           status.sample_upward ? "UP" : "DOWN");
     PRINTF("  integral_comm/step=%u,%u,%u,%u,%u,%u\r\n",
            (unsigned)status.step_integral_commutations[0],
            (unsigned)status.step_integral_commutations[1],
@@ -144,6 +167,84 @@ static void Cmd_BldcPrintStatus(void)
            status.step_last_integral_vs[0], status.step_last_integral_vs[1],
            status.step_last_integral_vs[2], status.step_last_integral_vs[3],
            status.step_last_integral_vs[4], status.step_last_integral_vs[5]);
+    PRINTF("  zero_min/A time@abs=%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f ms@V\r\n",
+           status.step_candidate_min_time_s[0][0] * 1000.0f,
+           status.step_candidate_min_abs_v[0][0],
+           status.step_candidate_min_time_s[1][0] * 1000.0f,
+           status.step_candidate_min_abs_v[1][0],
+           status.step_candidate_min_time_s[2][0] * 1000.0f,
+           status.step_candidate_min_abs_v[2][0],
+           status.step_candidate_min_time_s[3][0] * 1000.0f,
+           status.step_candidate_min_abs_v[3][0],
+           status.step_candidate_min_time_s[4][0] * 1000.0f,
+           status.step_candidate_min_abs_v[4][0],
+           status.step_candidate_min_time_s[5][0] * 1000.0f,
+           status.step_candidate_min_abs_v[5][0]);
+    PRINTF("  zero_min/B time@abs=%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f ms@V\r\n",
+           status.step_candidate_min_time_s[0][1] * 1000.0f,
+           status.step_candidate_min_abs_v[0][1],
+           status.step_candidate_min_time_s[1][1] * 1000.0f,
+           status.step_candidate_min_abs_v[1][1],
+           status.step_candidate_min_time_s[2][1] * 1000.0f,
+           status.step_candidate_min_abs_v[2][1],
+           status.step_candidate_min_time_s[3][1] * 1000.0f,
+           status.step_candidate_min_abs_v[3][1],
+           status.step_candidate_min_time_s[4][1] * 1000.0f,
+           status.step_candidate_min_abs_v[4][1],
+           status.step_candidate_min_time_s[5][1] * 1000.0f,
+           status.step_candidate_min_abs_v[5][1]);
+    PRINTF("  zero_min/C time@abs=%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f ms@V\r\n",
+           status.step_candidate_min_time_s[0][2] * 1000.0f,
+           status.step_candidate_min_abs_v[0][2],
+           status.step_candidate_min_time_s[1][2] * 1000.0f,
+           status.step_candidate_min_abs_v[1][2],
+           status.step_candidate_min_time_s[2][2] * 1000.0f,
+           status.step_candidate_min_abs_v[2][2],
+           status.step_candidate_min_time_s[3][2] * 1000.0f,
+           status.step_candidate_min_abs_v[3][2],
+           status.step_candidate_min_time_s[4][2] * 1000.0f,
+           status.step_candidate_min_abs_v[4][2],
+           status.step_candidate_min_time_s[5][2] * 1000.0f,
+           status.step_candidate_min_abs_v[5][2]);
+    PRINTF("  halfbus_min/A time@abs=%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f ms@V\r\n",
+           status.step_bus_candidate_min_time_s[0][0] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[0][0],
+           status.step_bus_candidate_min_time_s[1][0] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[1][0],
+           status.step_bus_candidate_min_time_s[2][0] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[2][0],
+           status.step_bus_candidate_min_time_s[3][0] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[3][0],
+           status.step_bus_candidate_min_time_s[4][0] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[4][0],
+           status.step_bus_candidate_min_time_s[5][0] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[5][0]);
+    PRINTF("  halfbus_min/B time@abs=%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f ms@V\r\n",
+           status.step_bus_candidate_min_time_s[0][1] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[0][1],
+           status.step_bus_candidate_min_time_s[1][1] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[1][1],
+           status.step_bus_candidate_min_time_s[2][1] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[2][1],
+           status.step_bus_candidate_min_time_s[3][1] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[3][1],
+           status.step_bus_candidate_min_time_s[4][1] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[4][1],
+           status.step_bus_candidate_min_time_s[5][1] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[5][1]);
+    PRINTF("  halfbus_min/C time@abs=%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f,%.3f@%.3f ms@V\r\n",
+           status.step_bus_candidate_min_time_s[0][2] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[0][2],
+           status.step_bus_candidate_min_time_s[1][2] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[1][2],
+           status.step_bus_candidate_min_time_s[2][2] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[2][2],
+           status.step_bus_candidate_min_time_s[3][2] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[3][2],
+           status.step_bus_candidate_min_time_s[4][2] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[4][2],
+           status.step_bus_candidate_min_time_s[5][2] * 1000.0f,
+           status.step_bus_candidate_min_abs_v[5][2]);
     PRINTF("  min/step=%.3f,%.3f,%.3f,%.3f,%.3f,%.3fV\r\n", status.step_bemf_min_v[0],
            status.step_bemf_min_v[1], status.step_bemf_min_v[2], status.step_bemf_min_v[3],
            status.step_bemf_min_v[4], status.step_bemf_min_v[5]);
@@ -157,6 +258,23 @@ static void Cmd_BldcPrintStatus(void)
                status.step_bemf_waveform_v[step][3], status.step_bemf_waveform_v[step][4],
                status.step_bemf_waveform_v[step][5], status.step_bemf_waveform_v[step][6],
                status.step_bemf_waveform_v[step][7]);
+        PRINTF("  bemf_component/%u floating=%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f neutral=%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3fV\r\n",
+               (unsigned)step, status.step_floating_waveform_v[step][0],
+               status.step_floating_waveform_v[step][1],
+               status.step_floating_waveform_v[step][2],
+               status.step_floating_waveform_v[step][3],
+               status.step_floating_waveform_v[step][4],
+               status.step_floating_waveform_v[step][5],
+               status.step_floating_waveform_v[step][6],
+               status.step_floating_waveform_v[step][7],
+               status.step_neutral_waveform_v[step][0],
+               status.step_neutral_waveform_v[step][1],
+               status.step_neutral_waveform_v[step][2],
+               status.step_neutral_waveform_v[step][3],
+               status.step_neutral_waveform_v[step][4],
+               status.step_neutral_waveform_v[step][5],
+               status.step_neutral_waveform_v[step][6],
+               status.step_neutral_waveform_v[step][7]);
     }
 }
 
@@ -189,6 +307,21 @@ int Cmd_Bldc(int argc, char *argv[])
         PRINTF("BLDC exited; FOC remains stopped\r\n");
         return 0;
     }
+    if (strcmp(argv[1], "sample") == 0) {
+        bool upward;
+
+        if (argc < 3 || (strcmp(argv[2], "up") != 0 && strcmp(argv[2], "down") != 0)) {
+            PRINTF("Usage: bldc sample <up|down>\r\n");
+            return 0;
+        }
+        upward = strcmp(argv[2], "up") == 0;
+        if (!Motor_Bldc_SetSampleSide(upward)) {
+            PRINTF("BLDC sample rejected: stop first\r\n");
+            return 0;
+        }
+        PRINTF("BLDC sample: %s\r\n", upward ? "UP" : "DOWN");
+        return 0;
+    }
     if (strcmp(argv[1], "tune") == 0) {
         float integral_mvs;
         float minimum_period_ms;
@@ -211,6 +344,7 @@ int Cmd_Bldc(int argc, char *argv[])
     if ((strcmp(argv[1], "start") != 0 && strcmp(argv[1], "open") != 0) || argc < 3) {
         PRINTF("Usage: bldc start <duty> [cw|ccw] | open <duty> <sector_ms> [cw|ccw]\r\n");
         PRINTF("       bldc tune <integral_mV_s> <minimum_period_ms>\r\n");
+        PRINTF("       bldc sample <up|down>\r\n");
         PRINTF("       bldc stop | exit | status\r\n");
         return 0;
     }
@@ -240,7 +374,7 @@ int Cmd_Bldc(int argc, char *argv[])
         return 0;
     }
     if (!Motor_Bldc_Start(direction, duty)) {
-        PRINTF("BLDC start rejected: stop FOC, clear fault, use verified duty [0.08,0.10]\r\n");
+        PRINTF("BLDC start rejected: use sample up, stop FOC, clear fault, duty [0.08,0.10]\r\n");
         return 0;
     }
     PRINTF("BLDC start: duty=%.3f dir=%s\r\n", duty,

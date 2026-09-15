@@ -32,6 +32,55 @@ def main() -> int:
             values = [float(row[f"step{step}_bemf_bin{index}_v"]) for index in range(8)]
             print(f"    step {step}: " + ", ".join(f"{value:.3f}" for value in values) + " V")
 
+    def print_floating_phase_diagnostic(row: dict[str, str], periods: list[float]) -> None:
+        if "step0_phase0_zero_min_ms" not in row:
+            return
+        floating_phases = (2, 1, 0, 2, 1, 0)
+        phase_names = "ABC"
+        phases = []
+        residuals = []
+        for step, floating in enumerate(floating_phases):
+            time_ms = float(row[f"step{step}_phase{floating}_zero_min_ms"])
+            residual_v = float(row[f"step{step}_phase{floating}_zero_min_abs_v"])
+            period_ms = periods[step]
+            phase_percent = time_ms * 100.0 / period_ms if period_ms > 0.0 else 0.0
+            phases.append(phase_percent)
+            residuals.append(residual_v)
+        print("  passive floating phase: C, B, A, C, B, A")
+        print("  floating zero-min phase: " +
+              ", ".join(f"{value:.1f}%" for value in phases))
+        print("  floating zero-min residual: " +
+              ", ".join(f"{value:.3f}" for value in residuals) + " V")
+        if "step0_phase0_halfbus_min_ms" not in row:
+            return
+        halfbus_phases = []
+        halfbus_residuals = []
+        for step, floating in enumerate(floating_phases):
+            time_ms = float(row[f"step{step}_phase{floating}_halfbus_min_ms"])
+            residual_v = float(row[f"step{step}_phase{floating}_halfbus_min_abs_v"])
+            period_ms = periods[step]
+            phase_percent = time_ms * 100.0 / period_ms if period_ms > 0.0 else 0.0
+            halfbus_phases.append(phase_percent)
+            halfbus_residuals.append(residual_v)
+        print("  half-bus zero-min phase: " +
+              ", ".join(f"{value:.1f}%" for value in halfbus_phases))
+        print("  half-bus zero-min residual: " +
+              ", ".join(f"{value:.3f}" for value in halfbus_residuals) + " V")
+
+    def print_bemf_components(row: dict[str, str]) -> None:
+        if "step0_floating_bin0_v" not in row:
+            return
+        print("  raw floating phase / virtual neutral by step (sector bins 0..7):")
+        for step in range(6):
+            floating = [float(row[f"step{step}_floating_bin{index}_v"])
+                        for index in range(8)]
+            neutral = [float(row[f"step{step}_neutral_bin{index}_v"])
+                       for index in range(8)]
+            print(f"    step {step} floating: " +
+                  ", ".join(f"{value:.3f}" for value in floating) + " V")
+            print(f"    step {step} neutral:  " +
+                  ", ".join(f"{value:.3f}" for value in neutral) + " V")
+
     faults = [row for row in rows if row["fault"] != "NONE" or int(row["motor_fault"]) != 0]
     print("\nBLDC automatic analysis")
     if args.mode == "open":
@@ -56,6 +105,8 @@ def main() -> int:
         spread = max(periods) - min(periods)
         print(f"  settled period: {mean_period:.3f} ms, sample spread: {spread:.3f} ms")
         print_bemf_waveform(settled[-1])
+        print_bemf_components(settled[-1])
+        print_floating_phase_diagnostic(settled[-1], [mean_period] * 6)
         print("  result: TIMING_ONLY - fixed-open timing completed; rotor synchronism is not measured")
         return 0
 
@@ -72,6 +123,31 @@ def main() -> int:
     spread = max(valid_periods) - min(valid_periods)
     spread_ratio = spread / mean_period if mean_period > 0.0 else 0.0
     print(f"  final filtered period: {float(last['period_ms']):.3f} ms")
+    if "timing" in last:
+        print(
+            f"  timing: {last['timing']}, safety guard: "
+            f"{float(last['period_floor_ms']):.3f} ms"
+        )
+    if "sample_side" in last:
+        print(f"  PWM sample side: {last['sample_side']}")
+    if "detected_integral_mask" in last:
+        detected_thresholds = [
+            float(last[f"step{index}_detected_threshold_vs"]) for index in range(6)
+        ]
+        detected_samples = [
+            int(last[f"step{index}_detected_samples"]) for index in range(6)
+        ]
+        print(
+            f"  BEMF detection: mask=0x{int(last['detected_integral_mask']):02X}, "
+            "threshold/step=" + ", ".join(f"{value:.6f}" for value in detected_thresholds) +
+            " V*s"
+        )
+        print("  BEMF detection samples/step: " +
+              ", ".join(str(value) for value in detected_samples))
+        print(
+            "  BEMF detection settle: "
+            f"{int(last.get('integral_detect_settle_sectors', '0'))}/12 sectors"
+        )
     if "duty" in last and "target_duty" in last:
         print(
             f"  duty: applied={float(last['duty']):.3f}, "
@@ -94,6 +170,8 @@ def main() -> int:
     print("  startup reverse/step: " +
           ", ".join(f"{value:.6f}" for value in startup_reverse) + " V*s")
     print_bemf_waveform(last)
+    print_bemf_components(last)
+    print_floating_phase_diagnostic(last, periods)
     if "step0_integral_count" in last:
         integral_counts = [int(last[f"step{index}_integral_count"]) for index in range(6)]
         forced_counts = [int(last[f"step{index}_forced_count"]) for index in range(6)]
@@ -107,6 +185,13 @@ def main() -> int:
               ", ".join(f"{value:.6f}" for value in last_integrals) + " V*s")
     integral_commutations = int(last["commutations"])
     forced_commutations = int(last.get("forced", "0"))
+    if "phase_valid_samples" in last:
+        print(
+            "  phase gate: "
+            f"valid={int(last['phase_valid_samples'])}, "
+            f"late={int(last['phase_late_samples'])}, "
+            f"blocked={int(last['phase_blocked_samples'])}"
+        )
     print(
         f"  commutations: {integral_commutations}, forced: {forced_commutations}, "
         f"threshold: {float(last['threshold_vs']):.6f} V*s"
@@ -117,6 +202,9 @@ def main() -> int:
         return 2
     if int(last["startup_sync"]) < 6:
         print("  result: FAIL - closed loop was entered without complete startup synchronization")
+        return 2
+    if last.get("timing") == "AUTO_BEMF" and int(last.get("detected_integral_mask", "0")) != 0x3F:
+        print("  result: FAIL - automatic BEMF threshold detection did not cover all six steps")
         return 2
     if any(forward <= reverse
            for forward, reverse in zip(startup_forward, startup_reverse)):

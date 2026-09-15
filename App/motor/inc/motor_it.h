@@ -29,12 +29,21 @@ typedef struct {
     float commutation_period_s;
     float minimum_commutation_period_s;
     float maximum_commutation_period_s;
+    float active_minimum_period_s;
     float bemf_integral_vs;
     float bemf_reverse_integral_vs;
     float bemf_integral_threshold_vs;
     uint32_t bemf_sample_count;
     uint32_t integral_commutations;
     uint32_t forced_commutations;
+    uint32_t phase_valid_samples;
+    uint32_t phase_late_samples;
+    uint32_t phase_blocked_samples;
+    uint8_t detected_integral_mask;
+    uint8_t integral_detect_settle_sectors;
+    bool duty_period_enabled;
+    bool integral_auto_detect_enabled;
+    bool sample_upward;
     uint8_t consecutive_forced_commutations;
     uint32_t startup_valid_sectors;
     uint32_t startup_invalid_sectors;
@@ -44,13 +53,21 @@ typedef struct {
     uint8_t startup_sync_sectors;
     uint16_t step_integral_commutations[6];
     uint16_t step_forced_commutations[6];
+    uint8_t step_integral_detect_samples[6];
     float step_last_period_s[6];
     float step_last_integral_vs[6];
+    float step_detected_integral_vs[6];
     float step_startup_integral_vs[6];
     float step_startup_reverse_integral_vs[6];
     float step_bemf_min_v[6];
     float step_bemf_max_v[6];
     float step_bemf_waveform_v[6][MOTOR_BLDC_BEMF_BIN_COUNT];
+    float step_floating_waveform_v[6][MOTOR_BLDC_BEMF_BIN_COUNT];
+    float step_neutral_waveform_v[6][MOTOR_BLDC_BEMF_BIN_COUNT];
+    float step_candidate_min_abs_v[6][3];
+    float step_candidate_min_time_s[6][3];
+    float step_bus_candidate_min_abs_v[6][3];
+    float step_bus_candidate_min_time_s[6][3];
 } motor_bldc_status_t;
 /* Private define ------------------------------------------------------------*/
 /*
@@ -185,6 +202,14 @@ bool Motor_Bldc_Start(motor_bldc_direction_t direction, float duty);
  */
 bool Motor_Bldc_StartOpenLoop(motor_bldc_direction_t direction, float duty,
                               float sector_period_s);
+
+/**
+ * @description: 停机时选择 BLDC BEMF 使用的 PWM 采样半周期。
+ * @param {bool} upward true=向上计数侧，false=向下计数侧
+ * @return {bool} 设置成功返回 true；运行中拒绝
+ * @author: lkc
+ */
+bool Motor_Bldc_SetSampleSide(bool upward);
 
 /**
  * @description: 停机时设置默认 BLDC 积分换相调试参数。
