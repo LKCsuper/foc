@@ -100,29 +100,31 @@ class HallRunner:
             raise Abort(f"{name}: invalid Hall state {snap['state']}")
         if float(snap["age_ms"]) >= 200.0:
             raise Abort(f"{name}: Hall edge stale {snap['age_ms']} ms")
-        if abs(measured - rpm) > rpm * tolerance:
+        if abs(measured - rpm) > abs(rpm) * tolerance:
             raise Abort(f"{name}: filtered RPM {measured:.1f} outside ±{tolerance * 100:.0f}%")
         self.results.append((rpm, snap))
 
-    def run(self, max_rpm: int) -> int:
+    def run(self, max_rpm: int, direction: int) -> int:
+        start_rpm = 150 * direction
         self.commands(
             "H0-config",
             (
                 "olstop", "olfault clear", "olmode 1", "olfb hall", "slenable 0",
                 "spkp 0.006", "spki 0.003", "spiq 0.8", "spbrake 0",
                 "oliq 0.6", "olid 0", "olkp 0.2", "olki 30", "olramp 50",
-                "olspeed 150", "spenable 1", "olstart",
+                f"olspeed {start_rpm}", "spenable 1", "olstart",
             ),
         )
         try:
             for rpm, wait_s, tolerance in STAGES:
                 if rpm > max_rpm:
                     break
+                target_rpm = rpm * direction
                 if rpm != 150:
-                    self.rec(f"H{rpm}-set", self.shell.run(f"olspeed {rpm}", timeout=20.0))
-                self.pause(wait_s, f"Hall 闭环升速并稳定到 {rpm} RPM")
+                    self.rec(f"H{target_rpm}-set", self.shell.run(f"olspeed {target_rpm}", timeout=20.0))
+                self.pause(wait_s, f"Hall 闭环升速并稳定到 {target_rpm} RPM")
                 for index in range(1, self.samples + 1):
-                    self.snapshot(rpm, index, tolerance)
+                    self.snapshot(target_rpm, index, tolerance)
                     if index != self.samples:
                         self.shell.pause(1.0)
             self.rec("PASS", "Hall stability verification passed\n")
@@ -156,6 +158,7 @@ def main() -> int:
     parser.add_argument("--port", default="COM17")
     parser.add_argument("--baud", type=int, default=460800)
     parser.add_argument("--max-rpm", type=int, choices=(150, 300, 500, 800), default=800)
+    parser.add_argument("--direction", choices=("cw", "ccw"), default="cw")
     parser.add_argument("--samples", type=int, default=3, help="每档快照数，默认 3")
     parser.add_argument("--log", default="", help="日志路径；传 - 不写文件")
     args = parser.parse_args()
@@ -170,7 +173,8 @@ def main() -> int:
         if not wake.strip():
             wake = shell.kick()
         runner.rec("wake", wake)
-        rc = runner.run(args.max_rpm)
+        direction = 1 if args.direction == "cw" else -1
+        rc = runner.run(args.max_rpm, direction)
         return rc
     finally:
         try:
@@ -188,6 +192,7 @@ def main() -> int:
                 f"# workspace: {workspace_id()}\n"
                 f"# time: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
                 f"# max_rpm: {args.max_rpm}\n"
+                f"# direction: {args.direction}\n"
                 f"# samples: {args.samples}\n"
                 "# script: Scripts/hall_verify_serial.py\n"
             )

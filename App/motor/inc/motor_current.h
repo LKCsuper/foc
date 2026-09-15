@@ -32,7 +32,7 @@ typedef struct {
 typedef struct {
     bool alignment_running;        /* true=预对齐：Id=align_current, Iq=0 */
     float alignment_current_scale; /* Id 定角电流比例；拖转交接时由 1 降到 0 */
-    float if_iq_scale;             /* I/F 低速 Iq 缩放，通常 0..1 */
+    float if_iq_scale;             /* I/F 低速 Iq 缩放；有感反转接管前可为 -1..0 */
     float soft_current_scale;      /* 运行电流比例；拖转交接时由 0 升到 1 */
     bool speed_loop_active;        /* true=使用速度环 Iq 替代 ol_iq_set */
     float speed_iq_target;         /* 速度环给出的 Iq (A) */

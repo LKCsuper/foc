@@ -509,6 +509,13 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
      */
     ctx->speed_loop_active = Motor_Control_SpeedLoopReady(motor);
     ctx->speed_iq_target = ctx->speed_loop_active ? Motor_SpeedLoop_GetIqTarget() : 0.0f;
+    /*
+     * 有感速度环接管前仍靠 ol_iq_set 起转。Park 角已来自转子传感器，此时 Iq 的符号
+     * 直接决定转矩方向；反转命令必须先给负 Iq，不能沿用开环旋转磁场下的正 Iq。
+     */
+    if (motor->speed_enable && !ctx->speed_loop_active && motor->ol_target_rpm < 0.0f) {
+        ctx->if_iq_scale = -ctx->if_iq_scale;
+    }
     if (!dragging) {
         ctx->alignment_current_scale = ctrl->startup.soft_current_scale;
         ctx->soft_current_scale = ctrl->startup.soft_current_scale;

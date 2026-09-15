@@ -29,6 +29,7 @@ static bool s_last_speed_loop_active;
 static float s_last_speed_iq_target;
 static bool s_last_alignment_running;
 static float s_last_soft_current_scale;
+static float s_last_if_iq_scale;
 
 void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
 {
@@ -181,6 +182,7 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
     s_last_current_theta = theta;
     s_last_alignment_running = ctx != NULL && ctx->alignment_running;
     s_last_soft_current_scale = ctx != NULL ? ctx->soft_current_scale : 0.0f;
+    s_last_if_iq_scale = ctx != NULL ? ctx->if_iq_scale : 0.0f;
     s_last_speed_loop_active = (ctx != NULL) && ctx->speed_loop_active;
     s_last_speed_iq_target = (ctx != NULL) ? ctx->speed_iq_target : 0.0f;
     if (id_target_out != NULL) {
@@ -490,6 +492,19 @@ int main(void)
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(!s_speed_fb_valid);
         assert(!s_last_speed_loop_active);
+
+        /* 有感反转未达到速度 PI 接管门槛时，启动 Iq 必须先翻为负转矩。 */
+        s_enc_zero = true;
+        s_enc_rpm = 28.0f;
+        m.ol_target_rpm = -150.0f;
+        m.ol_current_rpm = -150.0f;
+        m.ol_min_rpm = 500.0f;
+        s_last_speed_loop_active = false;
+        s_last_if_iq_scale = 0.0f;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(s_speed_fb_valid);
+        assert(!s_last_speed_loop_active);
+        assert(s_last_if_iq_scale < 0.0f);
 
         Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_SENSORLESS);
     }
