@@ -233,6 +233,9 @@ int main(void)
     assert(!Motor_Control_IsReady(&motor, 0.5f, false));
     motor.ol_target_rpm = 0.0f;
     assert(!Motor_Control_IsReady(&motor, 24.0f, false));
+    motor.speed_enable = true;
+    assert(Motor_Control_IsReady(&motor, 24.0f, false));
+    motor.speed_enable = false;
     assert(Motor_Control_IsReady(&motor, 24.0f, true));
 
     motor.ol_mode = MOTOR_OL_MODE_IF;
@@ -505,6 +508,15 @@ int main(void)
         assert(s_speed_fb_valid);
         assert(!s_last_speed_loop_active);
         assert(s_last_if_iq_scale < 0.0f);
+
+        /* 有效有感反馈下，零速命令保持速度闭环，不能退回启动 Iq 或 SAFE。 */
+        m.ol_target_rpm = 0.0f;
+        m.ol_current_rpm = 0.0f;
+        s_enc_rpm = 0.0f;
+        s_last_speed_loop_active = false;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
+        assert(s_last_speed_loop_active);
 
         Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_SENSORLESS);
     }

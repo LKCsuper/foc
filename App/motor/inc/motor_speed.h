@@ -13,6 +13,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
+#include <stdint.h>
 #include "motor_param.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
@@ -26,6 +27,9 @@ typedef struct {
     float integral;  /* PI 积分 A */
     float error;     /* 速度误差 RPM */
     float iq_target; /* Iq 目标 A */
+    bool zero_brake_active;    /* 零速制动已锁定进入时的方向 */
+    bool zero_brake_released;  /* 已越过零点，在新的非零指令前保持释放 */
+    int8_t zero_brake_direction;
 } motor_speed_state_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/

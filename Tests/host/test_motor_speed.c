@@ -64,6 +64,51 @@ int main(void)
     assert(Motor_SpeedLoop_GetIqTargetState(&a) == 1.5f);
     assert(Motor_SpeedLoop_GetMeasuredRpmState(&b) == -700.0f);
 
+    /* 零速命令且禁用制动时必须释放历史积分，不继续输出正向保持转矩。 */
+    Motor_SpeedLoop_PrimeIqState(&a, 1.5f);
+    motor_a.ol_target_rpm = 0.0f;
+    motor_a.speed_allow_braking = false;
+    Motor_SpeedLoop_RunState(&a, &motor_a, dt);
+    assert(Motor_SpeedLoop_GetIqTargetState(&a) == 0.0f);
+
+    /* Hall 制动越过零点后必须锁定释放，不得反向满电流形成往返振荡。 */
+    Motor_SpeedLoop_ResetState(&a);
+    motor_a.ol_target_rpm = 0.0f;
+    motor_a.ol_current_rpm = 0.0f;
+    motor_a.speed_allow_braking = true;
+    Motor_SpeedFeedback_SetState(&a, 100.0f, true);
+    Motor_SpeedLoop_RunState(&a, &motor_a, dt);
+    assert(Motor_SpeedLoop_GetIqTargetState(&a) < 0.0f);
+    Motor_SpeedFeedback_SetState(&a, -100.0f, true);
+    Motor_SpeedLoop_RunState(&a, &motor_a, dt);
+    assert(Motor_SpeedLoop_GetIqTargetState(&a) == 0.0f);
+    Motor_SpeedLoop_RunState(&a, &motor_a, dt);
+    assert(Motor_SpeedLoop_GetIqTargetState(&a) == 0.0f);
+
+    /* Hall 无新边沿而超时归零时也要释放制动电流。 */
+    Motor_SpeedLoop_ResetState(&a);
+    Motor_SpeedFeedback_SetState(&a, 100.0f, true);
+    Motor_SpeedLoop_RunState(&a, &motor_a, dt);
+    assert(Motor_SpeedLoop_GetIqTargetState(&a) < 0.0f);
+    Motor_SpeedFeedback_SetState(&a, 0.0f, true);
+    Motor_SpeedLoop_RunState(&a, &motor_a, dt);
+    assert(Motor_SpeedLoop_GetIqTargetState(&a) == 0.0f);
+
+    /* 新的非零转速指令解除零速释放锁定。 */
+    motor_a.ol_target_rpm = 100.0f;
+    motor_a.ol_current_rpm = 100.0f;
+    Motor_SpeedLoop_RunState(&a, &motor_a, dt);
+    assert(!a.zero_brake_released);
+
+    /* 允许制动时，确认机械速度已为零也要释放减速阶段残留积分。 */
+    Motor_SpeedLoop_PrimeIqState(&a, 1.5f);
+    motor_a.ol_target_rpm = 0.0f;
+    motor_a.ol_current_rpm = 0.0f;
+    motor_a.speed_allow_braking = true;
+    Motor_SpeedFeedback_SetState(&a, 0.0f, true);
+    Motor_SpeedLoop_RunState(&a, &motor_a, dt);
+    assert(Motor_SpeedLoop_GetIqTargetState(&a) == 0.0f);
+
     printf("test_motor_speed: pass\n");
     return 0;
 }

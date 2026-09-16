@@ -315,7 +315,8 @@ static void ol_print_status(void)
                          motor.hfi_start_min_confidence, Motor_HfiStart_IsRunning(), Motor_HfiStart_Succeeded(),
                          Motor_HfiStart_GetAngle(), Motor_HfiStart_GetConfidence());
         ol_status_append(&used, "  Ia,Ib,Ic   : %.3f %.3f %.3f A\n", status.ia, status.ib, status.ic);
-        ol_status_append(&used, "  Id, Iq     : %.3f %.3f A\n", status.id, status.iq);
+        ol_status_append(&used, "  Id, Iq     : %.3f %.3f A (target %.3f %.3f)\n", status.id, status.iq,
+                         status.id_target, status.iq_target);
         ol_status_append(&used, "  Vd, Vq int : %.3f %.3f\n", status.vd_int, status.vq_int);
         ol_status_append(&used, "  Speed loop : %s\n", status.speed_enable ? "ON" : "OFF");
         ol_status_append(&used, "  Sensorless : %s (%s)\n", sensorless_state,
@@ -733,7 +734,8 @@ int Cmd_OlSnap(int argc, char *argv[])
     PRINTF("  Fault      : %d %s (%s)\n", fault, Motor_Protect_GetFaultName(fault),
            status.fault_latched ? "LATCHED" : "CLEAR");
     PRINTF("  Ia,Ib,Ic   : %.3f %.3f %.3f A\n", status.ia, status.ib, status.ic);
-    PRINTF("  Id, Iq     : %.3f %.3f A\n", status.id, status.iq);
+    PRINTF("  Id, Iq     : %.3f %.3f A (target %.3f %.3f)\n", status.id, status.iq,
+           status.id_target, status.iq_target);
     PRINTF("  Speed Iq   : %.3f A\n", status.speed_iq);
     PRINTF("  Vd, Vq int : %.3f %.3f\n", status.vd_int, status.vq_int);
     PRINTF("=============================\n");
@@ -1099,7 +1101,7 @@ int Cmd_OlAlign(int argc, char *argv[])
     motor_result_t result;
     int enable;
 
-    if (argc < 4) {
+    if (argc < 2) {
         PRINTF("Align: %s Id=%.2fA time=%.3fs angle=%.3frad\n", motor.ol_align_enable ? "ON" : "OFF",
                motor.ol_align_current, motor.ol_align_time, motor.ol_align_angle);
         PRINTF("Usage: olalign <0|1> <Id_A> <time_s> [angle_rad]\n");
@@ -1117,8 +1119,13 @@ int Cmd_OlAlign(int argc, char *argv[])
         return -1;
     }
     cfg.ol_align_enable = (enable != 0);
-    cfg.ol_align_current = fabsf(atof(argv[2]));
-    cfg.ol_align_time = fabsf(atof(argv[3]));
+    if (argc >= 4) {
+        cfg.ol_align_current = fabsf(atof(argv[2]));
+        cfg.ol_align_time = fabsf(atof(argv[3]));
+    } else if (enable != 0) {
+        PRINTF("Usage: olalign <0|1> <Id_A> <time_s> [angle_rad]\n");
+        return -1;
+    }
     if (argc >= 5) {
         cfg.ol_align_angle = atof(argv[4]);
         utils_norm_angle_rad(&cfg.ol_align_angle);

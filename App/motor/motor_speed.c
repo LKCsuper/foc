@@ -41,6 +41,14 @@ static float Motor_Speed_Clamp(float value, float minimum, float maximum)
     return value;
 }
 
+static void Motor_Speed_ClearPi(motor_speed_state_t *state)
+{
+    state->loop_time = 0.0f;
+    state->integral = 0.0f;
+    state->error = 0.0f;
+    state->iq_target = 0.0f;
+}
+
 /**
  * @description: 初始化指定速度环状态对象，清零反馈、PI 与分频时间
  * @param {motor_speed_state_t} *state 状态对象，不可为空
@@ -87,10 +95,10 @@ void Motor_SpeedLoop_ResetState(motor_speed_state_t *state)
     if (state == NULL) {
         return;
     }
-    state->loop_time = 0.0f;
-    state->integral = 0.0f;
-    state->error = 0.0f;
-    state->iq_target = 0.0f;
+    Motor_Speed_ClearPi(state);
+    state->zero_brake_active = false;
+    state->zero_brake_released = false;
+    state->zero_brake_direction = 0;
 }
 
 /**
@@ -137,6 +145,37 @@ void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, 
     if (!motor->speed_enable || motor->ol_mode != MOTOR_OL_MODE_IF || !motor->ol_enable || !state->feedback_valid) {
         Motor_SpeedLoop_ResetState(state);
         return;
+    }
+
+    /* 零速且禁止制动表示自然滑停：立即释放历史正向积分，避免停住后仍持续施加转矩。 */
+    if (!motor->speed_allow_braking && motor->ol_target_rpm == 0.0f) {
+        Motor_SpeedLoop_ResetState(state);
+        return;
+    }
+    if (motor->ol_target_rpm != 0.0f) {
+        state->zero_brake_active = false;
+        state->zero_brake_released = false;
+        state->zero_brake_direction = 0;
+    } else {
+        int8_t direction = state->measured_rpm > 1.0f ? 1 : (state->measured_rpm < -1.0f ? -1 : 0);
+
+        if (!state->zero_brake_active && !state->zero_brake_released) {
+            if (direction == 0) {
+                state->zero_brake_released = true;
+            } else {
+                state->zero_brake_active = true;
+                state->zero_brake_direction = direction;
+            }
+        } else if (state->zero_brake_active &&
+                   (direction == 0 || direction != state->zero_brake_direction)) {
+            /* Hall 低速区可能超时归零，也可能越过零点后才给出反向边沿；两种情况都必须释放。 */
+            state->zero_brake_active = false;
+            state->zero_brake_released = true;
+        }
+        if (state->zero_brake_released) {
+            Motor_Speed_ClearPi(state);
+            return;
+        }
     }
 
     if (motor->speed_loop_hz < 1.0f) {

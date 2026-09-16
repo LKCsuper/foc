@@ -227,6 +227,8 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
     snap.ic = motor->ic;
     snap.id = motor->Id;
     snap.iq = motor->Iq;
+    snap.id_target = motor->id_target;
+    snap.iq_target = motor->iq_target;
     snap.v_bus = motor->v_bus;
     snap.theta = motor->theta;
     snap.duty1 = motor->duty1;

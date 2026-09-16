@@ -52,6 +52,8 @@ typedef struct {
     float ic;          /* A */
     float id;          /* A */
     float iq;          /* A */
+    float id_target;   /* 本拍电流环 Id 目标 A */
+    float iq_target;   /* 本拍电流环 Iq 目标 A */
     float v_bus;       /* V */
     float theta;       /* 本拍 Park/PWM 电角度 rad */
     uint32_t duty1;    /* TIM1 CCR1 */

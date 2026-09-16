@@ -35,6 +35,8 @@ typedef struct {
     float Ibeta;
     float Id; /* A */
     float Iq; /* A */
+    float id_target; /* 本拍电流环 Id 目标 A */
+    float iq_target; /* 本拍电流环 Iq 目标 A */
     float theta; /* 电角度 rad */
     float e_err_ki_sum;
     float e_iq_out;
@@ -83,6 +85,8 @@ typedef struct motor_param {
 
     float Id; /* Park 变换 d 轴电流 (A) */
     float Iq; /* Park 变换 q 轴电流 (A) */
+    float id_target; /* 本拍电流环 Id 目标 (A)，不持久化 */
+    float iq_target; /* 本拍电流环 Iq 目标 (A)，不持久化 */
 
     float theta; /* 电角度 (rad) */
 

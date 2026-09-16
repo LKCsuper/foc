@@ -111,6 +111,8 @@ void Motor_Control_ResetRuntime(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
     motor->ol_current_rpm = 0.0f;
     motor->ol_vd_int = 0.0f;
     motor->ol_vq_int = 0.0f;
+    motor->id_target = 0.0f;
+    motor->iq_target = 0.0f;
     motor->Id = 0.0f;
     motor->Iq = 0.0f;
     Motor_SpeedLoop_Reset();
@@ -166,7 +168,8 @@ bool Motor_Control_IsReady(const MOTOR_PARAM_S *motor, float v_bus, bool hall_de
     if (hall_detect_active) {
         return motor->ol_enable && v_bus >= 1.0f;
     }
-    return motor->ol_enable && motor->ol_target_rpm != 0.0f && v_bus >= 1.0f;
+    /* 零速可作为已启用速度环的有效命令；普通开环目标为零仍不得起动。 */
+    return motor->ol_enable && (motor->ol_target_rpm != 0.0f || motor->speed_enable) && v_bus >= 1.0f;
 }
 
 /**
@@ -485,6 +488,10 @@ static bool Motor_Control_SpeedLoopReady(const MOTOR_PARAM_S *motor)
     if (motor == NULL || !motor->speed_enable || !Motor_SpeedLoop_IsFeedbackValid()) {
         return false;
     }
+    /* 零速是闭环命令而非重新启动，须持续由速度 PI 管理，不能跌回启动 Iq。 */
+    if (motor->ol_target_rpm == 0.0f) {
+        return true;
+    }
     release_rpm = fmaxf(0.5f * fabsf(motor->ol_min_rpm), 0.5f * fabsf(motor->ol_current_rpm));
     return fabsf(Motor_SpeedLoop_GetMeasuredRpm()) >= release_rpm;
 }
@@ -596,7 +603,7 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
 
     Motor_Control_FillCurrentCtx(ctrl, motor, &ctx);
     /* 电流目标已按 soft/drag 比例爬升；电压上限不再叠乘 soft，避免积分顶满后过流。 */
-    voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, NULL, NULL);
+    voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, &motor->id_target, &motor->iq_target);
     /*
      * I/F 的 Park 角是开环磁场角，不是转子角。ωψf 前馈必须在转子 dq 上；
      * 加在 I/F 轴上会随转速把 Id/Iq 打偏（72 RPM 还行，300 RPM 见过 0.17 A 或 1.0/1.1 A）。
@@ -671,6 +678,8 @@ static motor_control_result_t Motor_Control_RunHallDetect(MOTOR_PARAM_S *motor, 
         v_limit = 10.0f;
     }
     Motor_Current_FeedbackUpdateDq(motor, theta);
+    motor->id_target = id_target;
+    motor->iq_target = iq_target;
     voltage = Motor_Current_RunPi(motor, id_target, iq_target, dt, v_limit);
     return Motor_Control_ResultDq(voltage.vd, voltage.vq, theta);
 }
