@@ -30,6 +30,12 @@ static float s_last_speed_iq_target;
 static bool s_last_alignment_running;
 static float s_last_soft_current_scale;
 static float s_last_if_iq_scale;
+static float s_speed_prime_iq;
+
+void Motor_SpeedLoop_PrimeIq(float iq)
+{
+    s_speed_prime_iq = iq;
+}
 
 void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
 {
@@ -509,11 +515,39 @@ int main(void)
         assert(!s_last_speed_loop_active);
         assert(s_last_if_iq_scale < 0.0f);
 
+        /* 有感直起：低于 50% 门槛用启动 Iq；越过后门限滞回，预置启动电流。 */
+        Motor_Control_Init(&ctrl);
+        ctrl.startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+        ctrl.startup.soft_current_scale = 1.0f;
+        ctrl.startup.drag_current_scale = 1.0f;
+        m.ol_target_rpm = 72.0f;
+        m.ol_current_rpm = 72.0f;
+        m.ol_min_rpm = 72.0f;
+        m.ol_iq_set = 0.6f;
+        s_enc_rpm = 20.0f;
+        s_speed_prime_iq = 0.0f;
+        s_last_speed_loop_active = true;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(!s_last_speed_loop_active);
+        assert(s_speed_prime_iq == 0.0f);
+
+        s_enc_rpm = 40.0f;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(s_last_speed_loop_active);
+        assert(fabsf(s_speed_prime_iq - 0.6f) < 1e-5f);
+
+        s_speed_prime_iq = 0.0f;
+        s_enc_rpm = 25.0f;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(s_last_speed_loop_active);
+        assert(s_speed_prime_iq == 0.0f);
+
         /* 有效有感反馈下，零速命令保持速度闭环，不能退回启动 Iq 或 SAFE。 */
         m.ol_target_rpm = 0.0f;
         m.ol_current_rpm = 0.0f;
         s_enc_rpm = 0.0f;
         s_last_speed_loop_active = false;
+        s_speed_iq_out = 0.0f;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
         assert(s_last_speed_loop_active);

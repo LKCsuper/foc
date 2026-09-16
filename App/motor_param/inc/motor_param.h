@@ -11,6 +11,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include "motor_types.h"
+#include "motor_nameplate.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_OL_MODE_VF (0) /* V/F 电压开环 */

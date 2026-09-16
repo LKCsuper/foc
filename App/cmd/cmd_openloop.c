@@ -178,7 +178,8 @@ static const char *ol_sensorless_state_name(motor_sensorless_state_t state)
 static void ol_print_high_speed_guard_notice(float target_rpm)
 {
     bool high_speed_request = motor.ol_mode == MOTOR_OL_MODE_IF && motor.sensorless_openloop_max_rpm > 0.0f &&
-                              fabsf(target_rpm) > motor.sensorless_openloop_max_rpm;
+                              fabsf(target_rpm) > motor.sensorless_openloop_max_rpm &&
+                              !Motor_Feedback_IsSensoredSource(Motor_Feedback_GetSourceDefault());
 
     if (!high_speed_request) {
         return;
@@ -739,7 +740,7 @@ int Cmd_OlSnap(int argc, char *argv[])
     PRINTF("  Speed Iq   : %.3f A\n", status.speed_iq);
     PRINTF("  Vd, Vq int : %.3f %.3f\n", status.vd_int, status.vq_int);
     PRINTF("=============================\n");
-    /* 300 RPM 时第一段 DMA 发出后完成中断进不来；不 Flush 则 V_bus 之后整页卡死。 */
+    /* TX DMA 可抢占 FOC，Flush 能把本页发完，避免 olsnap 半截卡死上位机解析。 */
     Bsp_Usart_Flush();
     return 0;
 }

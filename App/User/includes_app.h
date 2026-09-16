@@ -20,6 +20,7 @@ extern "C" {
 
 /* motor */
 #include "motor_common.h"
+#include "motor_nameplate.h"
 #include "motor_param.h"
 #include "motor_cal.h"
 #include "motor_math.h"

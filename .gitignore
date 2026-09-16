@@ -9,3 +9,10 @@ MAlonzo/**
 # Keil/J-Link generated logs and per-user UI state
 /App/Project/JLinkLog.txt
 /App/Project/*.uvguix.*
+
+# FOC 对照参考（只本地 clone，不编进工程、不提交）
+/ThirtyLibrary/MESC_Firmware/
+/ThirtyLibrary/moteus/
+/ThirtyLibrary/hoverboard-firmware-hack-FOC/
+/ThirtyLibrary/Arduino-FOC/
+/ThirtyLibrary/ODrive/

@@ -108,7 +108,7 @@ class Shell:
                 if progress:
                     print(f"  ... send {line} (up to {timeout:.0f}s)", flush=True)
                 self.ser.write((line + "\r").encode("ascii"))
-            last += self.read_until_prompt(timeout if attempt == 0 else min(8.0, timeout), progress=progress)
+            last += self.read_until_prompt(timeout, progress=progress)
             if self._got_prompt(last):
                 return decode(last)
             if line == "olstart" and b"Open-loop started" in last:

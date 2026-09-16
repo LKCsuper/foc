@@ -119,13 +119,13 @@ STATIC VOID Bsp_Usart_TxDmaCompleteLocked(VOID)
 
 /**
  * @brief  任务侧补看 TX DMA 完成标志，并在队列非空时尝试启动下一段。
- * @note   调用前必须关中断。FOC 约 95% 时 UART DMA 完成中断经常进不来；
- *         队列未满时 TxQueueByte 不会空转，必须在这里把回绕后的下一段发出去。
+ * @note   调用前必须关中断。用 Flag 而不是 ITStatus：后者还要求 TCIE，任务轮询会漏完成。
  */
 STATIC VOID Bsp_Usart_TxDmaPollLocked(VOID)
 {
 	if (sgbUsartTxDmaBusy &&
-	    (DMA_GetITStatus(DEBUG_USART_TX_DMA_STREAM, DEBUG_USART_TX_DMA_TC_IT) != RESET)) {
+	    (DMA_GetFlagStatus(DEBUG_USART_TX_DMA_STREAM, DEBUG_USART_TX_DMA_TC_FLAG) != RESET)) {
+		DMA_ClearFlag(DEBUG_USART_TX_DMA_STREAM, DEBUG_USART_TX_DMA_FLAGS);
 		DMA_ClearITPendingBit(DEBUG_USART_TX_DMA_STREAM, DEBUG_USART_TX_DMA_TC_IT);
 		Bsp_Usart_TxDmaCompleteLocked();
 		return;
@@ -230,10 +230,10 @@ STATIC VOID Bsp_Debug_Nvic(VOID)
 	/* 空闲中断使用命令行 */
 	NVIC_InitTypeDef NVIC_InitStre;
 	NVIC_InitStre.NVIC_IRQChannel = DEBUG_USART_IRQn;
-    NVIC_InitStre.NVIC_IRQChannelPreemptionPriority = IRQ_DEBUG_IDE;
-    NVIC_InitStre.NVIC_IRQChannelSubPriority = 0x0;
-    NVIC_InitStre.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStre);
+	NVIC_InitStre.NVIC_IRQChannelPreemptionPriority = IRQ_DEBUG_IDE;
+	NVIC_InitStre.NVIC_IRQChannelSubPriority = 0x0;
+	NVIC_InitStre.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStre);
 
 	/* 空闲中断,接收到一连串数据触发一次 */
 	USART_ITConfig(DEBUG_USART, USART_IT_IDLE, ENABLE);
@@ -317,10 +317,8 @@ VOID Bsp_Usart_TxDmaInit(VOID)
 
 	DMA_ClearFlag(DEBUG_USART_TX_DMA_STREAM, DEBUG_USART_TX_DMA_FLAGS);
 	DMA_ITConfig(DEBUG_USART_TX_DMA_STREAM, DMA_IT_TC, ENABLE);
-
-	/* 发送 DMA 中断只管理缓冲区，不调用 RTOS API，优先级低于 FOC DMA 中断。 */
 	stNvicInit.NVIC_IRQChannel = DEBUG_USART_TX_DMA_IRQn;
-	stNvicInit.NVIC_IRQChannelPreemptionPriority = IRQ_DEBUG_IDE;
+	stNvicInit.NVIC_IRQChannelPreemptionPriority = IRQ_DEBUG_TX;
 	stNvicInit.NVIC_IRQChannelSubPriority = 0U;
 	stNvicInit.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&stNvicInit);
@@ -457,6 +455,8 @@ VOID Bsp_Usart_Flush(VOID)
 {
 	bool bQueueEmpty;
 	uint32_t ulPrimask;
+	uint32_t ulSpins = 0U;
+	uint32_t ulTcWait = 20000U;
 
 	if (sgbUsartTxDmaReady) {
 		do {
@@ -468,10 +468,17 @@ VOID Bsp_Usart_Flush(VOID)
 			if (0U == ulPrimask) {
 				__enable_irq();
 			}
+			ulSpins++;
+			/* FOC 高负载时 DMA TC 可能长期不到；无限等会把命令任务卡死，串口整段失联。 */
+			if (ulSpins >= 200000U) {
+				break;
+			}
 		} while (!bQueueEmpty);
 	}
 
-	IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TC) == RESET);
+	while ((USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TC) == RESET) && (ulTcWait > 0U)) {
+		ulTcWait--;
+	}
 }
 
 /**

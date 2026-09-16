@@ -43,37 +43,60 @@ VOID Bsp_Tim3_IRQ(VOID)
  */
 ULONG ulRxLen = 0;
 static CMD_QUEUE_ITEM rx_item;
+
+/**
+ * @description: 收取 UART RX DMA 当前帧并重新启动接收。
+ * @detail: 先关掉 UART 的 DMA 请求再关流，避免电机噪声持续触发时 EN 永不落下。
+ *          等待 DMA 关闭必须有上限：空等会卡住 UART 中断，FOC 仍跑、命令任务永久饿死。
+ * @return {void} 无
+ */
+static void Bsp_Usart_HarvestRx(void)
+{
+    volatile uint32_t timeout = 1000U;
+
+    DEBUG_USART->SR;
+    DEBUG_USART->DR;
+    USART_ClearITPendingBit(DEBUG_USART, USART_IT_IDLE);
+
+    USART_DMACmd(DEBUG_USART, USART_DMAReq_Rx, DISABLE);
+    DMA_Cmd(DEBUG_USART_RX_DMA_STREAM, DISABLE);
+    while ((DMA_GetCmdStatus(DEBUG_USART_RX_DMA_STREAM) != DISABLE) && (timeout > 0U)) {
+        timeout--;
+    }
+    if (DMA_GetCmdStatus(DEBUG_USART_RX_DMA_STREAM) != DISABLE) {
+        DEBUG_USART_RX_DMA_STREAM->CR &= ~(uint32_t)DMA_SxCR_EN;
+        timeout = 1000U;
+        while ((DMA_GetCmdStatus(DEBUG_USART_RX_DMA_STREAM) != DISABLE) && (timeout > 0U)) {
+            timeout--;
+        }
+    }
+
+    if (DMA_GetCmdStatus(DEBUG_USART_RX_DMA_STREAM) == DISABLE) {
+        ulRxLen = USART_RX_BUF_SIZE - DMA_GetCurrDataCounter(DEBUG_USART_RX_DMA_STREAM);
+        if (ulRxLen > USART_RX_BUF_SIZE) {
+            ulRxLen = USART_RX_BUF_SIZE;
+        }
+        if (queueCmdHandle != NULL && ulRxLen > 0U) {
+            rx_item.len = ulRxLen;
+            memcpy(rx_item.data, gucURxBuf, ulRxLen);
+            osMessageQueuePut(queueCmdHandle, &rx_item, NULL, 0);
+        }
+        DMA_ClearFlag(DEBUG_USART_RX_DMA_STREAM, DEBUG_USART_RX_DMA_FLAGS);
+        DMA_SetCurrDataCounter(DEBUG_USART_RX_DMA_STREAM, USART_RX_BUF_SIZE);
+        DMA_Cmd(DEBUG_USART_RX_DMA_STREAM, ENABLE);
+    }
+    USART_DMACmd(DEBUG_USART, USART_DMAReq_Rx, ENABLE);
+}
+
+/**
+ * @description: UART 空闲中断：收取一帧命令并重启 RX DMA。
+ * @return {void} 无
+ */
 VOID Bsp_Usart_Handler(VOID)
 {
-    if (RESET != USART_GetITStatus(DEBUG_USART, USART_IT_IDLE))
-    {
-		/* 个人认为是清空缓冲,取出数据 */
-		DEBUG_USART->SR;
-		DEBUG_USART->DR;
-
-		/* 清空空闲中断 */
-		USART_ClearITPendingBit(DEBUG_USART, USART_IT_IDLE);
-		/* 关闭dma */
-		DMA_Cmd(DEBUG_USART_RX_DMA_STREAM, DISABLE);
-		/* 本帧数据长度=DMA准备的接收数据长度-DMA已接收数据长度 */
-		ulRxLen = USART_RX_BUF_SIZE - DMA_GetCurrDataCounter(DEBUG_USART_RX_DMA_STREAM); 
-
-		/* 此时知道接收的长度以及Buf,直接传一个队列 */
-		if (queueCmdHandle != NULL && ulRxLen > 0)
-		{
-			rx_item.len = ulRxLen;
-			memcpy(rx_item.data, gucURxBuf, ulRxLen);
-			osMessageQueuePut(queueCmdHandle, &rx_item, NULL, 0);
-		}
-		/* modify:codex 原因：这里操作的是 DMA1 Stream1，必须清 IF1 标志；原来清 IF4 会留下 Stream1 pending 标志。 */
-		DMA_ClearFlag(DEBUG_USART_RX_DMA_STREAM, DEBUG_USART_RX_DMA_FLAGS);
-		IS_TIME_OUT(DMA_GetCmdStatus(DEBUG_USART_RX_DMA_STREAM) != DISABLE);
-		
-		DMA_SetCurrDataCounter(DEBUG_USART_RX_DMA_STREAM, USART_RX_BUF_SIZE);
-		DMA_Cmd(DEBUG_USART_RX_DMA_STREAM, ENABLE);
-	}
-	
-	return;
+    if (USART_GetITStatus(DEBUG_USART, USART_IT_IDLE) != RESET) {
+        Bsp_Usart_HarvestRx();
+    }
 }
 
 /**

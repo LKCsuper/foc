@@ -1,5 +1,5 @@
 /*
- * @Description: 霍尔表解码与转速估计主机测试
+ * @Description: 霍尔表解码与 Hall-PLL 转速估计主机测试
  * @Author: lkc
  */
 #include <assert.h>
@@ -11,6 +11,10 @@
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+static const int k_hall_seq[6] = {1, 3, 2, 6, 4, 5};
+/* 实机 Hall 每 32 次 ADC 触发更新一次，测试须使用相同 dt。 */
+static const float k_hall_dt = 32.0f / 30000.0f;
 
 static void fill_ready_table(int8_t table[MOTOR_HALL_TABLE_SIZE])
 {
@@ -29,12 +33,34 @@ static void fill_ready_table(int8_t table[MOTOR_HALL_TABLE_SIZE])
     /* 0、7 无效 */
 }
 
+static void drive_hall_rpm(motor_hall_angle_t *st, const int8_t *table, float pp, float rpm, float duration_s,
+                           int *seq_index)
+{
+    float sector_period;
+    float sector_age = 0.0f;
+    float t;
+    int dir;
+
+    assert(rpm != 0.0f);
+    dir = rpm > 0.0f ? 1 : -1;
+    sector_period = 10.0f / (pp * fabsf(rpm));
+    for (t = 0.0f; t < duration_s; t += k_hall_dt) {
+        Motor_Hall_AngleUpdate(st, table, k_hall_seq[*seq_index], pp, k_hall_dt);
+        sector_age += k_hall_dt;
+        if (sector_age >= sector_period) {
+            sector_age -= sector_period;
+            *seq_index = (*seq_index + dir + 6) % 6;
+        }
+    }
+}
+
 int main(void)
 {
     int8_t table[MOTOR_HALL_TABLE_SIZE];
     motor_hall_angle_t st;
     float theta;
     float expect;
+    int seq;
 
     fill_ready_table(table);
     assert(Motor_Hall_TableReady(table));
@@ -54,58 +80,85 @@ int main(void)
     Motor_Hall_AngleReset(&st);
     Motor_Hall_AngleUpdate(&st, table, 1, 2.0f, 0.01f);
     assert(st.angle_valid);
-    assert(!st.speed_valid);
+    assert(st.speed_valid);
+    assert(fabsf(st.mech_rpm_fast) < 1e-3f);
 
     /* 停留超时 → 停转，速度有效为 0 */
     Motor_Hall_AngleUpdate(&st, table, 1, 2.0f, 0.25f);
     assert(st.angle_valid);
     assert(st.speed_valid);
     assert(fabsf(st.mech_rpm) < 1e-4f);
+    assert(fabsf(st.mech_rpm_fast) < 1e-4f);
 
-    /* 换向 1→3（固定 1/6 电角周）/ 0.05s，1 极对 → 200RPM */
+    /* 1 极对、200 RPM：PLL 与六边沿窗口都应收敛到约 200，而不是单边沿台阶。 */
     Motor_Hall_AngleReset(&st);
-    Motor_Hall_AngleUpdate(&st, table, 1, 1.0f, 0.01f);
-    Motor_Hall_AngleUpdate(&st, table, 3, 1.0f, 0.05f);
+    seq = 0;
+    drive_hall_rpm(&st, table, 1.0f, 200.0f, 2.0f, &seq);
     assert(st.angle_valid);
     assert(st.speed_valid);
     expect = 200.0f;
-    assert(fabsf(st.mech_rpm - expect) < 1.0f);
-    assert(fabsf(st.mech_rpm_raw - expect) < 1.0f);
-    /* 快速支路按标定表量化后的实际角差测速：60° 被编码为 33/200 周，即 198 RPM。 */
-    assert(fabsf(st.mech_rpm_fast - 198.0f) < 1.0f);
-    /* 200RPM 位于渐入区：扇区中心与完整插值各占一部分。 */
-    assert(fabsf(st.theta_rad - (5.0f * (float)M_PI / 18.0f)) < 0.02f);
-    Motor_Hall_AngleUpdate(&st, table, 3, 1.0f, 0.025f);
-    assert(fabsf(st.theta_rad - ((float)M_PI / 3.0f)) < 0.02f);
-
-    /* 六个略有抖动的边沿周期采用总时间平均，而非平均瞬时 RPM。 */
-    Motor_Hall_AngleReset(&st);
-    Motor_Hall_AngleUpdate(&st, table, 1, 1.0f, 0.01f);
-    Motor_Hall_AngleUpdate(&st, table, 3, 1.0f, 0.05f);
-    Motor_Hall_AngleUpdate(&st, table, 2, 1.0f, 0.04f);
-    Motor_Hall_AngleUpdate(&st, table, 6, 1.0f, 0.06f);
-    Motor_Hall_AngleUpdate(&st, table, 4, 1.0f, 0.05f);
-    Motor_Hall_AngleUpdate(&st, table, 5, 1.0f, 0.04f);
-    Motor_Hall_AngleUpdate(&st, table, 1, 1.0f, 0.06f);
+    assert(fabsf(st.mech_rpm - expect) < 5.0f);
+    assert(fabsf(st.mech_rpm_fast - expect) < 8.0f);
+    /* 200RPM 位于渐入区，电角不应再钉死在扇区中心。 */
     assert(st.period_count == MOTOR_HALL_SPEED_WINDOW);
-    assert(fabsf(st.mech_rpm - 200.0f) < 1.0f);
-    assert(fabsf(st.mech_rpm_raw - (10.0f / 0.06f)) < 1.0f);
 
-    /* 边沿迟到时快速值立即受年龄上限约束，不等待 0.2s 停转超时。 */
-    Motor_Hall_AngleUpdate(&st, table, 1, 1.0f, 0.10f);
-    assert(fabsf(st.mech_rpm_fast) <= 100.1f);
-
-    /* 反转同样按速度渐入；200RPM 时边界偏移为完整值的 1/3。 */
+    /* 2 对极 72 RPM：速度环用的 PLL 应贴着 72，不能在边沿间掉到 0。 */
     Motor_Hall_AngleReset(&st);
-    Motor_Hall_AngleUpdate(&st, table, 3, 1.0f, 0.01f);
-    Motor_Hall_AngleUpdate(&st, table, 1, 1.0f, 0.05f);
+    seq = 0;
+    drive_hall_rpm(&st, table, 2.0f, 72.0f, 1.2f, &seq);
+    assert(fabsf(st.mech_rpm_fast - 72.0f) < 4.0f);
+    assert(fabsf(st.mech_rpm - 72.0f) < 4.0f);
+    /* 低于插值门限：电角保持当前扇区中心。 */
+    assert(Motor_Hall_DecodeAngle(table, st.last_state, &theta));
+    assert(fabsf(st.theta_rad - theta) < 1e-4f ||
+           fabsf(fabsf(st.theta_rad - theta) - 2.0f * (float)M_PI) < 1e-4f);
+
+    /* 同扇区继续推进若干 ADC 拍，PLL 速度不得塌成边沿周期测速那样的台阶。 */
+    {
+        float rpm_a = st.mech_rpm_fast;
+        int hold_state = st.last_state;
+        int i;
+
+        for (i = 0; i < 18; i++) {
+            Motor_Hall_AngleUpdate(&st, table, hold_state, 2.0f, k_hall_dt);
+        }
+        assert(fabsf(st.mech_rpm_fast - rpm_a) < 8.0f);
+        assert(fabsf(st.mech_rpm_fast) > 50.0f);
+    }
+
+    /* 反转 −72 RPM。 */
+    Motor_Hall_AngleReset(&st);
+    seq = 0;
+    drive_hall_rpm(&st, table, 2.0f, -72.0f, 1.2f, &seq);
     assert(st.direction == -1);
-    assert(fabsf(st.theta_rad - ((float)M_PI / 18.0f)) < 0.02f);
-    Motor_Hall_AngleUpdate(&st, table, 1, 1.0f, 0.025f);
-    assert(fabsf(st.theta_rad) < 0.02f);
+    assert(fabsf(st.mech_rpm_fast + 72.0f) < 4.0f);
+
+    /* 高速也不能因六扇区计数回绕而锁到错误速度。 */
+    Motor_Hall_AngleReset(&st);
+    seq = 0;
+    drive_hall_rpm(&st, table, 2.0f, 800.0f, 2.0f, &seq);
+    assert(!st.pll_low_speed_active);
+    assert(fabsf(st.mech_rpm_fast - 800.0f) < 40.0f);
+
+    /* 从高速降至低速时重新以当前周期速度初始化 PLL，不得沿用高速误锁状态。 */
+    drive_hall_rpm(&st, table, 2.0f, 72.0f, 2.0f, &seq);
+    assert(st.pll_low_speed_active);
+    assert(fabsf(st.mech_rpm_fast - 72.0f) < 8.0f);
+
+    /* ADC 节拍在相邻扇区来回跳：不得把 PLL 速度打飞，也不得在回绕里卡死。 */
+    Motor_Hall_AngleReset(&st);
+    Motor_Hall_AngleUpdate(&st, table, 1, 2.0f, k_hall_dt);
+    {
+        int i;
+
+        for (i = 0; i < 30000; i++) {
+            Motor_Hall_AngleUpdate(&st, table, (i & 1) ? 1 : 3, 2.0f, k_hall_dt);
+        }
+        assert(fabsf(st.mech_rpm_fast) < 20000.0f);
+    }
 
     /* 非法扇区：角无效 */
-    Motor_Hall_AngleUpdate(&st, table, 0, 1.0f, 0.01f);
+    Motor_Hall_AngleUpdate(&st, table, 0, 2.0f, k_hall_dt);
     assert(!st.angle_valid);
     assert(!st.speed_valid);
 

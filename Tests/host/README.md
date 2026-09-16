@@ -32,7 +32,7 @@
 | `test_motor_detect_offset` | 偏移校准非阻塞核心 |
 | `test_motor_feedback` | 反馈源选角与失效策略 |
 | `test_motor_encoder` | 编码器回绕速度、零点有效 |
-| `test_motor_hall_angle` | 霍尔表/扇区/估速 |
+| `test_motor_hall_angle` | 霍尔表/扇区/Hall-PLL 72 与 200 RPM |
 | `test_motor_bldc_six_step` | 独立 BLDC 六步换相、正反转、非法霍尔与超时停机 |
 | `test_motor_bldc_sensorless` | BLDC 开环启动、BEMF 过零接管、30°延迟换相与丢步保护 |
 | `example_01_transform` | Clarke/Park/逆 Park/SVM 往返（学习示例） |

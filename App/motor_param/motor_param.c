@@ -17,27 +17,6 @@ extern "C" {
 #include "printf_color.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-/* ATK-BL57H95D20E 电机固定参数（来自电机铭牌/规格书） */
-#define MOTOR_FIXED_MODEL           "ATK-BL57H95D20E" /* 型号；当前未使用 */
-#define MOTOR_FIXED_PHASE_COUNT     (3U)              /* 相数；当前未使用 */
-#define MOTOR_FIXED_POLE_PAIRS      (2.0f)            /* 4 极 = 2 对极 */
-#define MOTOR_FIXED_RATED_VOLTAGE   (24.0f)           /* 额定电压 VDC；当前未使用 */
-#define MOTOR_FIXED_RATED_RPM       (3000.0f)         /* 额定转速 RPM */
-#define MOTOR_FIXED_RATED_TORQUE    (0.33f)           /* 额定扭矩 N·m；当前未使用 */
-#define MOTOR_FIXED_RATED_CURRENT   (6.6f)            /* 额定电流 A；当前未使用 */
-#define MOTOR_FIXED_OUTPUT_POWER    (105.0f)          /* 输出功率 W；当前未使用 */
-#define MOTOR_FIXED_PEAK_TORQUE     (4.2f)            /* 峰值扭矩 N·m；当前未使用 */
-#define MOTOR_FIXED_PEAK_CURRENT    (19.8f)           /* 峰值电流 A；当前未使用 */
-#define MOTOR_FIXED_TORQUE_CONSTANT (0.063f)          /* 力矩常数 N·m/A；当前未使用 */
-#define MOTOR_FIXED_BACK_EMF        (6.6f)            /* 反电势 V/kRPM；当前未使用 */
-#define MOTOR_FIXED_LINE_RESISTANCE (0.4f)            /* 线电阻 Ω */
-#define MOTOR_FIXED_LINE_INDUCTANCE (0.0008f)         /* 线电感 0.8 mH = 0.0008 H */
-#define MOTOR_FIXED_INERTIA         (210.0f)          /* 转动惯量 g·cm^2；当前未使用 */
-#define MOTOR_FIXED_BODY_LENGTH     (95.0f)           /* 机身长度 mm；当前未使用 */
-#define MOTOR_FIXED_WEIGHT          (1.0f)            /* 重量 kg；当前未使用 */
-
-/* 按线间 RMS 反电势计算：λ = Ke / (128.25498 × 极对数) */
-#define MOTOR_FIXED_FLUX_LINKAGE (0.02573f) /* 6.6 V/kRPM、2 极对 -> 25.73 mWb */
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 MOTOR_PARAM_S motor;
@@ -64,7 +43,7 @@ void MOTOR_Param_Init(void)
     /* 重入初始化也不得继承上次的命令、采样或 PI 状态。 */
     memset(gpstMotorDefault, 0, sizeof(*gpstMotorDefault));
 
-    /* 一、电机固定参数：更换电机时按铭牌/辨识结果修改 */
+    /* 一、电机固定参数：铭牌见 motor_nameplate.h */
     gpstMotorDefault->ol_pole_pairs = MOTOR_FIXED_POLE_PAIRS;
 
     /* 二、运行给定值：属于控制指令，不是电机固有参数 */

@@ -40,6 +40,8 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_BLDC_AUTO_DUTY_MIN 0.08f
 #define MOTOR_BLDC_AUTO_DUTY_MAX 0.10f
+/* 霍尔 GPIO+PLL 不必跟 30 kHz ADC；25 Hz PLL 用 3.75 kHz 足够，否则会饿死 UART。 */
+#define MOTOR_HALL_ADC_DIVIDER 32U
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -65,6 +67,8 @@ static bool s_bldc_sample_upward = true;
  */
 static volatile float s_foc_runtime_average_us = 0.0f;
 static volatile float s_foc_runtime_maximum_us = 0.0f;
+static uint8_t s_hall_adc_div;
+static float s_hall_dt_acc_s;
 /* Private function prototypes -----------------------------------------------*/
 static void Motor_DmaInt_RecordRuntime(uint32_t start_time);
 static bool Motor_Bldc_InitDefault(void);
@@ -742,20 +746,37 @@ static void Motor_DmaInt_Foc(void)
     motor_feedback_source_t feedback_source;
     motor_control_result_t result;
 
+    /*
+     * 与 V/F 回归路径相同：非控制拍立刻返回。FOC 若在每个 30 kHz ADC 都做
+     * 采样/保护/霍尔，ISR 会首尾相接，PendSV 和 UART IDLE 永远抢不到 CPU。
+     */
+    if (!Motor_DmaInt_ShouldRun()) {
+        Motor_DmaInt_RecordRuntime(runtime_start);
+        return;
+    }
+
     Motor_It_ParamCal();
-    protection_dt = Motor_OpenLoop_GetAdcDt(&motor);
+    protection_dt = Motor_OpenLoop_GetDt(&motor);
     feedback_source = Motor_Feedback_GetSourceDefault();
     /*
-     * 纯开环不用编码器/霍尔，不应在每个 30 kHz ADC 中断做它们的浮点计算。
-     * 旧路径在 72 RPM 已占用约 90% CPU，会饿死 USART IDLE 中断和命令任务。
-     * 被选为反馈源时仍保持原来的每 ADC 拍更新频率。
+     * 纯开环不用编码器/霍尔，不应在控制拍上额外做它们的浮点计算。
+     * 霍尔按 MOTOR_HALL_ADC_DIVIDER 分频更新，dt 累加后交给 PLL。
      */
     if (feedback_source == MOTOR_FEEDBACK_SRC_ENCODER) {
         Motor_Encoder_Update(protection_dt);
     }
     if (feedback_source == MOTOR_FEEDBACK_SRC_HALL) {
-        Motor_Hall_AngleUpdateDefault(motor.hall_table, Motor_Hall_Read(false, motor.hall_extra_samples),
-                                      motor.ol_pole_pairs, protection_dt);
+        s_hall_dt_acc_s += protection_dt;
+        s_hall_adc_div++;
+        if (s_hall_adc_div >= MOTOR_HALL_ADC_DIVIDER) {
+            s_hall_adc_div = 0U;
+            Motor_Hall_AngleUpdateDefault(motor.hall_table, Motor_Hall_Read(false, motor.hall_extra_samples),
+                                          motor.ol_pole_pairs, s_hall_dt_acc_s);
+            s_hall_dt_acc_s = 0.0f;
+        }
+    } else {
+        s_hall_adc_div = 0U;
+        s_hall_dt_acc_s = 0.0f;
     }
 
     if (Motor_Protect_Run(&motor, protection_dt)) {
@@ -765,12 +786,7 @@ static void Motor_DmaInt_Foc(void)
         return;
     }
 
-    if (!Motor_DmaInt_ShouldRun()) {
-        Motor_DmaInt_RecordRuntime(runtime_start);
-        return;
-    }
-
-    dt = Motor_OpenLoop_GetDt(&motor);
+    dt = protection_dt;
     result = Motor_Control_Step(&s_control, &motor, motor.v_bus, dt, Motor_Hall_DetectIsActive());
     /*
      * 无感可能在本拍 Step 内锁存失速。先仲裁：故障态只允许 SAFE，

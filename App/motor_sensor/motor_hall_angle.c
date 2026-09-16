@@ -17,11 +17,17 @@ extern "C" {
 static motor_hall_angle_t s_hall_angle;
 /* Private function prototypes -----------------------------------------------*/
 static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, float sector_center, float pole_pairs);
+static void Motor_Hall_PllReset(motor_hall_angle_t *st);
+static void Motor_Hall_PllRun(motor_hall_angle_t *st, float pole_pairs, float dt_s);
+static void Motor_Hall_UpdateSpeedEstimate(motor_hall_angle_t *st, float pole_pairs, float dt_s);
+static float Motor_Hall_WrapCpr(float x);
+static float Motor_Hall_WrapDelta(float x);
 /* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 在当前 60° 霍尔扇区内按滤波速度推进电角度
  * @detail: 标定表保存扇区中心；进入扇区时从中心前 30° 起步，并限制不越过后边界。
+ *          低于 MOTOR_HALL_INTERP_START_RPM 保持中心，避免低速 60° 锁偏。
  */
 static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, float sector_center, float pole_pairs)
 {
@@ -53,6 +59,115 @@ static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, float sector_cen
     theta = sector_center + blend * delta;
     utils_norm_angle_rad(&theta);
     st->theta_rad = theta;
+}
+
+static float Motor_Hall_WrapCpr(float x)
+{
+    float n;
+
+    /* Inf/NaN 或超大值不能用 while 回绕：30 kHz ISR 里会卡死，UART 随之饿死。 */
+    if (!(x > -1.0e6f) || !(x < 1.0e6f)) {
+        return 0.0f;
+    }
+    n = (float)(int)(x / MOTOR_HALL_PLL_CPR);
+    x -= MOTOR_HALL_PLL_CPR * n;
+    if (x < 0.0f) {
+        x += MOTOR_HALL_PLL_CPR;
+    }
+    if (x >= MOTOR_HALL_PLL_CPR) {
+        x -= MOTOR_HALL_PLL_CPR;
+    }
+    return x;
+}
+
+static float Motor_Hall_WrapDelta(float x)
+{
+    const float half = 0.5f * MOTOR_HALL_PLL_CPR;
+    float n;
+
+    if (!(x > -1.0e6f) || !(x < 1.0e6f)) {
+        return 0.0f;
+    }
+    n = (float)(int)(x / MOTOR_HALL_PLL_CPR);
+    x -= MOTOR_HALL_PLL_CPR * n;
+    if (x > half) {
+        x -= MOTOR_HALL_PLL_CPR;
+    } else if (x <= -half) {
+        x += MOTOR_HALL_PLL_CPR;
+    }
+    return x;
+}
+
+static void Motor_Hall_PllReset(motor_hall_angle_t *st)
+{
+    st->pll_count = 0;
+    st->pll_pos = 0.0f;
+    st->pll_vel = 0.0f;
+    st->mech_rpm_fast = 0.0f;
+    st->pll_low_speed_active = true;
+}
+
+/**
+ * @description: ODrive 式临界阻尼 PLL，把霍尔扇区计数变成连续机械转速
+ * @detail: kp=2·bw，ki=0.25·kp²。Hall cpr=6，bw 远低于编码器默认 1000，否则 72 RPM 会打齿。
+ *          时基异常（dt·kp≥1）时钉在扇区中心并清速度。
+ */
+static void Motor_Hall_PllRun(motor_hall_angle_t *st, float pole_pairs, float dt_s)
+{
+    const float kp = 2.0f * MOTOR_HALL_PLL_BW_HZ;
+    const float ki = 0.25f * kp * kp;
+    float delta_pos;
+    float snap;
+
+    if (dt_s <= 0.0f || (dt_s * kp) >= 1.0f) {
+        st->pll_vel = 0.0f;
+        st->pll_pos = (float)st->pll_count + 0.5f;
+        st->mech_rpm_fast = 0.0f;
+        return;
+    }
+
+    st->pll_pos += dt_s * st->pll_vel;
+    st->pll_pos = Motor_Hall_WrapCpr(st->pll_pos);
+    /* 必须比较连续估计位置；取整会令同扇区误差恒定，PLL 无法正确估速。 */
+    delta_pos = Motor_Hall_WrapDelta((float)st->pll_count - st->pll_pos);
+    st->pll_pos += dt_s * kp * delta_pos;
+    st->pll_pos = Motor_Hall_WrapCpr(st->pll_pos);
+    st->pll_vel += dt_s * ki * delta_pos;
+    if (st->pll_vel > MOTOR_HALL_PLL_VEL_MAX) {
+        st->pll_vel = MOTOR_HALL_PLL_VEL_MAX;
+    } else if (st->pll_vel < -MOTOR_HALL_PLL_VEL_MAX) {
+        st->pll_vel = -MOTOR_HALL_PLL_VEL_MAX;
+    }
+    snap = 0.5f * dt_s * ki;
+    if (fabsf(st->pll_vel) < snap) {
+        st->pll_vel = 0.0f;
+    }
+    st->mech_rpm_fast = st->pll_vel * (60.0f / MOTOR_HALL_PLL_CPR) / pole_pairs;
+    if (st->mech_rpm_fast > 1.0f) {
+        st->direction = 1;
+    } else if (st->mech_rpm_fast < -1.0f) {
+        st->direction = -1;
+    }
+}
+
+static void Motor_Hall_UpdateSpeedEstimate(motor_hall_angle_t *st, float pole_pairs, float dt_s)
+{
+    float rpm_abs = fabsf(st->mech_rpm);
+
+    /* Hall 六扇区 PLL 带宽适合低速；高速直接起转可能相位跨半周而误锁。 */
+    if (st->pll_low_speed_active && rpm_abs >= MOTOR_HALL_PLL_EXIT_RPM) {
+        st->pll_low_speed_active = false;
+    } else if (!st->pll_low_speed_active && rpm_abs <= MOTOR_HALL_PLL_ENTER_RPM) {
+        st->pll_low_speed_active = true;
+        st->pll_pos = (float)st->pll_count;
+        st->pll_vel = st->mech_rpm * pole_pairs * (MOTOR_HALL_PLL_CPR / 60.0f);
+    }
+
+    if (st->pll_low_speed_active) {
+        Motor_Hall_PllRun(st, pole_pairs, dt_s);
+    } else {
+        st->mech_rpm_fast = st->mech_rpm;
+    }
 }
 
 /**
@@ -162,7 +277,6 @@ void Motor_Hall_AngleReset(motor_hall_angle_t *st)
     st->theta_rad = 0.0f;
     st->mech_rpm = 0.0f;
     st->mech_rpm_raw = 0.0f;
-    st->mech_rpm_fast = 0.0f;
     st->angle_valid = false;
     st->speed_valid = false;
     st->table_ready = false;
@@ -172,6 +286,7 @@ void Motor_Hall_AngleReset(motor_hall_angle_t *st)
     st->period_count = 0U;
     st->period_index = 0U;
     st->direction = 0;
+    Motor_Hall_PllReset(st);
     for (i = 0; i < (int)MOTOR_HALL_SPEED_WINDOW; i++) {
         st->periods_s[i] = 0.0f;
     }
@@ -223,8 +338,9 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
         st->last_state = hall_state;
         st->have_state = true;
         st->mech_rpm = 0.0f;
-        st->speed_valid = false;
+        st->speed_valid = true;
         st->sector_timer_s = 0.0f;
+        Motor_Hall_PllReset(st);
         return;
     }
 
@@ -234,7 +350,6 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
         if (st->sector_timer_s > 1.0e-6f && Motor_Hall_DecodeAngle(table, st->last_state, &theta_prev)) {
             float abs_d_theta;
             float period_s = st->sector_timer_s;
-            float calibrated_rpm;
             int8_t direction;
 
             d_theta = theta - theta_prev;
@@ -245,8 +360,9 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
                 d_theta += 2.0f * (float)M_PI;
             }
             abs_d_theta = fabsf(d_theta);
-            /* 合法相邻霍尔边沿约跨 60°；拒绝毛刺、重复码和跨扇区跳码。 */
-            if (abs_d_theta >= ((float)M_PI / 6.0f) && abs_d_theta <= ((float)M_PI / 2.0f)) {
+            /* 合法相邻霍尔边沿约跨 60°；过短周期视为 ADC 节拍毛刺，避免 PLL 计数狂奔。 */
+            if ((period_s >= MOTOR_HALL_MIN_PERIOD_S) && (abs_d_theta >= ((float)M_PI / 6.0f)) &&
+                (abs_d_theta <= ((float)M_PI / 2.0f))) {
                 direction = d_theta > 0.0f ? 1 : -1;
                 if (st->direction != 0 && direction != st->direction) {
                     st->period_sum_s = 0.0f;
@@ -254,19 +370,15 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
                     st->period_index = 0U;
                 }
                 st->direction = direction;
-
-                /* 每个合法边沿固定跨 1/6 电角周，避免标定表角间距误差污染测速。 */
-                st->mech_rpm_raw = (float)direction * 10.0f / (pp * period_s);
-                /*
-                 * 快速支路按标定表的实际扇区角差换算，避免不等宽扇区造成单边沿周期偏差；
-                 * 低通只承担抗抖，六边沿支路仍保留给显示和稳态审核。
-                 */
-                calibrated_rpm = (d_theta / (2.0f * (float)M_PI)) * 60.0f / (pp * period_s);
-                if (fabsf(st->mech_rpm_fast) < 1.0f || st->period_count == 0U) {
-                    st->mech_rpm_fast = calibrated_rpm;
-                } else {
-                    st->mech_rpm_fast += MOTOR_HALL_FAST_ALPHA * (calibrated_rpm - st->mech_rpm_fast);
+                st->pll_count = (int8_t)(st->pll_count + direction);
+                if (st->pll_count >= 6) {
+                    st->pll_count = (int8_t)(st->pll_count - 6);
+                } else if (st->pll_count < 0) {
+                    st->pll_count = (int8_t)(st->pll_count + 6);
                 }
+
+                /* 每个合法边沿固定跨 1/6 电角周，避免标定表角间距误差污染显示测速。 */
+                st->mech_rpm_raw = (float)direction * 10.0f / (pp * period_s);
                 st->last_period_s = period_s;
                 if (st->period_count == MOTOR_HALL_SPEED_WINDOW) {
                     st->period_sum_s -= st->periods_s[st->period_index];
@@ -283,6 +395,7 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
         }
         st->last_state = hall_state;
         st->sector_timer_s = 0.0f;
+        Motor_Hall_UpdateSpeedEstimate(st, pp, dt_s);
         Motor_Hall_InterpolateTheta(st, theta, pp);
         return;
     }
@@ -291,19 +404,14 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
     if (st->sector_timer_s >= MOTOR_HALL_ANGLE_STALL_S) {
         st->mech_rpm = 0.0f;
         st->mech_rpm_raw = 0.0f;
-        st->mech_rpm_fast = 0.0f;
         st->speed_valid = true;
         st->period_sum_s = 0.0f;
         st->period_count = 0U;
         st->period_index = 0U;
         st->direction = 0;
-    } else if (st->direction != 0 && st->last_period_s > 1.0e-6f &&
-               st->sector_timer_s > (1.5f * st->last_period_s)) {
-        /* 未等到预期边沿时，按当前边沿年龄限制可能速度，避免 PI 长时间使用旧高速。 */
-        float age_limit_rpm = 10.0f / (pp * st->sector_timer_s);
-        if (fabsf(st->mech_rpm_fast) > age_limit_rpm) {
-            st->mech_rpm_fast = (float)st->direction * age_limit_rpm;
-        }
+        Motor_Hall_PllReset(st);
+    } else {
+        Motor_Hall_UpdateSpeedEstimate(st, pp, dt_s);
     }
     Motor_Hall_InterpolateTheta(st, theta, pp);
 }

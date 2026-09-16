@@ -124,6 +124,7 @@ void Motor_Control_ResetRuntime(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
         ctrl->startup.phase = MOTOR_STARTUP_CURRENT_RAMP;
         ctrl->startup.soft_current_scale = 0.0f;
         ctrl->startup.drag_current_scale = 0.0f;
+        ctrl->speed_loop_latched = false;
     }
 }
 
@@ -473,27 +474,43 @@ static void Motor_Control_PublishSensoredSpeed(MOTOR_PARAM_S *motor)
     utils_norm_angle_rad(&open);
     Motor_Feedback_SampleDefault(motor, open, &feedback);
     publish = feedback.angle_valid && feedback.speed_valid;
-    /* Hall 用快速支路闭环；六边沿滤波值保留给状态显示和稳定性审核。 */
+    /* Hall 用 PLL 速度闭环；六边沿滤波值保留给状态显示和稳定性审核。 */
     Motor_SpeedFeedback_Set(publish ? feedback.mech_rpm_fast : 0.0f, publish);
 }
 
 /**
  * @description: 判断当前转速是否已达到速度 PI 的平滑接管门槛
- * @detail: 门槛至少为启动转速的一半，并随斜坡目标提高到 50%；未达到时禁止 PI 后台积分。
+ * @detail: 门槛至少为启动转速的一半；一旦接管，须跌到约 30% 才退回启动 Iq，避免 72 RPM 直起时在门槛附近来回切。
  */
-static bool Motor_Control_SpeedLoopReady(const MOTOR_PARAM_S *motor)
+static bool Motor_Control_SpeedLoopReady(motor_control_t *ctrl, const MOTOR_PARAM_S *motor)
 {
     float release_rpm;
+    float drop_rpm;
+    float meas;
 
-    if (motor == NULL || !motor->speed_enable || !Motor_SpeedLoop_IsFeedbackValid()) {
+    if (ctrl == NULL || motor == NULL || !motor->speed_enable || !Motor_SpeedLoop_IsFeedbackValid()) {
+        if (ctrl != NULL) {
+            ctrl->speed_loop_latched = false;
+        }
         return false;
     }
     /* 零速是闭环命令而非重新启动，须持续由速度 PI 管理，不能跌回启动 Iq。 */
     if (motor->ol_target_rpm == 0.0f) {
+        ctrl->speed_loop_latched = true;
         return true;
     }
+
     release_rpm = fmaxf(0.5f * fabsf(motor->ol_min_rpm), 0.5f * fabsf(motor->ol_current_rpm));
-    return fabsf(Motor_SpeedLoop_GetMeasuredRpm()) >= release_rpm;
+    drop_rpm = fmaxf(8.0f, 0.3f * release_rpm);
+    meas = fabsf(Motor_SpeedLoop_GetMeasuredRpm());
+    if (ctrl->speed_loop_latched) {
+        if (meas < drop_rpm) {
+            ctrl->speed_loop_latched = false;
+        }
+    } else if (meas >= release_rpm) {
+        ctrl->speed_loop_latched = true;
+    }
+    return ctrl->speed_loop_latched;
 }
 
 /**
@@ -514,7 +531,7 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
      * “反馈有效的零速”不等于“已经起转”。低于启动门槛时保留 oliq 启动转矩；
      * 达到门槛后才让速度 PI 接管，运行中失速跌回门槛以下也自动恢复。
      */
-    ctx->speed_loop_active = Motor_Control_SpeedLoopReady(motor);
+    ctx->speed_loop_active = Motor_Control_SpeedLoopReady(ctrl, motor);
     ctx->speed_iq_target = ctx->speed_loop_active ? Motor_SpeedLoop_GetIqTarget() : 0.0f;
     /*
      * 有感速度环接管前仍靠 ol_iq_set 起转。Park 角已来自转子传感器，此时 Iq 的符号
@@ -821,11 +838,27 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
             } else {
                 Motor_Sensorless_Update(motor, dt);
             }
-            if (Motor_Control_SpeedLoopReady(motor)) {
-                Motor_SpeedLoop_Run(motor, dt);
-            } else {
-                /* 启动 Iq 正在接管时不得让未使用的 PI 输出在后台积分饱和。 */
-                Motor_SpeedLoop_Reset();
+            {
+                bool was_latched = ctrl->speed_loop_latched;
+
+                if (Motor_Control_SpeedLoopReady(ctrl, motor)) {
+                    if (!was_latched) {
+                        /*
+                         * 与无感接管相同：用当前启动 Iq 预置积分。
+                         * 从 0 A 起算时 Kp=0.006 在 36 RPM 误差上只有约 0.2 A，齿槽会把转子拽停。
+                         */
+                        float ref_rpm = motor->ol_current_rpm;
+
+                        if (fabsf(ref_rpm) < 1.0f) {
+                            ref_rpm = motor->ol_target_rpm;
+                        }
+                        Motor_SpeedLoop_PrimeIq(SIGN(ref_rpm) * fabsf(motor->ol_iq_set));
+                    }
+                    Motor_SpeedLoop_Run(motor, dt);
+                } else {
+                    /* 启动 Iq 正在接管时不得让未使用的 PI 输出在后台积分饱和。 */
+                    Motor_SpeedLoop_Reset();
+                }
             }
         }
         return Motor_Control_PublishTheta(motor, Motor_Control_RunIf(ctrl, motor, v_bus, dt));
