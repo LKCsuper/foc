@@ -19,6 +19,7 @@ extern "C" {
 #include "motor_alignment.h"
 #include "motor_if_start.h"
 #include "motor_hfi_start.h"
+#include "motor_fw.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /**
@@ -43,6 +44,7 @@ typedef struct {
  */
 typedef struct {
     motor_control_startup_t startup;
+    motor_fw_t fw;           /* 弱磁负 Id 状态 */
     int last_mode;           /* 上一控制模式；-1 表示尚未运行 */
     bool speed_loop_latched; /* 速度 PI 已接管；跌回门槛以下才释放给启动 Iq */
 } motor_control_t;

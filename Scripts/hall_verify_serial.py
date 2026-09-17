@@ -3,7 +3,7 @@
 
 Profiles:
 
-    up      150→300→500→800→1200→1500→2000→2500→3000（可用 --max-rpm 截断）
+    up      150→300→500→800→1200→1500→1800→2000→2500→3000（可用 --max-rpm 截断）
     down    150→120→100→72
     start72 停机后直接起 72 RPM
     brake   150→0 主动制动（spbrake 1）
@@ -16,6 +16,7 @@ Profiles:
 from __future__ import annotations
 
 import argparse
+import math
 import re
 import subprocess
 import sys
@@ -32,8 +33,9 @@ UP_STAGES = (
     (500, 8.0, 0.15),
     (800, 11.0, 0.15),
     (1200, 12.0, 0.12),
-    (1500, 10.0, 0.12),
-    (2000, 14.0, 0.10),
+    (1500, 10.0, 0.05),
+    (1800, 12.0, 0.02),
+    (2000, 14.0, 0.02),
     (2500, 14.0, 0.10),
     (3000, 14.0, 0.10),
 )
@@ -49,6 +51,8 @@ SNAP_END = "============================="
 REVERSE_RPM = 20.0
 BRAKE_RPM_LIMIT = 15.0
 BRAKE_IQ_LIMIT = 0.05
+MAX_DQ_CURRENT = 2.5  # 诊断用定子电流阈值；不同于电源 3 A 直流限流。
+MIN_VBUS = 22.0  # 24 V 台架：快照母线跌至此值以下时停止升速。
 
 
 @dataclass(frozen=True)
@@ -107,6 +111,7 @@ def parse_snap(text: str) -> dict[str, float | int | bool]:
         "id_target": float(id_line.group(3)) if id_line.group(3) is not None else float("nan"),
         "iq_target": float(id_line.group(4)) if id_line.group(4) is not None else float("nan"),
         "speed_iq": float(speed_iq.group(1)) if speed_iq is not None else float("nan"),
+        "v_bus": field(r"V_bus\s*:\s*([-+0-9.]+)", text),
         "vd_int": float(vd_line.group(1)) if vd_line is not None else float("nan"),
         "vq_int": float(vd_line.group(2)) if vd_line is not None else float("nan"),
     }
@@ -120,7 +125,8 @@ def format_snap(snap: dict[str, float | int | bool]) -> str:
         f"age={snap['age_ms']:.1f}ms state={snap['state']} "
         f"Id/Iq={snap['id']:.3f}/{snap['iq']:.3f} "
         f"target={snap['id_target']:.3f}/{snap['iq_target']:.3f} "
-        f"SpeedIq={snap['speed_iq']:.3f} Vd/Vq={snap['vd_int']:.3f}/{snap['vq_int']:.3f}\n"
+        f"SpeedIq={snap['speed_iq']:.3f} Vbus={snap['v_bus']:.1f}V "
+        f"Vd/Vq={snap['vd_int']:.3f}/{snap['vq_int']:.3f}\n"
     )
 
 
@@ -229,6 +235,11 @@ class HallRunner:
 
     def check_speed(self, name: str, snap: dict[str, float | int | bool], rpm: int, tolerance: float) -> None:
         measured = float(snap["filtered"])
+        current = math.hypot(float(snap["id"]), float(snap["iq"]))
+        if not math.isfinite(current) or current > MAX_DQ_CURRENT:
+            raise Abort(f"{name}: measured DQ current {current:.3f} A exceeds {MAX_DQ_CURRENT:.1f} A")
+        if not math.isfinite(float(snap["v_bus"])) or float(snap["v_bus"]) < MIN_VBUS:
+            raise Abort(f"{name}: Vbus {float(snap['v_bus']):.1f} V below {MIN_VBUS:.1f} V")
         if not bool(snap["valid"]):
             raise Abort(f"{name}: Hall speed invalid")
         if int(snap["state"]) not in range(1, 7):

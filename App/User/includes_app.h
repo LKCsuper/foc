@@ -34,6 +34,7 @@ extern "C" {
 #include "motor_task.h"
 #include "motor_it.h"
 #include "motor_pid.h"
+#include "motor_fw.h"
 #include "motor_protect.h"
 #include "motor_speed.h"
 #include "motor_sensorless.h"

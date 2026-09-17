@@ -148,6 +148,9 @@ typedef struct motor_param {
     /* ---- command ---- */
     float ol_iq_set;         /* 目标 Iq 电流 A */
     float ol_id_set;         /* 目标 Id 电流 A */
+    float fw_current_max;    /* 弱磁 |Id| 上限 A，0=关闭 */
+    float fw_duty_start;     /* 弱磁进入门槛，|V|/Vlim */
+    float fw_ramp_a_s;       /* 弱磁 Id 斜坡 A/s */
     /* ---- config ---- */
     float ol_current_kp;     /* 开环电流环 Kp */
     float ol_current_ki;     /* 开环电流环 Ki */

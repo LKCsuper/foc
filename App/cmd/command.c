@@ -45,6 +45,7 @@ extern "C" {
 /* cmd_openloop.c     */ extern int Cmd_OlFeedback(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlIq(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlId(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_Fw(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlKp(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlKi(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlPhase(int argc, char *argv[]);
@@ -88,6 +89,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olfb",       Cmd_OlFeedback,         "feedback openloop|sensorless|encoder|hall" },
     { "oliq",       Cmd_OlIq,               "openloop current Iq target <A>" },
     { "olid",       Cmd_OlId,               "openloop current Id target <A>" },
+    { "fw",         Cmd_Fw,                 "field weakening: <max_A> [duty_start] [ramp_A/s]" },
     { "olkp",       Cmd_OlKp,               "openloop current Kp" },
     { "olki",       Cmd_OlKi,               "openloop current Ki" },
     { "olphase",    Cmd_OlPhase,            "openloop start phase boost <deg>" },

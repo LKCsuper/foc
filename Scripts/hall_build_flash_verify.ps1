@@ -12,14 +12,14 @@ param(
     [string]$Profile = "all",
     [ValidateSet("cw", "ccw")]
     [string]$Direction = "cw",
-    [ValidateSet("150", "300", "500", "800", "1200", "1500", "2000", "2500", "3000")]
+    [ValidateSet("150", "300", "500", "800", "1200", "1500", "1800", "2000", "2500", "3000")]
     [int]$MaxRpm = 800,
     [int]$Samples = 3
 )
 
 $ErrorActionPreference = "Stop"
-if ($MaxRpm -notin @(150, 300, 500, 800, 1200, 1500, 2000, 2500, 3000)) {
-    throw "MaxRpm must be 150, 300, 500, 800, 1200, 1500, 2000, 2500, or 3000"
+if ($MaxRpm -notin @(150, 300, 500, 800, 1200, 1500, 1800, 2000, 2500, 3000)) {
+    throw "MaxRpm must be 150, 300, 500, 800, 1200, 1500, 1800, 2000, 2500, or 3000"
 }
 if ($Samples -lt 1 -or $Samples -gt 10) {
     throw "Samples must be 1..10"
@@ -54,7 +54,7 @@ function Resolve-JLinkPath {
 
 Set-Location $root
 Write-Host "[1/4] Stop motor output"
-python Scripts\foc_stop_serial.py --port $Port --baud $Baud
+python -X utf8 Scripts\foc_stop_serial.py --port $Port --baud $Baud
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "Unable to stop motor over $Port; continuing to flash"
 }
@@ -106,7 +106,7 @@ if ($flashText -notmatch "(?s)Downloading file.*?O\.K\.") {
 
 Write-Host "[4/4] Wait for reboot and run Hall verification"
 Start-Sleep -Seconds 8
-python Scripts\hall_verify_serial.py --port $Port --baud $Baud --profile $Profile `
+python -X utf8 Scripts\hall_verify_serial.py --port $Port --baud $Baud --profile $Profile `
     --direction $Direction --max-rpm $MaxRpm --samples $Samples
 $verifyCode = $LASTEXITCODE
 if ($verifyCode -ne 0) {

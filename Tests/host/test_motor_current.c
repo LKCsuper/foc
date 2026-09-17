@@ -27,6 +27,7 @@ int main(void)
     a.ol_align_current = 0.5f;
     b = a;
 
+    memset(&ctx, 0, sizeof(ctx));
     /* 对齐目标：Id=align，Iq=0。 */
     ctx.alignment_running = true;
     ctx.alignment_current_scale = 1.0f;
@@ -38,12 +39,24 @@ int main(void)
     assert(fabsf(id_t - 0.5f) < 1e-6f);
     assert(fabsf(iq_t) < 1e-6f);
 
+    /* 对齐阶段忽略弱磁 Id。 */
+    ctx.id_fw = -2.0f;
+    Motor_Current_GetTargets(&a, &ctx, &id_t, &iq_t);
+    assert(fabsf(id_t - 0.5f) < 1e-6f);
+    ctx.id_fw = 0.0f;
+
     /* I/F 缩放目标。 */
     ctx.alignment_running = false;
     ctx.alignment_current_scale = 0.0f;
     ctx.if_iq_scale = 0.5f;
     Motor_Current_GetTargets(&a, &ctx, &id_t, &iq_t);
     assert(fabsf(iq_t - 0.5f) < 1e-6f);
+
+    /* 运行区叠加弱磁负 Id。 */
+    ctx.id_fw = -1.5f;
+    Motor_Current_GetTargets(&a, &ctx, &id_t, &iq_t);
+    assert(fabsf(id_t + 1.5f) < 1e-6f);
+    ctx.id_fw = 0.0f;
 
     /* 速度环目标优先。 */
     ctx.speed_loop_active = true;

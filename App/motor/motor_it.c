@@ -40,8 +40,10 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_BLDC_AUTO_DUTY_MIN 0.08f
 #define MOTOR_BLDC_AUTO_DUTY_MAX 0.10f
-/* 霍尔 GPIO+PLL 不必跟 30 kHz ADC；25 Hz PLL 用 3.75 kHz 足够，否则会饿死 UART。 */
-#define MOTOR_HALL_ADC_DIVIDER 32U
+/* 此分频位于 15 kHz FOC 控制拍之后；每 4 拍更新一次 Hall，约 3.75 kHz。 */
+#define MOTOR_HALL_ADC_DIVIDER 4U
+/* Hall 小步试验：只放大现有 SVM 的三路 CCR，保留扇区和相序。 */
+#define MOTOR_HALL_PWM_GAIN 1.35f
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -56,6 +58,8 @@ static motor_control_t s_control = {
 static motor_foc_divider_t s_foc_divider = {
     .divider = FOC_CONTROL_LOOP_FREQ_DIVIDER,
 };
+static volatile uint32_t s_foc_sample_up_count = 0U;
+static volatile uint32_t s_foc_sample_down_count = 0U;
 static motor_bldc_six_step_t s_bldc_commutator;
 static motor_bldc_sensorless_t s_bldc_sensorless;
 static volatile bool s_bldc_selected = false;
@@ -539,6 +543,12 @@ static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq, float 
     inverse_park(vd, vq, theta, &v_alpha, &v_beta);
     Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
     svm_hqd(v_alpha, v_beta, v_bus, period, &m->duty1, &m->duty2, &m->duty3, &sector);
+    if (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_HALL &&
+        m->ol_mode == MOTOR_OL_MODE_IF) {
+        m->duty1 = (uint32_t)((float)m->duty1 * MOTOR_HALL_PWM_GAIN);
+        m->duty2 = (uint32_t)((float)m->duty2 * MOTOR_HALL_PWM_GAIN);
+        m->duty3 = (uint32_t)((float)m->duty3 * MOTOR_HALL_PWM_GAIN);
+    }
     /* HD75 实机验证的相序为 A-C-B。 */
     Hal_Motor_PwmSetDuty(m->duty1, m->duty3, m->duty2);
     Hal_Motor_PwmCommit();
@@ -682,6 +692,16 @@ static bool Motor_DmaInt_ShouldRun(void)
     return Motor_FocDivider_ShouldRun(&s_foc_divider);
 }
 
+void Motor_DmaInt_GetSampleDirectionCounts(uint32_t *up, uint32_t *down)
+{
+    if (up != NULL) {
+        *up = s_foc_sample_up_count;
+    }
+    if (down != NULL) {
+        *down = s_foc_sample_down_count;
+    }
+}
+
 /**
  * @description: 复现 3e5d564 已上板成功的最小 V/F 电压开环路径。
  * @detail: 仅供 V/F 基线验证；固定 Vq=5V、每个 15kHz 控制拍推进 0.001rad，
@@ -750,14 +770,26 @@ static void Motor_DmaInt_Foc(void)
      * 与 V/F 回归路径相同：非控制拍立刻返回。FOC 若在每个 30 kHz ADC 都做
      * 采样/保护/霍尔，ISR 会首尾相接，PendSV 和 UART IDLE 永远抢不到 CPU。
      */
-    if (!Motor_DmaInt_ShouldRun()) {
+    feedback_source = Motor_Feedback_GetSourceDefault();
+    if (feedback_source == MOTOR_FEEDBACK_SRC_HALL) {
+        /* TIM1 向下侧对应顶部零矢量：三路低边分流器同时有采样窗口。 */
+        if ((TIM1->CR1 & TIM_CR1_DIR) == 0U) {
+            Motor_DmaInt_RecordRuntime(runtime_start);
+            return;
+        }
+    } else if (!Motor_DmaInt_ShouldRun()) {
         Motor_DmaInt_RecordRuntime(runtime_start);
         return;
     }
 
+    if ((TIM1->CR1 & TIM_CR1_DIR) == 0U) {
+        s_foc_sample_up_count++;
+    } else {
+        s_foc_sample_down_count++;
+    }
+
     Motor_It_ParamCal();
     protection_dt = Motor_OpenLoop_GetDt(&motor);
-    feedback_source = Motor_Feedback_GetSourceDefault();
     /*
      * 纯开环不用编码器/霍尔，不应在控制拍上额外做它们的浮点计算。
      * 霍尔按 MOTOR_HALL_ADC_DIVIDER 分频更新，dt 累加后交给 PLL。

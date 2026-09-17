@@ -36,6 +36,7 @@ typedef struct {
     float soft_current_scale;      /* 运行电流比例；拖转交接时由 0 升到 1 */
     bool speed_loop_active;        /* true=使用速度环 Iq 替代 ol_iq_set */
     float speed_iq_target;         /* 速度环给出的 Iq (A) */
+    float id_fw;                   /* 弱磁叠加 Id，≤0 (A)；对齐阶段不使用 */
 } motor_current_target_ctx_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -51,7 +52,7 @@ void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta);
 
 /**
  * @description: 按工况选择 Id/Iq 目标
- * @detail: 对齐优先；否则 Id=ol_id_set；Iq 来自速度环或 ol_iq_set×if_iq_scale
+ * @detail: 对齐优先；否则 Id=ol_id_set+id_fw；Iq 来自速度环或 ol_iq_set×if_iq_scale
  * @param {const MOTOR_PARAM_S} *motor              命令与对齐电流
  * @param {const motor_current_target_ctx_t} *ctx   注入上下文；NULL 视为非对齐、缩放1、不用速度环
  * @param {float} *id_target                        输出 Id 目标 (A)

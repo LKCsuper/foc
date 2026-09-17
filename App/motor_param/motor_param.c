@@ -73,6 +73,14 @@ void MOTOR_Param_Init(void)
     /* 开环电流模式参数 */
     gpstMotorDefault->ol_iq_set = 0.6f;                   /* 首次 I/F 起步目标 Iq 电流 A */
     gpstMotorDefault->ol_id_set = 0.0f;                   /* 目标 Id 电流 A */
+    /*
+     * 线性 SVPWM 下 Vlim≈Vbus/√3。本电机 3000 RPM 时 ωeλ≈16.2 V，Id=0 会顶满电压。
+     * 台架电源只有 3 A；2026-09-16 实测 1.5 A 弱磁未能跟上 1500 RPM，且 Id 有过冲。
+     * 默认关闭，待排查 Hall 角度/电流跟踪后再通过 fw 命令受控启用。
+     */
+    gpstMotorDefault->fw_current_max = 0.0f;
+    gpstMotorDefault->fw_duty_start = 0.80f;
+    gpstMotorDefault->fw_ramp_a_s = 8.0f;
     gpstMotorDefault->ol_current_kp = 0.2f;               /* 电流环 Kp */
     gpstMotorDefault->ol_current_ki = 30.0f;              /* 电流环 Ki */
     gpstMotorDefault->ol_start_phase_boost = M_PI / 2.0f; /* 仅 ol_align_enable=false 时兼容旧启动方式 */

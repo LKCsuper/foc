@@ -1,0 +1,757 @@
+# hall_verify
+# workspace: da452b0f-dirty
+# time: 2026-09-17 20:14:15
+# profile: up
+# max_rpm: 2000
+# direction: cw
+# samples: 3
+# keep_going: 0
+# script: Scripts/hall_verify_serial.py
+
+######## wake ########
+
+[T+155.462s] $ 
+######## up150-config ########
+olstop
+[T+155.860s] > olstop
+
+Open-loop stopped
+[T+155.860s] $ olfault clear
+[T+156.249s] > olfault clear
+
+Motor fault cleared; use olstart to restart
+[T+156.249s] $ olalign 0
+[T+156.639s] > olalign 0
+
+Align set: OFF Id=0.50A time=0.300s angle=0.000rad
+[T+156.640s] $ olmode 1
+[T+157.028s] > olmode 1
+
+Open-loop mode set to 1 (Current-loop)
+[T+157.029s] $ olfb hall
+[T+157.433s] > olfb hall
+
+feedback set to 3
+[T+157.433s] $ slenable 0
+[T+157.824s] > slenable 0
+
+Sensorless observer disabled
+[T+157.824s] $ spkp 0.006
+[T+158.212s] > spkp 0.006
+
+Speed Kp set to 0.006000 A/RPM
+[T+158.212s] $ spki 0.003
+[T+158.601s] > spki 0.003
+
+Speed Ki set to 0.003000 A/(RPM*s)
+[T+158.601s] $ spiq 0.8
+[T+158.994s] > spiq 0.8
+
+Speed Iq limit set to 0.800 A
+[T+158.995s] $ spbrake 0
+[T+159.385s] > spbrake 0
+
+Speed braking disabled
+[T+159.385s] $ oliq 0.6
+[T+159.773s] > oliq 0.6
+
+Iq set to 0.60 A
+[T+159.773s] $ olid 0
+[T+160.174s] > olid 0
+
+Id set to 0.00 A
+[T+160.174s] $ olkp 0.2
+[T+160.563s] > olkp 0.2
+
+Current Kp set to 0.2000
+[T+160.563s] $ olki 30
+[T+160.952s] > olki 30
+
+Current Ki set to 30.00
+[T+160.953s] $ olramp 50
+[T+161.342s] > olramp 50
+
+Ramp set to 50 RPM/s
+[T+161.343s] $ olspeed 150
+[T+161.732s] > olspeed 150
+
+Target RPM set to 150 (stopped, use olstart)
+[T+161.732s] $ spenable 1
+[T+162.124s] > spenable 1
+
+Speed loop enabled
+Waiting: encoder Detect / hall table, and speed_valid
+[T+162.124s] $ olstart
+[T+162.517s] > olstart
+
+Open-loop started (I/F), target 150 RPM, Iq=0.60A
+[T+162.518s] $ 
+######## wait 10s ########
+Hall 闭环从停机起转到 150 RPM
+
+######## up150-1 ########
+olsnap
+[T+173.046s] > olsnap
+
+
+===== Open-Loop Snap [T+173.047s] =====
+  Enable     : ON
+  Target RPM : 150
+  Ramp RPM   : 150
+  Meas RPM   : 151.0 (valid)
+  Hall RPM   : raw=128.4 filtered=150.8 fast=151.0 age=18.1ms state=3
+  FOC sample : up=71222 down=2484460
+  V_bus      : 24.1 V
+  Theta/CCR  : -3.0784 rad / 1902 1768 2010
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.209 -0.038 0.440 A
+  Id, Iq     : 0.012 0.276 A (target 0.000 0.346)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.346 A
+  Vd, Vq int : 0.002 1.317
+  Vd, Vq out : -0.001 1.331 V (|V|=1.331 / 13.927 V)
+  PWM ideal  : |Valphabeta|=0.603 V (CCR estimate)
+=============================
+[T+173.062s] $ 
+######## up150-1-parsed ########
+parsed: target=150 ramp=150 meas=151.0 raw=128.4 filtered=150.8 fast=151.0 age=18.1ms state=3 Id/Iq=0.012/0.276 target=0.000/0.346 SpeedIq=0.346 Vbus=24.1V Vd/Vq=0.002/1.317
+
+######## up150-2 ########
+olsnap
+[T+174.561s] > olsnap
+
+
+===== Open-Loop Snap [T+174.561s] =====
+  Enable     : ON
+  Target RPM : 150
+  Ramp RPM   : 150
+  Meas RPM   : 148.4 (valid)
+  Hall RPM   : raw=150.0 filtered=149.4 fast=148.4 age=1.1ms state=6
+  FOC sample : up=71222 down=2507175
+  V_bus      : 24.1 V
+  Theta/CCR  : 1.0367 rad / 1768 2010 1898
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.194 0.446 0.520 A
+  Id, Iq     : -0.267 0.366 A (target 0.000 0.361)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.361 A
+  Vd, Vq int : -0.121 1.340
+  Vd, Vq out : -0.067 1.339 V (|V|=1.340 / 13.923 V)
+  PWM ideal  : |Valphabeta|=0.602 V (CCR estimate)
+=============================
+[T+174.576s] $ 
+######## up150-2-parsed ########
+parsed: target=150 ramp=150 meas=148.4 raw=150.0 filtered=149.4 fast=148.4 age=1.1ms state=6 Id/Iq=-0.267/0.366 target=0.000/0.361 SpeedIq=0.361 Vbus=24.1V Vd/Vq=-0.121/1.340
+
+######## up150-3 ########
+olsnap
+[T+176.056s] > olsnap
+
+
+===== Open-Loop Snap [T+176.057s] =====
+  Enable     : ON
+  Target RPM : 150
+  Ramp RPM   : 150
+  Meas RPM   : 148.8 (valid)
+  Hall RPM   : raw=131.1 filtered=151.2 fast=148.8 age=29.9ms state=3
+  FOC sample : up=71222 down=2529602
+  V_bus      : 24.1 V
+  Theta/CCR  : -3.0788 rad / 1929 1767 2011
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.436 -0.119 0.601 A
+  Id, Iq     : 0.476 0.386 A (target 0.000 0.358)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.358 A
+  Vd, Vq int : -0.076 1.369
+  Vd, Vq out : -0.171 1.363 V (|V|=1.374 / 13.923 V)
+  PWM ideal  : |Valphabeta|=0.617 V (CCR estimate)
+=============================
+[T+176.071s] $ 
+######## up150-3-parsed ########
+parsed: target=150 ramp=150 meas=148.8 raw=131.1 filtered=151.2 fast=148.8 age=29.9ms state=3 Id/Iq=0.476/0.386 target=0.000/0.358 SpeedIq=0.358 Vbus=24.1V Vd/Vq=-0.076/1.369
+
+######## up300-set ########
+olspeed 300
+[T+176.458s] > olspeed 300
+
+Target RPM set to 300 (running)
+[T+176.459s] $ 
+######## wait 7s ########
+Hall 闭环稳定到 300 RPM
+
+######## up300-1 ########
+olsnap
+[T+183.877s] > olsnap
+
+
+===== Open-Loop Snap [T+183.877s] =====
+  Enable     : ON
+  Target RPM : 300
+  Ramp RPM   : 300
+  Meas RPM   : 302.4 (valid)
+  Hall RPM   : raw=271.7 filtered=302.4 fast=302.4 age=1.1ms state=4
+  FOC sample : up=71222 down=2646914
+  V_bus      : 24.1 V
+  Theta/CCR  : -0.3932 rad / 2019 2096 1682
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.128 0.043 -0.366 A
+  Id, Iq     : 0.088 0.292 A (target 0.000 0.273)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.273 A
+  Vd, Vq int : -0.089 2.434
+  Vd, Vq out : -0.107 2.431 V (|V|=2.433 / 13.920 V)
+  PWM ideal  : |Valphabeta|=1.095 V (CCR estimate)
+=============================
+[T+183.892s] $ 
+######## up300-1-parsed ########
+parsed: target=300 ramp=300 meas=302.4 raw=271.7 filtered=302.4 fast=302.4 age=1.1ms state=4 Id/Iq=0.088/0.292 target=0.000/0.273 SpeedIq=0.273 Vbus=24.1V Vd/Vq=-0.089/2.434
+
+######## up300-2 ########
+olsnap
+[T+185.374s] > olsnap
+
+
+===== Open-Loop Snap [T+185.374s] =====
+  Enable     : ON
+  Target RPM : 300
+  Ramp RPM   : 300
+  Meas RPM   : 300.8 (valid)
+  Hall RPM   : raw=334.8 filtered=300.8 fast=300.8 age=18.7ms state=5
+  FOC sample : up=71222 down=2669369
+  V_bus      : 24.1 V
+  Theta/CCR  : -0.5445 rad / 2073 2083 1695
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.370 0.123 -0.124 A
+  Id, Iq     : 0.137 0.250 A (target 0.000 0.281)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.281 A
+  Vd, Vq int : -0.073 2.430
+  Vd, Vq out : -0.101 2.436 V (|V|=2.438 / 13.922 V)
+  PWM ideal  : |Valphabeta|=1.100 V (CCR estimate)
+=============================
+[T+185.389s] $ 
+######## up300-2-parsed ########
+parsed: target=300 ramp=300 meas=300.8 raw=334.8 filtered=300.8 fast=300.8 age=18.7ms state=5 Id/Iq=0.137/0.250 target=0.000/0.281 SpeedIq=0.281 Vbus=24.1V Vd/Vq=-0.073/2.430
+
+######## up300-3 ########
+olsnap
+[T+186.870s] > olsnap
+
+
+===== Open-Loop Snap [T+186.871s] =====
+  Enable     : ON
+  Target RPM : 300
+  Ramp RPM   : 300
+  Meas RPM   : 299.2 (valid)
+  Hall RPM   : raw=323.3 filtered=299.2 fast=299.2 age=16.0ms state=5
+  FOC sample : up=71222 down=2691814
+  V_bus      : 24.1 V
+  Theta/CCR  : -0.5917 rad / 2092 2074 1703
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.128 0.204 -0.286 A
+  Id, Iq     : -0.064 0.297 A (target 0.000 0.289)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.289 A
+  Vd, Vq int : -0.082 2.429
+  Vd, Vq out : -0.069 2.427 V (|V|=2.428 / 13.916 V)
+  PWM ideal  : |Valphabeta|=1.091 V (CCR estimate)
+=============================
+[T+186.885s] $ 
+######## up300-3-parsed ########
+parsed: target=300 ramp=300 meas=299.2 raw=323.3 filtered=299.2 fast=299.2 age=16.0ms state=5 Id/Iq=-0.064/0.297 target=0.000/0.289 SpeedIq=0.289 Vbus=24.1V Vd/Vq=-0.082/2.429
+
+######## up500-set ########
+olspeed 500
+[T+187.274s] > olspeed 500
+
+Target RPM set to 500 (running)
+[T+187.276s] $ 
+######## wait 8s ########
+Hall 闭环稳定到 500 RPM
+
+######## up500-1 ########
+olsnap
+[T+195.760s] > olsnap
+
+
+===== Open-Loop Snap [T+195.761s] =====
+  Enable     : ON
+  Target RPM : 500
+  Ramp RPM   : 500
+  Meas RPM   : 500.0 (valid)
+  Hall RPM   : raw=446.4 filtered=500.0 fast=500.0 age=4.5ms state=4
+  FOC sample : up=71222 down=2825161
+  V_bus      : 24.1 V
+  Theta/CCR  : 0.0140 rad / 1844 2246 1532
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.048 0.204 -0.286 A
+  Id, Iq     : 0.063 0.282 A (target 0.000 0.311)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.311 A
+  Vd, Vq int : -0.225 3.937
+  Vd, Vq out : -0.238 3.943 V (|V|=3.950 / 13.917 V)
+  PWM ideal  : |Valphabeta|=1.779 V (CCR estimate)
+=============================
+[T+195.775s] $ 
+######## up500-1-parsed ########
+parsed: target=500 ramp=500 meas=500.0 raw=446.4 filtered=500.0 fast=500.0 age=4.5ms state=4 Id/Iq=0.063/0.282 target=0.000/0.311 SpeedIq=0.311 Vbus=24.1V Vd/Vq=-0.225/3.937
+
+######## up500-2 ########
+olsnap
+[T+197.255s] > olsnap
+
+
+===== Open-Loop Snap [T+197.256s] =====
+  Enable     : ON
+  Target RPM : 500
+  Ramp RPM   : 500
+  Meas RPM   : 500.0 (valid)
+  Hall RPM   : raw=436.0 filtered=500.0 fast=500.0 age=0.5ms state=4
+  FOC sample : up=71222 down=2847596
+  V_bus      : 24.1 V
+  Theta/CCR  : -0.4049 rad / 2097 2224 1553
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.128 0.043 -0.447 A
+  Id, Iq     : 0.091 0.346 A (target 0.000 0.311)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.311 A
+  Vd, Vq int : -0.215 3.935
+  Vd, Vq out : -0.233 3.928 V (|V|=3.935 / 13.910 V)
+  PWM ideal  : |Valphabeta|=1.771 V (CCR estimate)
+=============================
+[T+197.271s] $ 
+######## up500-2-parsed ########
+parsed: target=500 ramp=500 meas=500.0 raw=436.0 filtered=500.0 fast=500.0 age=0.5ms state=4 Id/Iq=0.091/0.346 target=0.000/0.311 SpeedIq=0.311 Vbus=24.1V Vd/Vq=-0.215/3.935
+
+######## up500-3 ########
+olsnap
+[T+198.747s] > olsnap
+
+
+===== Open-Loop Snap [T+198.748s] =====
+  Enable     : ON
+  Target RPM : 500
+  Ramp RPM   : 500
+  Meas RPM   : 500.0 (valid)
+  Hall RPM   : raw=551.5 filtered=500.0 fast=500.0 age=3.2ms state=5
+  FOC sample : up=71222 down=2869965
+  V_bus      : 24.1 V
+  Theta/CCR  : -1.2566 rad / 2242 1799 1536
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.209 -0.199 -0.366 A
+  Id, Iq     : 0.010 0.341 A (target 0.000 0.310)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.310 A
+  Vd, Vq int : -0.245 3.937
+  Vd, Vq out : -0.247 3.930 V (|V|=3.938 / 13.910 V)
+  PWM ideal  : |Valphabeta|=1.773 V (CCR estimate)
+=============================
+[T+198.762s] $ 
+######## up500-3-parsed ########
+parsed: target=500 ramp=500 meas=500.0 raw=551.5 filtered=500.0 fast=500.0 age=3.2ms state=5 Id/Iq=0.010/0.341 target=0.000/0.310 SpeedIq=0.310 Vbus=24.1V Vd/Vq=-0.245/3.937
+
+######## up800-set ########
+olspeed 800
+[T+199.165s] > olspeed 800
+
+Target RPM set to 800 (running)
+[T+199.167s] $ 
+######## wait 11s ########
+Hall 闭环稳定到 800 RPM
+
+######## up800-1 ########
+olsnap
+[T+210.603s] > olsnap
+
+
+===== Open-Loop Snap [T+210.603s] =====
+  Enable     : ON
+  Target RPM : 800
+  Ramp RPM   : 800
+  Meas RPM   : 803.6 (valid)
+  Hall RPM   : raw=892.9 filtered=803.6 fast=803.6 age=1.9ms state=5
+  FOC sample : up=71222 down=3047803
+  V_bus      : 24.1 V
+  Theta/CCR  : -1.2776 rad / 2443 1736 1335
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.370 -0.038 -0.366 A
+  Id, Iq     : -0.071 0.420 A (target 0.000 0.327)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.327 A
+  Vd, Vq int : -0.461 6.200
+  Vd, Vq out : -0.446 6.181 V (|V|=6.197 / 13.902 V)
+  PWM ideal  : |Valphabeta|=2.785 V (CCR estimate)
+=============================
+[T+210.618s] $ 
+######## up800-1-parsed ########
+parsed: target=800 ramp=800 meas=803.6 raw=892.9 filtered=803.6 fast=803.6 age=1.9ms state=5 Id/Iq=-0.071/0.420 target=0.000/0.327 SpeedIq=0.327 Vbus=24.1V Vd/Vq=-0.461/6.200
+
+######## up800-2 ########
+olsnap
+[T+212.096s] > olsnap
+
+
+===== Open-Loop Snap [T+212.096s] =====
+  Enable     : ON
+  Target RPM : 800
+  Ramp RPM   : 800
+  Meas RPM   : 803.6 (valid)
+  Hall RPM   : raw=852.3 filtered=803.6 fast=803.6 age=0.5ms state=1
+  FOC sample : up=71222 down=3070197
+  V_bus      : 24.1 V
+  Theta/CCR  : -2.5701 rad / 2478 1443 2335
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.113 -0.360 0.520 A
+  Id, Iq     : 0.383 0.358 A (target 0.000 0.327)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.327 A
+  Vd, Vq int : -0.414 6.184
+  Vd, Vq out : -0.490 6.178 V (|V|=6.197 / 13.906 V)
+  PWM ideal  : |Valphabeta|=2.785 V (CCR estimate)
+=============================
+[T+212.111s] $ 
+######## up800-2-parsed ########
+parsed: target=800 ramp=800 meas=803.6 raw=852.3 filtered=803.6 fast=803.6 age=0.5ms state=1 Id/Iq=0.383/0.358 target=0.000/0.327 SpeedIq=0.327 Vbus=24.1V Vd/Vq=-0.414/6.184
+
+######## up800-3 ########
+olsnap
+[T+213.589s] > olsnap
+
+
+===== Open-Loop Snap [T+213.590s] =====
+  Enable     : ON
+  Target RPM : 800
+  Ramp RPM   : 800
+  Meas RPM   : 797.9 (valid)
+  Hall RPM   : raw=852.3 filtered=797.9 fast=797.9 age=6.7ms state=2
+  FOC sample : up=71222 down=3092597
+  V_bus      : 24.1 V
+  Theta/CCR  : 2.6599 rad / 1489 1377 2401
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.290 -0.360 0.520 A
+  Id, Iq     : -0.359 0.386 A (target 0.000 0.361)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.361 A
+  Vd, Vq int : -0.428 6.191
+  Vd, Vq out : -0.356 6.186 V (|V|=6.196 / 13.901 V)
+  PWM ideal  : |Valphabeta|=2.789 V (CCR estimate)
+=============================
+[T+213.604s] $ 
+######## up800-3-parsed ########
+parsed: target=800 ramp=800 meas=797.9 raw=852.3 filtered=797.9 fast=797.9 age=6.7ms state=2 Id/Iq=-0.359/0.386 target=0.000/0.361 SpeedIq=0.361 Vbus=24.1V Vd/Vq=-0.428/6.191
+
+######## up1200-set ########
+olspeed 1200
+[T+213.993s] > olspeed 1200
+
+Target RPM set to 1200 (running)
+[T+213.995s] $ 
+######## wait 12s ########
+Hall 闭环稳定到 1200 RPM
+
+######## up1200-1 ########
+olsnap
+[T+226.544s] > olsnap
+
+
+===== Open-Loop Snap [T+226.545s] =====
+  Enable     : ON
+  Target RPM : 1200
+  Ramp RPM   : 1200
+  Meas RPM   : 1196.8 (valid)
+  Hall RPM   : raw=1339.3 filtered=1196.8 fast=1196.8 age=1.3ms state=5
+  FOC sample : up=71222 down=3286927
+  V_bus      : 24.1 V
+  Theta/CCR  : -1.2575 rad / 2724 1742 1054
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.290 0.043 -0.205 A
+  Id, Iq     : -0.060 0.279 A (target 0.000 0.409)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.409 A
+  Vd, Vq int : -1.023 9.177
+  Vd, Vq out : -1.011 9.203 V (|V|=9.258 / 13.897 V)
+  PWM ideal  : |Valphabeta|=4.166 V (CCR estimate)
+=============================
+[T+226.559s] $ 
+######## up1200-1-parsed ########
+parsed: target=1200 ramp=1200 meas=1196.8 raw=1339.3 filtered=1196.8 fast=1196.8 age=1.3ms state=5 Id/Iq=-0.060/0.279 target=0.000/0.409 SpeedIq=0.409 Vbus=24.1V Vd/Vq=-1.023/9.177
+
+######## up1200-2 ########
+olsnap
+[T+228.037s] > olsnap
+
+
+===== Open-Loop Snap [T+228.038s] =====
+  Enable     : ON
+  Target RPM : 1200
+  Ramp RPM   : 1200
+  Meas RPM   : 1196.8 (valid)
+  Hall RPM   : raw=1041.7 filtered=1196.8 fast=1196.8 age=2.4ms state=3
+  FOC sample : up=71222 down=3309328
+  V_bus      : 24.1 V
+  Theta/CCR  : -3.0008 rad / 2236 1077 2701
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.113 -0.280 0.279 A
+  Id, Iq     : 0.120 0.309 A (target 0.000 0.409)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.409 A
+  Vd, Vq int : -0.907 9.150
+  Vd, Vq out : -0.931 9.171 V (|V|=9.218 / 13.886 V)
+  PWM ideal  : |Valphabeta|=4.148 V (CCR estimate)
+=============================
+[T+228.053s] $ 
+######## up1200-2-parsed ########
+parsed: target=1200 ramp=1200 meas=1196.8 raw=1041.7 filtered=1196.8 fast=1196.8 age=2.4ms state=3 Id/Iq=0.120/0.309 target=0.000/0.409 SpeedIq=0.409 Vbus=24.1V Vd/Vq=-0.907/9.150
+
+######## up1200-3 ########
+olsnap
+[T+229.528s] > olsnap
+
+
+===== Open-Loop Snap [T+229.529s] =====
+  Enable     : ON
+  Target RPM : 1200
+  Ramp RPM   : 1200
+  Meas RPM   : 1196.8 (valid)
+  Hall RPM   : raw=1250.0 filtered=1196.8 fast=1196.8 age=1.9ms state=6
+  FOC sample : up=71222 down=3331691
+  V_bus      : 24.1 V
+  Theta/CCR  : 0.9810 rad / 1051 2727 1954
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.048 0.446 -0.527 A
+  Id, Iq     : 0.500 0.263 A (target 0.000 0.409)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.409 A
+  Vd, Vq int : -0.927 9.160
+  Vd, Vq out : -1.027 9.189 V (|V|=9.247 / 13.900 V)
+  PWM ideal  : |Valphabeta|=4.164 V (CCR estimate)
+=============================
+[T+229.544s] $ 
+######## up1200-3-parsed ########
+parsed: target=1200 ramp=1200 meas=1196.8 raw=1250.0 filtered=1196.8 fast=1196.8 age=1.9ms state=6 Id/Iq=0.500/0.263 target=0.000/0.409 SpeedIq=0.409 Vbus=24.1V Vd/Vq=-0.927/9.160
+
+######## up1500-set ########
+olspeed 1500
+[T+229.935s] > olspeed 1500
+
+Target RPM set to 1500 (running)
+[T+229.937s] $ 
+######## wait 10s ########
+Hall 闭环稳定到 1500 RPM
+
+######## up1500-1 ########
+olsnap
+[T+240.457s] > olsnap
+
+
+===== Open-Loop Snap [T+240.458s] =====
+  Enable     : ON
+  Target RPM : 1500
+  Ramp RPM   : 1500
+  Meas RPM   : 1500.0 (valid)
+  Hall RPM   : raw=1704.5 filtered=1500.0 fast=1500.0 age=3.2ms state=5
+  FOC sample : up=71222 down=3495627
+  V_bus      : 24.0 V
+  Theta/CCR  : -0.5864 rad / 2704 2813 965
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.113 0.848 -0.608 A
+  Id, Iq     : -0.595 0.614 A (target 0.000 0.420)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.420 A
+  Vd, Vq int : -1.431 11.381
+  Vd, Vq out : -1.312 11.342 V (|V|=11.418 / 13.876 V)
+  PWM ideal  : |Valphabeta|=5.139 V (CCR estimate)
+=============================
+[T+240.473s] $ 
+######## up1500-1-parsed ########
+parsed: target=1500 ramp=1500 meas=1500.0 raw=1704.5 filtered=1500.0 fast=1500.0 age=3.2ms state=5 Id/Iq=-0.595/0.614 target=0.000/0.420 SpeedIq=0.420 Vbus=24.0V Vd/Vq=-1.431/11.381
+
+######## up1500-2 ########
+olsnap
+[T+241.952s] > olsnap
+
+
+===== Open-Loop Snap [T+241.953s] =====
+  Enable     : ON
+  Target RPM : 1500
+  Ramp RPM   : 1500
+  Meas RPM   : 1500.0 (valid)
+  Hall RPM   : raw=1562.5 filtered=1500.0 fast=1500.0 age=1.1ms state=1
+  FOC sample : up=71222 down=3518051
+  V_bus      : 24.0 V
+  Theta/CCR  : -2.3248 rad / 3369 1287 2490
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.275 -0.360 1.326 A
+  Id, Iq     : 1.055 0.298 A (target 0.000 0.419)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.419 A
+  Vd, Vq int : -1.401 11.382
+  Vd, Vq out : -1.612 11.406 V (|V|=11.519 / 13.880 V)
+  PWM ideal  : |Valphabeta|=5.181 V (CCR estimate)
+=============================
+[T+241.968s] $ 
+######## up1500-2-parsed ########
+parsed: target=1500 ramp=1500 meas=1500.0 raw=1562.5 filtered=1500.0 fast=1500.0 age=1.1ms state=1 Id/Iq=1.055/0.298 target=0.000/0.419 SpeedIq=0.419 Vbus=24.0V Vd/Vq=-1.401/11.382
+
+######## up1500-3 ########
+olsnap
+[T+243.452s] > olsnap
+
+
+===== Open-Loop Snap [T+243.453s] =====
+  Enable     : ON
+  Target RPM : 1500
+  Ramp RPM   : 1500
+  Meas RPM   : 1500.0 (valid)
+  Hall RPM   : raw=1562.5 filtered=1500.0 fast=1500.0 age=1.1ms state=1
+  FOC sample : up=71222 down=3540551
+  V_bus      : 24.0 V
+  Theta/CCR  : -2.3248 rad / 3360 1282 2496
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.516 -0.683 1.246 A
+  Id, Iq     : 1.176 0.374 A (target 0.000 0.419)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.419 A
+  Vd, Vq int : -1.298 11.383
+  Vd, Vq out : -1.533 11.392 V (|V|=11.495 / 13.882 V)
+  PWM ideal  : |Valphabeta|=5.175 V (CCR estimate)
+=============================
+[T+243.468s] $ 
+######## up1500-3-parsed ########
+parsed: target=1500 ramp=1500 meas=1500.0 raw=1562.5 filtered=1500.0 fast=1500.0 age=1.1ms state=1 Id/Iq=1.176/0.374 target=0.000/0.419 SpeedIq=0.419 Vbus=24.0V Vd/Vq=-1.298/11.383
+
+######## up1800-set ########
+olspeed 1800
+[T+243.857s] > olspeed 1800
+
+Target RPM set to 1800 (running)
+[T+243.859s] $ 
+######## wait 12s ########
+Hall 闭环稳定到 1800 RPM
+
+######## up1800-1 ########
+olsnap
+[T+256.398s] > olsnap
+
+
+===== Open-Loop Snap [T+256.399s] =====
+  Enable     : ON
+  Target RPM : 1800
+  Ramp RPM   : 1800
+  Meas RPM   : 1814.5 (valid)
+  Hall RPM   : raw=1875.0 filtered=1814.5 fast=1814.5 age=1.3ms state=1
+  FOC sample : up=71222 down=3734747
+  V_bus      : 24.0 V
+  Theta/CCR  : -2.1532 rad / 3133 645 1692
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.113 -0.521 0.682 A
+  Id, Iq     : 0.651 0.274 A (target 0.000 0.363)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.363 A
+  Vd, Vq int : -1.923 13.571
+  Vd, Vq out : -2.053 13.589 V (|V|=13.743 / 13.857 V)
+  PWM ideal  : |Valphabeta|=6.182 V (CCR estimate)
+=============================
+[T+256.414s] $ 
+######## up1800-1-parsed ########
+parsed: target=1800 ramp=1800 meas=1814.5 raw=1875.0 filtered=1814.5 fast=1814.5 age=1.3ms state=1 Id/Iq=0.651/0.274 target=0.000/0.363 SpeedIq=0.363 Vbus=24.0V Vd/Vq=-1.923/13.571
+
+######## up1800-2 ########
+olsnap
+[T+257.895s] > olsnap
+
+
+===== Open-Loop Snap [T+257.895s] =====
+  Enable     : ON
+  Target RPM : 1800
+  Ramp RPM   : 1800
+  Meas RPM   : 1814.5 (valid)
+  Hall RPM   : raw=1704.5 filtered=1814.5 fast=1814.5 age=0.0ms state=3
+  FOC sample : up=71222 down=3757186
+  V_bus      : 24.0 V
+  Theta/CCR  : 2.6808 rad / 1167 720 3057
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.451 -0.683 0.520 A
+  Id, Iq     : -0.626 0.464 A (target 0.000 0.362)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.362 A
+  Vd, Vq int : -1.737 13.576
+  Vd, Vq out : -1.611 13.556 V (|V|=13.651 / 13.862 V)
+  PWM ideal  : |Valphabeta|=6.141 V (CCR estimate)
+=============================
+[T+257.910s] $ 
+######## up1800-2-parsed ########
+parsed: target=1800 ramp=1800 meas=1814.5 raw=1704.5 filtered=1814.5 fast=1814.5 age=0.0ms state=3 Id/Iq=-0.626/0.464 target=0.000/0.362 SpeedIq=0.362 Vbus=24.0V Vd/Vq=-1.737/13.576
+
+######## up1800-3 ########
+olsnap
+[T+259.392s] > olsnap
+
+
+===== Open-Loop Snap [T+259.393s] =====
+  Enable     : ON
+  Target RPM : 1800
+  Ramp RPM   : 1800
+  Meas RPM   : 1785.7 (valid)
+  Hall RPM   : raw=1875.0 filtered=1785.7 fast=1785.7 age=0.3ms state=2
+  FOC sample : up=71222 down=3779657
+  V_bus      : 24.0 V
+  Theta/CCR  : 1.7124 rad / 676 2386 3102
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.436 0.446 0.279 A
+  Id, Iq     : 0.171 0.513 A (target 0.000 0.535)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.535 A
+  Vd, Vq int : -2.008 13.560
+  Vd, Vq out : -2.042 13.565 V (|V|=13.717 / 13.861 V)
+  PWM ideal  : |Valphabeta|=6.171 V (CCR estimate)
+=============================
+[T+259.409s] $ 
+######## up1800-3-parsed ########
+parsed: target=1800 ramp=1800 meas=1785.7 raw=1875.0 filtered=1785.7 fast=1785.7 age=0.3ms state=2 Id/Iq=0.171/0.513 target=0.000/0.535 SpeedIq=0.535 Vbus=24.0V Vd/Vq=-2.008/13.560
+
+######## up2000-set ########
+olspeed 2000
+[T+259.799s] > olspeed 2000
+
+Target RPM set to 2000 (running)
+[T+259.801s] $ 
+######## wait 14s ########
+Hall 闭环稳定到 2000 RPM
+
+######## up2000-1 ########
+olsnap
+[T+274.229s] > olsnap
+
+
+===== Open-Loop Snap [T+274.229s] =====
+  Enable     : ON
+  Target RPM : 2000
+  Ramp RPM   : 2000
+  Meas RPM   : 1814.5 (valid)
+  Hall RPM   : raw=1875.0 filtered=1814.5 fast=1814.5 age=1.3ms state=6
+  FOC sample : up=71222 down=4002202
+  V_bus      : 24.0 V
+  Theta/CCR  : 1.0198 rad / 637 3141 2127
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.128 0.607 -0.688 A
+  Id, Iq     : 0.696 0.295 A (target 0.000 0.800)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.800 A
+  Vd, Vq int : -1.755 13.638
+  Vd, Vq out : -1.895 13.739 V (|V|=13.869 / 13.877 V)
+  PWM ideal  : |Valphabeta|=6.242 V (CCR estimate)
+=============================
+[T+274.245s] $ 
+######## up2000-1-parsed ########
+parsed: target=2000 ramp=2000 meas=1814.5 raw=1875.0 filtered=1814.5 fast=1814.5 age=1.3ms state=6 Id/Iq=0.696/0.295 target=0.000/0.800 SpeedIq=0.800 Vbus=24.0V Vd/Vq=-1.755/13.638
+
+######## ABORT ########
+up2000-1: filtered RPM 1814.5 outside ±2%
+
+######## STOP ########
+olstop
+[T+274.959s] > olstop
+
+Open-loop stopped
+[T+274.959s] $ 

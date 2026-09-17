@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
+#include <string.h>
 #include <math.h>
 
 #include "motor_current.h"
@@ -55,12 +56,9 @@ void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_ta
     }
 
     if (ctx == NULL) {
-        local.alignment_running = false;
-        local.alignment_current_scale = 0.0f;
+        memset(&local, 0, sizeof(local));
         local.if_iq_scale = 1.0f;
         local.soft_current_scale = 1.0f;
-        local.speed_loop_active = false;
-        local.speed_iq_target = 0.0f;
         ctx = &local;
     }
 
@@ -79,6 +77,7 @@ void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_ta
     }
 
     *id_target = motor->ol_align_current * ctx->alignment_current_scale + motor->ol_id_set * ctx->soft_current_scale;
+    *id_target += ctx->id_fw;
     if (ctx->speed_loop_active) {
         /* 无感闭环建立后，速度 PI 的输出作为电流内环 Iq 目标。 */
         *iq_target = ctx->speed_iq_target * ctx->soft_current_scale;

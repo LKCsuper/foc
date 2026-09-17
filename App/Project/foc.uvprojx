@@ -1034,6 +1034,11 @@
               <FilePath>..\motor\motor_current.c</FilePath>
             </File>
             <File>
+              <FileName>motor_fw.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_fw.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_control.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_control.c</FilePath>

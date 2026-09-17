@@ -12,6 +12,7 @@ extern "C" {
 
 #include "motor_control.h"
 #include "motor_current.h"
+#include "motor_fw.h"
 #include "motor_foc.h"
 #include "motor_math.h"
 #include "motor_speed.h"
@@ -125,6 +126,7 @@ void Motor_Control_ResetRuntime(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
         ctrl->startup.soft_current_scale = 0.0f;
         ctrl->startup.drag_current_scale = 0.0f;
         ctrl->speed_loop_latched = false;
+        Motor_Fw_Reset(&ctrl->fw);
     }
 }
 
@@ -236,6 +238,21 @@ void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor)
     }
     if (motor->speed_iq_limit < 0.0f) {
         motor->speed_iq_limit = -motor->speed_iq_limit;
+    }
+    if (motor->fw_current_max < 0.0f) {
+        motor->fw_current_max = 0.0f;
+    }
+    if (motor->fw_current_max > MOTOR_FW_I_BUDGET) {
+        motor->fw_current_max = MOTOR_FW_I_BUDGET;
+    }
+    if (motor->fw_duty_start < 0.50f) {
+        motor->fw_duty_start = 0.50f;
+    }
+    if (motor->fw_duty_start > 0.99f) {
+        motor->fw_duty_start = 0.99f;
+    }
+    if (motor->fw_ramp_a_s < 0.0f) {
+        motor->fw_ramp_a_s = 0.0f;
     }
     if (motor->speed_loop_hz < 1.0f) {
         motor->speed_loop_hz = 1.0f;
@@ -523,8 +540,13 @@ static bool Motor_Control_SpeedLoopReady(motor_control_t *ctrl, const MOTOR_PARA
  */
 static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *motor, motor_current_target_ctx_t *ctx)
 {
-    bool dragging = ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP;
+    bool dragging;
 
+    if (ctrl == NULL || motor == NULL || ctx == NULL) {
+        return;
+    }
+    dragging = ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP;
+    memset(ctx, 0, sizeof(*ctx));
     ctx->alignment_running = !dragging;
     ctx->if_iq_scale = ctrl->startup.if_start.iq_scale;
     /*
@@ -619,8 +641,30 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
     motor_dq_voltage_t voltage;
 
     Motor_Control_FillCurrentCtx(ctrl, motor, &ctx);
+    if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
+        float iq_abs;
+        float fw_max;
+        float id_room;
+
+        if (ctx.speed_loop_active) {
+            iq_abs = fabsf(ctx.speed_iq_target * ctx.soft_current_scale);
+        } else {
+            iq_abs = fabsf(motor->ol_iq_set * ctx.if_iq_scale * ctx.soft_current_scale);
+        }
+        fw_max = motor->fw_current_max;
+        id_room = Motor_Fw_IdRoom(iq_abs, MOTOR_FW_I_BUDGET);
+        if (fw_max > id_room) {
+            fw_max = id_room;
+        }
+        ctx.id_fw = Motor_Fw_Step(&ctrl->fw, fw_max, motor->fw_duty_start, motor->fw_ramp_a_s, ctrl->fw.last_vd,
+                                  ctrl->fw.last_vq, v_limit, dt);
+    } else {
+        Motor_Fw_Reset(&ctrl->fw);
+    }
     /* 电流目标已按 soft/drag 比例爬升；电压上限不再叠乘 soft，避免积分顶满后过流。 */
     voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, &motor->id_target, &motor->iq_target);
+    ctrl->fw.last_vd = voltage.vd;
+    ctrl->fw.last_vq = voltage.vq;
     /*
      * I/F 的 Park 角是开环磁场角，不是转子角。ωψf 前馈必须在转子 dq 上；
      * 加在 I/F 轴上会随转速把 Id/Iq 打偏（72 RPM 还行，300 RPM 见过 0.17 A 或 1.0/1.1 A）。

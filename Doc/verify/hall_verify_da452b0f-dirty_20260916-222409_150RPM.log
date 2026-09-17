@@ -1,0 +1,175 @@
+# hall_verify
+# workspace: da452b0f-dirty
+# time: 2026-09-16 22:24:09
+# profile: up
+# max_rpm: 150
+# direction: cw
+# samples: 3
+# keep_going: 0
+# script: Scripts/hall_verify_serial.py
+
+######## wake ########
+
+[T+56.826s] $ 
+######## up150-config ########
+olstop
+[T+57.229s] > olstop
+
+Open-loop stopped
+[T+57.229s] $ olfault clear
+[T+57.618s] > olfault clear
+
+Motor fault cleared; use olstart to restart
+[T+57.618s] $ olalign 0
+[T+58.006s] > olalign 0
+
+Align set: OFF Id=0.50A time=0.300s angle=0.000rad
+[T+58.006s] $ olmode 1
+[T+58.394s] > olmode 1
+
+Open-loop mode set to 1 (Current-loop)
+[T+58.395s] $ olfb hall
+[T+58.785s] > olfb hall
+
+feedback set to 3
+[T+58.786s] $ slenable 0
+[T+59.176s] > slenable 0
+
+Sensorless observer disabled
+[T+59.176s] $ spkp 0.006
+[T+59.564s] > spkp 0.006
+
+Speed Kp set to 0.006000 A/RPM
+[T+59.565s] $ spki 0.003
+[T+59.954s] > spki 0.003
+
+Speed Ki set to 0.003000 A/(RPM*s)
+[T+59.955s] $ spiq 0.8
+[T+60.346s] > spiq 0.8
+
+Speed Iq limit set to 0.800 A
+[T+60.347s] $ spbrake 0
+[T+60.750s] > spbrake 0
+
+Speed braking disabled
+[T+60.750s] $ oliq 0.6
+[T+61.141s] > oliq 0.6
+
+Iq set to 0.60 A
+[T+61.141s] $ olid 0
+[T+61.544s] > olid 0
+
+Id set to 0.00 A
+[T+61.544s] $ olkp 0.2
+[T+61.937s] > olkp 0.2
+
+Current Kp set to 0.2000
+[T+61.937s] $ olki 30
+[T+62.327s] > olki 30
+
+Current Ki set to 30.00
+[T+62.328s] $ olramp 50
+[T+62.720s] > olramp 50
+
+Ramp set to 50 RPM/s
+[T+62.720s] $ olspeed 150
+[T+63.111s] > olspeed 150
+
+Target RPM set to 150 (stopped, use olstart)
+[T+63.111s] $ spenable 1
+[T+63.498s] > spenable 1
+
+Speed loop enabled
+Waiting: encoder Detect / hall table, and speed_valid
+[T+63.498s] $ olstart
+[T+63.889s] > olstart
+
+Open-loop started (I/F), target 150 RPM, Iq=0.60A
+[T+63.891s] $ 
+######## wait 10s ########
+Hall 闭环从停机起转到 150 RPM
+
+######## up150-1 ########
+olsnap
+[T+74.426s] > olsnap
+
+
+===== Open-Loop Snap [T+74.426s] =====
+  Enable     : ON
+  Target RPM : 150
+  Ramp RPM   : 150
+  Meas RPM   : 151.1 (valid)
+  Hall RPM   : raw=170.5 filtered=151.0 fast=151.1 age=24.0ms state=5
+  V_bus      : 24.0 V
+  Theta/CCR  : -1.0664 rad / 1528 1398 1271
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.451 0.043 0.117 A
+  Id, Iq     : 0.157 0.195 A (target 0.000 0.346)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.346 A
+  Vd, Vq int : 0.008 1.883
+  Vd, Vq out : -0.023 1.913 V (|V|=1.913 / 13.880 V)
+=============================
+[T+74.439s] $ 
+######## up150-1-parsed ########
+parsed: target=150 ramp=150 meas=151.1 raw=170.5 filtered=151.0 fast=151.1 age=24.0ms state=5 Id/Iq=0.157/0.195 target=0.000/0.346 SpeedIq=0.346 Vd/Vq=0.008/1.883
+
+######## up150-2 ########
+olsnap
+[T+75.918s] > olsnap
+
+
+===== Open-Loop Snap [T+75.919s] =====
+  Enable     : ON
+  Target RPM : 150
+  Ramp RPM   : 150
+  Meas RPM   : 152.7 (valid)
+  Hall RPM   : raw=167.4 filtered=151.0 fast=152.7 age=19.7ms state=2
+  V_bus      : 24.0 V
+  Theta/CCR  : 2.1382 rad / 1223 1336 1463
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.275 0.043 0.117 A
+  Id, Iq     : 0.091 0.223 A (target 0.000 0.336)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.336 A
+  Vd, Vq int : 0.039 1.757
+  Vd, Vq out : 0.021 1.780 V (|V|=1.780 / 13.879 V)
+=============================
+[T+75.931s] $ 
+######## up150-2-parsed ########
+parsed: target=150 ramp=150 meas=152.7 raw=167.4 filtered=151.0 fast=152.7 age=19.7ms state=2 Id/Iq=0.091/0.223 target=0.000/0.336 SpeedIq=0.336 Vd/Vq=0.039/1.757
+
+######## up150-3 ########
+olsnap
+[T+77.418s] > olsnap
+
+
+===== Open-Loop Snap [T+77.419s] =====
+  Enable     : ON
+  Target RPM : 150
+  Ramp RPM   : 150
+  Meas RPM   : 151.6 (valid)
+  Hall RPM   : raw=165.9 filtered=150.6 fast=151.6 age=18.1ms state=5
+  V_bus      : 24.0 V
+  Theta/CCR  : -1.0676 rad / 1528 1390 1271
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.048 0.123 -0.124 A
+  Id, Iq     : -0.110 0.097 A (target 0.000 0.343)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.343 A
+  Vd, Vq int : 0.019 1.867
+  Vd, Vq out : 0.041 1.917 V (|V|=1.917 / 13.874 V)
+=============================
+[T+77.431s] $ 
+######## up150-3-parsed ########
+parsed: target=150 ramp=150 meas=151.6 raw=165.9 filtered=150.6 fast=151.6 age=18.1ms state=5 Id/Iq=-0.110/0.097 target=0.000/0.343 SpeedIq=0.343 Vd/Vq=0.019/1.867
+
+######## PASS ########
+Hall verification passed
+
+######## STOP ########
+olstop
+[T+78.133s] > olstop
+
+Open-loop stopped
+[T+78.134s] $ 

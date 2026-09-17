@@ -18,6 +18,8 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#include "motor_control.h"
+#include <math.h>
 #include <stdarg.h>
 /* Private typedef -----------------------------------------------------------*/
 typedef enum {
@@ -302,6 +304,8 @@ static void ol_print_status(void)
         /* 电流模式 */
         ol_status_append(&used, "  Iq set     : %.2f A\n", motor.ol_iq_set);
         ol_status_append(&used, "  Id set     : %.2f A\n", motor.ol_id_set);
+        ol_status_append(&used, "  FW         : max=%.2fA duty=%.2f ramp=%.1fA/s\n", motor.fw_current_max,
+                         motor.fw_duty_start, motor.fw_ramp_a_s);
         ol_status_append(&used, "  Current Kp : %.4f\n", motor.ol_current_kp);
         ol_status_append(&used, "  Current Ki : %.2f\n", motor.ol_current_ki);
         ol_status_append(&used, "  Vq limit   : %.1f V\n", motor.ol_vq_limit);
@@ -707,6 +711,14 @@ int Cmd_OlSnap(int argc, char *argv[])
 {
     motor_status_t status;
     mc_fault_code fault;
+    float vd_out;
+    float vq_out;
+    float v_limit;
+    float pwm_alpha;
+    float pwm_beta;
+    float pwm_period;
+    uint32_t sample_up_count;
+    uint32_t sample_down_count;
     char ts[20];
 
     (void)argc;
@@ -729,6 +741,9 @@ int Cmd_OlSnap(int argc, char *argv[])
                status.feedback.mech_rpm_raw, status.feedback.mech_rpm, status.feedback.mech_rpm_fast,
                status.feedback.sample_age_s * 1000.0f, status.feedback.sensor_state);
     }
+    Motor_DmaInt_GetSampleDirectionCounts(&sample_up_count, &sample_down_count);
+    PRINTF("  FOC sample : up=%lu down=%lu\n", (unsigned long)sample_up_count,
+           (unsigned long)sample_down_count);
     PRINTF("  V_bus      : %.1f V\n", status.v_bus);
     PRINTF("  Theta/CCR  : %.4f rad / %lu %lu %lu\n", status.theta, (unsigned long)status.duty1,
            (unsigned long)status.duty2, (unsigned long)status.duty3);
@@ -737,8 +752,25 @@ int Cmd_OlSnap(int argc, char *argv[])
     PRINTF("  Ia,Ib,Ic   : %.3f %.3f %.3f A\n", status.ia, status.ib, status.ic);
     PRINTF("  Id, Iq     : %.3f %.3f A (target %.3f %.3f)\n", status.id, status.iq,
            status.id_target, status.iq_target);
+    PRINTF("  FW         : max=%.2fA duty=%.2f\n", motor.fw_current_max, motor.fw_duty_start);
     PRINTF("  Speed Iq   : %.3f A\n", status.speed_iq);
     PRINTF("  Vd, Vq int : %.3f %.3f\n", status.vd_int, status.vq_int);
+    /* 电流 PI 的限幅/抗饱和会回写积分项，故同一快照可还原本拍限幅后的 DQ 请求。 */
+    vd_out = status.vd_int + (status.id_target - status.id) * motor.ol_current_kp;
+    vq_out = status.vq_int + (status.iq_target - status.iq) * motor.ol_current_kp;
+    v_limit = Motor_Control_GetVoltageLimit(&motor, status.v_bus);
+    PRINTF("  Vd, Vq out : %.3f %.3f V (|V|=%.3f / %.3f V)\n", vd_out, vq_out,
+           sqrtf(vd_out * vd_out + vq_out * vq_out), v_limit);
+    /* 由逻辑 A/B/C 比较值估算理想平均相电压；不代表电机端实测电压。 */
+    pwm_period = (float)Hal_Motor_PwmPeriodCounts();
+    if (status.enable && pwm_period > 0.0f) {
+        pwm_alpha = status.v_bus * (2.0f * (float)status.duty1 - (float)status.duty2 -
+                                    (float)status.duty3) / (3.0f * pwm_period);
+        pwm_beta = status.v_bus * ((float)status.duty2 - (float)status.duty3) /
+                   (1.7320508f * pwm_period);
+        PRINTF("  PWM ideal  : |Valphabeta|=%.3f V (CCR estimate)\n",
+               sqrtf(pwm_alpha * pwm_alpha + pwm_beta * pwm_beta));
+    }
     PRINTF("=============================\n");
     /* TX DMA 可抢占 FOC，Flush 能把本页发完，避免 olsnap 半截卡死上位机解析。 */
     Bsp_Usart_Flush();
@@ -988,6 +1020,55 @@ int Cmd_OlId(int argc, char *argv[])
         return -1;
     }
     PRINTF("Id set to %.2f A\n", motor.ol_id_set);
+    return 0;
+}
+
+/**
+ * @description: fw 命令 — 弱磁 |Id| 上限、进入门槛与斜坡。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[]  argv[1]=max_A，argv[2]=duty_start，argv[3]=ramp_A/s；无参查询；0 关闭
+ * @return {int} 0 成功
+ * @author: lkc
+ */
+int Cmd_Fw(int argc, char *argv[])
+{
+    float max_a;
+    float duty;
+    float ramp;
+
+    if (argc < 2) {
+        PRINTF("FW: max=%.2f A  duty_start=%.2f  ramp=%.1f A/s  (supply %.1f A, budget %.1f A; 0=off)\n",
+               motor.fw_current_max, motor.fw_duty_start, motor.fw_ramp_a_s, MOTOR_FW_SUPPLY_CURRENT,
+               MOTOR_FW_I_BUDGET);
+        return 0;
+    }
+    max_a = (float)atof(argv[1]);
+    if (max_a < 0.0f) {
+        max_a = 0.0f;
+    }
+    if (max_a > MOTOR_FW_I_BUDGET) {
+        max_a = MOTOR_FW_I_BUDGET;
+    }
+    motor.fw_current_max = max_a;
+    if (argc >= 3) {
+        duty = (float)atof(argv[2]);
+        if (duty < 0.50f) {
+            duty = 0.50f;
+        }
+        if (duty > 0.99f) {
+            duty = 0.99f;
+        }
+        motor.fw_duty_start = duty;
+    }
+    if (argc >= 4) {
+        ramp = (float)atof(argv[3]);
+        if (ramp < 0.0f) {
+            ramp = 0.0f;
+        }
+        motor.fw_ramp_a_s = ramp;
+    }
+    PRINTF("FW set: max=%.2f A  duty_start=%.2f  ramp=%.1f A/s\n", motor.fw_current_max, motor.fw_duty_start,
+           motor.fw_ramp_a_s);
     return 0;
 }
 

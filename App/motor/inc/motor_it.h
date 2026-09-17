@@ -173,6 +173,9 @@ float Motor_DmaInt_GetAdcFrequencyHz(void);
  */
 float Motor_DmaInt_GetControlFrequencyHz(void);
 
+/* 只读诊断：FOC 控制拍发生在 TIM1 向上/向下计数的次数。 */
+void Motor_DmaInt_GetSampleDirectionCounts(uint32_t *up, uint32_t *down);
+
 /**
  * @description: 采样换算入口：捕获 ADC 帧并换算为电流/电压物理量。
  * @detail: 内部为 SampleCapture → ApplyFrame；可在每拍 ADC 回调中调用。

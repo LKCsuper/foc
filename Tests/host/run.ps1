@@ -41,7 +41,11 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor current host compilation failed' }
     & .build/host/test_motor_current.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor current host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_control.c App/motor/motor_alignment.c App/motor/motor_if_start.c App/motor/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_fw.c Tests/host/test_motor_fw.c -o .build/host/test_motor_fw.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor FW host compilation failed' }
+    & .build/host/test_motor_fw.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor FW host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_control.c App/motor/motor_fw.c App/motor/motor_alignment.c App/motor/motor_if_start.c App/motor/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control host compilation failed' }
     & .build/host/test_motor_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control host tests failed' }
