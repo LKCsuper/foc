@@ -745,25 +745,18 @@ VOID Bsp_Tim_RunCount(VOID)
 	return;
 }
 
-#define TIMER_DT_HZ					1.4e7
+#define TIMER_DT_HZ					BSP_TIM_DT_HZ
 /**
- * @description: 微秒级高精度计时器初始化（TIM5 自由运行计数器）
+ * @description: 微秒级自由运行时基（TIM5），电机控制通用，非 Hall 专用
  * @detail:
- *   使用 TIM5 32位定时器作为系统高精度时间基准，用于测量代码段执行时间：
- *   - 定时器时钟：APB1 定时器时钟 = SYSTEM_CORE_CLOCK / 2 = 84MHz（TIM5 在 APB1 上）
- *   - 预分频器：84 - 1 = 83 → 计数频率 = 84MHz / 84 = 1MHz（每 tick = 1µs）
- *   - 周期值：0xFFFFFFFF（32位满量程），定时器自由运行不产生溢出中断
- *   - 模式：向上计数，单次溢出周期约 4295 秒（~71 分钟）
+ *   TIM5 32 位向上计数，供 ISR 耗时、采样时标、速度环 dt、命令时间戳共用：
+ *   - 定时器时钟：APB1 定时器时钟 = SYSTEM_CORE_CLOCK / 2 = 84 MHz
+ *   - 预分频器：84-1 → 计数频率 = 1 MHz（与 BSP_TIM_DT_HZ 一致，1 tick = 1 us）
+ *   - ARR = 0xFFFFFFFF，约 4295 s 溢出一次；无符号减法可回绕
  *
  *   配套 API：
- *   - Bsp_Tim_DtNow()：读取当前 CNT 值（单位：µs）
- *   - Bsp_Tim_DtSecondElapsedSince(t)：计算从时刻 t 到现在的秒数差值
- *
- *   注意：
- *   - 当前硬编码 Prescaler = 84-1（1µs 分辨率），注释掉的 PrescalerValue 计算
- *     可达到 TIMER_DT_HZ(14MHz) 的计数频率，但因某种原因暂未使用
- *   - 32位计数器约 71 分钟溢出一次，Bsp_Tim_DtSecondElapsedSince 使用无符号减法
- *     天然处理溢出回绕（两次 CNT 差值在溢出后仍正确）
+ *   - Bsp_Tim_DtNow()：当前 CNT，单位 us
+ *   - Bsp_Tim_DtSecondElapsedSince(t)：从 t 到现在的秒数
  * @return {VOID}
  * @author: lkc
  */
@@ -772,15 +765,10 @@ VOID Bsp_Tim5_Dt(VOID)
 	/* 使能 TIM5 时钟（APB1总线，定时器时钟 = SYSTEM_CORE_CLOCK / 2 = 84MHz） */
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM5, ENABLE);
 
-	/* 理论预分频值：如启用可使计数频率达到 TIMER_DT_HZ (14MHz)
-	 * 计算公式：Prescaler = (APB1定时器时钟 / 目标频率) - 1 */
-	uint16_t PrescalerValue = (uint16_t) ((SYSTEM_CORE_CLOCK / 2) / TIMER_DT_HZ) - 1;
-
 	TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
 	/* 周期值：32位满量程，自由运行不产生更新中断 */
 	TIM_TimeBaseStructure.TIM_Period = 0xFFFFFFFF;
-	/* 预分频器：84-1=83，计数频率 = 84MHz / 84 = 1MHz，每 tick = 1µs
-	 * TODO: 当前使用微秒分辨率，注释掉的 PrescalerValue 可达到 14MHz 更高精度 */
+	/* 预分频器：84-1=83，计数频率 = 84MHz / 84 = 1MHz，必须与 BSP_TIM_DT_HZ 一致 */
 	TIM_TimeBaseStructure.TIM_Prescaler = 84 - 1;
 	/* 时钟分频：不分频 */
 	TIM_TimeBaseStructure.TIM_ClockDivision = 0;
@@ -795,14 +783,23 @@ VOID Bsp_Tim5_Dt(VOID)
 	return;
 }
 
-// 当前定时器count
-ULONG Bsp_Tim_DtNow(void) 
+/**
+ * @description: 读取 TIM5 当前计数值（单位 us）
+ * @return {ULONG} 当前时间 (us)
+ * @author: lkc
+ */
+ULONG Bsp_Tim_DtNow(void)
 {
 	return TIM5->CNT;
 }
 
-// 时间差值
-float Bsp_Tim_DtSecondElapsedSince(ULONG time) 
+/**
+ * @description: 计算自 time 以来流逝的秒数（支持 CNT 回绕）
+ * @param {ULONG} time  起始时刻，来自 Bsp_Tim_DtNow()
+ * @return {float} 流逝时间 (s)
+ * @author: lkc
+ */
+float Bsp_Tim_DtSecondElapsedSince(ULONG time)
 {
 	uint32_t diff = TIM5->CNT - time;
 	return (float)diff / (float)TIMER_DT_HZ;

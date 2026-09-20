@@ -85,7 +85,8 @@ uint32_t Hal_Motor_PwmPeriodCounts(void);
 float Hal_Motor_AdcSampleRateHz(void);
 
 /**
- * @description: 读取微秒时基计数
+ * @description: 读取电机通用微秒时基（自由运行，非 Hall 专用）
+ * @detail: ISR 耗时、采样时标、速度环 dt、命令时间戳共用。当前 1 tick = 1 us。
  * @return {uint32_t} 当前时间 (us)
  * @author: lkc
  */
@@ -93,8 +94,8 @@ uint32_t Hal_Motor_TimeUs(void);
 
 /**
  * @description: 计算自 start_us 以来流逝的时间
- * @param {uint32_t} start_us  起始时刻 (us)，通常来自 Hal_Motor_TimeUs
- * @return {float} 流逝时间 (s)，支持无符号溢出回绕
+ * @param {uint32_t} start_us  起始时刻 (us)，必须来自 Hal_Motor_TimeUs
+ * @return {float} 流逝时间 (s)，支持 32 位回绕
  * @author: lkc
  */
 float Hal_Motor_TimeElapsedSec(uint32_t start_us);

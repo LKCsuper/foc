@@ -129,8 +129,8 @@ float Hal_Motor_AdcSampleRateHz(void)
 }
 
 /**
- * @description: 读取微秒时基
- * @return {uint32_t} us
+ * @description: 读取电机通用微秒时基
+ * @return {uint32_t} 当前时间 (us)
  * @author: lkc
  */
 uint32_t Hal_Motor_TimeUs(void)
@@ -139,14 +139,14 @@ uint32_t Hal_Motor_TimeUs(void)
 }
 
 /**
- * @description: 计算自 start_us 以来流逝的时间
- * @param {uint32_t} start_us
- * @return {float} s
+ * @description: 计算自 start_us 以来流逝的秒数
+ * @param {uint32_t} start_us  Hal_Motor_TimeUs() 采样值
+ * @return {float} 流逝时间 (s)
  * @author: lkc
  */
 float Hal_Motor_TimeElapsedSec(uint32_t start_us)
 {
-    return Bsp_Tim_DtSecondElapsedSince((ULONG)start_us);
+    return (float)(uint32_t)(Hal_Motor_TimeUs() - start_us) * (1.0f / BSP_TIM_DT_HZ);
 }
 
 /**

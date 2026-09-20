@@ -4,6 +4,7 @@
  *
  * 学习要点：速度环输出是 Iq 目标，不是直接 PWM；反馈无效时不得闭环。
  * State API 供主机测试/将来多实例；无参包装走 s_speed 默认实例。
+ * 速度 PI 由 foc pid 任务调用 Run；ISR 只 SetRunAllowed/Reset，并读 Iq。
  */
 #ifndef MOTOR_SPEED_H
 #define MOTOR_SPEED_H
@@ -135,6 +136,15 @@ void Motor_SpeedFeedback_Set(float rpm, bool valid);
  * @author: lkc
  */
 void Motor_SpeedLoop_Run(MOTOR_PARAM_S *motor, float dt);
+
+/**
+ * @description: 允许或禁止默认实例速度 PI（由 ISR 在接管门槛处设置）
+ * @detail: allowed=false 时同时复位 PI，避免任务在启动 Iq 阶段后台积分。
+ * @param {bool} allowed true=foc pid 任务可运行 PI
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_SpeedLoop_SetRunAllowed(bool allowed);
 
 /**
  * @description: 清除默认实例速度 PI 状态

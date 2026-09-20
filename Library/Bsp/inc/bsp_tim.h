@@ -15,6 +15,8 @@ extern "C" {
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define SYSTEM_CORE_CLOCK							(168000000)
+/* TIM5 自由运行时基：APB1 定时器 84 MHz / 84 = 1 MHz，1 tick = 1 us */
+#define BSP_TIM_DT_HZ								(1000000.0f)
 #define MCPWM_FOC_CURRENT_SAMP_OFFSET				(2) // Offset from timer top for ADC samples
 
 #define HW_PWM1_TIM						(TIM1)

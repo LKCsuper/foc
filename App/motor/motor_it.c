@@ -6,6 +6,7 @@
  *   1) 本文件是平台胶水，不承载对齐/斜坡/电流 PI 算法细节。
  *   2) 算法在 motor_control / motor_current / 启动与无感模块。
  *   3) 分频前：Hal 采样帧 → Sense 换算 + 软件保护；分频后：Motor_Control_Step → 应用 PWM。
+ *   4) 速度 PI 不在本中断；由 Motor_Task foc pid 写出 Iq，本拍只读。
  */
 #ifdef __cplusplus
 extern "C" {
@@ -71,7 +72,7 @@ static bool s_bldc_initialized = false;
 static bool s_bldc_sample_upward = true;
 /*
  * ADC-DMA 中断执行时间统计。
- * TIM5 在 BSP 中配置为 1MHz，所以计数差值直接等于微秒数。
+ * Hal_Motor_TimeUs 为 1 us/tick 的通用时基，差值即微秒。
  */
 static volatile float s_foc_runtime_average_us = 0.0f;
 static volatile float s_foc_runtime_maximum_us = 0.0f;

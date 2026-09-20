@@ -7,19 +7,6 @@
 #include "motor_current.h"
 #include "motor_feedback.h"
 
-void Motor_SpeedLoop_Reset(void)
-{
-}
-
-void Motor_Sensorless_Reset(void)
-{
-}
-
-bool Motor_Sensorless_IsTakeoverComplete(void)
-{
-    return false;
-}
-
 static float s_last_current_theta;
 static int s_sensorless_updates;
 static bool s_speed_fb_valid;
@@ -31,6 +18,20 @@ static bool s_last_alignment_running;
 static float s_last_soft_current_scale;
 static float s_last_if_iq_scale;
 static float s_speed_prime_iq;
+
+void Motor_SpeedLoop_Reset(void)
+{
+    s_speed_iq_out = 0.0f;
+}
+
+void Motor_Sensorless_Reset(void)
+{
+}
+
+bool Motor_Sensorless_IsTakeoverComplete(void)
+{
+    return false;
+}
 
 void Motor_SpeedLoop_PrimeIq(float iq)
 {
@@ -59,6 +60,13 @@ void Motor_SpeedLoop_Run(MOTOR_PARAM_S *motor, float dt)
     if (motor != NULL && motor->speed_enable && s_speed_fb_valid) {
         s_speed_iq_out = 1.25f; /* 模拟速度 PI 输出 Iq */
     } else {
+        s_speed_iq_out = 0.0f;
+    }
+}
+
+void Motor_SpeedLoop_SetRunAllowed(bool allowed)
+{
+    if (!allowed) {
         s_speed_iq_out = 0.0f;
     }
 }
@@ -493,6 +501,10 @@ int main(void)
         assert(s_sensorless_updates == 0);
         assert(s_speed_fb_valid);
         assert(fabsf(s_speed_fb_rpm - 321.0f) < 1e-3f);
+        assert(s_last_speed_loop_active);
+        /* Step 只置允许标志；Iq 由 foc pid 任务（此处手动 Run）在下一拍被电流环读到。 */
+        Motor_SpeedLoop_Run(&m, 0.001f);
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(s_last_speed_loop_active);
         assert(fabsf(s_last_speed_iq_target - 1.25f) < 1e-5f);
 

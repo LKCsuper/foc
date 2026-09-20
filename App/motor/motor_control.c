@@ -898,7 +898,8 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
                         }
                         Motor_SpeedLoop_PrimeIq(SIGN(ref_rpm) * fabsf(motor->ol_iq_set));
                     }
-                    Motor_SpeedLoop_Run(motor, dt);
+                    /* 速度 PI 在 foc pid 任务中积分；本拍电流环先用预置/上一拍 Iq。 */
+                    Motor_SpeedLoop_SetRunAllowed(true);
                 } else {
                     /* 启动 Iq 正在接管时不得让未使用的 PI 输出在后台积分饱和。 */
                     Motor_SpeedLoop_Reset();

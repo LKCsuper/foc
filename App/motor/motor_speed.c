@@ -19,6 +19,8 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* 默认单实例包装，步骤 2 过渡期保留。 */
 static motor_speed_state_t s_speed;
+/* ISR 在速度 PI 接管后置 true；foc pid 任务据此决定是否 Run。 */
+static volatile bool s_pi_run_allowed;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -267,6 +269,7 @@ bool Motor_SpeedLoop_IsFeedbackValidState(const motor_speed_state_t *state)
 void Motor_Speed_Init(void)
 {
     Motor_Speed_InitState(&s_speed);
+    s_pi_run_allowed = false;
     Motor_Protect_SetSpeedFeedback(0.0f, false);
 }
 
@@ -291,7 +294,22 @@ void Motor_SpeedFeedback_Set(float rpm, bool valid)
  */
 void Motor_SpeedLoop_Reset(void)
 {
+    s_pi_run_allowed = false;
     Motor_SpeedLoop_ResetState(&s_speed);
+}
+
+/**
+ * @description: 允许或禁止默认实例速度 PI
+ * @param {bool} allowed true=任务可运行 PI
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_SpeedLoop_SetRunAllowed(bool allowed)
+{
+    s_pi_run_allowed = allowed;
+    if (!allowed) {
+        Motor_SpeedLoop_ResetState(&s_speed);
+    }
 }
 
 /**
@@ -314,6 +332,9 @@ void Motor_SpeedLoop_PrimeIq(float iq)
  */
 void Motor_SpeedLoop_Run(MOTOR_PARAM_S *motor, float dt)
 {
+    if (!s_pi_run_allowed) {
+        return;
+    }
     Motor_SpeedLoop_RunState(&s_speed, motor, dt);
 }
 

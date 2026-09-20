@@ -1,6 +1,8 @@
 /*
- * @Description: 电机后台任务入口
+ * @Description: 电机后台任务（VESC foc pid：速度/位置外环）
  * @Author: lkc
+ *
+ * 学习要点：电流环留在 ADC 中断；速度 PI 在本任务，默认 1 kHz，只写 Iq 目标。
  */
 #ifndef _MOTOR_TASK_H
 #define _MOTOR_TASK_H
@@ -16,11 +18,12 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: PID 控制后台任务入口。
+ * @description: 启动速度/位置外环任务（foc pid），只创建一次。
+ * @detail: 须在调度器已运行且 MOTOR_Param_Init 之后调用；不阻塞。
  * @return {*}
  * @author: lkc
  */
-void Motor_PidControl(void);
+void Motor_Task_Start(void);
 
 #ifdef __cplusplus
 }

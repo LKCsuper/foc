@@ -12,7 +12,8 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-/* 不同任务的优先级 */
+/* 不同任务的优先级：速度环须高于 Shell，仍低于全部硬件中断 */
+#define PRI_SPEED           ((osPriority_t)osPriorityRealtime)
 #define PRI_CMD             ((osPriority_t)(osPriorityRealtime - 1))
 #define PRI_INIT            ((osPriority_t)(osPriorityRealtime - 1))
 

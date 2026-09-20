@@ -109,6 +109,19 @@ int main(void)
     Motor_SpeedLoop_RunState(&a, &motor_a, dt);
     assert(Motor_SpeedLoop_GetIqTargetState(&a) == 0.0f);
 
+    /* 默认包装：未允许时 Run 为空操作；允许后才积分。 */
+    Motor_Speed_Init();
+    Motor_SpeedFeedback_Set(900.0f, true);
+    Motor_SpeedLoop_SetRunAllowed(false);
+    Motor_SpeedLoop_Run(&motor_a, dt);
+    assert(Motor_SpeedLoop_GetIqTarget() == 0.0f);
+    Motor_SpeedLoop_SetRunAllowed(true);
+    Motor_SpeedLoop_PrimeIq(0.5f);
+    Motor_SpeedLoop_Run(&motor_a, dt);
+    assert(Motor_SpeedLoop_GetIqTarget() != 0.0f);
+    Motor_SpeedLoop_Reset();
+    assert(Motor_SpeedLoop_GetIqTarget() == 0.0f);
+
     printf("test_motor_speed: pass\n");
     return 0;
 }

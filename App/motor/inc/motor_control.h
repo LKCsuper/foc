@@ -7,6 +7,7 @@
  *   2) SAFE=中点占空比请求（非关桥）；OUTPUT_DQ=vd/vq/theta；关通道用 Hal_Motor_PwmStop。
  *   3) 电流环电角经 Motor_Feedback 选择；启动链状态在 motor_control_t。
  *   4) motor_it：采样、保护、分频、Step、应用 result。
+ *   5) 速度 PI 不在 Step 内积分；ISR 只置允许标志并预置 Iq，任务调用 Run。
  */
 #ifndef MOTOR_CONTROL_H
 #define MOTOR_CONTROL_H

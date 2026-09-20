@@ -55,6 +55,7 @@ void Task_Init(void *argument)
     PRINTF("Init Task period=%lu\r\n", (unsigned long)Hal_Motor_PwmPeriodCounts());
     // RTT_Debug_Init();
     Command_Init();       // 命令行初始化（最后启动，避免Shell抢UART）
+    Motor_Task_Start();   // 速度/位置外环任务；电流环仍在 ADC 中断
     Hal_Motor_PwmStart(); // 先恢复三相 PWM 模式，此时仍没有运行命令
     while (1) {
         osDelay(pdMS_TO_TICKS(1000));
