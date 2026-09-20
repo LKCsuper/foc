@@ -16,3 +16,13 @@ MAlonzo/**
 /ThirtyLibrary/hoverboard-firmware-hack-FOC/
 /ThirtyLibrary/Arduino-FOC/
 /ThirtyLibrary/ODrive/
+
+# 串口/流水线验证原文默认不入库。白名单是 Hall 对齐 VESC SVM 的证据：
+# 起转过流、olkp 0.2 过冲、150/2000/2500/3000 空载通过。
+/Doc/verify/*
+!/Doc/verify/hall_verify_ed43d8a7-dirty_20260920-155602_150RPM.log
+!/Doc/verify/hall_verify_ed43d8a7-dirty_20260920-155835_150RPM.log
+!/Doc/verify/hall_verify_ed43d8a7-dirty_20260920-162155_150RPM.log
+!/Doc/verify/hall_verify_ed43d8a7-dirty_20260920-162355_2000RPM.log
+!/Doc/verify/hall_verify_ed43d8a7-dirty_20260920-162613_2500RPM.log
+!/Doc/verify/hall_verify_ed43d8a7-dirty_20260920-162848_3000RPM.log

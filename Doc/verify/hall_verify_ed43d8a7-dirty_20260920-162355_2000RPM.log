@@ -1,0 +1,815 @@
+# hall_verify
+# workspace: ed43d8a7-dirty
+# time: 2026-09-20 16:23:55
+# profile: up
+# max_rpm: 2000
+# direction: cw
+# samples: 1
+# keep_going: 0
+# script: Scripts/hall_verify_serial.py
+
+######## wake ########
+
+[T+45.167s] $ 
+######## up150-config ########
+olstop
+[T+45.565s] > olstop
+
+Open-loop stopped
+[T+45.565s] $ olfault clear
+[T+45.953s] > olfault clear
+
+Motor fault cleared; use olstart to restart
+[T+45.954s] $ olalign 0
+[T+46.341s] > olalign 0
+
+Align set: OFF Id=0.50A time=0.300s angle=0.000rad
+[T+46.342s] $ olmode 1
+[T+46.731s] > olmode 1
+
+Open-loop mode set to 1 (Current-loop)
+[T+46.732s] $ olfb hall
+[T+47.122s] > olfb hall
+
+feedback set to 3
+[T+47.122s] $ slenable 0
+[T+47.509s] > slenable 0
+
+Sensorless observer disabled
+[T+47.509s] $ spkp 0.006
+[T+47.897s] > spkp 0.006
+
+Speed Kp set to 0.006000 A/RPM
+[T+47.898s] $ spki 0.003
+[T+48.287s] > spki 0.003
+
+Speed Ki set to 0.003000 A/(RPM*s)
+[T+48.288s] $ spiq 0.8
+[T+48.690s] > spiq 0.8
+
+Speed Iq limit set to 0.800 A
+[T+48.690s] $ spbrake 0
+[T+49.093s] > spbrake 0
+
+Speed braking disabled
+[T+49.093s] $ oliq 0.6
+[T+49.481s] > oliq 0.6
+
+Iq set to 0.60 A
+[T+49.481s] $ olid 0
+[T+49.883s] > olid 0
+
+Id set to 0.00 A
+[T+49.883s] $ olkp 0.12
+[T+50.270s] > olkp 0.12
+
+Current Kp set to 0.1200
+[T+50.271s] $ olki 18
+[T+50.670s] > olki 18
+
+Current Ki set to 18.00
+[T+50.671s] $ olramp 50
+[T+51.058s] > olramp 50
+
+Ramp set to 50 RPM/s
+[T+51.059s] $ olspeed 150
+[T+51.461s] > olspeed 150
+
+Target RPM set to 150 (stopped, use olstart)
+[T+51.462s] $ spenable 1
+[T+51.850s] > spenable 1
+
+Speed loop enabled
+Waiting: encoder Detect / hall table, and speed_valid
+[T+51.851s] $ olstart
+[T+52.253s] > olstart
+
+Open-loop started (I/F), target 150 RPM, Iq=0.60A
+[T+52.255s] $ 
+######## wait 10s ########
+Hall 闭环从停机起转到 150 RPM
+
+######## up150-1 ########
+olsnap
+[T+62.757s] > olsnap
+
+
+===== Open-Loop Snap [T+62.758s] =====
+  Enable     : ON
+  Target RPM : 150
+  Ramp RPM   : 150
+  Meas RPM   : 143.3 (valid)
+  Hall RPM   : raw=143.1 filtered=148.6 fast=143.3 age=1.1ms state=3
+  Hall table : 255 132 67 101 2 167 33 255 (state 0..7, 255=invalid)
+  FOC sample : up=1 down=940137
+  V_bus      : 24.0 V
+  Theta/CCR  : -3.1102 rad / 2827 2665 2935
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.036 -0.482 0.023 A
+  Iabc sum   : -0.423 A
+  Iadc raw   : 2046 2045 2039 (CURR1/2/3)
+  Iadc zero  : 2045.6 2044.7 2045.0 (CURR1/2/3)
+  Id, Iq     : -0.168 0.297 A (target 0.000 0.396)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.396 A
+  Vd, Vq int : -0.076 0.659
+  Vd, Vq out : -0.056 0.671 V (|V|=0.673 / 13.847 V)
+  PWM ideal  : |Valphabeta|=0.672 V (CCR estimate)
+=============================
+[T+62.788s] $ 
+######## up150-1-parsed ########
+parsed: target=150 ramp=150 meas=143.3 raw=143.1 filtered=148.6 fast=143.3 age=1.1ms state=3 Id/Iq=-0.168/0.297 IabcSum=-0.423 target=0.000/0.396 SpeedIq=0.396 Vbus=24.0V Vd/Vq=-0.076/0.659
+
+######## up150-CURRENT-DIAG ########
+olcurdiag
+[T+63.180s] > olcurdiag
+
+Hall current diag (1/16 control samples; |sum|>0.5A, |Id err|>1.0A)
+state samples sum_over sum_max id_over id_max
+1 1112 42 1.229 0 0.848
+2 1444 60 1.068 0 0.786
+3 1207 52 1.229 0 0.813
+4 1212 41 1.149 0 0.866
+5 1374 66 1.149 0 0.939
+6 1099 42 1.229 0 0.696
+phase state first_samples first_id_over second_samples second_id_over
+phase 1 611 0 501 0
+phase 2 628 0 816 0
+phase 3 627 0 580 0
+phase 4 622 0 590 0
+phase 5 613 0 761 0
+phase 6 625 0 474 0
+bias state mean_sum_a positive_over negative_over
+bias 1 -0.045 15 27
+bias 2 -0.036 11 49
+bias 3 -0.046 9 43
+bias 4 -0.039 7 34
+bias 5 -0.044 12 54
+bias 6 -0.048 8 34
+raw state curr1_mean curr2_mean curr3_mean
+raw 1 2048.881 2044.730 2041.079
+raw 2 2041.152 2048.555 2045.094
+raw 3 2045.407 2048.192 2041.080
+raw 4 2044.703 2041.242 2048.820
+raw 5 2049.143 2040.666 2044.893
+raw 6 2041.852 2044.566 2048.236
+total samples: 7448
+worst beats=119853 abs=1.471 signed=-1.471 ia=-0.770 ib=-0.482 ic=-0.219 id=-0.275 iq=0.160
+worst adc=2036 2042 2039 zero=2045.6 2044.7 2045.0
+worst ccr=2642 2958 2801 arr=5600 cnt=4495 hall=6 age_ms=1.1
+[T+63.238s] $ 
+######## up150-CURRENT-WARN ########
+aggregated |Ia+Ib+Ic| peak 1.229 A exceeds 0.5 A
+
+######## up300-set ########
+olspeed 300
+[T+63.632s] > olspeed 300
+
+Target RPM set to 300 (running)
+[T+63.635s] $ 
+######## wait 7s ########
+Hall 闭环稳定到 300 RPM
+
+######## up300-1 ########
+olsnap
+[T+71.185s] > olsnap
+
+
+===== Open-Loop Snap [T+71.186s] =====
+  Enable     : ON
+  Target RPM : 300
+  Ramp RPM   : 300
+  Meas RPM   : 298.4 (valid)
+  Hall RPM   : raw=264.1 filtered=298.4 fast=298.4 age=2.4ms state=3
+  Hall table : 255 132 67 101 2 167 33 255 (state 0..7, 255=invalid)
+  FOC sample : up=1 down=1066565
+  V_bus      : 24.0 V
+  Theta/CCR  : 2.7930 rad / 2680 2591 3008
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.287 -0.241 0.184 A
+  Iabc sum   : -0.343 A
+  Iadc raw   : 2042 2047 2042 (CURR1/2/3)
+  Iadc zero  : 2045.6 2044.7 2045.0 (CURR1/2/3)
+  Id, Iq     : 0.078 0.289 A (target 0.000 0.300)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.300 A
+  Vd, Vq int : -0.022 1.087
+  Vd, Vq out : -0.032 1.088 V (|V|=1.088 / 13.846 V)
+  PWM ideal  : |Valphabeta|=1.086 V (CCR estimate)
+=============================
+[T+71.217s] $ 
+######## up300-1-parsed ########
+parsed: target=300 ramp=300 meas=298.4 raw=264.1 filtered=298.4 fast=298.4 age=2.4ms state=3 Id/Iq=0.078/0.289 IabcSum=-0.344 target=0.000/0.300 SpeedIq=0.300 Vbus=24.0V Vd/Vq=-0.022/1.087
+
+######## up300-CURRENT-DIAG ########
+olcurdiag
+[T+71.618s] > olcurdiag
+
+Hall current diag (1/16 control samples; |sum|>0.5A, |Id err|>1.0A)
+state samples sum_over sum_max id_over id_max
+1 720 33 1.310 0 0.291
+2 879 41 1.068 0 0.325
+3 758 37 0.988 0 0.314
+4 742 31 1.068 0 0.362
+5 883 48 1.229 0 0.369
+6 704 37 1.068 0 0.204
+phase state first_samples first_id_over second_samples second_id_over
+phase 1 403 0 317 0
+phase 2 398 0 481 0
+phase 3 398 0 360 0
+phase 4 398 0 344 0
+phase 5 401 0 482 0
+phase 6 395 0 309 0
+bias state mean_sum_a positive_over negative_over
+bias 1 -0.075 7 26
+bias 2 -0.052 7 34
+bias 3 -0.045 12 25
+bias 4 -0.048 5 26
+bias 5 -0.028 22 26
+bias 6 -0.054 9 28
+raw state curr1_mean curr2_mean curr3_mean
+raw 1 2047.649 2045.104 2041.571
+raw 2 2042.962 2048.165 2043.482
+raw 3 2043.843 2048.185 2042.669
+raw 4 2046.177 2041.364 2047.113
+raw 5 2047.255 2041.199 2046.450
+raw 6 2042.672 2044.413 2047.493
+total samples: 4686
+worst beats=75683 abs=1.511 signed=1.511 ia=0.358 ib=0.726 ic=0.426 id=-0.055 iq=0.220
+worst adc=2050 2050 2054 zero=2045.6 2044.7 2045.0
+worst ccr=2612 2996 2603 arr=5600 cnt=5133 hall=4 age_ms=14.9
+[T+71.678s] $ 
+######## up300-CURRENT-WARN ########
+aggregated |Ia+Ib+Ic| peak 1.310 A exceeds 0.5 A
+
+######## up500-set ########
+olspeed 500
+[T+72.069s] > olspeed 500
+
+Target RPM set to 500 (running)
+[T+72.071s] $ 
+######## wait 8s ########
+Hall 闭环稳定到 500 RPM
+
+######## up500-1 ########
+olsnap
+[T+80.555s] > olsnap
+
+
+===== Open-Loop Snap [T+80.556s] =====
+  Enable     : ON
+  Target RPM : 500
+  Ramp RPM   : 500
+  Meas RPM   : 502.2 (valid)
+  Hall RPM   : raw=446.4 filtered=502.2 fast=502.2 age=1.9ms state=3
+  Hall table : 255 132 67 101 2 167 33 255 (state 0..7, 255=invalid)
+  FOC sample : up=1 down=1207103
+  V_bus      : 24.0 V
+  Theta/CCR  : 2.8353 rad / 2649 2450 3150
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.528 0.001 0.104 A
+  Iabc sum   : -0.423 A
+  Iadc raw   : 2039 2046 2045 (CURR1/2/3)
+  Iadc zero  : 2045.6 2044.7 2045.0 (CURR1/2/3)
+  Id, Iq     : 0.351 0.173 A (target 0.000 0.296)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.296 A
+  Vd, Vq int : -0.070 1.770
+  Vd, Vq out : -0.112 1.784 V (|V|=1.788 / 13.843 V)
+  PWM ideal  : |Valphabeta|=1.783 V (CCR estimate)
+=============================
+[T+80.588s] $ 
+######## up500-1-parsed ########
+parsed: target=500 ramp=500 meas=502.2 raw=446.4 filtered=502.2 fast=502.2 age=1.9ms state=3 Id/Iq=0.351/0.173 IabcSum=-0.423 target=0.000/0.296 SpeedIq=0.296 Vbus=24.0V Vd/Vq=-0.070/1.770
+
+######## up500-CURRENT-DIAG ########
+olcurdiag
+[T+80.992s] > olcurdiag
+
+Hall current diag (1/16 control samples; |sum|>0.5A, |Id err|>1.0A)
+state samples sum_over sum_max id_over id_max
+1 700 400 1.430 0 0.392
+2 865 394 1.269 0 0.432
+3 745 282 1.108 0 0.508
+4 736 300 1.269 0 0.367
+5 869 485 1.430 0 0.483
+6 711 242 1.108 0 0.286
+phase state first_samples first_id_over second_samples second_id_over
+phase 1 390 0 310 0
+phase 2 380 0 485 0
+phase 3 377 0 368 0
+phase 4 398 0 338 0
+phase 5 394 0 475 0
+phase 6 390 0 321 0
+bias state mean_sum_a positive_over negative_over
+bias 1 0.519 394 6
+bias 2 0.440 389 5
+bias 3 0.420 274 8
+bias 4 0.456 294 6
+bias 5 0.495 480 5
+bias 6 0.401 241 1
+raw state curr1_mean curr2_mean curr3_mean
+raw 1 2049.174 2049.131 2043.391
+raw 2 2044.926 2050.962 2044.830
+raw 3 2044.650 2051.048 2044.775
+raw 4 2048.454 2043.274 2049.193
+raw 5 2048.877 2043.208 2049.312
+raw 6 2043.743 2046.864 2049.630
+total samples: 4626
+worst beats=74772 abs=1.511 signed=1.511 ia=0.519 ib=0.646 ic=0.345 id=-0.132 iq=0.114
+worst adc=2052 2049 2053 zero=2045.6 2044.7 2045.0
+worst ccr=3156 2894 2443 arr=5600 cnt=5093 hall=5 age_ms=6.1
+[T+81.056s] $ 
+######## up500-CURRENT-WARN ########
+aggregated |Ia+Ib+Ic| peak 1.430 A exceeds 0.5 A
+
+######## up800-set ########
+olspeed 800
+[T+81.457s] > olspeed 800
+
+Target RPM set to 800 (running)
+[T+81.459s] $ 
+######## wait 11s ########
+Hall 闭环稳定到 800 RPM
+
+######## up800-1 ########
+olsnap
+[T+92.886s] > olsnap
+
+
+===== Open-Loop Snap [T+92.887s] =====
+  Enable     : ON
+  Target RPM : 800
+  Ramp RPM   : 800
+  Meas RPM   : 803.6 (valid)
+  Hall RPM   : raw=892.9 filtered=803.6 fast=803.6 age=3.7ms state=2
+  Hall table : 255 132 67 101 2 167 33 255 (state 0..7, 255=invalid)
+  FOC sample : up=1 down=1392075
+  V_bus      : 24.0 V
+  Theta/CCR  : 2.1991 rad / 2243 2634 3356
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.045 -0.482 0.426 A
+  Iabc sum   : -0.101 A
+  Iadc raw   : 2045 2050 2039 (CURR1/2/3)
+  Iadc zero  : 2045.6 2044.7 2045.0 (CURR1/2/3)
+  Id, Iq     : -0.418 0.317 A (target 0.000 0.320)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.320 A
+  Vd, Vq int : -0.233 2.785
+  Vd, Vq out : -0.183 2.785 V (|V|=2.791 / 13.830 V)
+  PWM ideal  : |Valphabeta|=2.789 V (CCR estimate)
+=============================
+[T+92.919s] $ 
+######## up800-1-parsed ########
+parsed: target=800 ramp=800 meas=803.6 raw=892.9 filtered=803.6 fast=803.6 age=3.7ms state=2 Id/Iq=-0.418/0.317 IabcSum=-0.101 target=0.000/0.320 SpeedIq=0.320 Vbus=24.0V Vd/Vq=-0.233/2.785
+
+######## up800-CURRENT-DIAG ########
+olcurdiag
+[T+93.320s] > olcurdiag
+
+Hall current diag (1/16 control samples; |sum|>0.5A, |Id err|>1.0A)
+state samples sum_over sum_max id_over id_max
+1 842 30 0.988 0 0.532
+2 1041 34 1.068 0 0.638
+3 892 29 1.149 0 0.575
+4 878 25 0.988 0 0.531
+5 1048 48 1.149 0 0.718
+6 851 18 0.907 0 0.438
+phase state first_samples first_id_over second_samples second_id_over
+phase 1 474 0 368 0
+phase 2 474 0 567 0
+phase 3 474 0 418 0
+phase 4 471 0 407 0
+phase 5 474 0 574 0
+phase 6 474 0 377 0
+bias state mean_sum_a positive_over negative_over
+bias 1 -0.048 2 28
+bias 2 -0.018 6 28
+bias 3 -0.037 4 25
+bias 4 -0.018 9 16
+bias 5 -0.044 7 41
+bias 6 -0.033 4 14
+raw state curr1_mean curr2_mean curr3_mean
+raw 1 2046.482 2047.806 2040.373
+raw 2 2043.599 2049.618 2041.818
+raw 3 2042.769 2049.482 2042.537
+raw 4 2047.394 2040.493 2047.139
+raw 5 2046.898 2039.807 2048.003
+raw 6 2042.247 2044.377 2048.224
+total samples: 5552
+worst beats=89529 abs=1.511 signed=1.511 ia=0.439 ib=0.888 ic=0.184 id=-0.343 iq=0.227
+worst adc=2051 2047 2056 zero=2045.6 2044.7 2045.0
+worst ccr=3340 3077 2260 arr=5600 cnt=5125 hall=5 age_ms=4.5
+[T+93.380s] $ 
+######## up800-CURRENT-WARN ########
+aggregated |Ia+Ib+Ic| peak 1.149 A exceeds 0.5 A
+
+######## up1200-set ########
+olspeed 1200
+[T+93.770s] > olspeed 1200
+
+Target RPM set to 1200 (running)
+[T+93.772s] $ 
+######## wait 12s ########
+Hall 闭环稳定到 1200 RPM
+
+######## up1200-1 ########
+olsnap
+[T+106.282s] > olsnap
+
+
+===== Open-Loop Snap [T+106.283s] =====
+  Enable     : ON
+  Target RPM : 1200
+  Ramp RPM   : 1200
+  Meas RPM   : 1196.8 (valid)
+  Hall RPM   : raw=1041.7 filtered=1196.8 fast=1196.8 age=1.1ms state=4
+  Hall table : 255 132 67 101 2 167 33 255 (state 0..7, 255=invalid)
+  FOC sample : up=1 down=1593035
+  V_bus      : 23.9 V
+  Theta/CCR  : -0.2196 rad / 2958 3634 1966
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.439 0.082 -0.541 A
+  Iabc sum   : -0.020 A
+  Iadc raw   : 2051 2038 2046 (CURR1/2/3)
+  Iadc zero  : 2045.6 2044.7 2045.0 (CURR1/2/3)
+  Id, Iq     : 0.357 0.448 A (target 0.000 0.405)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.405 A
+  Vd, Vq int : -0.414 4.115
+  Vd, Vq out : -0.456 4.110 V (|V|=4.135 / 13.799 V)
+  PWM ideal  : |Valphabeta|=4.135 V (CCR estimate)
+=============================
+[T+106.316s] $ 
+######## up1200-1-parsed ########
+parsed: target=1200 ramp=1200 meas=1196.8 raw=1041.7 filtered=1196.8 fast=1196.8 age=1.1ms state=4 Id/Iq=0.357/0.448 IabcSum=-0.020 target=0.000/0.405 SpeedIq=0.405 Vbus=23.9V Vd/Vq=-0.414/4.115
+
+######## up1200-CURRENT-DIAG ########
+olcurdiag
+[T+106.718s] > olcurdiag
+
+Hall current diag (1/16 control samples; |sum|>0.5A, |Id err|>1.0A)
+state samples sum_over sum_max id_over id_max
+1 697 24 1.149 0 0.827
+2 866 35 0.988 0 0.830
+3 754 17 1.229 0 0.763
+4 737 30 1.310 0 0.752
+5 879 30 0.988 2 1.114
+6 716 28 1.149 0 0.649
+phase state first_samples first_id_over second_samples second_id_over
+phase 1 396 0 301 0
+phase 2 398 0 468 0
+phase 3 396 0 358 0
+phase 4 396 0 341 0
+phase 5 396 0 483 2
+phase 6 398 0 318 0
+bias state mean_sum_a positive_over negative_over
+bias 1 -0.032 7 17
+bias 2 0.015 14 21
+bias 3 0.011 6 11
+bias 4 0.028 14 16
+bias 5 0.003 8 22
+bias 6 0.014 10 18
+raw state curr1_mean curr2_mean curr3_mean
+raw 1 2045.538 2049.781 2039.537
+raw 2 2043.988 2050.813 2040.633
+raw 3 2042.333 2050.733 2042.326
+raw 4 2047.912 2039.693 2048.003
+raw 5 2046.802 2039.177 2049.316
+raw 6 2042.444 2044.363 2048.626
+total samples: 4649
+worst beats=75101 abs=1.511 signed=1.511 ia=0.600 ib=0.001 ic=0.910 id=0.450 iq=0.286
+worst adc=2053 2056 2045 zero=2045.6 2044.7 2045.0
+worst ccr=3614 1985 2403 arr=5600 cnt=5089 hall=1 age_ms=2.7
+[T+106.778s] $ 
+######## up1200-CURRENT-WARN ########
+aggregated |Ia+Ib+Ic| peak 1.310 A exceeds 0.5 A
+
+######## up1200-CURRENT-WARN ########
+2/4649 samples |Id error| >1.0 A (telemetry, not trip)
+
+######## up1500-set ########
+olspeed 1500
+[T+107.180s] > olspeed 1500
+
+Target RPM set to 1500 (running)
+[T+107.183s] $ 
+######## wait 10s ########
+Hall 闭环稳定到 1500 RPM
+
+######## up1500-1 ########
+olsnap
+[T+117.670s] > olsnap
+
+
+===== Open-Loop Snap [T+117.671s] =====
+  Enable     : ON
+  Target RPM : 1500
+  Ramp RPM   : 1500
+  Meas RPM   : 1500.0 (valid)
+  Hall RPM   : raw=1704.5 filtered=1500.0 fast=1500.0 age=1.3ms state=5
+  Hall table : 255 132 67 101 2 167 33 255 (state 0..7, 255=invalid)
+  FOC sample : up=1 down=1763854
+  V_bus      : 23.9 V
+  Theta/CCR  : -1.1676 rad / 3845 2813 1755
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : 0.278 0.162 -0.622 A
+  Iabc sum   : -0.182 A
+  Iadc raw   : 2049 2037 2047 (CURR1/2/3)
+  Iadc zero  : 2045.6 2044.7 2045.0 (CURR1/2/3)
+  Id, Iq     : -0.284 0.489 A (target 0.000 0.416)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.416 A
+  Vd, Vq int : -0.690 5.125
+  Vd, Vq out : -0.656 5.116 V (|V|=5.158 / 13.813 V)
+  PWM ideal  : |Valphabeta|=5.155 V (CCR estimate)
+=============================
+[T+117.703s] $ 
+######## up1500-1-parsed ########
+parsed: target=1500 ramp=1500 meas=1500.0 raw=1704.5 filtered=1500.0 fast=1500.0 age=1.3ms state=5 Id/Iq=-0.284/0.489 IabcSum=-0.182 target=0.000/0.416 SpeedIq=0.416 Vbus=23.9V Vd/Vq=-0.690/5.125
+
+######## up1500-CURRENT-DIAG ########
+olcurdiag
+[T+118.104s] > olcurdiag
+
+Hall current diag (1/16 control samples; |sum|>0.5A, |Id err|>1.0A)
+state samples sum_over sum_max id_over id_max
+1 668 22 0.988 0 0.960
+2 854 31 0.907 0 0.698
+3 730 22 0.988 0 0.828
+4 708 18 0.988 0 0.888
+5 878 27 0.988 2 1.007
+6 732 37 1.068 0 0.852
+phase state first_samples first_id_over second_samples second_id_over
+phase 1 425 0 243 0
+phase 2 427 0 427 0
+phase 3 426 0 304 0
+phase 4 403 0 305 0
+phase 5 427 0 451 2
+phase 6 447 0 285 0
+bias state mean_sum_a positive_over negative_over
+bias 1 -0.067 1 21
+bias 2 -0.007 12 19
+bias 3 -0.032 2 20
+bias 4 -0.009 4 14
+bias 5 -0.053 4 23
+bias 6 -0.002 11 26
+raw state curr1_mean curr2_mean curr3_mean
+raw 1 2043.274 2052.500 2038.648
+raw 2 2042.972 2050.474 2041.720
+raw 3 2040.275 2051.703 2042.881
+raw 4 2045.239 2039.305 2050.597
+raw 5 2045.904 2038.228 2050.466
+raw 6 2041.917 2045.255 2048.053
+total samples: 4570
+worst beats=73843 abs=1.430 signed=1.430 ia=0.439 ib=0.001 ic=0.990 id=-0.274 iq=0.502
+worst adc=2051 2057 2045 zero=2045.6 2044.7 2045.0
+worst ccr=2011 1863 3737 arr=5600 cnt=5093 hall=2 age_ms=3.2
+[T+118.165s] $ 
+######## up1500-CURRENT-WARN ########
+aggregated |Ia+Ib+Ic| peak 1.068 A exceeds 0.5 A
+
+######## up1500-CURRENT-WARN ########
+2/4570 samples |Id error| >1.0 A (telemetry, not trip)
+
+######## up1800-set ########
+olspeed 1800
+[T+118.555s] > olspeed 1800
+
+Target RPM set to 1800 (running)
+[T+118.557s] $ 
+######## wait 12s ########
+Hall 闭环稳定到 1800 RPM
+
+######## up1800-1 ########
+olsnap
+[T+131.058s] > olsnap
+
+
+===== Open-Loop Snap [T+131.059s] =====
+  Enable     : ON
+  Target RPM : 1800
+  Ramp RPM   : 1800
+  Meas RPM   : 1785.7 (valid)
+  Hall RPM   : raw=1562.5 filtered=1785.7 fast=1785.7 age=1.3ms state=3
+  Hall table : 255 132 67 101 2 167 33 255 (state 0..7, 255=invalid)
+  FOC sample : up=1 down=1964657
+  V_bus      : 23.9 V
+  Theta/CCR  : 3.1376 rad / 3152 1561 4039
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.689 -0.160 0.587 A
+  Iabc sum   : -0.262 A
+  Iadc raw   : 2037 2052 2043 (CURR1/2/3)
+  Iadc zero  : 2045.6 2044.7 2045.0 (CURR1/2/3)
+  Id, Iq     : 0.600 0.434 A (target 0.000 0.527)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.527 A
+  Vd, Vq int : -0.953 6.086
+  Vd, Vq out : -1.025 6.098 V (|V|=6.183 / 13.780 V)
+  PWM ideal  : |Valphabeta|=6.179 V (CCR estimate)
+=============================
+[T+131.091s] $ 
+######## up1800-1-parsed ########
+parsed: target=1800 ramp=1800 meas=1785.7 raw=1562.5 filtered=1785.7 fast=1785.7 age=1.3ms state=3 Id/Iq=0.600/0.434 IabcSum=-0.262 target=0.000/0.527 SpeedIq=0.527 Vbus=23.9V Vd/Vq=-0.953/6.086
+
+######## up1800-CURRENT-DIAG ########
+olcurdiag
+[T+131.504s] > olcurdiag
+
+Hall current diag (1/16 control samples; |sum|>0.5A, |Id err|>1.0A)
+state samples sum_over sum_max id_over id_max
+1 990 27 1.229 195 1.471
+2 1197 40 1.149 87 1.490
+3 1033 32 1.149 38 1.448
+4 1021 37 1.229 27 1.393
+5 1219 48 0.988 129 1.560
+6 1009 33 1.149 0 0.994
+phase state first_samples first_id_over second_samples second_id_over
+phase 1 625 178 365 17
+phase 2 622 0 575 87
+phase 3 619 17 414 21
+phase 4 621 27 400 0
+phase 5 618 2 601 127
+phase 6 620 0 389 0
+bias state mean_sum_a positive_over negative_over
+bias 1 -0.069 8 19
+bias 2 -0.001 11 29
+bias 3 -0.012 16 16
+bias 4 -0.022 6 31
+bias 5 -0.036 13 35
+bias 6 -0.005 8 25
+raw state curr1_mean curr2_mean curr3_mean
+raw 1 2044.008 2051.406 2038.982
+raw 2 2043.368 2051.678 2040.190
+raw 3 2042.343 2051.664 2041.101
+raw 4 2047.084 2037.942 2049.956
+raw 5 2046.533 2039.257 2049.011
+raw 6 2042.565 2044.076 2048.544
+total samples: 6469
+worst beats=104275 abs=1.591 signed=1.591 ia=-0.045 ib=0.001 ic=1.635 id=1.081 iq=0.226
+worst adc=2045 2065 2045 zero=2045.6 2044.7 2045.0
+worst ccr=4062 1538 2933 arr=5600 cnt=5077 hall=1 age_ms=0.8
+[T+131.569s] $ 
+######## up1800-CURRENT-WARN ########
+aggregated |Ia+Ib+Ic| peak 1.229 A exceeds 0.5 A
+
+######## up1800-CURRENT-WARN ########
+476/6469 samples |Id error| >1.0 A (telemetry, not trip)
+
+######## up2000-set ########
+olspeed 2000
+[T+131.969s] > olspeed 2000
+
+Target RPM set to 2000 (running)
+[T+131.971s] $ 
+######## wait 14s ########
+Hall 闭环稳定到 2000 RPM
+
+######## up2000-1 ########
+olsnap
+[T+146.519s] > olsnap
+
+
+===== Open-Loop Snap [T+146.520s] =====
+  Enable     : ON
+  Target RPM : 2000
+  Ramp RPM   : 2000
+  Meas RPM   : 2009.0 (valid)
+  Hall RPM   : raw=2083.3 filtered=2009.0 fast=2009.0 age=1.6ms state=2
+  Hall table : 255 132 67 101 2 167 33 255 (state 0..7, 255=invalid)
+  FOC sample : up=1 down=2196573
+  V_bus      : 23.8 V
+  Theta/CCR  : 2.2440 rad / 1475 2072 4124
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.045 -0.402 0.587 A
+  Iabc sum   : 0.141 A
+  Iadc raw   : 2045 2052 2040 (CURR1/2/3)
+  Iadc zero  : 2045.6 2044.7 2045.0 (CURR1/2/3)
+  Id, Iq     : -0.389 0.428 A (target 0.000 0.405)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.405 A
+  Vd, Vq int : -1.117 6.753
+  Vd, Vq out : -1.071 6.750 V (|V|=6.835 / 13.768 V)
+  PWM ideal  : |Valphabeta|=6.833 V (CCR estimate)
+=============================
+[T+146.552s] $ 
+######## up2000-1-parsed ########
+parsed: target=2000 ramp=2000 meas=2009.0 raw=2083.3 filtered=2009.0 fast=2009.0 age=1.6ms state=2 Id/Iq=-0.389/0.428 IabcSum=0.140 target=0.000/0.405 SpeedIq=0.405 Vbus=23.8V Vd/Vq=-1.117/6.753
+
+######## up2000-CURRENT-DIAG ########
+olcurdiag
+[T+146.954s] > olcurdiag
+
+Hall current diag (1/16 control samples; |sum|>0.5A, |Id err|>1.0A)
+state samples sum_over sum_max id_over id_max
+1 1593 75 1.149 347 1.950
+2 1879 62 1.149 42 1.591
+3 1645 52 1.068 165 1.640
+4 1662 53 1.068 51 1.484
+5 1881 90 1.068 143 1.611
+6 1615 62 0.988 18 1.362
+phase state first_samples first_id_over second_samples second_id_over
+phase 1 912 228 681 119
+phase 2 918 0 961 42
+phase 3 913 26 732 139
+phase 4 915 35 747 16
+phase 5 926 53 955 90
+phase 6 904 18 711 0
+bias state mean_sum_a positive_over negative_over
+bias 1 -0.064 10 65
+bias 2 -0.000 22 40
+bias 3 -0.027 12 40
+bias 4 0.005 9 44
+bias 5 -0.039 29 61
+bias 6 0.015 20 42
+raw state curr1_mean curr2_mean curr3_mean
+raw 1 2044.254 2051.161 2039.044
+raw 2 2042.647 2051.560 2041.042
+raw 3 2042.416 2051.623 2040.885
+raw 4 2045.948 2038.451 2050.917
+raw 5 2047.156 2039.922 2047.684
+raw 6 2041.346 2045.153 2048.941
+total samples: 10275
+worst beats=165201 abs=1.511 signed=1.511 ia=0.680 ib=-0.241 ic=1.071 id=-0.553 iq=0.547
+worst adc=2054 2058 2042 zero=2045.6 2044.7 2045.0
+worst ccr=1845 1530 4070 arr=5600 cnt=5081 hall=2 age_ms=2.4
+[T+147.021s] $ 
+######## up2000-CURRENT-WARN ########
+aggregated |Ia+Ib+Ic| peak 1.149 A exceeds 0.5 A
+
+######## up2000-CURRENT-WARN ########
+766/10275 samples |Id error| >1.0 A (telemetry, not trip)
+
+######## STOP ########
+olstop
+[T+147.730s] > olstop
+
+Open-loop stopped
+[T+147.731s] $ 
+######## HALL-CURRENT-DIAG ########
+olcurdiag
+[T+148.132s] > olcurdiag
+
+Hall current diag (1/16 control samples; |sum|>0.5A, |Id err|>1.0A)
+state samples sum_over sum_max id_over id_max
+1 1705 81 1.149 373 1.950
+2 2007 66 1.149 43 1.591
+3 1767 56 1.068 178 1.640
+4 1784 60 1.068 53 1.484
+5 2012 94 1.068 150 1.611
+6 1727 71 0.988 18 1.362
+phase state first_samples first_id_over second_samples second_id_over
+phase 1 975 244 730 129
+phase 2 982 0 1025 43
+phase 3 983 29 784 149
+phase 4 984 36 800 17
+phase 5 991 55 1021 95
+phase 6 967 18 760 0
+bias state mean_sum_a positive_over negative_over
+bias 1 -0.063 12 69
+bias 2 -0.001 23 43
+bias 3 -0.024 16 40
+bias 4 0.003 10 50
+bias 5 -0.039 33 61
+bias 6 0.013 22 49
+raw state curr1_mean curr2_mean curr3_mean
+raw 1 2044.275 2051.145 2039.050
+raw 2 2042.629 2051.557 2041.060
+raw 3 2042.427 2051.635 2040.896
+raw 4 2045.943 2038.438 2050.914
+raw 5 2047.154 2039.916 2047.702
+raw 6 2041.321 2045.185 2048.912
+total samples: 11002
+worst beats=176047 abs=1.511 signed=1.511 ia=0.680 ib=-0.241 ic=1.071 id=-0.553 iq=0.547
+worst adc=2054 2058 2042 zero=2045.6 2044.7 2045.0
+worst ccr=1845 1530 4070 arr=5600 cnt=5081 hall=2 age_ms=2.4
+[T+148.158s] $ 
+######## FINAL-STOP-SNAP ########
+olsnap
+[T+148.553s] > olsnap
+
+
+===== Open-Loop Snap [T+148.553s] =====
+  Enable     : OFF
+  Target RPM : 0
+  Ramp RPM   : 0
+  Meas RPM   : 0.0 (valid)
+  Hall RPM   : raw=0.0 filtered=0.0 fast=0.0 age=581.6ms state=6
+  Hall table : 255 132 67 101 2 167 33 255 (state 0..7, 255=invalid)
+  FOC sample : up=1 down=2226953
+  V_bus      : 24.0 V
+  Theta/CCR  : 0.7742 rad / 2800 2800 2800
+  Fault      : 0 NONE (CLEAR)
+  Ia,Ib,Ic   : -0.045 0.001 -0.057 A
+  Iabc sum   : -0.101 A
+  Iadc raw   : 2045 2044 2045 (CURR1/2/3)
+  Iadc zero  : 2045.6 2044.7 2045.0 (CURR1/2/3)
+  Id, Iq     : 0.000 0.000 A (target 0.000 0.000)
+  FW         : max=0.00A duty=0.80
+  Speed Iq   : 0.000 A
+  Vd, Vq int : 0.000 0.000
+  Vd, Vq out : 0.000 0.000 V (|V|=0.000 / 13.862 V)
+=============================
+[T+148.571s] $ 
+######## PASS ########
+Hall verification passed
