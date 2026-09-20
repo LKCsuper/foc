@@ -81,8 +81,13 @@ void MOTOR_Param_Init(void)
     gpstMotorDefault->fw_current_max = 0.0f;
     gpstMotorDefault->fw_duty_start = 0.80f;
     gpstMotorDefault->fw_ramp_a_s = 8.0f;
-    gpstMotorDefault->ol_current_kp = 0.2f;               /* 电流环 Kp */
-    gpstMotorDefault->ol_current_ki = 30.0f;              /* 电流环 Ki */
+    /*
+     * foc_svm 把同一 Vd/Vq 的实际相电压从约 1/3 拉到满幅。
+     * Kp/Ki 按 Hall CCR 1.70 时的电流带宽折算（0.2×1.70/3、30×1.70/3），
+     * 150 RPM 上 olkp 0.2 会过冲到约 210 RPM。
+     */
+    gpstMotorDefault->ol_current_kp = 0.12f;
+    gpstMotorDefault->ol_current_ki = 18.0f;
     gpstMotorDefault->ol_start_phase_boost = M_PI / 2.0f; /* 仅 ol_align_enable=false 时兼容旧启动方式 */
     /*
      * 默认关对齐/HFI：开环先拖转；切 I/F 后再按需 olalign / hfistart。

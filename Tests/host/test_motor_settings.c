@@ -116,7 +116,7 @@ int main(void)
     MOTOR_Param_Init();
     assert(motor.currentOffset[0] == 2045.0f);
     assert((uint8_t)motor.hall_table[1] == 180);
-    assert(motor.ol_current_kp == 0.2f);
+    assert(motor.ol_current_kp == 0.12f);
     assert(!motor.ol_enable && motor.ol_vd_int == 0.0f && motor.ia == 0.0f);
     assert(save_calls == 0);
 

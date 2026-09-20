@@ -44,8 +44,15 @@ extern "C" {
 #define MOTOR_BLDC_AUTO_DUTY_MAX 0.10f
 /* 此分频位于 15 kHz FOC 控制拍之后；每 4 拍更新一次 Hall，约 3.75 kHz。 */
 #define MOTOR_HALL_ADC_DIVIDER 4U
-/* Hall 小步试验：只放大现有 SVM 的三路 CCR，保留扇区和相序。 */
-#define MOTOR_HALL_PWM_GAIN 1.35f
+/*
+ * Hall I/F 输出对齐 VESC mcpwm_foc：1.5/Vbus 归一 + foc_svm（零电压 ARR/2）。
+ * 置 0 可回到 svm_hqd。不再使用 HALL CCR 倍率。
+ */
+#ifndef MOTOR_HALL_USE_VESC_SVM
+#define MOTOR_HALL_USE_VESC_SVM 1
+#endif
+/* 对齐 VESC 默认 l_max_duty，满调制时仍留约 2.5% 零矢量。 */
+#define MOTOR_FOC_SVM_MAX_DUTY 0.95f
 #define MOTOR_HALL_DIAG_DIVIDER 16U
 #define MOTOR_HALL_DIAG_PHASE_SUM_A 0.5f
 #define MOTOR_HALL_DIAG_ID_ERROR_A 1.0f
@@ -539,6 +546,7 @@ static void Motor_OpenLoop_OutputSafe(MOTOR_PARAM_S *m)
 
 /**
  * @description: 反 Park + SVPWM，将 vd/vq 落到三相 PWM
+ * @detail: Hall 电流环走 VESC foc_svm（中点 ARR/2）；其余模式仍用 svm_hqd。相序保持 A-C-B。
  * @param {MOTOR_PARAM_S} *m  电机对象（写 duty）
  * @param {float} vd          D 轴电压 (V)
  * @param {float} vq          Q 轴电压 (V)
@@ -553,15 +561,22 @@ static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq, float 
     float v_beta;
     uint32_t sector;
     uint32_t period = Hal_Motor_PwmPeriodCounts();
+    bool hall_if;
 
     inverse_park(vd, vq, theta, &v_alpha, &v_beta);
     Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
-    svm_hqd(v_alpha, v_beta, v_bus, period, &m->duty1, &m->duty2, &m->duty3, &sector);
-    if (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_HALL &&
-        m->ol_mode == MOTOR_OL_MODE_IF) {
-        m->duty1 = (uint32_t)((float)m->duty1 * MOTOR_HALL_PWM_GAIN);
-        m->duty2 = (uint32_t)((float)m->duty2 * MOTOR_HALL_PWM_GAIN);
-        m->duty3 = (uint32_t)((float)m->duty3 * MOTOR_HALL_PWM_GAIN);
+    hall_if = (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_HALL) &&
+              (m->ol_mode == MOTOR_OL_MODE_IF);
+    if (hall_if && MOTOR_HALL_USE_VESC_SVM) {
+        /*
+         * HD75 相序是 A-C-B。标准 foc_svm 再叠这次交换后，矢量相对已验证的
+         * svm_hqd/Hall/Park 差 180°，电流环会正反馈（150 RPM 起转 Id 到 -12A）。
+         * 输入取反后只改中点和幅值，不改旋转方向。
+         */
+        foc_svm_from_voltage(-v_alpha, -v_beta, v_bus, MOTOR_FOC_SVM_MAX_DUTY, period, &m->duty1, &m->duty2,
+                             &m->duty3, &sector);
+    } else {
+        svm_hqd(v_alpha, v_beta, v_bus, period, &m->duty1, &m->duty2, &m->duty3, &sector);
     }
     /* HD75 实机验证的相序为 A-C-B。 */
     Hal_Motor_PwmSetDuty(m->duty1, m->duty3, m->duty2);

@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-09-20
+
+### Hall 电流环对齐 VESC `foc_svm`
+
+去掉 Hall CCR 倍率，Hall + I/F 改为 `1.5/Vbus` 归一 + `foc_svm`（零电压 ARR/2）。HD75 A-C-B 上标准 `foc_svm` 差 180°，输入取反；电流环默认 `olkp 0.12` / `olki 18`。空载 150～2500 真到目标，3000 到 2961。弱磁仍关。ADC/PWM/TIM/DMA 未改。
+
+记录：`Doc/doc/Hall_对齐VESC_SVM_2026-09-20.md`。
+
+---
+
 ## 2026-09-09
 
 ### 修复 I/F 300 RPM Id/Iq 偏离

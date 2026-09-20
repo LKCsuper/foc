@@ -387,6 +387,56 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 	*svm_sector = sector;
 }
 
+/* VESC：mod = vdq / ((2/3)*Vbus) = 1.5 * vdq / Vbus */
+#define MOTOR_FOC_SVM_VOLTAGE_SCALE 1.5f
+
+/**
+ * @description: 按 VESC mcpwm_foc 把 αβ 电压变成中点 ARR/2 的三路 CCR。
+ * @detail: 先把电压换成调制比，限幅到线性区后交给 foc_svm；v_bus 非法时输出 50% 占空比。
+ * @param {float} v_alpha   α 轴电压 (V)
+ * @param {float} v_beta    β 轴电压 (V)
+ * @param {float} v_bus     母线电压 (V)
+ * @param {float} max_duty  最大调制占空比 (0~1，无量纲)
+ * @param {uint32_t} period PWM 计数满量程 (ARR)
+ * @param {uint32_t} *tAout A 相 CCR
+ * @param {uint32_t} *tBout B 相 CCR
+ * @param {uint32_t} *tCout C 相 CCR
+ * @param {uint32_t} *svm_sector SVPWM 扇区号 (1~6)
+ * @return {*}
+ * @author: lkc
+ */
+void foc_svm_from_voltage(float v_alpha, float v_beta, float v_bus, float max_duty, uint32_t period,
+                          uint32_t *tAout, uint32_t *tBout, uint32_t *tCout, uint32_t *svm_sector)
+{
+    float mod_alpha;
+    float mod_beta;
+    uint32_t mid;
+
+    if (tAout == NULL || tBout == NULL || tCout == NULL || svm_sector == NULL) {
+        return;
+    }
+
+    mid = period / 2U;
+    if (v_bus <= 0.0f || period == 0U) {
+        *tAout = mid;
+        *tBout = mid;
+        *tCout = mid;
+        *svm_sector = 1U;
+        return;
+    }
+
+    if (max_duty <= 0.0f) {
+        max_duty = 1.0f;
+    } else if (max_duty > 1.0f) {
+        max_duty = 1.0f;
+    }
+
+    mod_alpha = v_alpha * MOTOR_FOC_SVM_VOLTAGE_SCALE / v_bus;
+    mod_beta = v_beta * MOTOR_FOC_SVM_VOLTAGE_SCALE / v_bus;
+    (void)utils_saturate_vector_2d(&mod_alpha, &mod_beta, SQRT3_BY_2 * max_duty);
+    foc_svm(mod_alpha, mod_beta, period, tAout, tBout, tCout, svm_sector);
+}
+
 /**
  * @description: 慧驱动 SVPWM，将 αβ 电压矢量转为三路 PWM 比较值。
  * @detail: 使用当前功率板在 3e5d564 已验证能稳定开环旋转的扇区映射。

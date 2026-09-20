@@ -234,7 +234,7 @@ class HallRunner:
             (
                 "olstop", "olfault clear", "olalign 0", "olmode 1", "olfb hall", "slenable 0",
                 "spkp 0.006", "spki 0.003", "spiq 0.8", f"spbrake {brake}",
-                "oliq 0.6", "olid 0", "olkp 0.2", "olki 30", "olramp 50",
+                "oliq 0.6", "olid 0", "olkp 0.12", "olki 18", "olramp 50",
                 f"olspeed {rpm}", "spenable 1", "olstart",
             ),
         )

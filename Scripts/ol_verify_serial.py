@@ -272,7 +272,7 @@ class Runner:
 
     def if_cfg(self, rpm: float) -> str:
         blob = ""
-        for cmd in ("olstop", "olmode 1", "oliq 0.6", "olid 0", "olkp 0.2", "olki 30", "olramp 10", f"olspeed {rpm:g}"):
+        for cmd in ("olstop", "olmode 1", "oliq 0.6", "olid 0", "olkp 0.12", "olki 18", "olramp 10", f"olspeed {rpm:g}"):
             blob += self.shell.run(cmd)
         self.if_running = False
         return blob

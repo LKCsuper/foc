@@ -119,6 +119,25 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 				uint32_t* tAout, uint32_t* tBout, uint32_t* tCout, uint32_t *svm_sector);
 
 /**
+ * @description: 按 VESC mcpwm_foc 把 αβ 电压变成中点 ARR/2 的三路 CCR。
+ * @detail: 调制比 = 1.5 * v / v_bus（即 1/(2/3*Vbus)），再限幅到 (√3/2)*max_duty 后调用 foc_svm。
+ *          零电压 CCR 为 ARR/2；max_duty 对齐 VESC l_max_duty，默认 0.95。
+ * @param {float} v_alpha   α 轴电压 (V)
+ * @param {float} v_beta    β 轴电压 (V)
+ * @param {float} v_bus     母线电压 (V)
+ * @param {float} max_duty  最大调制占空比 (0~1，无量纲)
+ * @param {uint32_t} period PWM 计数满量程 (ARR)
+ * @param {uint32_t} *tAout A 相 CCR
+ * @param {uint32_t} *tBout B 相 CCR
+ * @param {uint32_t} *tCout C 相 CCR
+ * @param {uint32_t} *svm_sector SVPWM 扇区号 (1~6)
+ * @return {*}
+ * @author: lkc
+ */
+void foc_svm_from_voltage(float v_alpha, float v_beta, float v_bus, float max_duty, uint32_t period,
+                          uint32_t *tAout, uint32_t *tBout, uint32_t *tCout, uint32_t *svm_sector);
+
+/**
  * @description: 慧驱动 SVPWM，含母线电压限幅与最小/最大共模注入。
  * @param {float} Valpha   α 轴电压 (V)
  * @param {float} Vbeta    β 轴电压 (V)
