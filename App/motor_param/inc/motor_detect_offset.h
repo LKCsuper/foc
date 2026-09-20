@@ -30,6 +30,10 @@ typedef struct {
     uint8_t phase;  /* 当前驱动相 0..2 */
     uint32_t count; /* 当前相已累计样本数 */
     float i_sum[3];
+    float i_min[3]; /* 三相电流 ADC 计数最小值 */
+    float i_max[3]; /* 三相电流 ADC 计数最大值 */
+    float sum_min;  /* CURR1+2+3 最小和，ADC 计数 */
+    float sum_max;  /* CURR1+2+3 最大和，ADC 计数 */
     float v_sum[3];
     float u_sum[3]; /* 未驱动相电压相对均值的累加 */
     uint32_t undriven_count;
@@ -63,6 +67,20 @@ void Motor_Detect_OffsetReset(motor_detect_offset_t *st, bool cal_undriven, uint
  * @author: lkc
  */
 bool Motor_Detect_OffsetFeedDriven(motor_detect_offset_t *st, float i_adc, float v_sense);
+
+/**
+ * @description: 同一拍喂入三相电流/电压样本（非阻塞）
+ * @param {motor_detect_offset_t} *st  状态
+ * @param {float} i0                   CURR1 ADC 计数
+ * @param {float} i1                   CURR2 ADC 计数
+ * @param {float} i2                   CURR3 ADC 计数
+ * @param {float} v0                   SENS1 (V)
+ * @param {float} v1                   SENS2 (V)
+ * @param {float} v2                   SENS3 (V)
+ * @return {bool} true=样本数已满，应 FinalizeDriven
+ */
+bool Motor_Detect_OffsetFeedDrivenTriple(motor_detect_offset_t *st, float i0, float i1, float i2, float v0,
+                                         float v1, float v2);
 
 /**
  * @description: 驱动相采样满后切换到下一相

@@ -38,6 +38,55 @@ void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
 }
 
 /**
+ * @description: 高占空比时重构采样窗口最短的那一相电流。
+ * @detail: 对齐 VESC LONGEST_ZERO。任一相比 ARR 高过门槛时，把唯一最大 duty 的相写成
+ *          −(另外两相)。duty 为软件 A/B/C 计数，须与 ia/ib/ic 同相序。pwm_period 不大于
+ *          门槛、或三相窗口都够、或两相并列最大时不改。不访问 HAL。调用方在过流判定之后、
+ *          Clarke 之前使用。
+ * @param {float} *ia            A 相电流 (A)，可被改写
+ * @param {float} *ib            B 相电流 (A)，可被改写
+ * @param {float} *ic            C 相电流 (A)，可被改写
+ * @param {uint32_t} duty_a      A 相 PWM 比较值（计数）
+ * @param {uint32_t} duty_b      B 相 PWM 比较值（计数）
+ * @param {uint32_t} duty_c      C 相 PWM 比较值（计数）
+ * @param {uint32_t} pwm_period  PWM 周期 ARR（计数）
+ * @return {bool} true=已改写其中一相
+ * @author: lkc
+ */
+bool Motor_Current_ReconstructLongestZero(float *ia, float *ib, float *ic, uint32_t duty_a, uint32_t duty_b,
+                                          uint32_t duty_c, uint32_t pwm_period)
+{
+    uint32_t limit;
+
+    if (ia == NULL || ib == NULL || ic == NULL) {
+        return false;
+    }
+    if (pwm_period <= MOTOR_CURRENT_SHUNT_PICK_COUNTS) {
+        return false;
+    }
+
+    limit = pwm_period - MOTOR_CURRENT_SHUNT_PICK_COUNTS;
+    if (duty_a <= limit && duty_b <= limit && duty_c <= limit) {
+        return false;
+    }
+
+    /* 与 VESC 相同：只在唯一最大 CCR 时重构，两相并列最大则保持原样。 */
+    if (duty_a > duty_b && duty_a > duty_c) {
+        *ia = -(*ib + *ic);
+        return true;
+    }
+    if (duty_b > duty_a && duty_b > duty_c) {
+        *ib = -(*ia + *ic);
+        return true;
+    }
+    if (duty_c > duty_a && duty_c > duty_b) {
+        *ic = -(*ia + *ib);
+        return true;
+    }
+    return false;
+}
+
+/**
  * @description: 按工况选择 Id/Iq 目标。
  * @param {const MOTOR_PARAM_S} * motor  命令与对齐电流
  * @param {const motor_current_target_ctx_t} * ctx  注入上下文

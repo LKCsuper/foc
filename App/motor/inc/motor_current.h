@@ -15,8 +15,14 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
+#include <stdint.h>
 #include "motor_param.h"
 /* Private define ------------------------------------------------------------*/
+/*
+ * 与 VESC mcpwm_foc.c 的 SHUNT_PICK_THR 相同，单位为 PWM 计数。
+ * 某相 CCR 距 ARR 不足该值时，低边分流窗口过短，用另外两相电流重构该相。
+ */
+#define MOTOR_CURRENT_SHUNT_PICK_COUNTS 900U
 /* Private typedef -----------------------------------------------------------*/
 /**
  * @description: d/q 轴电压指令中间量
@@ -49,6 +55,25 @@ typedef struct {
  * @author: lkc
  */
 void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta);
+
+/**
+ * @description: 高占空比时重构采样窗口最短的那一相电流。
+ * @detail: 对齐 VESC LONGEST_ZERO。任一相比 ARR 高过门槛时，把唯一最大 duty 的相写成
+ *          −(另外两相)。duty 为软件 A/B/C 计数，须与 ia/ib/ic 同相序。pwm_period 不大于
+ *          门槛、或三相窗口都够、或两相并列最大时不改。不访问 HAL。调用方在过流判定之后、
+ *          Clarke 之前使用。
+ * @param {float} *ia            A 相电流 (A)，可被改写
+ * @param {float} *ib            B 相电流 (A)，可被改写
+ * @param {float} *ic            C 相电流 (A)，可被改写
+ * @param {uint32_t} duty_a      A 相 PWM 比较值（计数）
+ * @param {uint32_t} duty_b      B 相 PWM 比较值（计数）
+ * @param {uint32_t} duty_c      C 相 PWM 比较值（计数）
+ * @param {uint32_t} pwm_period  PWM 周期 ARR（计数）
+ * @return {bool} true=已改写其中一相
+ * @author: lkc
+ */
+bool Motor_Current_ReconstructLongestZero(float *ia, float *ib, float *ic, uint32_t duty_a, uint32_t duty_b,
+                                          uint32_t duty_c, uint32_t pwm_period);
 
 /**
  * @description: 按工况选择 Id/Iq 目标

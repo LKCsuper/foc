@@ -7,7 +7,7 @@ param(
     [string]$Uv4 = "",
     [string]$JLink = "",
     [string]$Device = "STM32F405RG",
-    [int]$SwdSpeedKhz = 1000,
+    [int]$SwdSpeedKhz = 4000,
     [ValidateSet("up", "down", "start72", "brake", "reverse", "all")]
     [string]$Profile = "all",
     [ValidateSet("cw", "ccw")]

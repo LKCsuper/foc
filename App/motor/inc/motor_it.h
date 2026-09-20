@@ -9,6 +9,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
+#include <stdint.h>
 #include "motor_bldc_sensorless.h"
 #include "motor_types.h"
 /* Private typedef -----------------------------------------------------------*/
@@ -173,8 +174,70 @@ float Motor_DmaInt_GetAdcFrequencyHz(void);
  */
 float Motor_DmaInt_GetControlFrequencyHz(void);
 
-/* 只读诊断：FOC 控制拍发生在 TIM1 向上/向下计数的次数。 */
+/**
+ * @description: 读取 FOC 控制拍落在 TIM1 向上/向下计数侧的次数。
+ * @param {uint32_t} *up    输出向上计数侧次数；可为 NULL
+ * @param {uint32_t} *down  输出向下计数侧次数；可为 NULL
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_DmaInt_GetSampleDirectionCounts(uint32_t *up, uint32_t *down);
+
+/**
+ * @description: Hall I/F 按扇区累计的电流诊断（每 16 个控制拍一次）
+ */
+typedef struct {
+    uint32_t samples;                    /* 该扇区抽样次数 */
+    uint32_t phase_sum_over;             /* |Ia+Ib+Ic| > 0.5 A 次数 */
+    uint32_t phase_sum_positive_over;    /* 三相和 > +0.5 A 次数 */
+    uint32_t phase_sum_negative_over;    /* 三相和 < −0.5 A 次数 */
+    int64_t signed_phase_sum_milliamps;  /* 三相和累加 (mA)，用于均值 */
+    uint64_t current_adc_sum[3];         /* CURR1/2/3 原始计数累加 */
+    uint32_t id_error_over;              /* |Id−目标| > 1.0 A 次数 */
+    uint32_t first_half_samples;         /* 估算扇区前半抽样次数 */
+    uint32_t first_half_id_over;         /* 前半 |Id| 越界次数 */
+    uint32_t second_half_samples;        /* 估算扇区后半抽样次数 */
+    uint32_t second_half_id_over;        /* 后半 |Id| 越界次数 */
+    float max_abs_phase_sum_a;           /* |Ia+Ib+Ic| 峰值 (A) */
+    float max_abs_id_error_a;            /* |Id−目标| 峰值 (A) */
+} motor_hall_current_diag_sector_t;
+
+/**
+ * @description: 本轮 |Ia+Ib+Ic| 最大那一拍的锁存快照
+ */
+typedef struct {
+    float signed_sum_a;      /* 三相电流代数和 (A) */
+    float abs_sum_a;         /* |Ia+Ib+Ic| (A) */
+    float ia;                /* A 相电流 (A) */
+    float ib;                /* B 相电流 (A) */
+    float ic;                /* C 相电流 (A) */
+    float id;                /* d 轴电流 (A) */
+    float iq;                /* q 轴电流 (A) */
+    uint16_t current_adc[3]; /* CURR1/2/3 原始 ADC 计数 */
+    uint32_t duty[3];        /* 软件 A/B/C PWM 比较值（计数） */
+    uint16_t tim1_cnt;       /* ISR 入口 TIM1 计数 */
+    uint16_t tim1_arr;       /* ISR 入口 TIM1 ARR（计数） */
+    uint8_t hall_state;      /* Hall 状态 0..7 */
+    float edge_age_ms;       /* 距上次 Hall 边沿 (ms) */
+    uint32_t beats;          /* 本轮已观察的 Hall FOC 拍数 */
+} motor_hall_current_worst_t;
+
+/**
+ * @description: 复制 Hall 电流诊断的 8 个扇区累计快照。
+ * @detail: 短关 IRQ 拷贝；停机后仍保留上一轮目标转速下的统计。
+ * @param {motor_hall_current_diag_sector_t} sectors[8] 输出缓冲，不可为空
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_DmaInt_GetHallCurrentDiag(motor_hall_current_diag_sector_t sectors[8]);
+
+/**
+ * @description: 复制本轮 |Ia+Ib+Ic| 最大那一拍的锁存快照。
+ * @param {motor_hall_current_worst_t} *out 输出快照，不可为空
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_DmaInt_GetHallCurrentWorst(motor_hall_current_worst_t *out);
 
 /**
  * @description: 采样换算入口：捕获 ADC 帧并换算为电流/电压物理量。

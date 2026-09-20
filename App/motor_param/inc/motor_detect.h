@@ -81,6 +81,14 @@ bool DETECT_Hall(void);
  */
 bool Motor_Detect_IsActive(void);
 
+/**
+ * @description: DMA 完成中断喂入一拍电流/电压，仅零偏 ISR 采集窗口内有效。
+ * @param {bool} pwm_down true=TIM1 向下计数（Hall FOC 使用的顶部零矢量窗口）
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_Detect_IsrFeed(bool pwm_down);
+
 #ifdef __cplusplus
 }
 #endif

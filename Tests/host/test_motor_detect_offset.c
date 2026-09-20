@@ -63,6 +63,21 @@ int main(void)
     assert(fabsf(motor.voltundrivenOffset[1] - 0.2f) < 1e-5f);
     assert(Motor_Detect_OffsetIsStored(&motor));
 
+    /* 三相同时采样应得到与逐相同样的平均值。 */
+    Motor_Detect_OffsetReset(&st, false, n, 4096.0f);
+    for (i = 0U; i < n; i++) {
+        bool full = Motor_Detect_OffsetFeedDrivenTriple(&st, 2048.0f, 2050.0f, 2046.0f, 1.0f, 1.1f, 0.9f);
+        assert((i + 1U < n) ? !full : full);
+    }
+    Motor_Detect_OffsetFinalizeDriven(&st);
+    assert(fabsf(st.current_offset[0] - 2048.0f) < 1e-4f);
+    assert(fabsf(st.current_offset[1] - 2050.0f) < 1e-4f);
+    assert(fabsf(st.current_offset[2] - 2046.0f) < 1e-4f);
+    assert(fabsf(st.i_max[0] - st.i_min[0]) < 1e-4f);
+    assert(fabsf(st.i_max[1] - st.i_min[1]) < 1e-4f);
+    assert(fabsf(st.i_max[2] - st.i_min[2]) < 1e-4f);
+    assert(fabsf(st.sum_max - st.sum_min) < 1e-4f);
+
     /* 未校准（全 0）或越界不能当作已存偏移 */
     {
         MOTOR_PARAM_S empty;

@@ -63,6 +63,71 @@ bool Motor_Detect_OffsetFeedDriven(motor_detect_offset_t *st, float i_adc, float
 }
 
 /**
+ * @description: 同一拍喂入三相电流/电压样本（非阻塞）
+ * @param {motor_detect_offset_t} *st  状态
+ * @param {float} i0                   CURR1 ADC 计数
+ * @param {float} i1                   CURR2 ADC 计数
+ * @param {float} i2                   CURR3 ADC 计数
+ * @param {float} v0                   SENS1 (V)
+ * @param {float} v1                   SENS2 (V)
+ * @param {float} v2                   SENS3 (V)
+ * @return {bool} true=样本数已满，应 FinalizeDriven
+ */
+bool Motor_Detect_OffsetFeedDrivenTriple(motor_detect_offset_t *st, float i0, float i1, float i2, float v0,
+                                         float v1, float v2)
+{
+    float sum;
+
+    if (st == NULL) {
+        return false;
+    }
+    sum = i0 + i1 + i2;
+    if (st->count == 0U) {
+        st->i_min[0] = i0;
+        st->i_max[0] = i0;
+        st->i_min[1] = i1;
+        st->i_max[1] = i1;
+        st->i_min[2] = i2;
+        st->i_max[2] = i2;
+        st->sum_min = sum;
+        st->sum_max = sum;
+    } else {
+        if (i0 < st->i_min[0]) {
+            st->i_min[0] = i0;
+        }
+        if (i0 > st->i_max[0]) {
+            st->i_max[0] = i0;
+        }
+        if (i1 < st->i_min[1]) {
+            st->i_min[1] = i1;
+        }
+        if (i1 > st->i_max[1]) {
+            st->i_max[1] = i1;
+        }
+        if (i2 < st->i_min[2]) {
+            st->i_min[2] = i2;
+        }
+        if (i2 > st->i_max[2]) {
+            st->i_max[2] = i2;
+        }
+        if (sum < st->sum_min) {
+            st->sum_min = sum;
+        }
+        if (sum > st->sum_max) {
+            st->sum_max = sum;
+        }
+    }
+    st->i_sum[0] += i0;
+    st->i_sum[1] += i1;
+    st->i_sum[2] += i2;
+    st->v_sum[0] += v0;
+    st->v_sum[1] += v1;
+    st->v_sum[2] += v2;
+    st->count++;
+    return st->count >= st->samples_per_phase;
+}
+
+/**
  * @description: 驱动相采样满后切换到下一相
  * @param {motor_detect_offset_t} *st  状态
  * @return {bool} true=仍有下一驱动相；false=三相已完成

@@ -16,26 +16,93 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 static motor_hall_angle_t s_hall_angle;
 /* Private function prototypes -----------------------------------------------*/
-static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, float sector_center, float pole_pairs);
+static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, const int8_t *table, float sector_center,
+                                        float pole_pairs);
 static void Motor_Hall_PllReset(motor_hall_angle_t *st);
 static void Motor_Hall_PllRun(motor_hall_angle_t *st, float pole_pairs, float dt_s);
 static void Motor_Hall_UpdateSpeedEstimate(motor_hall_angle_t *st, float pole_pairs, float dt_s);
 static float Motor_Hall_WrapCpr(float x);
 static float Motor_Hall_WrapDelta(float x);
+static float Motor_Hall_WrapPi(float x);
+static bool Motor_Hall_NeighborHalfWidths(const int8_t *table, float sector_center, float *half_neg,
+                                          float *half_pos);
 /* Private functions ---------------------------------------------------------*/
 
+static float Motor_Hall_WrapPi(float x)
+{
+    if (!(x > -1.0e6f) || !(x < 1.0e6f)) {
+        return 0.0f;
+    }
+    while (x > (float)M_PI) {
+        x -= 2.0f * (float)M_PI;
+    }
+    while (x < -(float)M_PI) {
+        x += 2.0f * (float)M_PI;
+    }
+    return x;
+}
+
 /**
- * @description: 在当前 60° 霍尔扇区内按滤波速度推进电角度
- * @detail: 标定表保存扇区中心；进入扇区时从中心前 30° 起步，并限制不越过后边界。
+ * @description: 取当前扇区中心到相邻有效表项的半宽
+ * @param {const int8_t} *table  霍尔表
+ * @param {float} sector_center  当前扇区中心 (rad)
+ * @param {float} *half_neg      到更小电角邻居的半宽 (rad)
+ * @param {float} *half_pos      到更大电角邻居的半宽 (rad)
+ * @return {bool} true=找到两侧邻居
+ */
+static bool Motor_Hall_NeighborHalfWidths(const int8_t *table, float sector_center, float *half_neg,
+                                          float *half_pos)
+{
+    float min_pos = 4.0f;
+    float min_neg = -4.0f;
+    bool have_pos = false;
+    bool have_neg = false;
+    int i;
+
+    if (table == NULL || half_neg == NULL || half_pos == NULL) {
+        return false;
+    }
+    for (i = 0; i < (int)MOTOR_HALL_TABLE_SIZE; i++) {
+        float other;
+        float delta;
+
+        if (!Motor_Hall_DecodeAngle(table, i, &other)) {
+            continue;
+        }
+        delta = Motor_Hall_WrapPi(other - sector_center);
+        if (delta > 1.0e-3f && delta < min_pos) {
+            min_pos = delta;
+            have_pos = true;
+        } else if (delta < -1.0e-3f && delta > min_neg) {
+            min_neg = delta;
+            have_neg = true;
+        }
+    }
+    if (!have_pos || !have_neg) {
+        return false;
+    }
+    *half_pos = 0.5f * min_pos;
+    *half_neg = 0.5f * (-min_neg);
+    return true;
+}
+
+/**
+ * @description: 在当前霍尔扇区内按滤波速度推进电角度
+ * @detail: 标定表保存扇区中心。进入扇区时从与上一表项的实际边界起步，并限制不超过下一表项边界。
  *          低于 MOTOR_HALL_INTERP_START_RPM 保持中心，避免低速 60° 锁偏。
  */
-static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, float sector_center, float pole_pairs)
+static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, const int8_t *table, float sector_center,
+                                        float pole_pairs)
 {
     float progress;
     float blend;
     float delta;
     float theta;
     float rpm_abs;
+    float half_neg = (float)M_PI / 6.0f;
+    float half_pos = (float)M_PI / 6.0f;
+    float half_back;
+    float half_fwd;
 
     if (st == NULL || st->direction == 0 || !st->speed_valid || fabsf(st->mech_rpm_fast) < 1.0f) {
         return;
@@ -50,12 +117,20 @@ static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, float sector_cen
     if (blend > 1.0f) {
         blend = 1.0f;
     }
+    (void)Motor_Hall_NeighborHalfWidths(table, sector_center, &half_neg, &half_pos);
+    if (st->direction > 0) {
+        half_back = half_neg;
+        half_fwd = half_pos;
+    } else {
+        half_back = half_pos;
+        half_fwd = half_neg;
+    }
 
     progress = rpm_abs * pole_pairs * (2.0f * (float)M_PI / 60.0f) * st->sector_timer_s;
-    if (progress > (float)M_PI / 3.0f) {
-        progress = (float)M_PI / 3.0f;
+    if (progress > (half_back + half_fwd)) {
+        progress = half_back + half_fwd;
     }
-    delta = (float)st->direction * (progress - ((float)M_PI / 6.0f));
+    delta = (float)st->direction * (progress - half_back);
     theta = sector_center + blend * delta;
     utils_norm_angle_rad(&theta);
     st->theta_rad = theta;
@@ -396,7 +471,7 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
         st->last_state = hall_state;
         st->sector_timer_s = 0.0f;
         Motor_Hall_UpdateSpeedEstimate(st, pp, dt_s);
-        Motor_Hall_InterpolateTheta(st, theta, pp);
+        Motor_Hall_InterpolateTheta(st, table, theta, pp);
         return;
     }
 
@@ -413,7 +488,7 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
     } else {
         Motor_Hall_UpdateSpeedEstimate(st, pp, dt_s);
     }
-    Motor_Hall_InterpolateTheta(st, theta, pp);
+    Motor_Hall_InterpolateTheta(st, table, theta, pp);
 }
 
 /**

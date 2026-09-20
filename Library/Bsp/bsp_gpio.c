@@ -134,6 +134,7 @@ VOID Bsp_Tim8_Gpio(VOID)
 void Bsp_Gpio_Init(void)
 {
 	GPIO_InitTypeDef phase_filter_gpio;
+	GPIO_InitTypeDef current_filter_gpio;
 
 	/* 初始化时钟 */
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
@@ -152,6 +153,16 @@ void Bsp_Gpio_Init(void)
 	phase_filter_gpio.GPIO_Speed = GPIO_Speed_100MHz;
 	phase_filter_gpio.GPIO_PuPd = GPIO_PuPd_NOPULL;
 	GPIO_Init(PHASE_FILTER_PORT, &phase_filter_gpio);
+
+	/* BM75 的 PD2 接三路电流滤波模拟开关。先置高输出锁存，再使能推挽，
+	 * 避免输入悬空或初始化瞬间拉低改变已有电流零点。 */
+	GPIO_SetBits(CURRENT_FILTER_PORT, CURRENT_FILTER_PIN);
+	current_filter_gpio.GPIO_Pin = CURRENT_FILTER_PIN;
+	current_filter_gpio.GPIO_Mode = GPIO_Mode_OUT;
+	current_filter_gpio.GPIO_OType = GPIO_OType_PP;
+	current_filter_gpio.GPIO_Speed = GPIO_Speed_2MHz;
+	current_filter_gpio.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_Init(CURRENT_FILTER_PORT, &current_filter_gpio);
 
 	// Bsp_Gpio_Mode(HW_SHUTDOWN_GPIO, HW_SHUTDOWN_PIN, GPIO_Mode_OUT);
 	// HW_SHUTDOWN_HOLD_ON();

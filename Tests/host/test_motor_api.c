@@ -83,6 +83,7 @@ bool Motor_Protect_IsFaultLatched(void)
 
 static int pwm_start_calls;
 static int pwm_safe_calls;
+static int pwm_stop_calls;
 
 void Hal_Motor_PwmStart(void)
 {
@@ -92,6 +93,11 @@ void Hal_Motor_PwmStart(void)
 void Hal_Motor_PwmSetSafe(void)
 {
     ++pwm_safe_calls;
+}
+
+void Hal_Motor_PwmStop(void)
+{
+    ++pwm_stop_calls;
 }
 
 void Motor_Feedback_SetSourceDefault(motor_feedback_source_t source)
@@ -143,6 +149,7 @@ int main(void)
     speed_reset_calls = 0;
     pwm_start_calls = 0;
     pwm_safe_calls = 0;
+    pwm_stop_calls = 0;
     bldc_selected = true;
     assert(Motor_SetCommand(&motor, &cmd) == MOTOR_ERR_BUSY);
     assert(!motor.ol_enable && pwm_start_calls == 0);
@@ -196,17 +203,28 @@ int main(void)
     motor.ol_current_rpm = 200.0f;
     speed_reset_calls = 0;
     pwm_safe_calls = 0;
+    pwm_stop_calls = 0;
     assert(Motor_RequestStop(&motor) == MOTOR_OK);
     assert(!motor.ol_enable && motor.ol_target_rpm == 0.0f);
     assert(motor.ol_vd_int == 0.0f && motor.ol_current_rpm == 0.0f);
     assert(motor.ol_iq_set == 0.5f);
     assert(speed_reset_calls == 1);
-    assert(pwm_safe_calls == 1);
+    assert(pwm_safe_calls == 0 && pwm_stop_calls == 1);
 
     assert(Motor_GetCommand(&motor, &got) == MOTOR_OK);
     assert(!got.enable && got.target_rpm == 0.0f && got.iq_set == 0.5f);
 
+    motor.currentAdc[0] = 2037.0f;
+    motor.currentAdc[1] = 2038.0f;
+    motor.currentAdc[2] = 2048.0f;
+    motor.currentOffset[0] = 2044.4f;
+    motor.currentOffset[1] = 2043.5f;
+    motor.currentOffset[2] = 2043.5f;
     assert(Motor_GetStatus(&motor, &status) == MOTOR_OK);
+    assert(status.current_adc[0] == 2037.0f && status.current_adc[1] == 2038.0f &&
+           status.current_adc[2] == 2048.0f);
+    assert(status.current_offset[0] == 2044.4f && status.current_offset[1] == 2043.5f &&
+           status.current_offset[2] == 2043.5f);
     assert(!status.enable && status.v_bus == motor.v_bus);
     assert(status.measured_rpm == 123.0f && status.speed_iq == 0.45f);
     assert(status.fault == FAULT_CODE_NONE && !status.fault_latched);

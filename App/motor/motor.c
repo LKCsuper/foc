@@ -145,7 +145,7 @@ motor_result_t Motor_GetCommand(const MOTOR_PARAM_S *motor, motor_command_t *cmd
  * @detail: 拒绝 NaN/Inf、非法模式与负 Iq 幅值；按 ol_max_rpm 限幅目标转速。
  *          短临界区写入 enable/mode/目标电流/速度环开关。模式变化或停机时清零
  *          电流积分与斜坡转速，并复位速度环状态。不写 Flash。
- *          成功后按 enable 同步功率桥：使能则 PwmStart，停机则 PwmSetSafe
+ *          成功后按 enable 同步功率桥：使能则 PwmStart，停机则 PwmStop
  *         （Shell 不应再直接写 PWM）。
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {const motor_command_t *} cmd 完整命令，不可为空
@@ -194,7 +194,8 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
     if (normalized.enable) {
         Hal_Motor_PwmStart();
     } else {
-        Hal_Motor_PwmSetSafe();
+        /* 旋转中三相 50% 同步 PWM 会形成主动短路制动；停机命令应关断桥臂。 */
+        Hal_Motor_PwmStop();
     }
     return MOTOR_OK;
 }
@@ -225,6 +226,8 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
     snap.ia = motor->ia;
     snap.ib = motor->ib;
     snap.ic = motor->ic;
+    memcpy(snap.current_adc, motor->currentAdc, sizeof(snap.current_adc));
+    memcpy(snap.current_offset, motor->currentOffset, sizeof(snap.current_offset));
     snap.id = motor->Id;
     snap.iq = motor->Iq;
     snap.id_target = motor->id_target;

@@ -51,8 +51,14 @@ SNAP_END = "============================="
 REVERSE_RPM = 20.0
 BRAKE_RPM_LIMIT = 15.0
 BRAKE_IQ_LIMIT = 0.05
-MAX_DQ_CURRENT = 2.5  # 诊断用定子电流阈值；不同于电源 3 A 直流限流。
+MAX_DQ_CURRENT = 2.5  # 仿 VESC：停机看 |Id,Iq| 幅值，不是单拍 Id 跟踪或三相和。
+MAX_ID_ERROR = 1.0  # Id 跟踪观察门槛；偶发超限只记告警。
+PHASE_SUM_WARN = 0.5  # 三相和观察门槛；VESC 把 unbalance 当遥测，不拿来跳闸。
 MIN_VBUS = 22.0  # 24 V 台架：快照母线跌至此值以下时停止升速。
+
+
+class UnsafeSample(Abort):
+    """电流或母线异常，任何测试模式都必须立即停机。"""
 
 
 @dataclass(frozen=True)
@@ -93,6 +99,9 @@ def parse_snap(text: str) -> dict[str, float | int | bool]:
     )
     if id_line is None:
         raise ValueError("Id/Iq snapshot fields missing")
+    abc_line = re.search(r"Ia,Ib,Ic\s*:\s*([-+0-9.]+)\s+([-+0-9.]+)\s+([-+0-9.]+)", text)
+    if abc_line is None:
+        raise ValueError("abc current snapshot fields missing")
 
     vd_line = re.search(r"Vd, Vq int\s*:\s*([-+0-9.]+)\s+([-+0-9.]+)", text)
     speed_iq = re.search(r"Speed Iq\s*:\s*([-+0-9.]+)", text)
@@ -110,10 +119,23 @@ def parse_snap(text: str) -> dict[str, float | int | bool]:
         "iq": float(id_line.group(2)),
         "id_target": float(id_line.group(3)) if id_line.group(3) is not None else float("nan"),
         "iq_target": float(id_line.group(4)) if id_line.group(4) is not None else float("nan"),
+        "abc_sum": sum(float(abc_line.group(i)) for i in range(1, 4)),
         "speed_iq": float(speed_iq.group(1)) if speed_iq is not None else float("nan"),
         "v_bus": field(r"V_bus\s*:\s*([-+0-9.]+)", text),
         "vd_int": float(vd_line.group(1)) if vd_line is not None else float("nan"),
         "vq_int": float(vd_line.group(2)) if vd_line is not None else float("nan"),
+    }
+
+
+def parse_current_diag(text: str) -> dict[int, tuple[int, int, float, int, float]]:
+    if "Hall current diag" not in text or "total samples:" not in text:
+        raise ValueError("incomplete olcurdiag; flash latest firmware")
+    rows = re.findall(r"(?m)^([1-6])\s+(\d+)\s+(\d+)\s+([0-9.]+)\s+(\d+)\s+([0-9.]+)\s*$", text)
+    if len(rows) != 6:
+        raise ValueError("six Hall current diagnostic rows required")
+    return {
+        int(state): (int(samples), int(sum_over), float(sum_max), int(id_over), float(id_max))
+        for state, samples, sum_over, sum_max, id_over, id_max in rows
     }
 
 
@@ -124,6 +146,7 @@ def format_snap(snap: dict[str, float | int | bool]) -> str:
         f"filtered={snap['filtered']:.1f} fast={snap['fast']:.1f} "
         f"age={snap['age_ms']:.1f}ms state={snap['state']} "
         f"Id/Iq={snap['id']:.3f}/{snap['iq']:.3f} "
+        f"IabcSum={snap['abc_sum']:.3f} "
         f"target={snap['id_target']:.3f}/{snap['iq_target']:.3f} "
         f"SpeedIq={snap['speed_iq']:.3f} Vbus={snap['v_bus']:.1f}V "
         f"Vd/Vq={snap['vd_int']:.3f}/{snap['vq_int']:.3f}\n"
@@ -218,7 +241,7 @@ class HallRunner:
 
     def handle_soft_fail(self, exc: Abort, tag: str) -> None:
         message = str(exc)
-        if not self.keep_going or "reversed" in message or "motor fault" in message:
+        if isinstance(exc, UnsafeSample) or not self.keep_going or "reversed" in message or "motor fault" in message:
             raise exc
         self.failed = True
         self.rec(f"{tag}-FAIL", message + "\n")
@@ -237,9 +260,18 @@ class HallRunner:
         measured = float(snap["filtered"])
         current = math.hypot(float(snap["id"]), float(snap["iq"]))
         if not math.isfinite(current) or current > MAX_DQ_CURRENT:
-            raise Abort(f"{name}: measured DQ current {current:.3f} A exceeds {MAX_DQ_CURRENT:.1f} A")
+            raise UnsafeSample(f"{name}: measured DQ current {current:.3f} A exceeds {MAX_DQ_CURRENT:.1f} A")
+        abc_sum = abs(float(snap["abc_sum"]))
+        if abc_sum > PHASE_SUM_WARN:
+            self.rec(f"{name}-CURRENT-WARN", f"|Ia+Ib+Ic|={abc_sum:.3f} A exceeds {PHASE_SUM_WARN:.1f} A\n")
+        id_error = abs(float(snap["id"]) - float(snap["id_target"]))
+        if id_error > MAX_ID_ERROR:
+            self.rec(
+                f"{name}-CURRENT-WARN",
+                f"|Id error|={id_error:.3f} A exceeds {MAX_ID_ERROR:.1f} A (telemetry, not trip)\n",
+            )
         if not math.isfinite(float(snap["v_bus"])) or float(snap["v_bus"]) < MIN_VBUS:
-            raise Abort(f"{name}: Vbus {float(snap['v_bus']):.1f} V below {MIN_VBUS:.1f} V")
+            raise UnsafeSample(f"{name}: Vbus {float(snap['v_bus']):.1f} V below {MIN_VBUS:.1f} V")
         if not bool(snap["valid"]):
             raise Abort(f"{name}: Hall speed invalid")
         if int(snap["state"]) not in range(1, 7):
@@ -277,8 +309,32 @@ class HallRunner:
                 self.check_speed(name, snap, step.rpm, step.tolerance)
             if index != self.samples:
                 self.shell.pause(1.0)
+        if step.kind != "brake":
+            response = self.shell.run("olcurdiag", timeout=15.0)
+            self.rec(f"{step.name}-CURRENT-DIAG", response)
+            try:
+                sectors = parse_current_diag(response)
+            except ValueError as exc:
+                raise UnsafeSample(f"{step.name}: {exc}") from exc
+            sample_count = sum(row[0] for row in sectors.values())
+            id_over_count = sum(row[3] for row in sectors.values())
+            if sample_count == 0:
+                raise UnsafeSample(f"{step.name}: no steady-state current diagnostic samples")
+            max_phase_sum = max(row[2] for row in sectors.values())
+            if max_phase_sum > PHASE_SUM_WARN:
+                self.rec(
+                    f"{step.name}-CURRENT-WARN",
+                    f"aggregated |Ia+Ib+Ic| peak {max_phase_sum:.3f} A exceeds {PHASE_SUM_WARN:.1f} A\n",
+                )
+            if id_over_count != 0:
+                self.rec(
+                    f"{step.name}-CURRENT-WARN",
+                    f"{id_over_count}/{sample_count} samples |Id error| >{MAX_ID_ERROR:.1f} A "
+                    "(telemetry, not trip)\n",
+                )
 
     def run(self, steps: list[Step]) -> int:
+        result = 2
         try:
             for step in steps:
                 if step.kind == "stop":
@@ -303,14 +359,35 @@ class HallRunner:
                     self.handle_soft_fail(exc, step.name)
             if self.failed:
                 self.rec("FAIL", "Hall verification finished with stage errors\n")
-                return 2
-            self.rec("PASS", "Hall verification passed\n")
-            return 0
+            else:
+                result = 0
         except Abort as exc:
             self.rec("ABORT", str(exc) + "\n")
-            return 2
         finally:
-            self.rec("STOP", self.shell.stop())
+            try:
+                self.rec("STOP", self.shell.stop())
+            except Exception as exc:
+                result = 2
+                self.rec("STOP-ERROR", f"{exc}\n")
+            try:
+                self.rec("HALL-CURRENT-DIAG", self.shell.run("olcurdiag", timeout=15.0))
+            except Exception as exc:
+                result = 2
+                self.rec("HALL-CURRENT-DIAG-ERROR", f"{exc}\n")
+            try:
+                stopped = self.shell.run("olsnap", timeout=15.0)
+                self.rec("FINAL-STOP-SNAP", stopped)
+                if "Enable     : OFF" not in stopped or "Target RPM : 0" not in stopped or \
+                        "Fault      : 0 NONE (CLEAR)" not in stopped:
+                    result = 2
+                    self.rec("FINAL-FAIL", "motor not safely stopped or fault latched after stop\n")
+                    self.rec("FINAL-FAULT", self.shell.run("olfault", timeout=15.0))
+            except Exception as exc:
+                result = 2
+                self.rec("FINAL-STOP-ERROR", f"{exc}\n")
+        if result == 0:
+            self.rec("PASS", "Hall verification passed\n")
+        return result
 
 
 def default_log_path(tag: str) -> Path:

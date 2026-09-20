@@ -35,6 +35,10 @@ extern "C" {
 #define DCCAL_PORT              GPIOD
 #define DCCAL_PIN               GPIO_Pin_2
 
+/* BM75: PD2 drives the three current-sense filter switches. */
+#define CURRENT_FILTER_PORT     GPIOD
+#define CURRENT_FILTER_PIN      GPIO_Pin_2
+
 /* TIM1 CHANNEL */
 #define T_CHANNEL_PORT          GPIOA
 #define T_CHANNEL_PIN           GPIO_Pin_8 | GPIO_Pin_9 | GPIO_Pin_10     

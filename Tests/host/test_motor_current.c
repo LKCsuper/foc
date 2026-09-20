@@ -135,6 +135,26 @@ int main(void)
         assert(ff.vd < 1.0f);
     }
 
+    /* VESC LONGEST_ZERO：高 CCR 相用另外两相重构；窗口足够时不改。 */
+    {
+        float ia = 1.0f;
+        float ib = -0.4f;
+        float ic = -0.2f;
+
+        assert(!Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 2000U, 1800U, 1600U, 5600U));
+        assert(fabsf(ia - 1.0f) < 1e-6f);
+        assert(Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 5000U, 1800U, 1600U, 5600U));
+        assert(fabsf(ia - 0.6f) < 1e-6f);
+        assert(fabsf(ib + 0.4f) < 1e-6f);
+        ia = 0.3f;
+        ib = 1.2f;
+        ic = -0.5f;
+        assert(Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 2000U, 5100U, 1900U, 5600U));
+        assert(fabsf(ib - 0.2f) < 1e-6f);
+        assert(!Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 5000U, 5000U, 1000U, 5600U));
+        assert(!Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 5000U, 1000U, 1000U, 800U));
+    }
+
     printf("test_motor_current: pass\n");
     return 0;
 }

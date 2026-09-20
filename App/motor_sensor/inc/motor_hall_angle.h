@@ -7,6 +7,7 @@
  *   2) 表未就绪或当前扇区非法 → angle_valid=false，勿当有效零速闭环。
  *   3) 速度环用 Hall-PLL（ODrive 临界阻尼，cpr=6 电扇区）；六边沿窗口仅供显示。
  *   4) 低于 MOTOR_HALL_INTERP_START_RPM 电角钉在扇区中心（VESC 低速关插值）。
+ *   5) 高于该门限时按相邻表项的实际半宽插值，而不是固定 ±30°。
  */
 #ifndef MOTOR_HALL_ANGLE_H
 #define MOTOR_HALL_ANGLE_H

@@ -158,9 +158,9 @@ FD6288：`EN`←PB5，故障←PB7（低有效）。无 SPI 寄存器。`hw_hd75
 | 控制脚 | 网络 | 作用 | 当前固件 |
 | --- | --- | --- | --- |
 | PC13 | SENS_FILTER | 把约 100 nF 接到 SENS1/2/3 | 推挽输出；上电默认拉低断开，FOC 启动接通，BLDC 启动后断开 |
-| PD2 | CURR_FILTER | 把滤波接到 SOA/SOB/SOC | `CURRENT_FILTER_ON` 为空；PD2 初始化被注释 |
+| PD2 | CURR_FILTER | 把滤波接到 SOA/SOB/SOC | 板级 `Bsp_Gpio_Init` 已配置推挽输出高电平，接入滤波；`CURRENT_FILTER_ON` 宏仍为空操作 |
 
-需要滤波时必须把对应脚配成推挽输出再拉高。只改 ODR、脚仍是输入，开关不会动作。详见 `Doc/sch/滤波.md`。
+需要滤波时必须把对应脚配成推挽输出再拉高。只改 ODR、脚仍是输入，开关不会动作。PD2 固定高电平的依据及低速验证见[Hall FOC 调试经验](../doc/Hall_FOC提速调试经验_2026-09-17.md)；详见 `Doc/sch/滤波.md`。
 
 ## 6. 连接器与板上接口（按网络）
 
@@ -194,7 +194,7 @@ FD6288：`EN`←PB5，故障←PB7（低有效）。无 SPI 寄存器。`hw_hd75
 | 霍尔 | PC6、PC7、PC8 | 输入 |
 | 门极 EN / nFAULT | PB5、PB7 | 宏已定义；GPIO 初始化里 EN 曾被注释，以运行时 `ENABLE_GATE` 为准 |
 | LED | PB0、PB1 | 宏已定义，`Bsp_Gpio_Init` 里 LED 初始化被注释 |
-| SENS_FILTER / CURR_FILTER | PC13、PD2 | 原理图有，固件目前不驱动 |
+| SENS_FILTER / CURR_FILTER | PC13、PD2 | PC13 按 FOC/BLDC 模式切换；PD2 上电后固定为推挽高电平 |
 | CAN、USB、BMI160、USART3、SPI、NRF SWD | 见上表 | 原理图有，当前应用未初始化 |
 
 ## 8. 软件相序（ACB）

@@ -23,6 +23,7 @@ extern "C" {
 #include "motor_sense.h"
 #include "motor_protect.h"
 #include "motor_control.h"
+#include "motor_current.h"
 #include "motor_foc_divider.h"
 #include "motor_foc.h"
 #include "motor_math.h"
@@ -44,6 +45,9 @@ extern "C" {
 #define MOTOR_HALL_ADC_DIVIDER 4U
 /* Hall 小步试验：只放大现有 SVM 的三路 CCR，保留扇区和相序。 */
 #define MOTOR_HALL_PWM_GAIN 1.35f
+#define MOTOR_HALL_DIAG_DIVIDER 16U
+#define MOTOR_HALL_DIAG_PHASE_SUM_A 0.5f
+#define MOTOR_HALL_DIAG_ID_ERROR_A 1.0f
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -73,6 +77,13 @@ static volatile float s_foc_runtime_average_us = 0.0f;
 static volatile float s_foc_runtime_maximum_us = 0.0f;
 static uint8_t s_hall_adc_div;
 static float s_hall_dt_acc_s;
+static motor_hall_current_diag_sector_t s_hall_current_diag[8];
+static motor_hall_current_worst_t s_hall_current_worst;
+static uint8_t s_hall_diag_div;
+static bool s_hall_diag_running;
+static float s_hall_diag_target_rpm;
+static uint16_t s_hall_isr_cnt;
+static uint16_t s_hall_isr_arr;
 /* Private function prototypes -----------------------------------------------*/
 static void Motor_DmaInt_RecordRuntime(uint32_t start_time);
 static bool Motor_Bldc_InitDefault(void);
@@ -164,8 +175,10 @@ static void Motor_Bldc_StatusUnlock(uint32_t primask)
 
 /**
  * @description: 选择并启动默认无感 BLDC 六步实例。
- * @param {motor_bldc_direction_t} direction 转向
- * @param {float} duty PWM 占空比；自动模式范围 [0.08,0.10]，固定开环范围 (0,0.25]
+ * @param {motor_bldc_direction_t} direction 转向，只允许 CW 或 CCW
+ * @param {float} duty                   PWM 占空比；自动模式 [0.08,0.10]，开环 (0,0.25]
+ * @param {bool} fixed_open_loop         true=固定扇区周期开环，false=无感闭环启动
+ * @param {float} sector_period_s        开环每 60° 扇区周期 (s)；闭环时忽略
  * @return {bool} 启动成功返回 true
  * @author: lkc
  */
@@ -692,6 +705,13 @@ static bool Motor_DmaInt_ShouldRun(void)
     return Motor_FocDivider_ShouldRun(&s_foc_divider);
 }
 
+/**
+ * @description: 读取 FOC 控制拍落在 TIM1 向上/向下计数侧的次数。
+ * @param {uint32_t} *up    输出向上计数侧次数；可为 NULL
+ * @param {uint32_t} *down  输出向下计数侧次数；可为 NULL
+ * @return {*}
+ * @author: lkc
+ */
 void Motor_DmaInt_GetSampleDirectionCounts(uint32_t *up, uint32_t *down)
 {
     if (up != NULL) {
@@ -703,11 +723,178 @@ void Motor_DmaInt_GetSampleDirectionCounts(uint32_t *up, uint32_t *down)
 }
 
 /**
+ * @description: 复制 Hall 电流诊断的 8 个扇区累计快照。
+ * @detail: 短关 IRQ 拷贝；停机后仍保留上一轮目标转速下的统计。
+ * @param {motor_hall_current_diag_sector_t} sectors[8] 输出缓冲，不可为空
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_DmaInt_GetHallCurrentDiag(motor_hall_current_diag_sector_t sectors[8])
+{
+    uint32_t primask;
+
+    if (sectors == NULL) {
+        return;
+    }
+    primask = __get_PRIMASK();
+    __disable_irq();
+    memcpy(sectors, s_hall_current_diag, sizeof(s_hall_current_diag));
+    if (primask == 0U) {
+        __enable_irq();
+    }
+}
+
+/**
+ * @description: 复制本轮 |Ia+Ib+Ic| 最大那一拍的锁存快照。
+ * @param {motor_hall_current_worst_t} *out 输出快照，不可为空
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_DmaInt_GetHallCurrentWorst(motor_hall_current_worst_t *out)
+{
+    uint32_t primask;
+
+    if (out == NULL) {
+        return;
+    }
+    primask = __get_PRIMASK();
+    __disable_irq();
+    *out = s_hall_current_worst;
+    if (primask == 0U) {
+        __enable_irq();
+    }
+}
+
+/**
+ * @description: 若本拍 |Ia+Ib+Ic| 创本轮新高，则锁存电流、ADC、CCR 与 TIM1 计数。
+ * @detail: TIM1 计数须在 ISR 入口已写入 s_hall_isr_cnt/arr，避免 FOC 算完后再读。
+ * @param {float} signed_phase_sum  三相电流代数和 (A)
+ * @param {float} phase_sum         |Ia+Ib+Ic| (A)
+ * @param {int} hall_state          Hall 状态 0..7
+ * @return {*}
+ * @author: lkc
+ */
+static void Motor_DmaInt_CaptureHallCurrentWorst(float signed_phase_sum, float phase_sum, int hall_state)
+{
+    s_hall_current_worst.beats++;
+    if (phase_sum <= s_hall_current_worst.abs_sum_a) {
+        return;
+    }
+    s_hall_current_worst.signed_sum_a = signed_phase_sum;
+    s_hall_current_worst.abs_sum_a = phase_sum;
+    s_hall_current_worst.ia = motor.ia;
+    s_hall_current_worst.ib = motor.ib;
+    s_hall_current_worst.ic = motor.ic;
+    s_hall_current_worst.id = motor.Id;
+    s_hall_current_worst.iq = motor.Iq;
+    s_hall_current_worst.current_adc[0] = (uint16_t)motor.currentAdc[0];
+    s_hall_current_worst.current_adc[1] = (uint16_t)motor.currentAdc[1];
+    s_hall_current_worst.current_adc[2] = (uint16_t)motor.currentAdc[2];
+    s_hall_current_worst.duty[0] = motor.duty1;
+    s_hall_current_worst.duty[1] = motor.duty2;
+    s_hall_current_worst.duty[2] = motor.duty3;
+    s_hall_current_worst.tim1_cnt = s_hall_isr_cnt;
+    s_hall_current_worst.tim1_arr = s_hall_isr_arr;
+    s_hall_current_worst.hall_state = (uint8_t)hall_state;
+    s_hall_current_worst.edge_age_ms = Motor_Hall_AngleGetEdgeAge() * 1000.0f;
+}
+
+/**
+ * @description: Hall I/F 稳态时累计三相和与 Id 跟踪诊断。
+ * @detail: 每拍刷新最差帧；每 16 拍写入扇区统计。目标转速变化时清零。
+ *          |sum|>0.5 A 与 |Id 误差|>1.0 A 只计数，不在本函数内停机。
+ * @return {*}
+ * @author: lkc
+ */
+static void Motor_DmaInt_UpdateHallCurrentDiag(void)
+{
+    motor_hall_current_diag_sector_t *sector;
+    float signed_phase_sum;
+    float phase_sum;
+    float id_error;
+    float sector_progress;
+    float hall_rpm;
+    bool first_half;
+    int hall_state;
+
+    if (!motor.ol_enable || Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_HALL ||
+        motor.ol_mode != MOTOR_OL_MODE_IF) {
+        s_hall_diag_running = false;
+        return;
+    }
+    if (!s_hall_diag_running || s_hall_diag_target_rpm != motor.ol_target_rpm) {
+        memset(s_hall_current_diag, 0, sizeof(s_hall_current_diag));
+        memset(&s_hall_current_worst, 0, sizeof(s_hall_current_worst));
+        s_hall_diag_div = 0U;
+        s_hall_diag_running = true;
+        s_hall_diag_target_rpm = motor.ol_target_rpm;
+    }
+    if (!Motor_Hall_AngleIsSpeedValid() ||
+        fabsf(motor.ol_current_rpm - motor.ol_target_rpm) > 1.0f) {
+        return;
+    }
+    hall_state = Motor_Hall_AngleGetState();
+    signed_phase_sum = motor.ia + motor.ib + motor.ic;
+    phase_sum = fabsf(signed_phase_sum);
+    if (isfinite(phase_sum)) {
+        Motor_DmaInt_CaptureHallCurrentWorst(signed_phase_sum, phase_sum, hall_state);
+    }
+    if (++s_hall_diag_div < MOTOR_HALL_DIAG_DIVIDER) {
+        return;
+    }
+    s_hall_diag_div = 0U;
+    if (hall_state < 1 || hall_state > 6) {
+        return;
+    }
+    id_error = fabsf(motor.Id - motor.id_target);
+    if (!isfinite(phase_sum) || !isfinite(id_error)) {
+        return;
+    }
+    sector = &s_hall_current_diag[hall_state];
+    sector->samples++;
+    sector->signed_phase_sum_milliamps += (int32_t)(signed_phase_sum * 1000.0f);
+    sector->current_adc_sum[0] += (uint32_t)motor.currentAdc[0];
+    sector->current_adc_sum[1] += (uint32_t)motor.currentAdc[1];
+    sector->current_adc_sum[2] += (uint32_t)motor.currentAdc[2];
+    hall_rpm = fabsf(Motor_Hall_AngleGetMechRpm());
+    sector_progress = Motor_Hall_AngleGetEdgeAge() * hall_rpm * motor.ol_pole_pairs * 0.1f;
+    first_half = sector_progress < 0.5f;
+    if (first_half) {
+        sector->first_half_samples++;
+    } else {
+        sector->second_half_samples++;
+    }
+    if (phase_sum > sector->max_abs_phase_sum_a) {
+        sector->max_abs_phase_sum_a = phase_sum;
+    }
+    if (id_error > sector->max_abs_id_error_a) {
+        sector->max_abs_id_error_a = id_error;
+    }
+    if (phase_sum > MOTOR_HALL_DIAG_PHASE_SUM_A) {
+        sector->phase_sum_over++;
+        if (signed_phase_sum > 0.0f) {
+            sector->phase_sum_positive_over++;
+        } else {
+            sector->phase_sum_negative_over++;
+        }
+    }
+    if (id_error > MOTOR_HALL_DIAG_ID_ERROR_A) {
+        sector->id_error_over++;
+        if (first_half) {
+            sector->first_half_id_over++;
+        } else {
+            sector->second_half_id_over++;
+        }
+    }
+}
+
+/**
  * @description: 复现 3e5d564 已上板成功的最小 V/F 电压开环路径。
  * @detail: 仅供 V/F 基线验证；固定 Vq=5V、每个 15kHz 控制拍推进 0.001rad，
  *          绕过新版启动编排，以判断回归是否位于 Motor_Control_Step。
  * @param {MOTOR_PARAM_S} *m 电机对象
  * @return {*}
+ * @author: lkc
  */
 static void Motor_DmaInt_RunFastVf(MOTOR_PARAM_S *m)
 {
@@ -787,6 +974,8 @@ static void Motor_DmaInt_Foc(void)
     } else {
         s_foc_sample_down_count++;
     }
+    s_hall_isr_cnt = (uint16_t)TIM1->CNT;
+    s_hall_isr_arr = (uint16_t)TIM1->ARR;
 
     Motor_It_ParamCal();
     protection_dt = Motor_OpenLoop_GetDt(&motor);
@@ -818,8 +1007,16 @@ static void Motor_DmaInt_Foc(void)
         return;
     }
 
+    /*
+     * 软件过流看重构前的分流电流 (A)。随后按上一拍软件 A/B/C 比较值（计数）
+     * 做最长零矢量重构，再进入 Clarke；PWM 硬件 A-C-B 只在落比较值时交换。
+     */
+    (void)Motor_Current_ReconstructLongestZero(&motor.ia, &motor.ib, &motor.ic, motor.duty1, motor.duty2, motor.duty3,
+                                               Hal_Motor_PwmPeriodCounts());
+
     dt = protection_dt;
     result = Motor_Control_Step(&s_control, &motor, motor.v_bus, dt, Motor_Hall_DetectIsActive());
+    Motor_DmaInt_UpdateHallCurrentDiag();
     /*
      * 无感可能在本拍 Step 内锁存失速。先仲裁：故障态只允许 SAFE，
      * 绝不先落 DQ 再改安全输出（避免故障被控制结果覆盖）。
@@ -848,8 +1045,8 @@ static void Motor_DmaInt_Bldc(void)
 
     Motor_It_ParamCal();
     dt = Motor_OpenLoop_GetAdcDt(&motor);
+    Motor_BldcSensorless_Stop(&s_bldc_sensorless);
     if (Motor_Protect_Run(&motor, dt)) {
-        Motor_BldcSensorless_Stop(&s_bldc_sensorless);
         Motor_DmaInt_RecordRuntime(runtime_start);
         return;
     }
@@ -877,12 +1074,16 @@ static void Motor_DmaInt_Bldc(void)
  * @description: 偏移校准占用桥时：只采样换算，不跑 FOC、不跑软件过流
  * @detail: 零偏标定前 ia/ib/ic 不可信，软件 ABS_OVER_CURRENT 易误锁存；硬件过流/Break 仍生效。
  *          不用中点 SAFE，以免与逐相 EnablePhase 打架。
+ *          零偏累加按 TIM1 方向分沿，与 Hall FOC 下降沿采样窗对齐。
  * @return {*}
  * @author: lkc
  */
 static void Motor_DmaInt_WhileDetect(void)
 {
+    bool pwm_down = ((TIM1->CR1 & TIM_CR1_DIR) != 0U);
+
     Motor_It_ParamCal();
+    Motor_Detect_IsrFeed(pwm_down);
 }
 
 /**

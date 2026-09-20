@@ -50,6 +50,8 @@ typedef struct {
     float ia;          /* A */
     float ib;          /* A */
     float ic;          /* A */
+    float current_adc[3];    /* CURR1/2/3 原始 ADC 计数，与 abc 同一快照 */
+    float current_offset[3]; /* CURR1/2/3 零偏 ADC 计数 */
     float id;          /* A */
     float iq;          /* A */
     float id_target;   /* 本拍电流环 Id 目标 A */
@@ -116,7 +118,7 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
 /**
  * @description: 提交停机命令并清除斜坡/电流积分（不清故障锁存）。
  * @detail: enable=false、target_rpm=0，保留 mode/iq/id/speed_enable。
- *          不调用 HAL；调用方按需关断 PWM。可在任务上下文调用。
+ *          经 Motor_SetCommand 关断 PWM 桥臂。可在任务上下文调用。
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @return {motor_result_t} MOTOR_OK 或错误码
  * @author: lkc

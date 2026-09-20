@@ -740,6 +740,11 @@ int Cmd_OlSnap(int argc, char *argv[])
         PRINTF("  Hall RPM   : raw=%.1f filtered=%.1f fast=%.1f age=%.1fms state=%d\n",
                status.feedback.mech_rpm_raw, status.feedback.mech_rpm, status.feedback.mech_rpm_fast,
                status.feedback.sample_age_s * 1000.0f, status.feedback.sensor_state);
+        PRINTF("  Hall table : %u %u %u %u %u %u %u %u (state 0..7, 255=invalid)\n",
+               (unsigned int)(uint8_t)motor.hall_table[0], (unsigned int)(uint8_t)motor.hall_table[1],
+               (unsigned int)(uint8_t)motor.hall_table[2], (unsigned int)(uint8_t)motor.hall_table[3],
+               (unsigned int)(uint8_t)motor.hall_table[4], (unsigned int)(uint8_t)motor.hall_table[5],
+               (unsigned int)(uint8_t)motor.hall_table[6], (unsigned int)(uint8_t)motor.hall_table[7]);
     }
     Motor_DmaInt_GetSampleDirectionCounts(&sample_up_count, &sample_down_count);
     PRINTF("  FOC sample : up=%lu down=%lu\n", (unsigned long)sample_up_count,
@@ -750,6 +755,11 @@ int Cmd_OlSnap(int argc, char *argv[])
     PRINTF("  Fault      : %d %s (%s)\n", fault, Motor_Protect_GetFaultName(fault),
            status.fault_latched ? "LATCHED" : "CLEAR");
     PRINTF("  Ia,Ib,Ic   : %.3f %.3f %.3f A\n", status.ia, status.ib, status.ic);
+    PRINTF("  Iabc sum   : %.3f A\n", status.ia + status.ib + status.ic);
+    PRINTF("  Iadc raw   : %.0f %.0f %.0f (CURR1/2/3)\n", status.current_adc[0], status.current_adc[1],
+           status.current_adc[2]);
+    PRINTF("  Iadc zero  : %.1f %.1f %.1f (CURR1/2/3)\n", status.current_offset[0],
+           status.current_offset[1], status.current_offset[2]);
     PRINTF("  Id, Iq     : %.3f %.3f A (target %.3f %.3f)\n", status.id, status.iq,
            status.id_target, status.iq_target);
     PRINTF("  FW         : max=%.2fA duty=%.2f\n", motor.fw_current_max, motor.fw_duty_start);
@@ -773,6 +783,71 @@ int Cmd_OlSnap(int argc, char *argv[])
     }
     PRINTF("=============================\n");
     /* TX DMA 可抢占 FOC，Flush 能把本页发完，避免 olsnap 半截卡死上位机解析。 */
+    Bsp_Usart_Flush();
+    return 0;
+}
+
+/* 停机后读取上一轮 Hall 稳态电流统计；运行中也可只读查询。 */
+int Cmd_OlCurrentDiag(int argc, char *argv[])
+{
+    motor_hall_current_diag_sector_t sectors[8];
+    uint32_t total = 0U;
+    int state;
+
+    (void)argc;
+    (void)argv;
+    Motor_DmaInt_GetHallCurrentDiag(sectors);
+    PRINTF("Hall current diag (1/16 control samples; |sum|>0.5A, |Id err|>1.0A)\n");
+    PRINTF("state samples sum_over sum_max id_over id_max\n");
+    for (state = 1; state <= 6; state++) {
+        total += sectors[state].samples;
+        PRINTF("%d %lu %lu %.3f %lu %.3f\n", state,
+               (unsigned long)sectors[state].samples,
+               (unsigned long)sectors[state].phase_sum_over,
+               sectors[state].max_abs_phase_sum_a,
+               (unsigned long)sectors[state].id_error_over,
+               sectors[state].max_abs_id_error_a);
+    }
+    PRINTF("phase state first_samples first_id_over second_samples second_id_over\n");
+    for (state = 1; state <= 6; state++) {
+        PRINTF("phase %d %lu %lu %lu %lu\n", state,
+               (unsigned long)sectors[state].first_half_samples,
+               (unsigned long)sectors[state].first_half_id_over,
+               (unsigned long)sectors[state].second_half_samples,
+               (unsigned long)sectors[state].second_half_id_over);
+    }
+    PRINTF("bias state mean_sum_a positive_over negative_over\n");
+    for (state = 1; state <= 6; state++) {
+        float mean = sectors[state].samples > 0U
+                         ? (float)sectors[state].signed_phase_sum_milliamps /
+                               (1000.0f * (float)sectors[state].samples)
+                         : 0.0f;
+        PRINTF("bias %d %.3f %lu %lu\n", state, mean,
+               (unsigned long)sectors[state].phase_sum_positive_over,
+               (unsigned long)sectors[state].phase_sum_negative_over);
+    }
+    PRINTF("raw state curr1_mean curr2_mean curr3_mean\n");
+    for (state = 1; state <= 6; state++) {
+        float count = (float)sectors[state].samples;
+        PRINTF("raw %d %.3f %.3f %.3f\n", state,
+               count > 0.0f ? (float)sectors[state].current_adc_sum[0] / count : 0.0f,
+               count > 0.0f ? (float)sectors[state].current_adc_sum[1] / count : 0.0f,
+               count > 0.0f ? (float)sectors[state].current_adc_sum[2] / count : 0.0f);
+    }
+    PRINTF("total samples: %lu\n", (unsigned long)total);
+    {
+        motor_hall_current_worst_t worst;
+
+        Motor_DmaInt_GetHallCurrentWorst(&worst);
+        PRINTF("worst beats=%lu abs=%.3f signed=%.3f ia=%.3f ib=%.3f ic=%.3f id=%.3f iq=%.3f\n",
+               (unsigned long)worst.beats, worst.abs_sum_a, worst.signed_sum_a, worst.ia, worst.ib, worst.ic,
+               worst.id, worst.iq);
+        PRINTF("worst adc=%u %u %u zero=%.1f %.1f %.1f\n", worst.current_adc[0], worst.current_adc[1],
+               worst.current_adc[2], motor.currentOffset[0], motor.currentOffset[1], motor.currentOffset[2]);
+        PRINTF("worst ccr=%lu %lu %lu arr=%u cnt=%u hall=%u age_ms=%.1f\n", (unsigned long)worst.duty[0],
+               (unsigned long)worst.duty[1], (unsigned long)worst.duty[2], worst.tim1_arr, worst.tim1_cnt,
+               (unsigned)worst.hall_state, (double)worst.edge_age_ms);
+    }
     Bsp_Usart_Flush();
     return 0;
 }

@@ -13,6 +13,8 @@
 #endif
 
 static const int k_hall_seq[6] = {1, 3, 2, 6, 4, 5};
+/* 2026-09-17 实机 olsnap：state 0..7 = 255,132,68,102,2,166,33,255；正转 4→6→2→3→1→5。 */
+static const int k_bm75_seq[6] = {4, 6, 2, 3, 1, 5};
 /* 实机 Hall 每 32 次 ADC 触发更新一次，测试须使用相同 dt。 */
 static const float k_hall_dt = 32.0f / 30000.0f;
 
@@ -33,8 +35,29 @@ static void fill_ready_table(int8_t table[MOTOR_HALL_TABLE_SIZE])
     /* 0、7 无效 */
 }
 
-static void drive_hall_rpm(motor_hall_angle_t *st, const int8_t *table, float pp, float rpm, float duration_s,
-                           int *seq_index)
+static void fill_bm75_table(int8_t table[MOTOR_HALL_TABLE_SIZE])
+{
+    static const uint8_t raw[MOTOR_HALL_TABLE_SIZE] = {255U, 132U, 68U, 102U, 2U, 166U, 33U, 255U};
+    int i;
+
+    for (i = 0; i < (int)MOTOR_HALL_TABLE_SIZE; i++) {
+        table[i] = (int8_t)raw[i];
+    }
+}
+
+static float wrap_pi(float x)
+{
+    while (x > (float)M_PI) {
+        x -= 2.0f * (float)M_PI;
+    }
+    while (x < -(float)M_PI) {
+        x += 2.0f * (float)M_PI;
+    }
+    return x;
+}
+
+static void drive_hall_rpm(motor_hall_angle_t *st, const int8_t *table, const int *seq, float pp, float rpm,
+                           float duration_s, int *seq_index)
 {
     float sector_period;
     float sector_age = 0.0f;
@@ -42,10 +65,11 @@ static void drive_hall_rpm(motor_hall_angle_t *st, const int8_t *table, float pp
     int dir;
 
     assert(rpm != 0.0f);
+    assert(seq != NULL);
     dir = rpm > 0.0f ? 1 : -1;
     sector_period = 10.0f / (pp * fabsf(rpm));
     for (t = 0.0f; t < duration_s; t += k_hall_dt) {
-        Motor_Hall_AngleUpdate(st, table, k_hall_seq[*seq_index], pp, k_hall_dt);
+        Motor_Hall_AngleUpdate(st, table, seq[*seq_index], pp, k_hall_dt);
         sector_age += k_hall_dt;
         if (sector_age >= sector_period) {
             sector_age -= sector_period;
@@ -93,7 +117,7 @@ int main(void)
     /* 1 极对、200 RPM：PLL 与六边沿窗口都应收敛到约 200，而不是单边沿台阶。 */
     Motor_Hall_AngleReset(&st);
     seq = 0;
-    drive_hall_rpm(&st, table, 1.0f, 200.0f, 2.0f, &seq);
+    drive_hall_rpm(&st, table, k_hall_seq, 1.0f, 200.0f, 2.0f, &seq);
     assert(st.angle_valid);
     assert(st.speed_valid);
     expect = 200.0f;
@@ -105,7 +129,7 @@ int main(void)
     /* 2 对极 72 RPM：速度环用的 PLL 应贴着 72，不能在边沿间掉到 0。 */
     Motor_Hall_AngleReset(&st);
     seq = 0;
-    drive_hall_rpm(&st, table, 2.0f, 72.0f, 1.2f, &seq);
+    drive_hall_rpm(&st, table, k_hall_seq, 2.0f, 72.0f, 1.2f, &seq);
     assert(fabsf(st.mech_rpm_fast - 72.0f) < 4.0f);
     assert(fabsf(st.mech_rpm - 72.0f) < 4.0f);
     /* 低于插值门限：电角保持当前扇区中心。 */
@@ -129,19 +153,19 @@ int main(void)
     /* 反转 −72 RPM。 */
     Motor_Hall_AngleReset(&st);
     seq = 0;
-    drive_hall_rpm(&st, table, 2.0f, -72.0f, 1.2f, &seq);
+    drive_hall_rpm(&st, table, k_hall_seq, 2.0f, -72.0f, 1.2f, &seq);
     assert(st.direction == -1);
     assert(fabsf(st.mech_rpm_fast + 72.0f) < 4.0f);
 
     /* 高速也不能因六扇区计数回绕而锁到错误速度。 */
     Motor_Hall_AngleReset(&st);
     seq = 0;
-    drive_hall_rpm(&st, table, 2.0f, 800.0f, 2.0f, &seq);
+    drive_hall_rpm(&st, table, k_hall_seq, 2.0f, 800.0f, 2.0f, &seq);
     assert(!st.pll_low_speed_active);
     assert(fabsf(st.mech_rpm_fast - 800.0f) < 40.0f);
 
     /* 从高速降至低速时重新以当前周期速度初始化 PLL，不得沿用高速误锁状态。 */
-    drive_hall_rpm(&st, table, 2.0f, 72.0f, 2.0f, &seq);
+    drive_hall_rpm(&st, table, k_hall_seq, 2.0f, 72.0f, 2.0f, &seq);
     assert(st.pll_low_speed_active);
     assert(fabsf(st.mech_rpm_fast - 72.0f) < 8.0f);
 
@@ -161,6 +185,35 @@ int main(void)
     Motor_Hall_AngleUpdate(&st, table, 0, 2.0f, k_hall_dt);
     assert(!st.angle_valid);
     assert(!st.speed_valid);
+
+    /* 实机表：顺序 4→6→2→3→1→5，相邻约 54°～65°，不得判未就绪。 */
+    fill_bm75_table(table);
+    assert(Motor_Hall_TableReady(table));
+    Motor_Hall_AngleReset(&st);
+    seq = 0;
+    drive_hall_rpm(&st, table, k_bm75_seq, 2.0f, 72.0f, 1.2f, &seq);
+    assert(fabsf(st.mech_rpm_fast - 72.0f) < 4.0f);
+    assert(Motor_Hall_DecodeAngle(table, st.last_state, &theta));
+    assert(fabsf(wrap_pi(st.theta_rad - theta)) < 1e-4f);
+
+    /* 1200 RPM 插值夹在状态 3 与状态 1 的实际边界（半宽 27°），不是中心+30°。 */
+    Motor_Hall_AngleReset(&st);
+    seq = 0;
+    drive_hall_rpm(&st, table, k_bm75_seq, 2.0f, 1200.0f, 0.4f, &seq);
+    assert(st.direction == 1);
+    assert(fabsf(st.mech_rpm_fast - 1200.0f) < 60.0f);
+    Motor_Hall_AngleUpdate(&st, table, 3, 2.0f, k_hall_dt);
+    {
+        int i;
+
+        for (i = 0; i < 80; i++) {
+            Motor_Hall_AngleUpdate(&st, table, 3, 2.0f, k_hall_dt);
+        }
+    }
+    assert(Motor_Hall_DecodeAngle(table, 3, &theta));
+    expect = theta + (54.0f * 0.5f) * ((float)M_PI / 180.0f);
+    assert(fabsf(wrap_pi(st.theta_rad - expect)) < 0.02f);
+    assert(fabsf(wrap_pi(st.theta_rad - (theta + (float)M_PI / 6.0f))) > 0.03f);
 
     puts("test_motor_hall_angle: pass");
     return 0;

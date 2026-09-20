@@ -30,6 +30,7 @@ extern "C" {
 #include "motor_feedback.h"
 #include "motor_hall_angle.h"
 #include "motor_foc.h"
+#include "motor_current.h"
 #include "motor_sense.h"
 #include "motor_task.h"
 #include "motor_it.h"
