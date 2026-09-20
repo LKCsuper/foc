@@ -46,20 +46,20 @@
 ## 2026-07-05
 
 ### FreeRTOS Tick 频率提升
-- **[FreeRTOSConfig.h](../App/Configs/inc/FreeRTOSConfig.h)**: `configTICK_RATE_HZ` 从 **1000 → 10000**（10kHz tick），提高系统实时精度
+- **[FreeRTOSConfig.h](../App/configs/inc/FreeRTOSConfig.h)**: `configTICK_RATE_HZ` 从 **1000 → 10000**（10kHz tick），提高系统实时精度
 - **[bsp.c](../Library/Bsp/bsp.c)**: `Bsp_Sys_Init(1000)` → `Bsp_Sys_Init(10000)`，SysTick 与 FreeRTOS tick 保持一致
 
 ### `osDelay()` 全部改用 `pdMS_TO_TICKS()`
 - 所有任务中的 `osDelay(N)` 统一替换为 `osDelay(pdMS_TO_TICKS(N))`，确保不同 tick 频率下延时时间正确（`osDelay` 参数为 tick 数而非毫秒）
 - 影响文件：
-  - [main.c](../App/User/main.c)
+  - [main.c](../App/user/main.c)
   - [cmd_duty.c](../App/cmd/cmd_duty.c)
   - [motor_task.c](../App/motor/motor_task.c)
   - [motor_detect.c](../App/motor_param/motor_detect.c)
   - [motor_hall.c](../App/motor_sensor/motor_hall.c)
 
 ### 初始化顺序调整
-- **[main.c](../App/User/main.c)**: 任务初始化流程优化：
+- **[main.c](../App/user/main.c)**: 任务初始化流程优化：
   - `MOTOR_Param_Init()`（EasyFlash 加载）前置到 `Detect_Init()` 之前，确保 Flash 参数先加载
   - `Command_Init()`（Shell）移到 `MOTOR_ShowParam()` 之后，避免 Shell 抢 UART 导致参数打印乱序
   - 添加注释说明步骤目的

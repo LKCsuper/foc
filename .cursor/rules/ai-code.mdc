@@ -5,7 +5,7 @@ alwaysApply: true
 
 严格遵守仓库根目录 `AI_CODE.md`。冲突时以该文档为准。
 
-- 一模块一文件：`.c` + `.h`，独立函数封装；新 `.h` 挂到 `App/User/includes.h` 对应分组。
+- 一模块一文件：`.c` + `.h`，独立函数封装；新 `.h` 挂到 `App/user/includes.h` 对应分组。
 - 业务 `.c` 只 `#include "includes.h"`，禁止重排 include。
 - 格式以根目录 `.clang-format` 为准（4 空格、120 列、Linux 大括号、指针靠右）。只格式化自己改过的文件。
 - 新建文件用 `AI_CODE.md` 里的 `.c` / `.h` 骨架；公开函数用 `@description` / `@param` / `@return` 中文注释，带单位。

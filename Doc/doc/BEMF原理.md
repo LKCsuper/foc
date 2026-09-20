@@ -28,7 +28,7 @@ e(t) ≈ ωe × ψf × f(θe)
 | 路径                  | 怎么用 BEMF                               | 要不要把某一相悬空     |
 | --------------------- | ----------------------------------------- | ---------------------- |
 | 六步无感 BLDC         | 直接测悬空相端电压，判断何时换相          | 要。每步必须一相 FLOAT |
-| FOC 电流环 / 磁链观测 | 用`v − Ri − L di/dt` 估计反电势或磁链 | 不要。三相都在 PWM     |
+| FOC 电流环 / 磁链观测 | 用 `v − Ri` 积分磁链估角，见 [磁链观测器](./磁链观测器.md) | 不要。三相都在 PWM     |
 
 下面先讲物理，再讲六步检测，最后对照 FOC。
 
@@ -275,8 +275,8 @@ PWM 相关断续流：电流走二极管，端电压被钳到 0 或 Vbus     ←
 
 | 文件                                                  | 职责                                        |
 | ----------------------------------------------------- | ------------------------------------------- |
-| `App/motor/motor_bldc_six_step.c`                   | PWM / LOW / FLOAT 六步表，不读 BEMF         |
-| `App/motor/motor_bldc_sensorless.c`                 | 定向、开环斜坡、伏秒积分、闭环换相          |
+| `App/motor/bldc/motor_bldc_six_step.c`                   | PWM / LOW / FLOAT 六步表，不读 BEMF         |
+| `App/motor/bldc/motor_bldc_sensorless.c`                 | 定向、开环斜坡、伏秒积分、闭环换相          |
 | `App/motor/motor_it.c`                              | ADC 中断里选 BLDC 入口、还原 ABC、调用 Step |
 | `Library/Hal/port/stm32f4/hal_motor_bldc_stm32f4.c` | 桥臂电气实现、关滤波、导通窗采样            |
 | `App/cmd/cmd_bldc.c`                                | `bldc start/open/stop/exit/status/tune`   |

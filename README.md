@@ -14,7 +14,7 @@
 ## 主控制链与阅读顺序
 
 ```text
-App/User/main.c：main → Task_Init
+App/user/main.c：main → Task_Init
   Bsp_Init → Motor_Encoder_Init → MOTOR_Param_Init → Detect_Init
   → Command_Init → Hal_Motor_PwmStart
 

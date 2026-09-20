@@ -142,7 +142,11 @@ Hall 72 应学 **ODrive 的 Hall-PLL**（平滑角 + 平滑速度），停转/�
 - 低速 **I/F**（电流闭环 + 强制角）。72/150/300 RPM 开环已实机通过。
 - 观测器可只观察不接管（`takeover` / `slenable`）。锁定后 blend 切观测角。
 - 低于 `sensorless_fallback_rpm`（默认 300）退回 I/F；高于开环安全转速失锁则报故障，不在高速硬切回 I/F。
-- `MotorHfiStart` 只是启动扫角，不是 VESC 那种持续 HFI 跟踪。
+- `MotorHfiStart` 只是启动扫角，不是 VESC 那种持续 HFI 跟踪。跟踪算法在 `motor_hfi.c`，**尚未接入主控制**；原理见 [高频注入](./高频注入.md)。
+- Ortega 纯算法已抽到 `motor_flux.c`，**尚未接入主控制**；无感仍用 `motor_sensorless` 内嵌的同一公式。原理见 [磁链观测器](./磁链观测器.md)。
+- 龙伯格反电势观测在 `motor_luenberger.c`，同样**尚未接入主控制**。原理见 [龙伯格观测器](./龙伯格观测器.md)。
+- 四状态 EKF 在 `motor_ekf.c`，同样**尚未接入主控制**，也未测 ISR 耗时。原理见 [扩展卡尔曼滤波](./扩展卡尔曼滤波.md)。
+- 滑模反电势观测在 `motor_smo.c`，同样**尚未接入主控制**。原理见 [滑模观测器](./滑模观测器.md)。
 - 默认 `transition=500`、`fallback=300`。**72 RPM 本来就不该让观测器接管。**
 
 | | 零速/72 RPM 无感 | 怎么起转 | 停转/反转 |
@@ -184,7 +188,7 @@ Hall 72 应学 **ODrive 的 Hall-PLL**（平滑角 + 平滑速度），停转/�
 | VESC 无感开环/HFI | `ThirtyLibrary/bldc/motor/mcpwm_foc.c` 传感器分支 | `mcconf_default.h` 的 `FOC_OPENLOOP_*`、`FOC_HFI_*` |
 | 本机 Hall | `App/motor_sensor/motor_hall_angle.c` | 待上板版 PLL：`MOTOR_HALL_PLL_BW_HZ=10`；插值门限仍 150 RPM |
 | 本机编码器 | `App/motor_sensor/motor_encoder.c` | Δcount/dt |
-| 本机无感 | `App/motor/motor_sensorless.c`、`motor_hfi_start.c` | 默认 takeover 关 |
+| 本机无感 | `App/motor/observer/motor_sensorless.c`、`App/motor/start/motor_hfi_start.c` | 默认 takeover 关 |
 | ODrive PLL | `ThirtyLibrary/ODrive/Firmware/MotorControl/encoder.cpp` | 无感 `sensorless_estimator.cpp` |
 | SimpleFOC Hall | `App/motor_simple_foc/` 仅开环拖动，不是官方 Hall 闭环 | `ThirtyLibrary/Arduino-FOC/src/sensors/HallSensor.cpp` |
 | MESC Hall/HFI/观测器 | `ThirtyLibrary/MESC_Firmware/MESC_Common/Src/` | `MESCfoc.c`、`MESChfi.c`、`MESCfluxobs.c` |

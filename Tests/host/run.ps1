@@ -29,11 +29,11 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor protect host compilation failed' }
     & .build/host/test_motor_protect.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor protect host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_foc_divider.c App/motor/motor_alignment.c App/motor/motor_if_start.c Tests/host/test_motor_startup.c -o .build/host/test_motor_startup.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_foc_divider.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c Tests/host/test_motor_startup.c -o .build/host/test_motor_startup.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor startup host compilation failed' }
     & .build/host/test_motor_startup.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor startup host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_sensorless.c Tests/host/stubs/sensorless_math.c Tests/host/stubs/sensorless_deps.c Tests/host/test_motor_sensorless.c -o .build/host/test_motor_sensorless.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/observer/motor_sensorless.c Tests/host/stubs/sensorless_math.c Tests/host/stubs/sensorless_deps.c Tests/host/test_motor_sensorless.c -o .build/host/test_motor_sensorless.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor sensorless host compilation failed' }
     & .build/host/test_motor_sensorless.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor sensorless host tests failed' }
@@ -45,7 +45,27 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor FW host compilation failed' }
     & .build/host/test_motor_fw.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor FW host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_control.c App/motor/motor_fw.c App/motor/motor_alignment.c App/motor/motor_if_start.c App/motor/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_hfi.c Tests/host/test_motor_hfi.c -o .build/host/test_motor_hfi.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor HFI host compilation failed' }
+    & .build/host/test_motor_hfi.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor HFI host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_flux.c Tests/host/test_motor_flux.c -o .build/host/test_motor_flux.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor flux host compilation failed' }
+    & .build/host/test_motor_flux.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor flux host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_luenberger.c Tests/host/test_motor_luenberger.c -o .build/host/test_motor_luenberger.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor Luenberger host compilation failed' }
+    & .build/host/test_motor_luenberger.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor Luenberger host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_ekf.c Tests/host/test_motor_ekf.c -o .build/host/test_motor_ekf.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor EKF host compilation failed' }
+    & .build/host/test_motor_ekf.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor EKF host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_smo.c Tests/host/test_motor_smo.c -o .build/host/test_motor_smo.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor SMO host compilation failed' }
+    & .build/host/test_motor_smo.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor SMO host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_control.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control host compilation failed' }
     & .build/host/test_motor_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control host tests failed' }
@@ -69,11 +89,11 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor hall angle host compilation failed' }
     & .build/host/test_motor_hall_angle.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor hall angle host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_bldc_six_step.c Tests/host/test_motor_bldc_six_step.c -o .build/host/test_motor_bldc_six_step.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/bldc/motor_bldc_six_step.c Tests/host/test_motor_bldc_six_step.c -o .build/host/test_motor_bldc_six_step.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC six-step host compilation failed' }
     & .build/host/test_motor_bldc_six_step.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC six-step host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_bldc_six_step.c App/motor/motor_bldc_sensorless.c Tests/host/test_motor_bldc_sensorless.c -o .build/host/test_motor_bldc_sensorless.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/bldc/motor_bldc_six_step.c App/motor/bldc/motor_bldc_sensorless.c Tests/host/test_motor_bldc_sensorless.c -o .build/host/test_motor_bldc_sensorless.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC sensorless host compilation failed' }
     & .build/host/test_motor_bldc_sensorless.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC sensorless host tests failed' }

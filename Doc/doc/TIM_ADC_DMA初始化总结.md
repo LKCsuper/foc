@@ -8,7 +8,7 @@
 | ADC | [Library/Bsp/bsp_adc.c](../../Library/Bsp/bsp_adc.c) |
 | DMA | [Library/Bsp/bsp_dma.c](../../Library/Bsp/bsp_dma.c) |
 | DMA 中断回调 | [Library/Bsp/bsp_it.c](../../Library/Bsp/bsp_it.c) |
-| ISR 入口 | [App/User/stm32f4xx_it.c](../../App/User/stm32f4xx_it.c) |
+| ISR 入口 | [App/user/stm32f4xx_it.c](../../App/user/stm32f4xx_it.c) |
 | FOC 中断处理 | [App/Motor/motor_it.c](../../App/Motor/motor_it.c) |
 
 ---
@@ -246,7 +246,7 @@ NVIC:
 硬件中断 DMA2_Stream4_IRQn (中断号 60)
     │
     ▼
-DMA2_Stream4_IRQHandler()          ← [App/User/stm32f4xx_it.c:132]
+DMA2_Stream4_IRQHandler()          ← [App/user/stm32f4xx_it.c:132]
     │  NVIC 向量表 → 进入 ISR
     │
     ▼

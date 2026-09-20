@@ -80,12 +80,15 @@
 | `App/motor/motor_it.c`                                     | 现有平台集成入口：采样、分频、控制调用、输出应用、耗时统计       |
 | `App/motor/motor_foc.c`、`motor_math.c`、`motor_pid.c` | 无平台依赖的算法                                                 |
 | `App/motor/motor_speed.c`、`motor_protect.c`、启动模块   | 独立状态和明确输入输出的控制模块                                 |
+| `App/motor/start/`                                         | 对齐、I/F、HFI 扫角起步                                          |
+| `App/motor/observer/`                                      | FOC 无感观测（sensorless / flux / luenberger / ekf / smo / hfi） |
+| `App/motor/bldc/`                                          | 六步 BLDC 与悬空相 BEMF，与 FOC 无感不是同一条路径               |
 | `App/motor_sensor/`                                        | 已有编码器与霍尔模块，不合并成万能传感器文件                     |
 | `App/motor_param/`                                         | 配置默认值/校验、校准状态机、持久化格式                          |
 | `Library/Hal/inc/`                                         | 平台无关的硬件接口与能力描述                                     |
 | `Library/Hal/port/stm32f4/`                                | STM32F4 实现，包括后续迁入的存储适配                             |
 | `Library/Bsp/`                                             | 当前板级外设实现；后续随第二平台需要按板区分                     |
-| `App/cmd/`、`App/User/`、`App/Task/`                   | 命令、应用集成、日志与 RTOS 调度                                 |
+| `App/cmd/`、`App/user/`、`App/Task/`                   | 命令、应用集成、日志与 RTOS 调度                                 |
 | `Examples/`（按需创建）                                    | 学习示例，复用同一套核心算法                                     |
 | `Tests/host/`（按需创建）                                  | PC 上的核心编译和行为测试                                        |
 

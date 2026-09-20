@@ -341,7 +341,7 @@
               <MiscControls>--locale=english</MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F40_41xxx,__CC_ARM,__TARGET_FPU_VFP=1,__FPU_PRESENT=1,__FPU_USED=1,ARM_MATH_CM4,SIMULINK_USE_ARM_MATH</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\User;..\..\Library\Bsp\inc;..\..\Library\Hal\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\Configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc;..\..\Doc\matlab\foc_simulink0_ert_rtw;..\Motor_Simple_Foc\inc;..\Motor_Param\inc;..\RTT;..\Motor_Param\inc;..\..\ThirtyLibrary\easyflash\inc;..\Motor_Sensor\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include</IncludePath>
+              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\user;..\..\Library\Bsp\inc;..\..\Library\Hal\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc;..\..\Doc\matlab\foc_simulink0_ert_rtw;..\Motor_Simple_Foc\inc;..\Motor_Param\inc;..\RTT;..\Motor_Param\inc;..\..\ThirtyLibrary\easyflash\inc;..\Motor_Sensor\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -388,12 +388,12 @@
             <File>
               <FileName>main.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\User\main.c</FilePath>
+              <FilePath>..\user\main.c</FilePath>
             </File>
             <File>
               <FileName>stm32f4xx_it.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\User\stm32f4xx_it.c</FilePath>
+              <FilePath>..\user\stm32f4xx_it.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -403,7 +403,7 @@
             <File>
               <FileName>system_stm32f4xx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\User\system_stm32f4xx.c</FilePath>
+              <FilePath>..\user\system_stm32f4xx.c</FilePath>
             </File>
             <File>
               <FileName>startup_stm32f40xx.s</FileName>
@@ -745,6 +745,11 @@
               <FileType>1</FileType>
               <FilePath>..\cmd\cmd_encoder.c</FilePath>
             </File>
+            <File>
+              <FileName>cmd_env.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_env.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -818,12 +823,12 @@
             <File>
               <FileName>freertos.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Configs\freertos.c</FilePath>
+              <FilePath>..\configs\freertos.c</FilePath>
             </File>
             <File>
               <FileName>freertos_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Configs\freertos_port.c</FilePath>
+              <FilePath>..\configs\freertos_port.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -991,7 +996,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>Motor</GroupName>
+          <GroupName>Motor\Core</GroupName>
           <Files>
             <File>
               <FileName>motor_foc.c</FileName>
@@ -1007,21 +1012,6 @@
               <FileName>motor_sense.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_sense.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_hfi_start.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_hfi_start.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_alignment.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_alignment.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_if_start.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_if_start.c</FilePath>
             </File>
             <File>
               <FileName>motor_pid.c</FileName>
@@ -1044,21 +1034,6 @@
               <FilePath>..\motor\motor_control.c</FilePath>
             </File>
             <File>
-              <FileName>motor_bldc_six_step.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_bldc_six_step.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_bldc_sensorless.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_bldc_sensorless.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_bldc_six_step_hal.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_bldc_six_step_hal.c</FilePath>
-            </File>
-            <File>
               <FileName>motor_protect.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_protect.c</FilePath>
@@ -1074,11 +1049,6 @@
               <FilePath>..\motor\motor_foc_divider.c</FilePath>
             </File>
             <File>
-              <FileName>motor_sensorless.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_sensorless.c</FilePath>
-            </File>
-            <File>
               <FileName>motor_task.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_task.c</FilePath>
@@ -1091,7 +1061,7 @@
             <File>
               <FileName>motor_math.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Motor\motor_math.c</FilePath>
+              <FilePath>..\motor\motor_math.c</FilePath>
             </File>
             <File>
               <FileName>motor_ctrl.c</FileName>
@@ -1103,10 +1073,80 @@
               <FileType>1</FileType>
               <FilePath>..\motor\motor.c</FilePath>
             </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor\Start</GroupName>
+          <Files>
             <File>
-              <FileName>cmd_env.c</FileName>
+              <FileName>motor_alignment.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\cmd\cmd_env.c</FilePath>
+              <FilePath>..\motor\start\motor_alignment.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_if_start.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\start\motor_if_start.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_hfi_start.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\start\motor_hfi_start.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor\Observer</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_sensorless.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\observer\motor_sensorless.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_hfi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\observer\motor_hfi.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_flux.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\observer\motor_flux.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_luenberger.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\observer\motor_luenberger.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_ekf.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\observer\motor_ekf.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_smo.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\observer\motor_smo.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor\Bldc</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_bldc_six_step.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\bldc\motor_bldc_six_step.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_bldc_sensorless.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\bldc\motor_bldc_sensorless.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_bldc_six_step_hal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\bldc\motor_bldc_six_step_hal.c</FilePath>
             </File>
           </Files>
         </Group>

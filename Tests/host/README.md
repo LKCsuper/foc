@@ -26,6 +26,11 @@
 | `test_motor_protect` | 过流/欠压计时与锁存 |
 | `test_motor_startup` | 分频、对齐、I/F 双实例 |
 | `test_motor_sensorless` | 无感 runtime / effects 隔离 |
+| `test_motor_hfi` | 脉振 HFI 极性翻转、凸极跟踪与双实例 |
+| `test_motor_flux` | Ortega 磁链积分、L×I 分离、幅值拉回与双实例 |
+| `test_motor_luenberger` | 龙伯格反电势跟踪、带 Iq、反转符号与双实例 |
+| `test_motor_ekf` | 四状态 EKF 跟踪、带 Iq、反转与双实例 |
+| `test_motor_smo` | 滑模反电势跟踪、带 Iq、反转符号与双实例 |
 | `test_motor_current` | 电流目标选择、PI 实例隔离 |
 | `test_motor_control` | 开环编排、仲裁、有感角与速度 Iq |
 | `test_motor_sense` | 采样帧换算（假 ADC） |
