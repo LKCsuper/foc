@@ -319,7 +319,7 @@ void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor)
 }
 
 /**
- * @description: 转速斜坡；无感未完全接管时可限制目标。
+ * @description: 转速斜坡。速度环按 VESC s_pid_ramp_erpms_s；I/F、V/F 仍用 olramp。
  * @param {MOTOR_PARAM_S} *motor  斜坡
  * @param {float} dt  周期 (s)
  * @param {bool} sensorless_takeover_complete  是否已完全用观测角
@@ -330,13 +330,22 @@ void Motor_Control_UpdateSpeed(MOTOR_PARAM_S *motor, float dt, bool sensorless_t
 {
     float target;
     float step;
+    float pole_pairs;
 
     if (motor == NULL) {
         return;
     }
 
     target = motor->ol_target_rpm;
-    step = motor->ol_ramp_rpm_s * dt;
+    if (motor->speed_enable) {
+        pole_pairs = motor->ol_pole_pairs;
+        if (pole_pairs < 1.0f) {
+            pole_pairs = 1.0f;
+        }
+        step = (MOTOR_SPEED_RAMP_ERPMS_S / pole_pairs) * dt;
+    } else {
+        step = motor->ol_ramp_rpm_s * dt;
+    }
 
     /*
      * 无感尚未 CLOSED 且渐变未完成时，I/F 只是启动手段，不能无限强拖到目标高速。

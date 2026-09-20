@@ -12,6 +12,13 @@ extern "C" {
 #include <stdbool.h>
 #include "motor_param.h"
 /* Private define ------------------------------------------------------------*/
+/*
+ * Hall I/F 输出对齐 VESC mcpwm_foc：1.5/Vbus 归一 + foc_svm（零电压 ARR/2）。
+ * 置 0 可回到 svm_hqd。不再使用 HALL CCR 倍率。
+ */
+#ifndef MOTOR_HALL_USE_VESC_SVM
+#define MOTOR_HALL_USE_VESC_SVM 1
+#endif
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/

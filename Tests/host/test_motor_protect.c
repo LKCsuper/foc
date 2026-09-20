@@ -77,6 +77,53 @@ int main(void)
 
     assert(strcmp(Motor_Protect_GetFaultName(FAULT_CODE_MOTOR_STALL), "MOTOR_STALL") == 0);
 
+    /* 150 运转中直接 olspeed 3000：斜坡未到位，不得误报失速。 */
+    Motor_Protect_InitState(&a, NULL);
+    memset(&motor_a, 0, sizeof(motor_a));
+    motor_a.ol_enable = true;
+    motor_a.v_bus = 24.0f;
+    motor_a.ia = 0.4f;
+    motor_a.ib = 0.4f;
+    motor_a.ic = 0.4f;
+    motor_a.ol_target_rpm = 150.0f;
+    motor_a.ol_current_rpm = 150.0f;
+    Motor_Protect_SetSpeedFeedbackState(&a, 150.0f, true);
+    for (i = 0; i < 50U; ++i) {
+        assert(!Motor_Protect_CheckSpeedLossState(&a, &motor_a, dt));
+    }
+    motor_a.ol_target_rpm = 3000.0f;
+    motor_a.ol_current_rpm = 165.0f;
+    Motor_Protect_SetSpeedFeedbackState(&a, 162.5f, true);
+    for (i = 0; i < 500U; ++i) {
+        assert(!Motor_Protect_CheckSpeedLossState(&a, &motor_a, dt));
+    }
+    /* 斜坡已到 3000、实测仍在加速：也不得当成丢速。 */
+    motor_a.ol_current_rpm = 3000.0f;
+    Motor_Protect_SetSpeedFeedbackState(&a, 400.0f, true);
+    for (i = 0; i < 500U; ++i) {
+        assert(!Motor_Protect_CheckSpeedLossState(&a, &motor_a, dt));
+    }
+
+    /* 斜坡已跟上 800、曾达转速后再掉到 100：应在 0.3 s 去抖后判失速。 */
+    motor_a.ol_target_rpm = 800.0f;
+    motor_a.ol_current_rpm = 800.0f;
+    Motor_Protect_SetSpeedFeedbackState(&a, 800.0f, true);
+    assert(!Motor_Protect_CheckSpeedLossState(&a, &motor_a, dt));
+    Motor_Protect_SetSpeedFeedbackState(&a, 100.0f, true);
+    for (i = 0; i < 250U; ++i) {
+        assert(!Motor_Protect_CheckSpeedLossState(&a, &motor_a, dt));
+    }
+    {
+        bool lost = false;
+        for (i = 0; i < 150U; ++i) {
+            if (Motor_Protect_CheckSpeedLossState(&a, &motor_a, dt)) {
+                lost = true;
+                break;
+            }
+        }
+        assert(lost);
+    }
+
     printf("test_motor_protect: pass\n");
     return 0;
 }

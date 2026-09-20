@@ -316,9 +316,11 @@ bool Motor_Protect_CheckStallState(motor_protect_state_t *state, const MOTOR_PAR
 }
 
 /**
- * @description: 失速去抖：曾达目标约一半后，实测跌破目标×speed_loss_ratio
+ * @description: 失速去抖：斜坡已跟上目标后，曾达约 50% 再跌破目标×speed_loss_ratio
+ * @detail: 斜坡未到位时不算失速。速度环按 VESC 给定爬升时，实测落后斜坡是加速，不是丢速。
+ *          150 运转中 olspeed 3000，斜坡未到 3000 前不得锁 MOTOR_SPEED_LOSS。
  * @param {motor_protect_state_t} *state  状态对象
- * @param {const MOTOR_PARAM_S} *motor    目标转速
+ * @param {const MOTOR_PARAM_S} *motor    目标与斜坡转速
  * @param {float} dt  本拍时间 (s)
  * @return {bool} true=去抖完成，应锁存失速
  * @author: lkc
@@ -341,6 +343,12 @@ bool Motor_Protect_CheckSpeedLossState(motor_protect_state_t *state, const MOTOR
     target_abs = fabsf(motor->ol_target_rpm);
     speed_abs = fabsf(state->speed_rpm);
     if (target_abs < state->config.stall_target_rpm) {
+        state->speed_was_reached = false;
+        state->speed_loss_timer = 0.0f;
+        return false;
+    }
+    /* 给定还在爬：新轨迹，清“曾跟上”以免 150→3000 把旧转速当成已经到达高速。 */
+    if (fabsf(motor->ol_current_rpm - motor->ol_target_rpm) > 1.0f) {
         state->speed_was_reached = false;
         state->speed_loss_timer = 0.0f;
         return false;

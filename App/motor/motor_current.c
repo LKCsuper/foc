@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <math.h>
 
@@ -18,8 +19,91 @@ extern "C" {
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+static uint8_t s_recon_last;     /* 0=未重构，1=A，2=B，3=C */
+static uint32_t s_recon_samples; /* 本档调用次数 */
+static uint32_t s_recon_hits;    /* 本档重构次数 */
+static uint32_t s_recon_hit_a;
+static uint32_t s_recon_hit_b;
+static uint32_t s_recon_hit_c;
 /* Private function prototypes -----------------------------------------------*/
+static void motor_current_account_recon(uint8_t phase);
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: 累计一拍最长零矢量重构结果
+ * @param {uint8_t} phase  0=未重构，1=A，2=B，3=C
+ * @return {*}
+ * @author: lkc
+ */
+static void motor_current_account_recon(uint8_t phase)
+{
+    s_recon_last = phase;
+    if (s_recon_samples < UINT32_MAX) {
+        s_recon_samples++;
+    }
+    if (phase == 0U) {
+        return;
+    }
+    if (s_recon_hits < UINT32_MAX) {
+        s_recon_hits++;
+    }
+    if (phase == 1U && s_recon_hit_a < UINT32_MAX) {
+        s_recon_hit_a++;
+    } else if (phase == 2U && s_recon_hit_b < UINT32_MAX) {
+        s_recon_hit_b++;
+    } else if (phase == 3U && s_recon_hit_c < UINT32_MAX) {
+        s_recon_hit_c++;
+    }
+}
+
+/**
+ * @description: 清零最长零矢量重构诊断
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_Current_ResetReconstructDiag(void)
+{
+    s_recon_last = 0U;
+    s_recon_samples = 0U;
+    s_recon_hits = 0U;
+    s_recon_hit_a = 0U;
+    s_recon_hit_b = 0U;
+    s_recon_hit_c = 0U;
+}
+
+/**
+ * @description: 读取上一拍重构相及本档累计次数
+ * @param {int} *last_phase     0=未重构，1=A，2=B，3=C；可为 NULL
+ * @param {uint32_t} *samples   本档调用次数；可为 NULL
+ * @param {uint32_t} *hits      本档重构次数；可为 NULL
+ * @param {uint32_t} *hit_a     A 相重构次数；可为 NULL
+ * @param {uint32_t} *hit_b     B 相重构次数；可为 NULL
+ * @param {uint32_t} *hit_c     C 相重构次数；可为 NULL
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_Current_GetReconstructDiag(int *last_phase, uint32_t *samples, uint32_t *hits, uint32_t *hit_a,
+                                      uint32_t *hit_b, uint32_t *hit_c)
+{
+    if (last_phase != NULL) {
+        *last_phase = (int)s_recon_last;
+    }
+    if (samples != NULL) {
+        *samples = s_recon_samples;
+    }
+    if (hits != NULL) {
+        *hits = s_recon_hits;
+    }
+    if (hit_a != NULL) {
+        *hit_a = s_recon_hit_a;
+    }
+    if (hit_b != NULL) {
+        *hit_b = s_recon_hit_b;
+    }
+    if (hit_c != NULL) {
+        *hit_c = s_recon_hit_c;
+    }
+}
 
 /**
  * @description: 三相电流 → αβ → d/q，写回 motor 反馈字段
@@ -57,33 +141,35 @@ bool Motor_Current_ReconstructLongestZero(float *ia, float *ib, float *ic, uint3
                                           uint32_t duty_c, uint32_t pwm_period)
 {
     uint32_t limit;
+    uint8_t phase = 0U;
 
     if (ia == NULL || ib == NULL || ic == NULL) {
         return false;
     }
     if (pwm_period <= MOTOR_CURRENT_SHUNT_PICK_COUNTS) {
+        motor_current_account_recon(0U);
         return false;
     }
 
     limit = pwm_period - MOTOR_CURRENT_SHUNT_PICK_COUNTS;
     if (duty_a <= limit && duty_b <= limit && duty_c <= limit) {
+        motor_current_account_recon(0U);
         return false;
     }
 
     /* 与 VESC 相同：只在唯一最大 CCR 时重构，两相并列最大则保持原样。 */
     if (duty_a > duty_b && duty_a > duty_c) {
         *ia = -(*ib + *ic);
-        return true;
-    }
-    if (duty_b > duty_a && duty_b > duty_c) {
+        phase = 1U;
+    } else if (duty_b > duty_a && duty_b > duty_c) {
         *ib = -(*ia + *ic);
-        return true;
-    }
-    if (duty_c > duty_a && duty_c > duty_b) {
+        phase = 2U;
+    } else if (duty_c > duty_a && duty_c > duty_b) {
         *ic = -(*ia + *ib);
-        return true;
+        phase = 3U;
     }
-    return false;
+    motor_current_account_recon(phase);
+    return phase != 0U;
 }
 
 /**

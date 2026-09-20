@@ -4,7 +4,7 @@
 >
 > 目的：把 Hall 电流环的 PWM 从「`svm_hqd` + CCR 倍率」换成 VESC 那套恒定线性 SVPWM。速度环仍然只出 Iq；弱磁仍然只在 PWM 真正顶满、且 Id 跟得上时才开。
 >
-> 配套：[CCR / 母线 / 弱磁](./弱磁.md) · [提速调试经验](./Hall_FOC提速调试经验_2026-09-17.md) · [1500 RPM 原因](./Hall_1500RPM达标原因与限制_2026-09-16.md) · [偶发 Id 毛刺](./Hall偶发Id毛刺_2026-09-19.md)
+> 配套：[CCR / 母线 / 弱磁](./弱磁.md) · [提速调试经验](./Hall_FOC提速调试经验_2026-09-17.md) · [1500 RPM 原因](./Hall_1500RPM达标原因与限制_2026-09-16.md) · [偶发 Id 毛刺](./Hall偶发Id毛刺_2026-09-19.md) · [空载 3000 电流与使用边界](./Hall空载3000电流与使用边界_2026-09-20.md)
 
 口头说的 **oldriver** 即 ODrive。本机 2 对极、铭牌 24 VDC / 3000 RPM。
 
@@ -65,8 +65,9 @@ ODrive 也是速度 PI → Iq，duty 0～1 × ARR；弱磁是实验项。不要�
 | 文件 | 改什么 |
 |------|--------|
 | [`App/motor/motor_foc.c`](../../App/motor/motor_foc.c) | 新增 `foc_svm_from_voltage()`：1.5/Vbus 归一、限幅、再调已有 `foc_svm` |
-| [`App/motor/inc/motor_foc.h`](../../App/motor/inc/motor_foc.h) | 声明 |
-| [`App/motor/motor_it.c`](../../App/motor/motor_it.c) | Hall + I/F 走上述函数；`MOTOR_HALL_USE_VESC_SVM` 可回退；相序仍 A-C-B |
+| [`App/motor/inc/motor_foc.h`](../../App/motor/inc/motor_foc.h) | 声明；`MOTOR_FOC_SVM_MAX_DUTY=0.95` |
+| [`App/motor_sensor/inc/motor_hall.h`](../../App/motor_sensor/inc/motor_hall.h) | `MOTOR_HALL_USE_VESC_SVM` 开关 |
+| [`App/motor/motor_it.c`](../../App/motor/motor_it.c) | Hall + I/F 走上述函数；相序仍 A-C-B |
 | [`App/motor_param/motor_param.c`](../../App/motor_param/motor_param.c) | 默认 `ol_current_kp=0.12`、`ol_current_ki=18` |
 | [`Scripts/hall_verify_serial.py`](../../Scripts/hall_verify_serial.py) | 验证脚本同步 `olkp 0.12` / `olki 18` |
 
@@ -109,8 +110,8 @@ ODrive 也是速度 PI → Iq，duty 0～1 × ARR；弱磁是实验项。不要�
 
 - **弱磁仍关。** 空载 3000 `|V|≈10.3/13.7 V`。打开的最低条件仍是：PWM 理想接近请求且接近 13.8 V，并且 2000 上空载 Id 大体跟目标。现在 1800 以上 `|Id error|>1 A` 的样本明显变多（3000 档约 40%），负 Id 跟不上。
 - **电流环默认增益只对 Hall + 新 SVM。** 其它模式还在 `svm_hqd`，若用同一套 `olkp 0.12` 会偏软。
-- **速度环还没按新对象重调。** 150～3000 用的仍是 `spkp 0.006` / `spki 0.003` / `spbrake 0`。空载能跟，带载、加减速另测。
-- **Id 毛刺不是这次修的。** 诊断门槛、最长零矢量重构见[偶发 Id 毛刺](./Hall偶发Id毛刺_2026-09-19.md)。3000 时峰值 CCR 4828，距 `ARR−900` 已近，重构有可能开始触发，还没单独核对。
+- **速度环 PI 还没按新对象重调。** 150～3000 用的仍是 `spkp 0.006` / `spki 0.003` / `spbrake 0`。给定斜坡已按 VESC `25000` ERPM/s（本机约 12500 RPM/s）；加速卡在 `spiq`。空载能跟，带载、加减速另测。
+- **Id 毛刺不是这次修的。** 空载 3000 的 1～3 A 已用 mean/RMS 定性为交流 Id，见[空载 3000 电流与使用边界](./Hall空载3000电流与使用边界_2026-09-20.md)。诊断门槛、最长零矢量重构见[偶发 Id 毛刺](./Hall偶发Id毛刺_2026-09-19.md)。门槛已收到 `ARR−500`（锁定 `vesc_foc.c`），空载 3000 峰值 CCR≈4864 不再提前重构。
 - **不要改 VESC 来源的 ADC/PWM/TIM/DMA。** Hall 仍然只采 TIM1 下降 / 顶部零矢量。ARR/2 之后低速零矢量仍然够用；高速窗口变短，是以后要示波器核对的事，不是这次改外设的理由。
 - **不要抬母线。** 电机铭牌 24 VDC。
 

@@ -17,6 +17,8 @@ extern "C" {
 #include <stdint.h>
 #include "motor_param.h"
 /* Private define ------------------------------------------------------------*/
+/* VESC s_pid_ramp_erpms_s：速度环给定按电转速爬，机械 RPM/s = 本值 / 极对数 */
+#define MOTOR_SPEED_RAMP_ERPMS_S 25000.0f
 /* Private typedef -----------------------------------------------------------*/
 /**
  * @description: 速度环运行时状态（不持久化）

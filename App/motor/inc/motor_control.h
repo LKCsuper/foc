@@ -116,7 +116,7 @@ bool Motor_Control_IsReady(const MOTOR_PARAM_S *motor, float v_bus, bool hall_de
 void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor);
 
 /**
- * @description: 按斜坡更新 ol_current_rpm；无感未完全接管时可限幅目标
+ * @description: 按斜坡更新 ol_current_rpm。速度环用 VESC 25000 ERPM/s；开环用 olramp
  * @param {MOTOR_PARAM_S} *motor                  斜坡状态
  * @param {float} dt                              控制周期 (s)
  * @param {bool} sensorless_takeover_complete     true=允许冲向最终目标

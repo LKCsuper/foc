@@ -15,6 +15,10 @@ extern "C" {
 #ifndef MOTOR_FOC_THREE_SHUNTS
 #define MOTOR_FOC_THREE_SHUNTS  1
 #endif
+/* 对齐 VESC 默认 l_max_duty，满调制时仍留约 2.5% 零矢量。 */
+#ifndef MOTOR_FOC_SVM_MAX_DUTY
+#define MOTOR_FOC_SVM_MAX_DUTY 0.95f
+#endif
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/

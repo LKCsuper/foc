@@ -496,7 +496,8 @@ int Cmd_OlRamp(int argc, char *argv[])
     motor_result_t result;
 
     if (argc < 2) {
-        PRINTF("Ramp = %.0f RPM/s  (usage: olramp <rpm/s>)\n", motor.ol_ramp_rpm_s);
+        PRINTF("Ramp = %.0f RPM/s (I/F V/F only; speed loop uses 25000 ERPM/s)\n", motor.ol_ramp_rpm_s);
+        PRINTF("Usage: olramp <rpm/s>\n");
         return 0;
     }
     if (!ol_capture_config(&cfg)) {
@@ -512,7 +513,7 @@ int Cmd_OlRamp(int argc, char *argv[])
         ol_print_config_result(result);
         return -1;
     }
-    PRINTF("Ramp set to %.0f RPM/s\n", motor.ol_ramp_rpm_s);
+    PRINTF("Ramp set to %.0f RPM/s (I/F V/F; speed loop ignores this)\n", motor.ol_ramp_rpm_s);
     return 0;
 }
 
@@ -752,6 +753,20 @@ int Cmd_OlSnap(int argc, char *argv[])
     PRINTF("  V_bus      : %.1f V\n", status.v_bus);
     PRINTF("  Theta/CCR  : %.4f rad / %lu %lu %lu\n", status.theta, (unsigned long)status.duty1,
            (unsigned long)status.duty2, (unsigned long)status.duty3);
+    if (status.feedback.used_source == MOTOR_FEEDBACK_SRC_HALL) {
+        float center = 0.0f;
+        float ddeg;
+
+        (void)Motor_Hall_DecodeAngle(motor.hall_table, status.feedback.sensor_state, &center);
+        ddeg = (status.theta - center) * 180.0f / (float)M_PI;
+        while (ddeg > 180.0f) {
+            ddeg -= 360.0f;
+        }
+        while (ddeg < -180.0f) {
+            ddeg += 360.0f;
+        }
+        PRINTF("  Hall ddeg  : %.1f deg (center %.3f rad)\n", (double)ddeg, (double)center);
+    }
     PRINTF("  Fault      : %d %s (%s)\n", fault, Motor_Protect_GetFaultName(fault),
            status.fault_latched ? "LATCHED" : "CLEAR");
     PRINTF("  Ia,Ib,Ic   : %.3f %.3f %.3f A\n", status.ia, status.ib, status.ic);
@@ -781,6 +796,29 @@ int Cmd_OlSnap(int argc, char *argv[])
         PRINTF("  PWM ideal  : |Valphabeta|=%.3f V (CCR estimate)\n",
                sqrtf(pwm_alpha * pwm_alpha + pwm_beta * pwm_beta));
     }
+    {
+        int recon_last = 0;
+        uint32_t recon_samples = 0U;
+        uint32_t recon_hits = 0U;
+        uint32_t recon_a = 0U;
+        uint32_t recon_b = 0U;
+        uint32_t recon_c = 0U;
+        const char *recon_name;
+
+        Motor_Current_GetReconstructDiag(&recon_last, &recon_samples, &recon_hits, &recon_a, &recon_b, &recon_c);
+        if (recon_last == 1) {
+            recon_name = "A";
+        } else if (recon_last == 2) {
+            recon_name = "B";
+        } else if (recon_last == 3) {
+            recon_name = "C";
+        } else {
+            recon_name = "none";
+        }
+        PRINTF("  Reconstruct : last=%s hits=%lu/%lu (A=%lu B=%lu C=%lu) thr=%lu\n", recon_name,
+               (unsigned long)recon_hits, (unsigned long)recon_samples, (unsigned long)recon_a, (unsigned long)recon_b,
+               (unsigned long)recon_c, (unsigned long)MOTOR_CURRENT_SHUNT_PICK_COUNTS);
+    }
     PRINTF("=============================\n");
     /* TX DMA 可抢占 FOC，Flush 能把本页发完，避免 olsnap 半截卡死上位机解析。 */
     Bsp_Usart_Flush();
@@ -796,7 +834,7 @@ int Cmd_OlCurrentDiag(int argc, char *argv[])
 
     (void)argc;
     (void)argv;
-    Motor_DmaInt_GetHallCurrentDiag(sectors);
+    Motor_Hall_DiagGetSectors(sectors);
     PRINTF("Hall current diag (1/16 control samples; |sum|>0.5A, |Id err|>1.0A)\n");
     PRINTF("state samples sum_over sum_max id_over id_max\n");
     for (state = 1; state <= 6; state++) {
@@ -838,7 +876,7 @@ int Cmd_OlCurrentDiag(int argc, char *argv[])
     {
         motor_hall_current_worst_t worst;
 
-        Motor_DmaInt_GetHallCurrentWorst(&worst);
+        Motor_Hall_DiagGetWorst(&worst);
         PRINTF("worst beats=%lu abs=%.3f signed=%.3f ia=%.3f ib=%.3f ic=%.3f id=%.3f iq=%.3f\n",
                (unsigned long)worst.beats, worst.abs_sum_a, worst.signed_sum_a, worst.ia, worst.ib, worst.ic,
                worst.id, worst.iq);
@@ -847,6 +885,97 @@ int Cmd_OlCurrentDiag(int argc, char *argv[])
         PRINTF("worst ccr=%lu %lu %lu arr=%u cnt=%u hall=%u age_ms=%.1f\n", (unsigned long)worst.duty[0],
                (unsigned long)worst.duty[1], (unsigned long)worst.duty[2], worst.tim1_arr, worst.tim1_cnt,
                (unsigned)worst.hall_state, (double)worst.edge_age_ms);
+    }
+    {
+        motor_hall_current_worst_t worstid;
+        const char *recon_name;
+        float delta_deg;
+
+        Motor_Hall_DiagGetWorstId(&worstid);
+        if (worstid.recon_phase == 1U) {
+            recon_name = "A";
+        } else if (worstid.recon_phase == 2U) {
+            recon_name = "B";
+        } else if (worstid.recon_phase == 3U) {
+            recon_name = "C";
+        } else {
+            recon_name = "none";
+        }
+        delta_deg = (worstid.theta_rad - worstid.sector_center_rad) * 180.0f / (float)M_PI;
+        while (delta_deg > 180.0f) {
+            delta_deg -= 360.0f;
+        }
+        while (delta_deg < -180.0f) {
+            delta_deg += 360.0f;
+        }
+        PRINTF("worstid beats=%lu id=%.3f target=%.3f err=%.3f iq=%.3f ia=%.3f ib=%.3f ic=%.3f sum=%.3f\n",
+               (unsigned long)worstid.beats, worstid.id, worstid.id_target, worstid.id_error, worstid.iq, worstid.ia,
+               worstid.ib, worstid.ic, worstid.signed_sum_a);
+        PRINTF("worstid theta=%.3f center=%.3f ddeg=%.1f hall=%u half=%s recon=%s age_ms=%.1f\n", worstid.theta_rad,
+               worstid.sector_center_rad, (double)delta_deg, (unsigned)worstid.hall_state,
+               worstid.first_half ? "first" : "second", recon_name, (double)worstid.edge_age_ms);
+        PRINTF("worstid ccr=%lu %lu %lu arr=%u cnt=%u adc=%u %u %u\n", (unsigned long)worstid.duty[0],
+               (unsigned long)worstid.duty[1], (unsigned long)worstid.duty[2], worstid.tim1_arr, worstid.tim1_cnt,
+               worstid.current_adc[0], worstid.current_adc[1], worstid.current_adc[2]);
+    }
+    {
+        motor_hall_current_edge_diag_t edge;
+        const char *recon_name;
+        float edge_pct;
+        float body_pct;
+
+        Motor_Hall_DiagGetEdge(&edge);
+        edge_pct = edge.edge_samples > 0U ? 100.0f * (float)edge.edge_id_over / (float)edge.edge_samples : 0.0f;
+        body_pct = edge.body_samples > 0U ? 100.0f * (float)edge.body_id_over / (float)edge.body_samples : 0.0f;
+        PRINTF("edge samples=%lu id_over=%lu (%.1f%%) body samples=%lu id_over=%lu (%.1f%%) jumps=%lu\n",
+               (unsigned long)edge.edge_samples, (unsigned long)edge.edge_id_over, (double)edge_pct,
+               (unsigned long)edge.body_samples, (unsigned long)edge.body_id_over, (double)body_pct,
+               (unsigned long)edge.jump_samples);
+        {
+            uint32_t n = edge.edge_samples + edge.body_samples;
+            double nf = (double)n;
+            float mean_id = 0.0f;
+            float mean_iq = 0.0f;
+            float mean_iqt = 0.0f;
+            float mean_abs_id = 0.0f;
+            float mean_abs_iq = 0.0f;
+            float rms_id = 0.0f;
+            float rms_iq = 0.0f;
+            float rms_i = 0.0f;
+            float mean_ia = 0.0f;
+            float mean_ib = 0.0f;
+            float mean_ic = 0.0f;
+
+            if (n > 0U) {
+                mean_id = (float)((double)edge.id_mA_sum / (1000.0 * nf));
+                mean_iq = (float)((double)edge.iq_mA_sum / (1000.0 * nf));
+                mean_iqt = (float)((double)edge.iq_target_mA_sum / (1000.0 * nf));
+                mean_abs_id = (float)((double)edge.id_abs_mA_sum / (1000.0 * nf));
+                mean_abs_iq = (float)((double)edge.iq_abs_mA_sum / (1000.0 * nf));
+                rms_id = (float)(sqrt((double)edge.id2_mA2_sum / nf) / 1000.0);
+                rms_iq = (float)(sqrt((double)edge.iq2_mA2_sum / nf) / 1000.0);
+                rms_i = (float)(sqrt(((double)edge.id2_mA2_sum + (double)edge.iq2_mA2_sum) / nf) / 1000.0);
+                mean_ia = (float)((double)edge.ia_mA_sum / (1000.0 * nf));
+                mean_ib = (float)((double)edge.ib_mA_sum / (1000.0 * nf));
+                mean_ic = (float)((double)edge.ic_mA_sum / (1000.0 * nf));
+            }
+            PRINTF("mean samples=%lu Id=%.3f Iq=%.3f |Id|=%.3f |Iq|=%.3f "
+                   "rmsId=%.3f rmsIq=%.3f rmsI=%.3f IqT=%.3f\n",
+                   (unsigned long)n, mean_id, mean_iq, mean_abs_id, mean_abs_iq, rms_id, rms_iq, rms_i, mean_iqt);
+            PRINTF("mean ia=%.3f ib=%.3f ic=%.3f\n", mean_ia, mean_ib, mean_ic);
+        }
+        if (edge.jump.recon_phase == 1U) {
+            recon_name = "A";
+        } else if (edge.jump.recon_phase == 2U) {
+            recon_name = "B";
+        } else if (edge.jump.recon_phase == 3U) {
+            recon_name = "C";
+        } else {
+            recon_name = "none";
+        }
+        PRINTF("jump prev_abc=%.3f %.3f %.3f abc=%.3f %.3f %.3f id=%.3f hall=%u recon=%s age_ms=%.1f\n",
+               edge.jump.prev_ia, edge.jump.prev_ib, edge.jump.prev_ic, edge.jump.ia, edge.jump.ib, edge.jump.ic,
+               edge.jump.id, (unsigned)edge.jump.hall_state, recon_name, (double)edge.jump.edge_age_ms);
     }
     Bsp_Usart_Flush();
     return 0;

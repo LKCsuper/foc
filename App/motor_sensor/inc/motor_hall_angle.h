@@ -29,6 +29,7 @@ extern "C" {
 #define MOTOR_HALL_MIN_PERIOD_S     (2.0e-4f)  /* 拒绝 ADC 节拍级霍尔毛刺 (s) */
 #define MOTOR_HALL_INTERP_START_RPM (150.0f)   /* 以下保持扇区中心，保证低速启动转矩 */
 #define MOTOR_HALL_INTERP_FULL_RPM  (300.0f)   /* 以上使用完整扇区内角度预测 */
+#define MOTOR_HALL_ADC_DIVIDER      (4U)       /* 15 kHz FOC 之后每 4 拍更新 Hall，约 3.75 kHz */
 /* Private typedef -----------------------------------------------------------*/
 /**
  * @description: 霍尔角度运行时（默认单实例 + *State 可测）

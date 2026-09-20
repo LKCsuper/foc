@@ -19,10 +19,11 @@ extern "C" {
 #include "motor_param.h"
 /* Private define ------------------------------------------------------------*/
 /*
- * 与 VESC mcpwm_foc.c 的 SHUNT_PICK_THR 相同，单位为 PWM 计数。
- * 某相 CCR 距 ARR 不足该值时，低边分流窗口过短，用另外两相电流重构该相。
+ * 三电阻最长零矢量：某相 CCR > ARR−本值时，低边窗口过短，用另外两相重构。
+ * 用锁定 vesc_foc.c 高调制路径的 500，不用 mcpwm_foc SHUNT_PICK_THR=900。
+ * 空载 3000 峰值 CCR≈4902：900 会提前改写并把三相和打成 0，500 仍留给 ADC rank2。
  */
-#define MOTOR_CURRENT_SHUNT_PICK_COUNTS 900U
+#define MOTOR_CURRENT_SHUNT_PICK_COUNTS 500U
 /* Private typedef -----------------------------------------------------------*/
 /**
  * @description: d/q 轴电压指令中间量
@@ -74,6 +75,27 @@ void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta);
  */
 bool Motor_Current_ReconstructLongestZero(float *ia, float *ib, float *ic, uint32_t duty_a, uint32_t duty_b,
                                           uint32_t duty_c, uint32_t pwm_period);
+
+/**
+ * @description: 清零最长零矢量重构诊断（目标转速变化时由 ISR 调用）
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_Current_ResetReconstructDiag(void);
+
+/**
+ * @description: 读取上一拍重构相及本档累计次数
+ * @param {int} *last_phase     0=未重构，1=A，2=B，3=C；可为 NULL
+ * @param {uint32_t} *samples   本档调用次数；可为 NULL
+ * @param {uint32_t} *hits      本档重构次数；可为 NULL
+ * @param {uint32_t} *hit_a     A 相重构次数；可为 NULL
+ * @param {uint32_t} *hit_b     B 相重构次数；可为 NULL
+ * @param {uint32_t} *hit_c     C 相重构次数；可为 NULL
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_Current_GetReconstructDiag(int *last_phase, uint32_t *samples, uint32_t *hits, uint32_t *hit_a,
+                                      uint32_t *hit_b, uint32_t *hit_c);
 
 /**
  * @description: 按工况选择 Id/Iq 目标

@@ -29,7 +29,7 @@ typedef struct {
     float stall_target_rpm;   /* 启用堵转/失速判据的最低 |目标| RPM */
     float stall_speed_rpm;    /* “几乎静止”判据 |实测| RPM */
     float stall_current;      /* 堵转需同时满足的最低电流峰值 A */
-    float speed_loss_ratio;   /* 失速：实测/目标 低于此比例 */
+    float speed_loss_ratio;   /* 失速：斜坡到位后，实测/目标 低于此比例 */
     float over_current_time;  /* 过流去抖 s */
     float under_voltage_time; /* 欠压去抖 s */
     float stall_time;         /* 堵转去抖 s */
@@ -98,7 +98,7 @@ typedef struct {
     float speed_loss_timer;    /* s */
     float speed_rpm;           /* 外部注入的实测机械 RPM */
     bool speed_valid;
-    bool speed_was_reached; /* 失速判据：是否曾达到目标约 50% */
+    bool speed_was_reached; /* 失速判据：斜坡到位后是否曾达到目标约 50% */
     bool fault_latched;
     mc_fault_code fault;
     motor_protect_snapshot_t snapshot;
@@ -156,9 +156,9 @@ bool Motor_Protect_CheckUnderVoltageState(motor_protect_state_t *state, const MO
 bool Motor_Protect_CheckStallState(motor_protect_state_t *state, const MOTOR_PARAM_S *motor, float dt);
 
 /**
- * @description: 失速去抖：曾达目标约 50% 后实测跌破 speed_loss_ratio
+ * @description: 失速去抖：斜坡跟上目标后，曾达约 50% 再跌破 speed_loss_ratio
  * @param {motor_protect_state_t} *state  状态对象
- * @param {const MOTOR_PARAM_S} *motor    目标转速
+ * @param {const MOTOR_PARAM_S} *motor    目标与斜坡转速
  * @param {float} dt  本拍时间 (s)
  * @return {bool} true=失速条件已持续超过 speed_loss_time
  * @author: lkc

@@ -268,6 +268,16 @@ int main(void)
     Motor_Control_UpdateSpeed(&motor, 0.1f, true);
     assert(motor.ol_current_rpm > 800.0f);
 
+    /* 速度环给定按 VESC 25000 ERPM/s / 极对数，不走 olramp 50。 */
+    motor.speed_enable = true;
+    motor.ol_target_rpm = 3000.0f;
+    motor.ol_current_rpm = 0.0f;
+    motor.ol_ramp_rpm_s = 50.0f;
+    motor.ol_pole_pairs = 2.0f;
+    Motor_Control_UpdateSpeed(&motor, 0.1f, true);
+    assert(fabsf(motor.ol_current_rpm - 1250.0f) < 1e-2f);
+    motor.speed_enable = false;
+
     assert(!Motor_Control_IsAligning(&a));
     a.startup.alignment.running = true;
     a.startup.alignment.elapsed = 0.12f;

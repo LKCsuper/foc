@@ -33,6 +33,7 @@ extern "C" {
 #include "motor_phase_order.h"
 #include "motor_feedback.h"
 #include "motor_hall_angle.h"
+#include "motor_hall_diag.h"
 
 /* 主控 / 环路 */
 #include "motor_foc.h"

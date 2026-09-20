@@ -1218,6 +1218,11 @@
               <FileType>1</FileType>
               <FilePath>..\motor_sensor\motor_hall_angle.c</FilePath>
             </File>
+            <File>
+              <FileName>motor_hall_diag.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_sensor\motor_hall_diag.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

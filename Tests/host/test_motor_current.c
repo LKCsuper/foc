@@ -143,16 +143,33 @@ int main(void)
 
         assert(!Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 2000U, 1800U, 1600U, 5600U));
         assert(fabsf(ia - 1.0f) < 1e-6f);
-        assert(Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 5000U, 1800U, 1600U, 5600U));
+        /* 空载 3000 峰值 CCR≈4864：门槛 500 时仍用三相实测。 */
+        assert(!Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 4864U, 3105U, 735U, 5600U));
+        Motor_Current_ResetReconstructDiag();
+        assert(Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 5200U, 1800U, 1600U, 5600U));
         assert(fabsf(ia - 0.6f) < 1e-6f);
+        {
+            int last = 0;
+            uint32_t samples = 0U;
+            uint32_t hits = 0U;
+            uint32_t hit_a = 0U;
+            uint32_t hit_b = 0U;
+            uint32_t hit_c = 0U;
+
+            Motor_Current_GetReconstructDiag(&last, &samples, &hits, &hit_a, &hit_b, &hit_c);
+            assert(last == 1);
+            assert(samples == 1U);
+            assert(hits == 1U);
+            assert(hit_a == 1U && hit_b == 0U && hit_c == 0U);
+        }
         assert(fabsf(ib + 0.4f) < 1e-6f);
         ia = 0.3f;
         ib = 1.2f;
         ic = -0.5f;
-        assert(Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 2000U, 5100U, 1900U, 5600U));
+        assert(Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 2000U, 5200U, 1900U, 5600U));
         assert(fabsf(ib - 0.2f) < 1e-6f);
-        assert(!Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 5000U, 5000U, 1000U, 5600U));
-        assert(!Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 5000U, 1000U, 1000U, 800U));
+        assert(!Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 5200U, 5200U, 1000U, 5600U));
+        assert(!Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 5000U, 1000U, 1000U, 400U));
     }
 
     printf("test_motor_current: pass\n");

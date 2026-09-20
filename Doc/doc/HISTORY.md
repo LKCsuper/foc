@@ -10,6 +10,12 @@
 
 记录：`Doc/doc/Hall_对齐VESC_SVM_2026-09-20.md`。
 
+### Hall 空载 3000 电流原理与使用边界
+
+速度给定改成 VESC 式 ERPM 斜坡，避免 150 运转中 `olspeed 3000` 误锁 `MOTOR_SPEED_LOSS`。重构门槛收到 ARR−500，空载 3000 不再误触发。`olcurdiag` 增加每拍 mean/RMS：空载 3000 的 1～3 A 是交流 Id（mean Id≈0，rmsI≈1.2 A），不是持续直轴电流。不用观测器，空载 Hall 速度闭环可以从 150 用到 3000。
+
+记录：`Doc/doc/Hall空载3000电流与使用边界_2026-09-20.md`。
+
 ---
 
 ## 2026-09-09
