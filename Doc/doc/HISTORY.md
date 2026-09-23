@@ -2,7 +2,33 @@
 
 ---
 
+## 2026-09-23
+
+### 拆分仿真区分纯编码器与高速切无感
+
+`open_hfi_flux_split_simulink` 增加 `Encoder_Mode`。`0` 全程用编码器；`1` 在约 3500 ERPM 以上把换相角交给磁链观测。本机 2 对极、额定 3000 RPM（6000 ERPM，电频率约 100 Hz）用全程编码器。结合模式在弱磁区硬切换，角差会把负 `Id` 投影成转矩台阶。实机电阻温漂和电压重构还会让观测角更差。观测器只作对照和编码器故障回退。MATLAB 保持算法规格，固件用手写 C 接入，不从教学模型生成 ISR。未改固件。
+
+记录：`Doc/doc/HFI磁链观测与弱磁仿真学习指南.md` 第 16.2 节。
+
+---
+
+## 2026-09-21
+
+### 低速 HFI MATLAB 仿真
+
+`open_hfi_simulink`：库 PMSM 人为 `Ld≠Lq`，I/F 72 RPM，影子脉振 HFI（`motor_hfi.c`）。Hall / `slenable` 未改。铭牌电机没有分电感，仿真不能当上板依据。
+
+### HFI + 磁链闭环交接仿真
+
+`open_hfi_flux_simulink`：Park 用 HFI 角和注入，200～400 RPM 交给 Ortega+PLL 并停注入。未改固件 ISR。
+
+---
+
 ## 2026-09-20
+
+### 无感另开一条：从 EKF 开始
+
+Hall 日用路径冻结（`olfb hall`、`slenable 0`、`foc_svm`）。四状态 EKF 仍不进 `Motor_Control_Step`。MATLAB `Doc/matlab/verify_ekf.m` 对照 `motor_ekf.c` / `test_motor_ekf.c`，并做空载 I/F 种子后锁角。上板前只允许影子观察，不接 Park。
 
 ### Hall 电流环对齐 VESC `foc_svm`
 
