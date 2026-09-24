@@ -17,6 +17,14 @@ MAlonzo/**
 /ThirtyLibrary/Arduino-FOC/
 /ThirtyLibrary/ODrive/
 
+# MATLAB 验证输出
+/Doc/matlab/out/
+/Doc/matlab/*_slx_build.log
+
+# Python 运行缓存
+__pycache__/
+*.py[cod]
+
 # 串口/流水线验证原文默认不入库。白名单是 Hall 对齐 VESC SVM 的证据：
 # 起转过流、olkp 0.2 过冲、150/2000/2500/3000 空载通过。
 /Doc/verify/*
