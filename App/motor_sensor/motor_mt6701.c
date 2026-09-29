@@ -23,6 +23,7 @@ static volatile motor_mt6701_status_t s_mt6701;
 #if MOTOR_MT6701_INTERFACE == MOTOR_MT6701_INTERFACE_SSI
 static uint8_t Motor_MT6701_Crc6(uint32_t data, uint8_t bit_count);
 #endif
+static void Motor_MT6701_RecordFailure(bool crc_error);
 /* Private functions ---------------------------------------------------------*/
 
 #if MOTOR_MT6701_INTERFACE == MOTOR_MT6701_INTERFACE_SSI
@@ -42,6 +43,24 @@ static uint8_t Motor_MT6701_Crc6(uint32_t data, uint8_t bit_count)
     return crc;
 }
 #endif
+
+/**
+ * @description: 记录一次坏帧；连续失败达上限后作废角度。
+ * @param {bool} crc_error  true=本帧因 CRC 失败，额外计入 crc_error_count
+ * @return {*}
+ * @author: lkc
+ */
+static void Motor_MT6701_RecordFailure(bool crc_error)
+{
+    s_mt6701.error_count++;
+    if (crc_error) {
+        s_mt6701.crc_error_count++;
+    }
+    s_mt6701.consecutive_errors++;
+    if (s_mt6701.consecutive_errors >= MOTOR_MT6701_ERROR_LIMIT) {
+        s_mt6701.valid = false;
+    }
+}
 
 /**
  * @description: 清零 MT6701 状态并初始化当前接口（SSI 或 I2C）。
@@ -84,11 +103,7 @@ bool Motor_MT6701_Poll(void)
     /* 手册要求先读 0x03，再读 0x04。 */
     if (!Hal_Encoder_I2cReadRegister(MOTOR_MT6701_I2C_ADDRESS_7BIT, MOTOR_MT6701_REG_ANGLE_MSB, &msb) ||
         !Hal_Encoder_I2cReadRegister(MOTOR_MT6701_I2C_ADDRESS_7BIT, MOTOR_MT6701_REG_ANGLE_LSB, &lsb)) {
-        s_mt6701.error_count++;
-        s_mt6701.consecutive_errors++;
-        if (s_mt6701.consecutive_errors >= MOTOR_MT6701_ERROR_LIMIT) {
-            s_mt6701.valid = false;
-        }
+        Motor_MT6701_RecordFailure(false);
         return false;
     }
 
@@ -102,23 +117,14 @@ bool Motor_MT6701_Poll(void)
     uint8_t received_crc;
 
     if (!Hal_Encoder_SsiReadFrame(&frame)) {
-        s_mt6701.error_count++;
-        s_mt6701.consecutive_errors++;
-        if (s_mt6701.consecutive_errors >= MOTOR_MT6701_ERROR_LIMIT) {
-            s_mt6701.valid = false;
-        }
+        Motor_MT6701_RecordFailure(false);
         return false;
     }
 
     payload = (frame >> 6U) & 0x3FFFFU; /* D[13:0] + Mg[3:0] */
     received_crc = (uint8_t)(frame & 0x3FU);
     if (Motor_MT6701_Crc6(payload, 18U) != received_crc) {
-        s_mt6701.error_count++;
-        s_mt6701.crc_error_count++;
-        s_mt6701.consecutive_errors++;
-        if (s_mt6701.consecutive_errors >= MOTOR_MT6701_ERROR_LIMIT) {
-            s_mt6701.valid = false;
-        }
+        Motor_MT6701_RecordFailure(true);
         return false;
     }
 
@@ -126,11 +132,7 @@ bool Motor_MT6701_Poll(void)
     s_mt6701.magnetic_status = (uint8_t)((frame >> 6U) & 0x0FU);
     /* Mg[1:0]=磁场强弱异常，Mg[3]=超速；Mg[2] 仅为 PUSH 状态。 */
     if ((s_mt6701.magnetic_status & 0x0BU) != 0U) {
-        s_mt6701.error_count++;
-        s_mt6701.consecutive_errors++;
-        if (s_mt6701.consecutive_errors >= MOTOR_MT6701_ERROR_LIMIT) {
-            s_mt6701.valid = false;
-        }
+        Motor_MT6701_RecordFailure(false);
         return false;
     }
 #endif

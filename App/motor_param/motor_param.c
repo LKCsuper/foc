@@ -103,9 +103,9 @@ void MOTOR_Param_Init(void)
     /* 速度环默认关闭。先确认霍尔方向和电流环稳定，再用命令开启。 */
     gpstMotorDefault->speed_enable = false;
     gpstMotorDefault->speed_allow_braking = false;
-    gpstMotorDefault->speed_kp = 0.003f; /* 300RPM 误差产生约 0.9A P 输出 */
-    gpstMotorDefault->speed_ki = 0.01f;
-    gpstMotorDefault->speed_iq_limit = 2.0f;
+    gpstMotorDefault->speed_kp = MOTOR_SPEED_KP_DEFAULT;
+    gpstMotorDefault->speed_ki = MOTOR_SPEED_KI_DEFAULT;
+    gpstMotorDefault->speed_iq_limit = MOTOR_SPEED_IQ_LIMIT_DEFAULT;
     gpstMotorDefault->speed_loop_hz = 1000.0f;
     /* 无感参数必须使用 Ω、H、Wb，不能直接填 mΩ、uH、mWb 数字。 */
     gpstMotorDefault->sensorless_enable = false;

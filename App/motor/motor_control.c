@@ -29,6 +29,7 @@ extern "C" {
 static motor_control_result_t Motor_Control_ResultSafe(void);
 static motor_control_result_t Motor_Control_ResultDq(float vd, float vq, float theta);
 static motor_control_result_t Motor_Control_PublishTheta(MOTOR_PARAM_S *motor, motor_control_result_t result);
+static float Motor_Control_EncoderCoggingAssist(const MOTOR_PARAM_S *motor, float pi_iq);
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -77,6 +78,56 @@ static motor_control_result_t Motor_Control_PublishTheta(MOTOR_PARAM_S *motor, m
         motor->theta = result.theta;
     }
     return result;
+}
+
+/**
+ * @description: 编码器低速闭环的齿槽转矩助推。
+ * @detail: 只提高本拍 Iq 下限，不写 PI 积分；超过释放转速后完全退出。
+ * @param {const MOTOR_PARAM_S *} motor 电机命令与限流
+ * @param {float} pi_iq 速度 PI 输出 (A)
+ * @return {float} 助推后 Iq (A)
+ */
+static float Motor_Control_EncoderCoggingAssist(const MOTOR_PARAM_S *motor, float pi_iq)
+{
+    float direction;
+    float measured_rpm;
+    float directional_rpm;
+    float speed_error;
+    float assist;
+    float iq_limit;
+
+    if (motor == NULL || MOTOR_ENCODER_START_IQ_A <= 0.0f ||
+        MOTOR_ENCODER_COGGING_ASSIST_RELEASE_RPM <= 0.0f || motor->ol_target_rpm == 0.0f ||
+        Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER) {
+        return pi_iq;
+    }
+
+    direction = motor->ol_target_rpm > 0.0f ? 1.0f : -1.0f;
+    measured_rpm = Motor_SpeedLoop_GetMeasuredRpm();
+    directional_rpm = direction * measured_rpm;
+    speed_error = motor->ol_target_rpm - measured_rpm;
+    if (direction * speed_error <= 0.0f || directional_rpm >= MOTOR_ENCODER_COGGING_ASSIST_RELEASE_RPM) {
+        return pi_iq;
+    }
+
+    assist = MOTOR_ENCODER_START_IQ_A;
+    if (directional_rpm > MOTOR_ENCODER_COGGING_ASSIST_FULL_RPM &&
+        MOTOR_ENCODER_COGGING_ASSIST_RELEASE_RPM > MOTOR_ENCODER_COGGING_ASSIST_FULL_RPM) {
+        assist *= (MOTOR_ENCODER_COGGING_ASSIST_RELEASE_RPM - directional_rpm) /
+                  (MOTOR_ENCODER_COGGING_ASSIST_RELEASE_RPM - MOTOR_ENCODER_COGGING_ASSIST_FULL_RPM);
+    }
+    iq_limit = fabsf(motor->speed_iq_limit);
+    if (assist > iq_limit) {
+        assist = iq_limit;
+    }
+
+    if (direction > 0.0f && pi_iq < assist) {
+        return assist;
+    }
+    if (direction < 0.0f && pi_iq > -assist) {
+        return -assist;
+    }
+    return pi_iq;
 }
 
 /**
@@ -569,7 +620,9 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
      * 达到门槛后才让速度 PI 接管，运行中失速跌回门槛以下也自动恢复。
      */
     ctx->speed_loop_active = Motor_Control_SpeedLoopReady(ctrl, motor);
-    ctx->speed_iq_target = ctx->speed_loop_active ? Motor_SpeedLoop_GetIqTarget() : 0.0f;
+    ctx->speed_iq_target = ctx->speed_loop_active
+                               ? Motor_Control_EncoderCoggingAssist(motor, Motor_SpeedLoop_GetIqTarget())
+                               : 0.0f;
     /*
      * 有感速度环接管前仍靠 ol_iq_set 起转。Park 角已来自转子传感器，此时 Iq 的符号
      * 直接决定转矩方向；反转命令必须先给负 Iq，不能沿用开环旋转磁场下的正 Iq。
@@ -678,6 +731,45 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
     }
     /* 电流目标已按 soft/drag 比例爬升；电压上限不再叠乘 soft，避免积分顶满后过流。 */
     voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, &motor->id_target, &motor->iq_target);
+    if (MOTOR_ENCODER_SPEED_VOLTAGE_MODE != 0U && ctx.speed_loop_active &&
+        Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER) {
+        float voltage_mode_limit = MOTOR_ENCODER_SPEED_VOLT_LIMIT_V;
+        float vq_feedforward = 0.0f;
+        float vq;
+
+        if (voltage_mode_limit > v_limit) {
+            voltage_mode_limit = v_limit;
+        }
+        if (voltage_mode_limit < 0.0f) {
+            voltage_mode_limit = 0.0f;
+        }
+        if (motor->ol_target_rpm > 0.0f) {
+            vq_feedforward = MOTOR_ENCODER_SPEED_FF_BOOST_V +
+                             MOTOR_ENCODER_SPEED_FF_V_PER_RPM * fabsf(motor->ol_target_rpm);
+        } else if (motor->ol_target_rpm < 0.0f) {
+            vq_feedforward = -(MOTOR_ENCODER_SPEED_FF_BOOST_V +
+                               MOTOR_ENCODER_SPEED_FF_V_PER_RPM * fabsf(motor->ol_target_rpm));
+        }
+        vq = (ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP + vq_feedforward) *
+             ctx.soft_current_scale;
+        if (vq > voltage_mode_limit) {
+            vq = voltage_mode_limit;
+        } else if (vq < -voltage_mode_limit) {
+            vq = -voltage_mode_limit;
+        }
+
+        /*
+         * SimpleFOC 式电压速度模式：目标转速提供基础电压前馈，速度 PI 只修正误差；
+         * 编码器仍提供 Park 角，但 Vq 不依赖低分辨率电流反馈。
+         * 电流 PI 的本拍结果被忽略，并使其积分跟随实际电压，避免切回电流模式时突跳。
+         */
+        voltage.vd = 0.0f;
+        voltage.vq = vq;
+        motor->id_target = 0.0f;
+        motor->iq_target = ctx.speed_iq_target * ctx.soft_current_scale;
+        motor->ol_vd_int = 0.0f;
+        motor->ol_vq_int = vq;
+    }
     /* 编码器 PLL 只提供转速反馈；恢复基线期间不向电流环叠加 ODrive 速度前馈。 */
     ctrl->fw.last_vd = voltage.vd;
     ctrl->fw.last_vq = voltage.vq;

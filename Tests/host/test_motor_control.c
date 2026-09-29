@@ -583,17 +583,19 @@ int main(void)
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(s_speed_fb_valid);
         assert(s_last_speed_loop_active);
-        assert(fabsf(s_speed_prime_iq + 0.05f) < 1e-5f);
+        assert(fabsf(s_speed_prime_iq + 0.08f) < 1e-5f);
 
-        /* 编码器低速直接接管：起动总 Iq=0.05 A，扣除 P=0.03 A 后预置 0.02 A。 */
+        /* 编码器低速直接接管：起动总 Iq=0.08 A，扣除 P=0.03 A 后预置 0.05 A。 */
         Motor_Control_Init(&ctrl);
         ctrl.startup.phase = MOTOR_STARTUP_DRAG_RAMP;
         ctrl.startup.soft_current_scale = 1.0f;
         ctrl.startup.drag_current_scale = 1.0f;
         m.ol_target_rpm = 30.0f;
         m.ol_current_rpm = 30.0f;
+        m.ol_max_rpm = 1800.0f;
         m.ol_min_rpm = 72.0f;
         m.ol_iq_set = 0.6f;
+        m.ol_vq_limit = 18.0f;
         m.speed_kp = 0.001f;
         m.speed_iq_limit = 0.20f;
         s_enc_rpm = 0.0f;
@@ -601,12 +603,29 @@ int main(void)
         s_last_speed_loop_active = false;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(s_last_speed_loop_active);
-        assert(fabsf(s_speed_prime_iq - 0.02f) < 1e-5f);
+        assert(fabsf(s_speed_prime_iq - 0.05f) < 1e-5f);
 
         s_enc_rpm = 25.0f;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(s_last_speed_loop_active);
-        assert(fabsf(s_speed_prime_iq - 0.02f) < 1e-5f); /* 接管后不重复预置 */
+        assert(fabsf(s_speed_prime_iq - 0.05f) < 1e-5f); /* 接管后不重复预置 */
+
+        /* 齿槽助推：10 RPM 内保持 0.08 A，15 RPM 衰减到 0.04 A，20 RPM 退出。 */
+        s_enc_rpm = 5.0f;
+        s_speed_iq_out = 0.01f;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(fabsf(s_last_speed_iq_target - 0.08f) < 1e-5f);
+        assert(fabsf(result.vq - 2.00f * s_last_soft_current_scale) < 1e-5f);
+
+        s_enc_rpm = 15.0f;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(fabsf(s_last_speed_iq_target - 0.04f) < 1e-5f);
+        assert(fabsf(result.vq - 1.70f * s_last_soft_current_scale) < 1e-5f);
+
+        s_enc_rpm = 20.0f;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(fabsf(s_last_speed_iq_target - 0.01f) < 1e-5f);
+        assert(fabsf(result.vq - 1.25f * s_last_soft_current_scale) < 1e-5f);
 
         /* 有效有感反馈下，零速命令保持速度闭环，不能退回启动 Iq 或 SAFE。 */
         m.ol_target_rpm = 0.0f;
@@ -618,7 +637,7 @@ int main(void)
         assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
         assert(s_last_speed_loop_active);
 
-        /* 恢复原 FOC 基线：编码器 PLL 只供转速反馈，不向电流环叠加 ODrive 电压前馈。 */
+        /* C2208 编码器速度环使用电压模式；零速命令时 Vq 为 0。 */
         s_ff_calls = 0;
         m.ol_pole_pairs = 7.0f;
         m.sensorless_flux_linkage = 0.01f;
@@ -628,7 +647,15 @@ int main(void)
         s_enc_rpm = 150.0f;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(s_ff_calls == 0);
-        assert(fabsf(result.vq - 0.2f) < 1e-4f);
+        assert(fabsf(result.vq) < 1e-4f);
+
+        /* 电压前馈跟随目标方向，反转 30 RPM 时基础前馈为 -1.1 V。 */
+        m.ol_target_rpm = -30.0f;
+        m.ol_current_rpm = -30.0f;
+        s_enc_rpm = -30.0f;
+        s_speed_iq_out = 0.0f;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(fabsf(result.vq + 1.10f * s_last_soft_current_scale) < 1e-4f);
 
         /* 无感来源不加前馈。 */
         Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_SENSORLESS);

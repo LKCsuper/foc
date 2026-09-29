@@ -75,6 +75,7 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
                            motor_feedback_sample_t *out)
 {
     motor_feedback_source_t src;
+    bool encoder_fault;
 
     if (out == NULL) {
         return;
@@ -124,7 +125,8 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
          * 调用方须先 Motor_Encoder_Update(dt)；此处不伪造有效零速。
          */
         (void)motor;
-        if (Motor_Encoder_IsZeroValid() && !Motor_Encoder_IsSignalFault()) {
+        encoder_fault = Motor_Encoder_IsSignalFault();
+        if (Motor_Encoder_IsZeroValid() && !encoder_fault) {
             out->elec_angle_rad = Motor_Encoder_GetElecAngle();
             out->angle_valid = true;
             out->used_source = MOTOR_FEEDBACK_SRC_ENCODER;
@@ -137,7 +139,7 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
         out->mech_rpm_raw = Motor_Encoder_GetRawMechRpm();
         out->mech_rpm_fast = out->mech_rpm;
         out->sample_age_s = Motor_Encoder_GetSampleAge();
-        out->speed_valid = Motor_Encoder_IsSpeedValid() && !Motor_Encoder_IsSignalFault();
+        out->speed_valid = Motor_Encoder_IsSpeedValid() && !encoder_fault;
         break;
 
     case MOTOR_FEEDBACK_SRC_HALL:

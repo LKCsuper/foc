@@ -83,7 +83,7 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
 
 /**
  * @description: 提交停机命令并清除斜坡/电流积分（不清故障锁存）。
- * @detail: enable=false、target_rpm=0，保留 mode/iq/id/speed_enable。
+ * @detail: 仅令 enable=false，保留 target_rpm/mode/iq/id/speed_enable，便于再次启动沿用目标。
  *          经 Motor_SetCommand 关断 PWM 桥臂。可在任务上下文调用。
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @return {motor_result_t} MOTOR_OK 或错误码

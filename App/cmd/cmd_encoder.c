@@ -51,11 +51,13 @@ static void Encoder_PrintStatus(void)
 
 /**
  * @description: 短时对比 MT6701 原始计数窗口转速与 PLL 转速。
- * @detail: 仅在 Shell 任务中以 10 Hz 打印，不进 ISR；最长 5 s，避免长时阻塞停机命令。
+ * @detail: Shell 打印耗时计入真实采样间隔，避免按固定 100 ms 计算导致 raw_rpm 偏高；
+ *          不进 ISR，最长 5 s，避免长时阻塞停机命令。
  */
 static void Encoder_Watch(float duration_s)
 {
     uint16_t last_count = Motor_Encoder_GetCount();
+    TickType_t last_tick = xTaskGetTickCount();
     uint32_t samples;
     uint32_t i;
     int32_t cpr = (int32_t)Hal_Encoder_CountsPerRev();
@@ -72,10 +74,13 @@ static void Encoder_Watch(float duration_s)
     PRINTF("Encoder watch %.1fs: count delta raw_rpm pll_rpm valid\r\n", (double)duration_s);
     for (i = 0U; i < samples; i++) {
         uint16_t count;
+        TickType_t now_tick;
+        TickType_t elapsed_ticks;
         int32_t delta;
         float raw_rpm;
 
         osDelay(pdMS_TO_TICKS(ENCODER_WATCH_PERIOD_MS));
+        now_tick = xTaskGetTickCount();
         count = Motor_Encoder_GetCount();
         delta = (int32_t)count - (int32_t)last_count;
         if (delta > cpr / 2) {
@@ -86,10 +91,17 @@ static void Encoder_Watch(float duration_s)
         if (motor.encoder_inverted) {
             delta = -delta;
         }
-        raw_rpm = (float)delta * (60000.0f / ((float)cpr * (float)ENCODER_WATCH_PERIOD_MS));
+        elapsed_ticks = now_tick - last_tick;
+        if (elapsed_ticks == 0U) {
+            raw_rpm = 0.0f;
+        } else {
+            raw_rpm = (float)delta * (60.0f * (float)configTICK_RATE_HZ) /
+                      ((float)cpr * (float)elapsed_ticks);
+        }
         PRINTF("  %5u %+6ld raw=%8.2f pll=%8.2f valid=%d\r\n", (unsigned)count, (long)delta,
                (double)raw_rpm, (double)Motor_Encoder_GetMechRpm(), Motor_Encoder_IsSpeedValid() ? 1 : 0);
         last_count = count;
+        last_tick = now_tick;
     }
 }
 

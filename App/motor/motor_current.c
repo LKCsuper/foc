@@ -15,9 +15,7 @@ extern "C" {
 #include "motor_foc.h"
 #include "motor_math.h"
 #include "motor_pid.h"
-#if defined(__CC_ARM) || defined(__ARMCC_VERSION) || (defined(__GNUC__) && defined(__arm__))
-#include "stm32f4xx.h"
-#endif
+#include "motor_crit.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -287,7 +285,7 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
     v.vq = Motor_Current_PI_Run(iq_target, motor->Iq, &motor->ol_vq_int, motor->ol_current_kp, motor->ol_current_ki, dt,
                                 v_limit);
 
-    Motor_Current_LimitVoltage(motor, &v, id_target - motor->Id, iq_target - motor->Iq, v_limit);
+    Motor_Current_LimitVoltage(motor, &v, id_target - motor->Id, iq_err, v_limit);
     vq_step = motor->ol_vq_int - vq_int_before;
     if (s_pi_samples < UINT32_MAX) {
         s_pi_samples++;
@@ -314,37 +312,25 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
  */
 void Motor_Current_TakePiDiag(motor_current_pi_diag_t *diag)
 {
-#if defined(__CC_ARM) || defined(__ARMCC_VERSION) || (defined(__GNUC__) && defined(__arm__))
     uint32_t primask;
-#endif
 
     if (diag == NULL) {
         return;
     }
-    memset(diag, 0, sizeof(*diag));
-#if defined(__CC_ARM) || defined(__ARMCC_VERSION) || (defined(__GNUC__) && defined(__arm__))
-    primask = __get_PRIMASK();
-    __disable_irq();
-#endif
+    primask = Motor_Crit_Enter();
     diag->samples = s_pi_samples;
     diag->clamp_samples = s_pi_clamp_samples;
     diag->vq_int_delta = s_pi_vq_int_delta;
     diag->ki = s_pi_ki;
     diag->dt = s_pi_dt;
-    if (s_pi_samples > 0U) {
-        diag->iq_err_avg = s_pi_iq_err_sum / (float)s_pi_samples;
-        diag->iq_err_abs_avg = s_pi_iq_err_abs_sum / (float)s_pi_samples;
-    }
+    diag->iq_err_avg = (s_pi_samples > 0U) ? (s_pi_iq_err_sum / (float)s_pi_samples) : 0.0f;
+    diag->iq_err_abs_avg = (s_pi_samples > 0U) ? (s_pi_iq_err_abs_sum / (float)s_pi_samples) : 0.0f;
     s_pi_samples = 0U;
     s_pi_clamp_samples = 0U;
     s_pi_iq_err_sum = 0.0f;
     s_pi_iq_err_abs_sum = 0.0f;
     s_pi_vq_int_delta = 0.0f;
-#if defined(__CC_ARM) || defined(__ARMCC_VERSION) || (defined(__GNUC__) && defined(__arm__))
-    if (primask == 0U) {
-        __enable_irq();
-    }
-#endif
+    Motor_Crit_Exit(primask);
 }
 
 /**

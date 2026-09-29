@@ -215,14 +215,14 @@ int main(void)
     pwm_safe_calls = 0;
     pwm_stop_calls = 0;
     assert(Motor_RequestStop(&motor) == MOTOR_OK);
-    assert(!motor.ol_enable && motor.ol_target_rpm == 0.0f);
+    assert(!motor.ol_enable && motor.ol_target_rpm == 200.0f);
     assert(motor.ol_vd_int == 0.0f && motor.ol_current_rpm == 0.0f);
     assert(motor.ol_iq_set == 0.5f);
     assert(speed_reset_calls == 1);
     assert(pwm_safe_calls == 0 && pwm_stop_calls == 1);
 
     assert(Motor_GetCommand(&motor, &got) == MOTOR_OK);
-    assert(!got.enable && got.target_rpm == 0.0f && got.iq_set == 0.5f);
+    assert(!got.enable && got.target_rpm == 200.0f && got.iq_set == 0.5f);
 
     motor.currentAdc[0] = 2037.0f;
     motor.currentAdc[1] = 2038.0f;

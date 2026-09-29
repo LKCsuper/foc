@@ -48,7 +48,23 @@ extern "C" {
  * 30 RPM 且 Kp=0.001 A/RPM 时比例项只有 0.03 A，实测不足以克服齿槽转矩。
  * 首次接管时会扣除 Kp*速度误差，只把不足的部分预置到积分；后续由 PI 自由增减。
  */
-#define MOTOR_ENCODER_START_IQ_A (0.05f)
+#define MOTOR_ENCODER_START_IQ_A (0.08f)
+/* 强齿槽位置的低速助推：10 RPM 内全量，20 RPM 完全退出。 */
+#define MOTOR_ENCODER_COGGING_ASSIST_FULL_RPM    (10.0f)
+#define MOTOR_ENCODER_COGGING_ASSIST_RELEASE_RPM (20.0f)
+/* BM75 低电流分辨率不足：C2208 编码器速度环直接输出 Vq。 */
+#define MOTOR_ENCODER_SPEED_VOLTAGE_MODE  (1U)
+#define MOTOR_ENCODER_SPEED_VOLT_PER_AMP  (15.0f)
+#define MOTOR_ENCODER_SPEED_VOLT_LIMIT_V  (2.0f)
+/* SimpleFOC 风格速度前馈：30 RPM=1.1 V，60 RPM=1.7 V，PI 只修正速度误差。 */
+#define MOTOR_ENCODER_SPEED_FF_BOOST_V   (0.5f)
+#define MOTOR_ENCODER_SPEED_FF_V_PER_RPM (0.02f)
+/* 低速齿槽明显，降低速度 PLL 带宽；电角度仍直接使用 MT6701 原始角度。 */
+#define MOTOR_ENCODER_PLL_BW_RAD_S (30.0f)
+/* 2026-09 上板验证：30/60 RPM 编码器电压速度环可连续稳定运行。 */
+#define MOTOR_SPEED_KP_DEFAULT       (0.003f)
+#define MOTOR_SPEED_KI_DEFAULT       (0.0005f)
+#define MOTOR_SPEED_IQ_LIMIT_DEFAULT (0.20f)
 
 /* motor_param 使用的统一铭牌接口。 */
 #define MOTOR_FIXED_MODEL              MOTOR_C2208_100T_MODEL

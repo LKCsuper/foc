@@ -48,9 +48,29 @@ static osThreadId_t s_encoder_thread;
 /* Private function prototypes -----------------------------------------------*/
 static uint32_t Motor_Task_PidPeriodTicks(void);
 static uint32_t Motor_Task_EncoderPeriodTicks(void);
+static void Motor_Task_DelayNextTick(uint32_t *tick, uint32_t period);
 static void Motor_Task_Pid(void *argument);
 static void Motor_Task_Encoder(void *argument);
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: 推进周期基准并休眠到下一拍。
+ * @detail: 本拍已错过（now 超过 tick）时按当前时间重锚，避免连续补拍。
+ * @param {uint32_t *} tick    周期基准（tick），读改写
+ * @param {uint32_t} period    本拍周期（tick）
+ * @return {*}
+ * @author: lkc
+ */
+static void Motor_Task_DelayNextTick(uint32_t *tick, uint32_t period)
+{
+    uint32_t now = osKernelGetTickCount();
+
+    if ((int32_t)(now - *tick) >= 0) {
+        *tick = now;
+    }
+    *tick += period;
+    (void)osDelayUntil(*tick);
+}
 
 /**
  * @description: 按 speed_loop_hz 计算任务周期（tick）
@@ -87,8 +107,6 @@ static uint32_t Motor_Task_PidPeriodTicks(void)
 static void Motor_Task_Pid(void *argument)
 {
     uint32_t tick;
-    uint32_t now;
-    uint32_t period;
     uint32_t last_us;
     float dt;
 
@@ -97,13 +115,7 @@ static void Motor_Task_Pid(void *argument)
     last_us = Hal_Motor_TimeUs();
 
     for (;;) {
-        now = osKernelGetTickCount();
-        period = Motor_Task_PidPeriodTicks();
-        if ((int32_t)(now - tick) >= 0) {
-            tick = now;
-        }
-        tick += period;
-        (void)osDelayUntil(tick);
+        Motor_Task_DelayNextTick(&tick, Motor_Task_PidPeriodTicks());
 
         dt = Hal_Motor_TimeElapsedSec(last_us);
         last_us = Hal_Motor_TimeUs();
@@ -135,19 +147,12 @@ static uint32_t Motor_Task_EncoderPeriodTicks(void)
 static void Motor_Task_Encoder(void *argument)
 {
     uint32_t tick;
-    uint32_t now;
-    uint32_t period;
+    const uint32_t period = Motor_Task_EncoderPeriodTicks();
 
     (void)argument;
     tick = osKernelGetTickCount();
     for (;;) {
-        now = osKernelGetTickCount();
-        period = Motor_Task_EncoderPeriodTicks();
-        if ((int32_t)(now - tick) >= 0) {
-            tick = now;
-        }
-        tick += period;
-        (void)osDelayUntil(tick);
+        Motor_Task_DelayNextTick(&tick, period);
         if (!Motor_MT6701_Poll()) {
             /* 设备未应答时退避，禁止高优先级任务连续超时饿死 Shell。 */
             (void)osDelay(pdMS_TO_TICKS(MOTOR_TASK_ENCODER_RETRY_MS));

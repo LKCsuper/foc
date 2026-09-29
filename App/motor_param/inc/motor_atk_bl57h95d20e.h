@@ -36,6 +36,18 @@ extern "C" {
 
 /* ATK 电机尚未上板标定低速起动电流，默认关闭补偿。 */
 #define MOTOR_ENCODER_START_IQ_A (0.0f)
+#define MOTOR_ENCODER_COGGING_ASSIST_FULL_RPM    (0.0f)
+#define MOTOR_ENCODER_COGGING_ASSIST_RELEASE_RPM (0.0f)
+#define MOTOR_ENCODER_SPEED_VOLTAGE_MODE  (0U)
+#define MOTOR_ENCODER_SPEED_VOLT_PER_AMP  (0.0f)
+#define MOTOR_ENCODER_SPEED_VOLT_LIMIT_V  (0.0f)
+#define MOTOR_ENCODER_SPEED_FF_BOOST_V   (0.0f)
+#define MOTOR_ENCODER_SPEED_FF_V_PER_RPM (0.0f)
+#define MOTOR_ENCODER_PLL_BW_RAD_S        (100.0f)
+/* 保留 ATK 电机原有电流速度环默认参数。 */
+#define MOTOR_SPEED_KP_DEFAULT       (0.003f)
+#define MOTOR_SPEED_KI_DEFAULT       (0.01f)
+#define MOTOR_SPEED_IQ_LIMIT_DEFAULT (2.0f)
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/

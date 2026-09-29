@@ -31,10 +31,9 @@ extern "C" {
 #define MOTOR_ENCODER_DT_MAX_S (0.1f)
 /*
  * MT6701 14 bit / 10 kHz 在低速时每帧只有 0/1 count 变化。
- * 1000 rad/s 会把量化误差放大成数十 RPM 尖峰，使速度环反复加减速。
- * 100 rad/s 约 10 ms 时间尺度，仍远快于 1 kHz 速度环需要的低速机械响应。
+ * 带宽由电机头提供：小电机低速齿槽明显时使用较低带宽，大电机保留较快响应。
+ * PLL 只估算速度；FOC 电角度仍直接取最新 MT6701 绝对计数，不受该带宽影响。
  */
-#define MOTOR_ENCODER_PLL_BW_RAD_S (100.0f)
 #define MOTOR_ENCODER_MAX_RPM (55000.0f)
 #define MOTOR_ENCODER_JUMP_MARGIN_COUNTS (2.0f)
 #define MOTOR_ENCODER_SAMPLE_TIMEOUT_S (0.002f)
@@ -612,13 +611,10 @@ float Motor_Encoder_GetMechAngle(void)
  */
 float Motor_Encoder_GetElecAngle(void)
 {
-    float pole_pairs = motor.ol_pole_pairs;
     uint16_t count = s_encoder.have_last ? s_encoder.last_count : Hal_Encoder_GetCount();
 
-    if (pole_pairs < 1.0f) {
-        pole_pairs = 1.0f;
-    }
-    return Motor_Encoder_GetElecAngleState(&s_encoder, count, pole_pairs);
+    /* 极对数下限由 GetElecAngleState 统一保证。 */
+    return Motor_Encoder_GetElecAngleState(&s_encoder, count, motor.ol_pole_pairs);
 }
 
 /**

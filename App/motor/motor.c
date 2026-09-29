@@ -17,51 +17,15 @@ extern "C" {
 #include "motor_it.h"
 #include "hal_motor.h"
 #include "motor_feedback.h"
+#include "motor_crit.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
-static uint32_t motor_crit_enter(void);
-static void motor_crit_exit(uint32_t primask);
 static bool motor_is_finite(float value);
 static bool motor_command_valid(const MOTOR_PARAM_S *motor, const motor_command_t *cmd, motor_command_t *normalized);
 /* Private functions ---------------------------------------------------------*/
-
-/**
- * @description: 进入短临界区（屏蔽 IRQ），返回进入前的 PRIMASK。
- * @return {uint32_t} 进入前 PRIMASK；非 ARM 平台返回 0
- * @author: lkc
- */
-static uint32_t motor_crit_enter(void)
-{
-#if defined(__ARM_ARCH)
-    uint32_t primask;
-
-    __asm volatile("mrs %0, primask" : "=r"(primask));
-    __asm volatile("cpsid i" ::: "memory");
-    return primask;
-#else
-    return 0U;
-#endif
-}
-
-/**
- * @description: 退出短临界区；仅当进入前 IRQ 开启时恢复。
- * @param {uint32_t} primask 进入临界区时的 PRIMASK（0=原 IRQ 开启）
- * @return {void} 无
- * @author: lkc
- */
-static void motor_crit_exit(uint32_t primask)
-{
-#if defined(__ARM_ARCH)
-    if (primask == 0U) {
-        __asm volatile("cpsie i" ::: "memory");
-    }
-#else
-    (void)primask;
-#endif
-}
 
 /**
  * @description: 判断浮点是否为有限值（非 NaN/Inf）。
@@ -125,14 +89,14 @@ motor_result_t Motor_GetCommand(const MOTOR_PARAM_S *motor, motor_command_t *cmd
         return MOTOR_ERR_NULL;
     }
 
-    primask = motor_crit_enter();
+    primask = Motor_Crit_Enter();
     cmd->enable = motor->ol_enable;
     cmd->mode = motor->ol_mode;
     cmd->target_rpm = motor->ol_target_rpm;
     cmd->iq_set = motor->ol_iq_set;
     cmd->id_set = motor->ol_id_set;
     cmd->speed_enable = motor->speed_enable;
-    motor_crit_exit(primask);
+    Motor_Crit_Exit(primask);
     return MOTOR_OK;
 }
 
@@ -166,7 +130,7 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
         return MOTOR_ERR_BUSY;
     }
 
-    primask = motor_crit_enter();
+    primask = Motor_Crit_Enter();
     mode_changed = (motor->ol_mode != normalized.mode);
     stopping = !normalized.enable;
     speed_changed = (motor->speed_enable != normalized.speed_enable);
@@ -176,7 +140,7 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
     motor->ol_iq_set = normalized.iq_set;
     motor->ol_id_set = normalized.id_set;
     motor->speed_enable = normalized.speed_enable;
-    motor_crit_exit(primask);
+    Motor_Crit_Exit(primask);
 
     if (mode_changed || stopping) {
         (void)Motor_ClearRuntimeControl(motor);
@@ -198,7 +162,7 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
 
 /**
  * @description: 提交停机命令并清除斜坡/电流积分（不清故障锁存）。
- * @detail: enable=false、target_rpm=0，保留 mode/iq/id/speed_enable。
+ * @detail: 仅令 enable=false，保留 target_rpm/mode/iq/id/speed_enable，便于再次启动沿用目标。
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @return {motor_result_t} MOTOR_OK 或错误码
  * @author: lkc
@@ -213,7 +177,6 @@ motor_result_t Motor_RequestStop(MOTOR_PARAM_S *motor)
         return result;
     }
     cmd.enable = false;
-    cmd.target_rpm = 0.0f;
     return Motor_SetCommand(motor, &cmd);
 }
 
@@ -233,7 +196,7 @@ motor_result_t Motor_GetRuntime(const MOTOR_PARAM_S *motor, motor_runtime_t *run
         return MOTOR_ERR_NULL;
     }
 
-    primask = motor_crit_enter();
+    primask = Motor_Crit_Enter();
     memcpy(runtime->currentAdc, motor->currentAdc, sizeof(runtime->currentAdc));
     memcpy(runtime->voltAdc, motor->voltAdc, sizeof(runtime->voltAdc));
     runtime->ia = motor->ia;
@@ -264,7 +227,7 @@ motor_result_t Motor_GetRuntime(const MOTOR_PARAM_S *motor, motor_runtime_t *run
     runtime->ol_theta = motor->ol_theta;
     runtime->ol_vd_int = motor->ol_vd_int;
     runtime->ol_vq_int = motor->ol_vq_int;
-    motor_crit_exit(primask);
+    Motor_Crit_Exit(primask);
     return MOTOR_OK;
 }
 
@@ -283,11 +246,11 @@ motor_result_t Motor_ClearRuntimeControl(MOTOR_PARAM_S *motor)
         return MOTOR_ERR_NULL;
     }
 
-    primask = motor_crit_enter();
+    primask = Motor_Crit_Enter();
     motor->ol_current_rpm = 0.0f;
     motor->ol_vd_int = 0.0f;
     motor->ol_vq_int = 0.0f;
-    motor_crit_exit(primask);
+    Motor_Crit_Exit(primask);
     return MOTOR_OK;
 }
 

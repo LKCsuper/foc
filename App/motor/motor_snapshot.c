@@ -8,35 +8,7 @@
 #include "motor_feedback.h"
 #include "motor_speed.h"
 #include "motor_it.h"
-
-#if defined(__CC_ARM) || defined(__ARMCC_VERSION) || (defined(__GNUC__) && defined(__arm__))
-#include "stm32f4xx.h"
-#define MOTOR_SNAPSHOT_HAS_IRQ_LOCK 1
-#else
-#define MOTOR_SNAPSHOT_HAS_IRQ_LOCK 0
-#endif
-
-static uint32_t motor_snapshot_lock(void)
-{
-#if MOTOR_SNAPSHOT_HAS_IRQ_LOCK
-    uint32_t primask = __get_PRIMASK();
-    __disable_irq();
-    return primask;
-#else
-    return 0U;
-#endif
-}
-
-static void motor_snapshot_unlock(uint32_t primask)
-{
-#if MOTOR_SNAPSHOT_HAS_IRQ_LOCK
-    if (primask == 0U) {
-        __enable_irq();
-    }
-#else
-    (void)primask;
-#endif
-}
+#include "motor_crit.h"
 
 /**
  * @description: 获取一致的只读运行快照。
@@ -58,10 +30,11 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
     }
 
     memset(&snap, 0, sizeof(snap));
-    primask = motor_snapshot_lock();
+    primask = Motor_Crit_Enter();
     snap.enable = motor->ol_enable;
     snap.mode = motor->ol_mode;
     snap.target_rpm = motor->ol_target_rpm;
+    /* V/F、速度环未运行或尚无 PI 快照时，状态页仍应显示真实斜坡转速。 */
     snap.current_rpm = motor->ol_current_rpm;
     snap.ia = motor->ia;
     snap.ib = motor->ib;
@@ -82,12 +55,13 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
     snap.speed_enable = motor->speed_enable;
     Motor_Feedback_SampleDefault(motor, motor->ol_theta, &snap.feedback);
     if (Motor_SpeedLoop_GetSnapshot(&speed_snap)) {
+        /* 速度闭环运行时显示 PI 本帧实际采用的斜坡目标，保证目标/反馈/误差来自同一帧。 */
         snap.current_rpm = speed_snap.target_rpm;
         snap.measured_rpm = speed_snap.measured_rpm;
         snap.speed_error = speed_snap.error;
         snap.speed_iq = speed_snap.iq_target;
     }
-    motor_snapshot_unlock(primask);
+    Motor_Crit_Exit(primask);
 
     /* 这些模块的诊断字段不参与速度三元组一致性，避免扩大关中断时间。 */
     snap.aligning = Motor_OpenLoop_IsAligning();
