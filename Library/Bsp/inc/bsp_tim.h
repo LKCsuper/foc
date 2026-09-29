@@ -28,7 +28,7 @@ extern "C" {
 #define HW_COUNT_TIM					(TIM3)
 #define HE_COUNT_RCC					(RCC_APB1Periph_TIM3)
 
-/* TIM4 AB 编码器：PB6/PB7，1024 线 × 4 倍频 */
+/* TIM4 AB 编码器：PB6/PB7；MT6701 配置 1024 PPR，正交 4 倍频为 4096 count/rev */
 #define BSP_ENCODER_TIM                 (TIM4)
 #define BSP_ENCODER_COUNTS              (1024U * 4U)
 

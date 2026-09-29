@@ -42,9 +42,10 @@ void Task_Init(void *argument)
 {
     Bsp_Init(); // 初始化硬件
 
-    /* 当前实机没有 AB 编码器。不要把 PB6/PB7 切到 TIM4 复用；其中 PB7
-     * 在本板定义中同时是驱动故障输入。需要编码器时再由板型配置显式启用。 */
+    PRINTF("Init MT6701 %s\r\n", Motor_MT6701_InterfaceName());
+    Motor_Encoder_Init();
     MOTOR_Param_Init();   // 初始化Flash参数（直接结构体读写，无需EasyFlash）
+    Motor_Encoder_ApplyCalibration(motor.encoder_offset_rad, motor.encoder_inverted, motor.encoder_calibrated);
 
     /*
      * 开机偏移：Flash 已有有效电流零点则直接使用；否则校准约 5 秒并自动存 Flash。

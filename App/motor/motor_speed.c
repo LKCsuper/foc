@@ -15,6 +15,8 @@ extern "C" {
 #include "motor_protect.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+/* 速度输出与误差同向顶满时，积分泄放时间常数 (s)。此期间不再累加。 */
+#define MOTOR_SPEED_LIMIT_DECAY_S 0.100f
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* 默认单实例包装，步骤 2 过渡期保留。 */
@@ -122,8 +124,9 @@ void Motor_SpeedLoop_PrimeIqState(motor_speed_state_t *state, float iq)
 
 /**
  * @description: 运行指定状态对象的速度 PI，输出 Iq 目标
- * @detail: 仅 I/F+使能且反馈有效时分频执行；输出限幅到 speed_iq_limit 并抗积分饱和，
- *          禁止制动时按转速方向削负输出
+ * @detail: 仅 I/F+使能且反馈有效时分频执行；输出限幅到 speed_iq_limit。
+ *          输出与误差同向顶满时积分按 MOTOR_SPEED_LIMIT_DECAY_S 泄放，不再累加。
+ *          禁止制动时按转速方向削负输出。
  * @param {motor_speed_state_t} *state 状态对象，不可为空
  * @param {MOTOR_PARAM_S} *motor 配置与目标来源，不可为空
  * @param {float} dt 距上一拍时间 (s)
@@ -193,18 +196,26 @@ void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, 
     state->loop_time = 0.0f;
     iq_limit = fabsf(motor->speed_iq_limit);
 
-    state->error = motor->ol_current_rpm - state->measured_rpm;
+    state->control_target_rpm = motor->ol_current_rpm;
+    state->control_measured_rpm = state->measured_rpm;
+    state->error = state->control_target_rpm - state->control_measured_rpm;
     proportional = motor->speed_kp * state->error;
     integral_candidate = state->integral + motor->speed_ki * state->error * control_dt;
     unsaturated_output = proportional + integral_candidate;
-    output = Motor_Speed_Clamp(unsaturated_output, -iq_limit, iq_limit);
 
-    if (!((unsaturated_output > iq_limit && state->error > 0.0f) ||
-          (unsaturated_output < -iq_limit && state->error < 0.0f))) {
-        state->integral = Motor_Speed_Clamp(integral_candidate, -iq_limit, iq_limit);
+    if ((unsaturated_output > iq_limit && state->error > 0.0f) ||
+        (unsaturated_output < -iq_limit && state->error < 0.0f)) {
+        float decay = control_dt / MOTOR_SPEED_LIMIT_DECAY_S;
+
+        if (decay > 1.0f) {
+            decay = 1.0f;
+        }
+        /* 同向顶满时不再累加，并按时间常数把已有积分泄掉，避免转速过了目标还满电流推。 */
+        state->integral *= (1.0f - decay);
     } else {
-        output = Motor_Speed_Clamp(proportional + state->integral, -iq_limit, iq_limit);
+        state->integral = Motor_Speed_Clamp(integral_candidate, -iq_limit, iq_limit);
     }
+    output = Motor_Speed_Clamp(proportional + state->integral, -iq_limit, iq_limit);
 
     if (!motor->speed_allow_braking) {
         if (motor->ol_current_rpm > 0.0f && output < 0.0f) {
@@ -376,6 +387,25 @@ float Motor_SpeedLoop_GetError(void)
 bool Motor_SpeedLoop_IsFeedbackValid(void)
 {
     return Motor_SpeedLoop_IsFeedbackValidState(&s_speed);
+}
+
+/**
+ * @description: 读取最近一次速度 PI 使用的同一帧目标、反馈、误差和 Iq。
+ * @param {motor_speed_snapshot_t *} snapshot  输出帧，不可为空
+ * @return {bool} true=已写出；snapshot 为空返回 false
+ * @author: lkc
+ */
+bool Motor_SpeedLoop_GetSnapshot(motor_speed_snapshot_t *snapshot)
+{
+    if (snapshot == NULL) {
+        return false;
+    }
+
+    snapshot->target_rpm = s_speed.control_target_rpm;
+    snapshot->measured_rpm = s_speed.control_measured_rpm;
+    snapshot->error = s_speed.error;
+    snapshot->iq_target = s_speed.iq_target;
+    return true;
 }
 
 #ifdef __cplusplus

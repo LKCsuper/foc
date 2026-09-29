@@ -528,7 +528,7 @@ static void Motor_OpenLoop_OutputSafe(MOTOR_PARAM_S *m)
 
 /**
  * @description: 反 Park + SVPWM，将 vd/vq 落到三相 PWM
- * @detail: Hall 电流环走 VESC foc_svm（中点 ARR/2）；其余模式仍用 svm_hqd。相序保持 A-C-B。
+ * @detail: 保留已验证的 FOC 输出基线：Hall 可选 VESC SVM，编码器与其余模式使用 svm_hqd。相序保持 A-C-B。
  * @param {MOTOR_PARAM_S} *m  电机对象（写 duty）
  * @param {float} vd          D 轴电压 (V)
  * @param {float} vq          Q 轴电压 (V)
@@ -548,13 +548,9 @@ static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq, float 
     inverse_park(vd, vq, theta, &v_alpha, &v_beta);
     Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
     hall_if = (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_HALL) &&
-              (m->ol_mode == MOTOR_OL_MODE_IF);
-    if (hall_if && MOTOR_HALL_USE_VESC_SVM) {
-        /*
-         * HD75 相序是 A-C-B。标准 foc_svm 再叠这次交换后，矢量相对已验证的
-         * svm_hqd/Hall/Park 差 180°，电流环会正反馈（150 RPM 起转 Id 到 -12A）。
-         * 输入取反后只改中点和幅值，不改旋转方向。
-         */
+              (m->ol_mode == MOTOR_OL_MODE_IF) && MOTOR_HALL_USE_VESC_SVM;
+    /* Hall 保留已验证的 VESC SVM 分支；编码器不再改写原 FOC 调制与极性约定。 */
+    if (hall_if) {
         foc_svm_from_voltage(-v_alpha, -v_beta, v_bus, MOTOR_FOC_SVM_MAX_DUTY, period, &m->duty1, &m->duty2,
                              &m->duty3, &sector);
     } else {
@@ -773,7 +769,7 @@ void Motor_It_ParamCal(void)
 
 /**
  * @description: 正常运行路径：采样、保护、分频控制与 PWM 应用
- * @detail: 故障锁存后强制 SAFE；分频未到时只统计耗时后返回
+ * @detail: 故障锁存后强制 SAFE。霍尔与编码器只在 TIM1 向下计数跑本拍；其余模式分频未到时只统计耗时后返回。
  * @return {*}
  * @author: lkc
  */
@@ -790,8 +786,12 @@ static void Motor_DmaInt_Foc(void)
      * 采样/保护/霍尔，ISR 会首尾相接，PendSV 和 UART IDLE 永远抢不到 CPU。
      */
     feedback_source = Motor_Feedback_GetSourceDefault();
-    if (feedback_source == MOTOR_FEEDBACK_SRC_HALL) {
-        /* TIM1 向下侧对应顶部零矢量：三路低边分流器同时有采样窗口。 */
+    if (feedback_source == MOTOR_FEEDBACK_SRC_HALL || feedback_source == MOTOR_FEEDBACK_SRC_ENCODER) {
+        /*
+         * TIM1 向下计数对应顶部零矢量，三路低边分流器同时导通。
+         * 这一沿已经是 15 kHz，dt 仍用 adc_dt×FOC_CONTROL_LOOP_FREQ_DIVIDER。
+         * 向上计数的 ADC 帧直接丢掉。
+         */
         if ((TIM1->CR1 & TIM_CR1_DIR) == 0U) {
             Motor_DmaInt_RecordRuntime(runtime_start);
             return;
@@ -851,7 +851,8 @@ static void Motor_DmaInt_Foc(void)
                                                Hal_Motor_PwmPeriodCounts());
 
     dt = protection_dt;
-    result = Motor_Control_Step(&s_control, &motor, motor.v_bus, dt, Motor_Hall_DetectIsActive());
+    result = Motor_Control_Step(&s_control, &motor, motor.v_bus, dt,
+                                Motor_Hall_DetectIsActive() || Motor_Encoder_DetectIsActive());
     Motor_Hall_DiagUpdate();
     /*
      * 无感可能在本拍 Step 内锁存失速。先仲裁：故障态只允许 SAFE，

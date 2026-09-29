@@ -1,5 +1,5 @@
 /*
- * @Description: AB 编码器 Shell 命令
+ * @Description: MT6701 编码器 Shell 命令
  * @Author: lkc
  */
 #ifdef __cplusplus
@@ -9,6 +9,9 @@ extern "C" {
 #include "includes.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+#define ENCODER_WATCH_PERIOD_MS (100U)
+#define ENCODER_WATCH_DEFAULT_S (2.0f)
+#define ENCODER_WATCH_MAX_S     (5.0f)
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
@@ -21,6 +24,9 @@ extern "C" {
  */
 static void Encoder_PrintStatus(void)
 {
+    motor_mt6701_status_t mt;
+
+    Motor_MT6701_GetStatus(&mt);
     PRINTF("Encoder count=%u / %u\r\n",
            (unsigned)Motor_Encoder_GetCount(),
            (unsigned)Hal_Encoder_CountsPerRev());
@@ -30,10 +36,65 @@ static void Encoder_PrintStatus(void)
     PRINTF("  elec=%.3f rad (%.1f deg)\r\n",
            Motor_Encoder_GetElecAngle(),
            Motor_Encoder_GetElecAngle() * 180.0f / (float)M_PI);
+    PRINTF("  rpm=%.2f raw=%.2f valid=%d edge_age=%.4f s sample_age=%.4f s\r\n",
+           Motor_Encoder_GetMechRpm(), Motor_Encoder_GetRawMechRpm(),
+           Motor_Encoder_IsSpeedValid() ? 1 : 0, Motor_Encoder_GetEdgeAge(), Motor_Encoder_GetSampleAge());
+    PRINTF("  zero_valid=%d signal_fault=%d rejected=%lu\r\n",
+           Motor_Encoder_IsZeroValid() ? 1 : 0, Motor_Encoder_IsSignalFault() ? 1 : 0,
+           (unsigned long)Motor_Encoder_GetInvalidCount());
+    PRINTF("  %s@%luHz valid=%d ok=%lu err=%lu crc_err=%lu consecutive=%lu mag=0x%X\r\n",
+           Motor_MT6701_InterfaceName(), (unsigned long)MOTOR_MT6701_POLL_HZ, mt.valid ? 1 : 0,
+           (unsigned long)mt.success_count,
+           (unsigned long)mt.error_count, (unsigned long)mt.crc_error_count,
+           (unsigned long)mt.consecutive_errors, (unsigned)mt.magnetic_status);
 }
 
 /**
- * @description: AB 编码器：show / reset / detect
+ * @description: 短时对比 MT6701 原始计数窗口转速与 PLL 转速。
+ * @detail: 仅在 Shell 任务中以 10 Hz 打印，不进 ISR；最长 5 s，避免长时阻塞停机命令。
+ */
+static void Encoder_Watch(float duration_s)
+{
+    uint16_t last_count = Motor_Encoder_GetCount();
+    uint32_t samples;
+    uint32_t i;
+    int32_t cpr = (int32_t)Hal_Encoder_CountsPerRev();
+
+    if (duration_s <= 0.0f) {
+        duration_s = ENCODER_WATCH_DEFAULT_S;
+    } else if (duration_s > ENCODER_WATCH_MAX_S) {
+        duration_s = ENCODER_WATCH_MAX_S;
+    }
+    samples = (uint32_t)(duration_s * 1000.0f / (float)ENCODER_WATCH_PERIOD_MS);
+    if (samples < 1U) {
+        samples = 1U;
+    }
+    PRINTF("Encoder watch %.1fs: count delta raw_rpm pll_rpm valid\r\n", (double)duration_s);
+    for (i = 0U; i < samples; i++) {
+        uint16_t count;
+        int32_t delta;
+        float raw_rpm;
+
+        osDelay(pdMS_TO_TICKS(ENCODER_WATCH_PERIOD_MS));
+        count = Motor_Encoder_GetCount();
+        delta = (int32_t)count - (int32_t)last_count;
+        if (delta > cpr / 2) {
+            delta -= cpr;
+        } else if (delta < -(cpr / 2)) {
+            delta += cpr;
+        }
+        if (motor.encoder_inverted) {
+            delta = -delta;
+        }
+        raw_rpm = (float)delta * (60000.0f / ((float)cpr * (float)ENCODER_WATCH_PERIOD_MS));
+        PRINTF("  %5u %+6ld raw=%8.2f pll=%8.2f valid=%d\r\n", (unsigned)count, (long)delta,
+               (double)raw_rpm, (double)Motor_Encoder_GetMechRpm(), Motor_Encoder_IsSpeedValid() ? 1 : 0);
+        last_count = count;
+    }
+}
+
+/**
+ * @description: MT6701 编码器：show / reset / detect / watch
  * @param {int} argc
  * @param {char} *argv[]
  * @return {int} 0 成功，-1 失败
@@ -47,7 +108,7 @@ int Cmd_Motor_Encoder(int argc, char *argv[])
     }
     if (strcmp(argv[1], "reset") == 0) {
         Motor_Encoder_Reset();
-        PRINTF("Encoder count cleared\r\n");
+        PRINTF("Encoder software zero cleared\r\n");
         Encoder_PrintStatus();
         return 0;
     }
@@ -55,8 +116,14 @@ int Cmd_Motor_Encoder(int argc, char *argv[])
         Motor_Encoder_Detect();
         return 0;
     }
+    if (strcmp(argv[1], "watch") == 0) {
+        float duration_s = (argc >= 3) ? strtof(argv[2], NULL) : ENCODER_WATCH_DEFAULT_S;
 
-    PRINTF("usage: encoder [show|reset|detect]\r\n");
+        Encoder_Watch(duration_s);
+        return 0;
+    }
+
+    PRINTF("usage: encoder [show|reset|detect|watch [seconds]]\r\n");
     return -1;
 }
 

@@ -127,6 +127,11 @@ VOID Bsp_Init(VOID)
 
 	/* 串口初始化 */
 	Bsp_Usart_DebugInit(DEBUG_USART_BAUD);
+	/*
+	 * 开机第一条日志必须早于 ADC、DMA、PWM、传感器和任务初始化。
+	 * 此时 TX DMA 尚未启用，PRINTF 自动走轮询发送，便于定位后续初始化卡点。
+	 */
+	PRINTF("\r\nFOC boot, UART4=%lu 8N1\r\n", (unsigned long)DEBUG_USART_BAUD);
 
 	/* 初始化定时器1 pwm */
 	// TODO 注意: 如果初始化顺序 Tim Adc Dma 如果tim和dma中断中间没有加打印,串口就会死掉

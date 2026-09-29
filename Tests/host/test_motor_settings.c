@@ -47,8 +47,8 @@ int main(void)
     assert(save_calls == 0);
     assert(Motor_Settings_Capture(&motor, &settings));
     assert(Motor_Settings_Encode(&settings, data, sizeof(data)));
-    /* First schema word is max RPM=3000.0, IEEE754 0x453b8000, little endian. */
-    assert(data[0] == 0 && data[1] == 0x80 && data[2] == 0x3b && data[3] == 0x45);
+    /* First schema word is the selected motor's max RPM in little-endian IEEE754. */
+    assert(memcmp(data, &motor.ol_max_rpm, sizeof(float)) == 0);
     assert(Motor_Settings_Decode(data, sizeof(data), &decoded));
     assert(Motor_Settings_Encode(&decoded, other, sizeof(other)));
     assert(memcmp(data, other, sizeof(data)) == 0);
@@ -73,6 +73,9 @@ int main(void)
     /* Reject invalid settings and malformed wire data without partial publication. */
     before = decoded;
     for (i = 0; i < sizeof(data); ++i) {
+        if (i == MOTOR_SETTINGS_WIRE_SIZE_V2) {
+            continue;
+        }
         assert(!Motor_Settings_Decode(data, i, &decoded));
         assert(memcmp(&decoded, &before, sizeof(decoded)) == 0);
     }
@@ -128,10 +131,10 @@ int main(void)
     assert(motor.ol_current_kp == 0.35f);
     settings.config.ol_pole_pairs = 4.0f;
     assert(!Motor_Settings_ApplyConfig(&motor, &settings.config));
-    assert(motor.ol_pole_pairs == 2.0f);
+    assert(motor.ol_pole_pairs == MOTOR_FIXED_POLE_PAIRS);
     assert(!Motor_Settings_Apply(&motor, &settings));
     motor.ol_enable = false;
-    settings.config.ol_pole_pairs = 2.0f;
+    settings.config.ol_pole_pairs = MOTOR_FIXED_POLE_PAIRS;
     assert(Motor_Settings_Apply(&motor, &settings));
 
     puts("PASS: settings codec, validation, state isolation and initialization");

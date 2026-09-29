@@ -97,10 +97,6 @@ static bool motor_command_valid(const MOTOR_PARAM_S *motor, const motor_command_
     if (!motor_is_finite(out.target_rpm) || !motor_is_finite(out.iq_set) || !motor_is_finite(out.id_set)) {
         return false;
     }
-    if (out.iq_set < 0.0f) {
-        return false;
-    }
-
     if (motor->ol_max_rpm > 0.0f && motor_is_finite(motor->ol_max_rpm)) {
         if (out.target_rpm > motor->ol_max_rpm) {
             out.target_rpm = motor->ol_max_rpm;
@@ -142,7 +138,7 @@ motor_result_t Motor_GetCommand(const MOTOR_PARAM_S *motor, motor_command_t *cmd
 
 /**
  * @description: 校验并整体提交命令到电机对象。
- * @detail: 拒绝 NaN/Inf、非法模式与负 Iq 幅值；按 ol_max_rpm 限幅目标转速。
+ * @detail: 拒绝 NaN/Inf 与非法模式；Iq 符号表示转矩方向；按 ol_max_rpm 限幅目标转速。
  *          短临界区写入 enable/mode/目标电流/速度环开关。模式变化或停机时清零
  *          电流积分与斜坡转速，并复位速度环状态。不写 Flash。
  *          成功后按 enable 同步功率桥：使能则 PwmStart，停机则 PwmStop
@@ -197,61 +193,6 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
         /* 旋转中三相 50% 同步 PWM 会形成主动短路制动；停机命令应关断桥臂。 */
         Hal_Motor_PwmStop();
     }
-    return MOTOR_OK;
-}
-
-/**
- * @description: 获取一致的只读运行快照。
- * @detail: 短临界区拷贝样本与命令相关字段，再读取保护/速度环只读接口。
- * @param {const MOTOR_PARAM_S *} motor 电机对象，不可为空
- * @param {motor_status_t *} status 输出快照，不可为空
- * @return {motor_result_t} MOTOR_OK 或 MOTOR_ERR_NULL
- * @author: lkc
- */
-motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *status)
-{
-    uint32_t primask;
-    motor_status_t snap;
-
-    if (motor == NULL || status == NULL) {
-        return MOTOR_ERR_NULL;
-    }
-
-    memset(&snap, 0, sizeof(snap));
-    primask = motor_crit_enter();
-    snap.enable = motor->ol_enable;
-    snap.mode = motor->ol_mode;
-    snap.target_rpm = motor->ol_target_rpm;
-    snap.current_rpm = motor->ol_current_rpm;
-    snap.ia = motor->ia;
-    snap.ib = motor->ib;
-    snap.ic = motor->ic;
-    memcpy(snap.current_adc, motor->currentAdc, sizeof(snap.current_adc));
-    memcpy(snap.current_offset, motor->currentOffset, sizeof(snap.current_offset));
-    snap.id = motor->Id;
-    snap.iq = motor->Iq;
-    snap.id_target = motor->id_target;
-    snap.iq_target = motor->iq_target;
-    snap.v_bus = motor->v_bus;
-    snap.theta = motor->theta;
-    snap.duty1 = motor->duty1;
-    snap.duty2 = motor->duty2;
-    snap.duty3 = motor->duty3;
-    snap.vd_int = motor->ol_vd_int;
-    snap.vq_int = motor->ol_vq_int;
-    snap.speed_enable = motor->speed_enable;
-    Motor_Feedback_SampleDefault(motor, motor->ol_theta, &snap.feedback);
-    snap.measured_rpm = Motor_SpeedLoop_GetMeasuredRpm();
-    snap.speed_error = Motor_SpeedLoop_GetError();
-    snap.speed_iq = Motor_SpeedLoop_GetIqTarget();
-    motor_crit_exit(primask);
-
-    snap.aligning = Motor_OpenLoop_IsAligning();
-    snap.align_elapsed_s = Motor_OpenLoop_GetAlignElapsed();
-    snap.fault = Motor_Protect_GetFault();
-    snap.fault_latched = Motor_Protect_IsFaultLatched();
-
-    *status = snap;
     return MOTOR_OK;
 }
 

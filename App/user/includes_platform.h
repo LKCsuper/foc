@@ -72,6 +72,8 @@ extern "C" {
 #include "bsp_flash.h"
 #include "bsp_it.h"
 #include "bsp_hall.h"
+#include "bsp_i2c.h"
+#include "bsp_mt6701_ssi.h"
 #include "bsp.h"
 
 /* hal — App 只调 HAL，寄存器仅留在 Library/Hal/port */

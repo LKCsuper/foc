@@ -16,6 +16,7 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 #define CMD_BUF_SIZE        160U        /* 单行输入缓冲 */
 #define CMD_MAX_ARGS        8U          /* 最多参数个数（含命令名） */
+#define CMD_HISTORY_COUNT   8U          /* 最近执行的命令条数 */
 /* Private macro -------------------------------------------------------------*/
 /* -- 前向声明：所有命令函数统一签名 int func(int argc, char *argv[]) ----------*/
 
@@ -168,6 +169,13 @@ static void cmd_dispatch(char *line)
 /* -- 回显 & 编辑支持 --------------------------------------------------------*/
 static char     s_cmd_buf[CMD_BUF_SIZE];
 static uint8_t  s_cmd_len;
+static char     s_cmd_history[CMD_HISTORY_COUNT][CMD_BUF_SIZE];
+static char     s_cmd_draft[CMD_BUF_SIZE];
+static uint8_t  s_cmd_history_head;
+static uint8_t  s_cmd_history_count;
+static uint8_t  s_cmd_history_depth;
+static uint8_t  s_cmd_draft_len;
+static uint8_t  s_cmd_escape_state;
 
 /**
  * @description: 把上电以来的时基格式化为 `[T+秒.毫秒s]`。
@@ -212,13 +220,106 @@ static void cmd_print_run_stamp(const char *line)
     printf("%s > %s\r\n", ts, line);
 }
 
+static void cmd_replace_line(const char *line)
+{
+    while (s_cmd_len > 0U) {
+        cmd_putc('\b');
+        cmd_putc(' ');
+        cmd_putc('\b');
+        s_cmd_len--;
+    }
+
+    while ((line[s_cmd_len] != '\0') && (s_cmd_len < (CMD_BUF_SIZE - 1U))) {
+        s_cmd_buf[s_cmd_len] = line[s_cmd_len];
+        cmd_putc(s_cmd_buf[s_cmd_len]);
+        s_cmd_len++;
+    }
+    s_cmd_buf[s_cmd_len] = '\0';
+}
+
+static void cmd_history_add(const char *line)
+{
+    uint8_t latest;
+
+    if (s_cmd_history_count > 0U) {
+        latest = (uint8_t)((s_cmd_history_head + CMD_HISTORY_COUNT - 1U) % CMD_HISTORY_COUNT);
+        if (strcmp(line, s_cmd_history[latest]) == 0) {
+            return;
+        }
+    }
+
+    strncpy(s_cmd_history[s_cmd_history_head], line, CMD_BUF_SIZE - 1U);
+    s_cmd_history[s_cmd_history_head][CMD_BUF_SIZE - 1U] = '\0';
+    s_cmd_history_head = (uint8_t)((s_cmd_history_head + 1U) % CMD_HISTORY_COUNT);
+    if (s_cmd_history_count < CMD_HISTORY_COUNT) {
+        s_cmd_history_count++;
+    }
+}
+
+static void cmd_history_up(void)
+{
+    uint8_t index;
+
+    if ((s_cmd_history_count == 0U) || (s_cmd_history_depth >= s_cmd_history_count)) {
+        return;
+    }
+
+    if (s_cmd_history_depth == 0U) {
+        memcpy(s_cmd_draft, s_cmd_buf, s_cmd_len);
+        s_cmd_draft[s_cmd_len] = '\0';
+        s_cmd_draft_len = s_cmd_len;
+    }
+
+    s_cmd_history_depth++;
+    index = (uint8_t)((s_cmd_history_head + CMD_HISTORY_COUNT - s_cmd_history_depth) % CMD_HISTORY_COUNT);
+    cmd_replace_line(s_cmd_history[index]);
+}
+
+static void cmd_history_down(void)
+{
+    uint8_t index;
+
+    if (s_cmd_history_depth == 0U) {
+        return;
+    }
+
+    s_cmd_history_depth--;
+    if (s_cmd_history_depth == 0U) {
+        s_cmd_draft[s_cmd_draft_len] = '\0';
+        cmd_replace_line(s_cmd_draft);
+        return;
+    }
+
+    index = (uint8_t)((s_cmd_history_head + CMD_HISTORY_COUNT - s_cmd_history_depth) % CMD_HISTORY_COUNT);
+    cmd_replace_line(s_cmd_history[index]);
+}
+
 static void cmd_handle_char(char c)
 {
+    if (s_cmd_escape_state == 1U) {
+        s_cmd_escape_state = (c == '[') ? 2U : 0U;
+        return;
+    }
+    if (s_cmd_escape_state == 2U) {
+        if (c == 'A') {
+            cmd_history_up();
+        } else if (c == 'B') {
+            cmd_history_down();
+        }
+        s_cmd_escape_state = 0U;
+        return;
+    }
+    if ((uint8_t)c == 0x1BU) {
+        s_cmd_escape_state = 1U;
+        return;
+    }
+
     if (c == '\r' || c == '\n') {
         cmd_putc('\r');
         cmd_putc('\n');
         if (s_cmd_len > 0) {
             s_cmd_buf[s_cmd_len] = '\0';
+            cmd_history_add(s_cmd_buf);
             cmd_print_run_stamp(s_cmd_buf);
             if (strcmp(s_cmd_buf, "help") == 0) {
                 unsigned int i;
@@ -231,15 +332,19 @@ static void cmd_handle_char(char c)
             }
             s_cmd_len = 0;
         }
+        s_cmd_history_depth = 0U;
+        s_cmd_draft_len = 0U;
         cmd_put_prompt();
     } else if (c == '\b' || c == 0x7F) {
         if (s_cmd_len > 0) {
+            s_cmd_history_depth = 0U;
             s_cmd_len--;
             cmd_putc('\b');
             cmd_putc(' ');
             cmd_putc('\b');
         }
     } else if (c >= ' ' && s_cmd_len < CMD_BUF_SIZE - 1) {
+        s_cmd_history_depth = 0U;
         s_cmd_buf[s_cmd_len++] = c;
         cmd_putc(c);
     }

@@ -15,6 +15,9 @@ extern "C" {
 #include "motor_foc.h"
 #include "motor_math.h"
 #include "motor_pid.h"
+#if defined(__CC_ARM) || defined(__ARMCC_VERSION) || (defined(__GNUC__) && defined(__arm__))
+#include "stm32f4xx.h"
+#endif
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -25,6 +28,13 @@ static uint32_t s_recon_hits;    /* 本档重构次数 */
 static uint32_t s_recon_hit_a;
 static uint32_t s_recon_hit_b;
 static uint32_t s_recon_hit_c;
+static uint32_t s_pi_samples;
+static uint32_t s_pi_clamp_samples;
+static float s_pi_iq_err_sum;
+static float s_pi_iq_err_abs_sum;
+static float s_pi_vq_int_delta;
+static float s_pi_ki;
+static float s_pi_dt;
 /* Private function prototypes -----------------------------------------------*/
 static void motor_current_account_recon(uint8_t phase);
 /* Private functions ---------------------------------------------------------*/
@@ -262,17 +272,79 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
 {
     motor_dq_voltage_t v = {0.0f, 0.0f};
 
+    float iq_err;
+    float vq_int_before;
+    float vq_step;
+
     if (motor == NULL) {
         return v;
     }
 
+    iq_err = iq_target - motor->Iq;
+    vq_int_before = motor->ol_vq_int;
     v.vd = Motor_Current_PI_Run(id_target, motor->Id, &motor->ol_vd_int, motor->ol_current_kp, motor->ol_current_ki, dt,
                                 v_limit);
     v.vq = Motor_Current_PI_Run(iq_target, motor->Iq, &motor->ol_vq_int, motor->ol_current_kp, motor->ol_current_ki, dt,
                                 v_limit);
 
     Motor_Current_LimitVoltage(motor, &v, id_target - motor->Id, iq_target - motor->Iq, v_limit);
+    vq_step = motor->ol_vq_int - vq_int_before;
+    if (s_pi_samples < UINT32_MAX) {
+        s_pi_samples++;
+    }
+    s_pi_iq_err_sum += iq_err;
+    s_pi_iq_err_abs_sum += fabsf(iq_err);
+    s_pi_vq_int_delta += vq_step;
+    s_pi_ki = motor->ol_current_ki;
+    s_pi_dt = dt;
+    if (fabsf(vq_step - iq_err * motor->ol_current_ki * dt) > 1.0e-4f) {
+        if (s_pi_clamp_samples < UINT32_MAX) {
+            s_pi_clamp_samples++;
+        }
+    }
     return v;
+}
+
+/**
+ * @description: 读出并清零 q 轴电流 PI 统计
+ * @detail: 关中断后复制，避免和 FOC 中断同时改累加器。samples 为 0 时平均值记 0。
+ * @param {motor_current_pi_diag_t *} diag  输出统计，不可为空
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_Current_TakePiDiag(motor_current_pi_diag_t *diag)
+{
+#if defined(__CC_ARM) || defined(__ARMCC_VERSION) || (defined(__GNUC__) && defined(__arm__))
+    uint32_t primask;
+#endif
+
+    if (diag == NULL) {
+        return;
+    }
+    memset(diag, 0, sizeof(*diag));
+#if defined(__CC_ARM) || defined(__ARMCC_VERSION) || (defined(__GNUC__) && defined(__arm__))
+    primask = __get_PRIMASK();
+    __disable_irq();
+#endif
+    diag->samples = s_pi_samples;
+    diag->clamp_samples = s_pi_clamp_samples;
+    diag->vq_int_delta = s_pi_vq_int_delta;
+    diag->ki = s_pi_ki;
+    diag->dt = s_pi_dt;
+    if (s_pi_samples > 0U) {
+        diag->iq_err_avg = s_pi_iq_err_sum / (float)s_pi_samples;
+        diag->iq_err_abs_avg = s_pi_iq_err_abs_sum / (float)s_pi_samples;
+    }
+    s_pi_samples = 0U;
+    s_pi_clamp_samples = 0U;
+    s_pi_iq_err_sum = 0.0f;
+    s_pi_iq_err_abs_sum = 0.0f;
+    s_pi_vq_int_delta = 0.0f;
+#if defined(__CC_ARM) || defined(__ARMCC_VERSION) || (defined(__GNUC__) && defined(__arm__))
+    if (primask == 0U) {
+        __enable_irq();
+    }
+#endif
 }
 
 /**

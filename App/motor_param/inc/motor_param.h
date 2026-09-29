@@ -125,6 +125,9 @@ typedef struct motor_param {
     float currentOffset[3];      /* 电流偏移 */
     float voltOffset[3];         /* 电压偏移 */
     float voltundrivenOffset[3]; /* 电压无负载偏移 */
+    float encoder_offset_rad;    /* 绝对编码器电角偏置 rad */
+    bool encoder_inverted;       /* 编码器方向取反 */
+    bool encoder_calibrated;     /* 方向与零点已标定 */
 
     /* ---- command ---- */
     bool ol_enable; /* open-loop enable */

@@ -1,5 +1,11 @@
 /*
- * @Description: ATK-BL57H95D20E 铭牌参数（更换电机时只改本文件）
+ * @Description:
+ * @Version: 1.0
+ * @Author: lkc
+ * @detail:
+ */
+/*
+ * @Description: 当前电机型号选择入口
  * @Author: lkc
  */
 #ifndef MOTOR_NAMEPLATE_H
@@ -9,30 +15,35 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define MOTOR_FIXED_MODEL              "ATK-BL57H95D20E" /* 型号 */
-#define MOTOR_FIXED_POLE_COUNT         (4U)              /* 磁极数 */
-#define MOTOR_FIXED_POLE_PAIRS         (2.0f)            /* 极对数 = 磁极数 / 2 */
-#define MOTOR_FIXED_PHASE_COUNT        (3U)              /* 相数 */
-#define MOTOR_FIXED_RATED_VOLTAGE      (24.0f)           /* 额定电压 VDC */
-#define MOTOR_FIXED_RATED_RPM          (3000.0f)         /* 额定转速 RPM */
-#define MOTOR_FIXED_RATED_TORQUE       (0.33f)           /* 额定扭矩 N·m */
-#define MOTOR_FIXED_RATED_CURRENT      (6.6f)            /* 额定电流 A */
-#define MOTOR_FIXED_OUTPUT_POWER       (105.0f)          /* 输出功率 W */
-#define MOTOR_FIXED_PEAK_TORQUE        (4.2f)            /* 峰值扭矩 N·m */
-#define MOTOR_FIXED_PEAK_CURRENT       (19.8f)           /* 峰值电流 A */
-#define MOTOR_FIXED_TORQUE_CONSTANT    (0.063f)          /* 力矩常数 N·m/A */
-#define MOTOR_FIXED_BACK_EMF           (6.6f)            /* 线间 RMS 反电势 V/kRPM */
-#define MOTOR_FIXED_LINE_RESISTANCE    (0.4f)            /* 线电阻 Ω */
-#define MOTOR_FIXED_LINE_INDUCTANCE_MH (0.8f)            /* 线电感 mH */
-#define MOTOR_FIXED_LINE_INDUCTANCE    (0.0008f)         /* 线电感 H，0.8 mH */
-#define MOTOR_FIXED_INERTIA            (210.0f)          /* 转动惯量 g·cm^2 */
-#define MOTOR_FIXED_BODY_LENGTH        (95.0f)           /* 机身长度 mm */
-#define MOTOR_FIXED_WEIGHT             (1.0f)            /* 重量 kg */
+#define MOTOR_MODEL_ATK_BL57H95D20E (1U)
+#define MOTOR_MODEL_C2208_100T      (2U)
+
 /*
- * 磁链由线间 RMS Ke 换算：λ = Ke / (128.25498 × 极对数)。
- * 6.6 V/kRPM、2 极对 → 25.73 mWb。
+ * 在工程设置中定义 MOTOR_SELECTED_MODEL 可覆盖默认选择；也可在此处修改默认型号。
+ * 当前默认保持 ATK-BL57H95D20E，避免改变已有控制参数和上板基线。
  */
-#define MOTOR_FIXED_FLUX_LINKAGE (0.02573f)
+#ifndef MOTOR_SELECTED_MODEL
+#define MOTOR_SELECTED_MODEL MOTOR_MODEL_C2208_100T
+#endif
+
+#if MOTOR_SELECTED_MODEL == MOTOR_MODEL_ATK_BL57H95D20E
+#include "motor_atk_bl57h95d20e.h"
+#elif MOTOR_SELECTED_MODEL == MOTOR_MODEL_C2208_100T
+#include "motor_c2208_100t.h"
+#else
+#error "Unsupported MOTOR_SELECTED_MODEL"
+#endif
+
+#if !defined(MOTOR_FIXED_MODEL) || !defined(MOTOR_FIXED_POLE_PAIRS) || !defined(MOTOR_FIXED_RATED_RPM) ||       \
+    !defined(MOTOR_FIXED_LINE_RESISTANCE) || !defined(MOTOR_FIXED_LINE_INDUCTANCE) ||                          \
+    !defined(MOTOR_FIXED_FLUX_LINKAGE)
+#error "Selected motor header does not provide the required MOTOR_FIXED_* parameters"
+#endif
+
+/* 旧的自定义电机头未提供补偿参数时保持关闭，避免改变原行为。 */
+#ifndef MOTOR_ENCODER_START_IQ_A
+#define MOTOR_ENCODER_START_IQ_A (0.0f)
+#endif
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/

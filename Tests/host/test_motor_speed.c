@@ -20,6 +20,7 @@ int main(void)
     MOTOR_PARAM_S motor_b;
     float dt = 0.001f;
     unsigned i;
+    motor_speed_snapshot_t speed_snapshot;
 
     memset(&motor_a, 0, sizeof(motor_a));
     memset(&motor_b, 0, sizeof(motor_b));
@@ -119,8 +120,30 @@ int main(void)
     Motor_SpeedLoop_PrimeIq(0.5f);
     Motor_SpeedLoop_Run(&motor_a, dt);
     assert(Motor_SpeedLoop_GetIqTarget() != 0.0f);
+    assert(Motor_SpeedLoop_GetSnapshot(&speed_snapshot));
+    assert(fabsf(speed_snapshot.error -
+                 (speed_snapshot.target_rpm - speed_snapshot.measured_rpm)) < 1e-6f);
     Motor_SpeedLoop_Reset();
     assert(Motor_SpeedLoop_GetIqTarget() == 0.0f);
+
+    /* 输出顶满时积分要泄放，不能停在限幅上把转速继续推过目标。 */
+    Motor_SpeedLoop_ResetState(&a);
+    motor_a.ol_target_rpm = 150.0f;
+    motor_a.ol_current_rpm = 150.0f;
+    motor_a.speed_kp = 0.002f;
+    motor_a.speed_ki = 0.004f;
+    motor_a.speed_iq_limit = 0.08f;
+    motor_a.speed_allow_braking = true;
+    motor_a.speed_loop_hz = 1000.0f;
+    Motor_SpeedFeedback_SetState(&a, 80.0f, true);
+    Motor_SpeedLoop_PrimeIqState(&a, 0.08f);
+    for (i = 0; i < 30U; ++i) {
+        Motor_SpeedLoop_RunState(&a, &motor_a, dt);
+    }
+    /* 1 kHz 下约每拍乘 0.99；30 ms 后应保留约 0.059 A。 */
+    assert(a.integral < 0.065f);
+    assert(a.integral > 0.055f);
+    assert(Motor_SpeedLoop_GetIqTargetState(&a) > 0.0f);
 
     printf("test_motor_speed: pass\n");
     return 0;

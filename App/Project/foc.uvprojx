@@ -670,6 +670,16 @@
               <FileType>1</FileType>
               <FilePath>..\..\Library\Bsp\bsp_it.c</FilePath>
             </File>
+            <File>
+              <FileName>bsp_i2c.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Library\Bsp\bsp_i2c.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_mt6701_ssi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Library\Bsp\bsp_mt6701_ssi.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -1073,6 +1083,11 @@
               <FileType>1</FileType>
               <FilePath>..\motor\motor.c</FilePath>
             </File>
+            <File>
+              <FileName>motor_snapshot.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_snapshot.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -1202,6 +1217,11 @@
               <FileName>motor_encoder.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor_sensor\motor_encoder.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_mt6701.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_sensor\motor_mt6701.c</FilePath>
             </File>
             <File>
               <FileName>motor_phase_order.c</FileName>

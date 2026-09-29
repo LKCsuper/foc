@@ -236,6 +236,10 @@ static bool settings_valid(const motor_settings_t *s)
             return false;
         }
     }
+    if (!isfinite(s->calibration.encoder_offset_rad) || s->calibration.encoder_offset_rad < 0.0f ||
+        s->calibration.encoder_offset_rad >= 6.28318530718f) {
+        return false;
+    }
     return true;
 }
 
@@ -302,6 +306,9 @@ bool Motor_Settings_Capture(const MOTOR_PARAM_S *motor, motor_settings_t *settin
     memcpy(candidate.calibration.undriven_offset, motor->voltundrivenOffset,
            sizeof(candidate.calibration.undriven_offset));
     memcpy(candidate.calibration.hall_table, motor->hall_table, sizeof(candidate.calibration.hall_table));
+    candidate.calibration.encoder_offset_rad = motor->encoder_offset_rad;
+    candidate.calibration.encoder_inverted = motor->encoder_inverted;
+    candidate.calibration.encoder_calibrated = motor->encoder_calibrated;
     if (!settings_valid(&candidate)) {
         return false;
     }
@@ -381,6 +388,9 @@ bool Motor_Settings_Apply(MOTOR_PARAM_S *motor, const motor_settings_t *settings
     memcpy(motor->voltOffset, settings->calibration.voltage_offset, sizeof(motor->voltOffset));
     memcpy(motor->voltundrivenOffset, settings->calibration.undriven_offset, sizeof(motor->voltundrivenOffset));
     memcpy(motor->hall_table, settings->calibration.hall_table, sizeof(motor->hall_table));
+    motor->encoder_offset_rad = settings->calibration.encoder_offset_rad;
+    motor->encoder_inverted = settings->calibration.encoder_inverted;
+    motor->encoder_calibrated = settings->calibration.encoder_calibrated;
     return true;
 }
 
@@ -583,6 +593,10 @@ bool Motor_Settings_Encode(const motor_settings_t *settings, uint8_t *data, uint
         put_float(&p, settings->calibration.undriven_offset[i]);
     }
     memcpy(p, settings->calibration.hall_table, MOTOR_HALL_TABLE_SIZE);
+    p += MOTOR_HALL_TABLE_SIZE;
+    put_float(&p, settings->calibration.encoder_offset_rad);
+    put_word(&p, settings->calibration.encoder_inverted);
+    put_word(&p, settings->calibration.encoder_calibrated);
     return true;
 }
 
@@ -601,7 +615,7 @@ bool Motor_Settings_Decode(const uint8_t *data, uint32_t size, motor_settings_t 
     motor_settings_t candidate;
     uint32_t word;
     unsigned i;
-    if (data == NULL || settings == NULL || size != MOTOR_SETTINGS_WIRE_SIZE) {
+    if (data == NULL || settings == NULL || (size != MOTOR_SETTINGS_WIRE_SIZE && size != MOTOR_SETTINGS_WIRE_SIZE_V2)) {
         return false;
     }
     memset(&candidate, 0, sizeof(candidate));
@@ -690,6 +704,16 @@ bool Motor_Settings_Decode(const uint8_t *data, uint32_t size, motor_settings_t 
         candidate.calibration.undriven_offset[i] = get_float(&p);
     }
     memcpy(candidate.calibration.hall_table, p, MOTOR_HALL_TABLE_SIZE);
+    p += MOTOR_HALL_TABLE_SIZE;
+    if (size == MOTOR_SETTINGS_WIRE_SIZE) {
+        candidate.calibration.encoder_offset_rad = get_float(&p);
+        word = get_word(&p);
+        if (word > 1U) return false;
+        candidate.calibration.encoder_inverted = (bool)word;
+        word = get_word(&p);
+        if (word > 1U) return false;
+        candidate.calibration.encoder_calibrated = (bool)word;
+    }
     if (!settings_valid(&candidate)) {
         return false;
     }

@@ -42,6 +42,26 @@ float Motor_Encoder_GetMechRpm(void)
     return s_enc_rpm;
 }
 
+float Motor_Encoder_GetRawMechRpm(void)
+{
+    return s_enc_rpm;
+}
+
+float Motor_Encoder_GetEdgeAge(void)
+{
+    return 0.0f;
+}
+
+float Motor_Encoder_GetSampleAge(void)
+{
+    return 0.0001f;
+}
+
+bool Motor_Encoder_IsSignalFault(void)
+{
+    return false;
+}
+
 bool Motor_Encoder_IsSpeedValid(void)
 {
     return s_enc_speed_valid;

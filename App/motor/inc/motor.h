@@ -14,6 +14,7 @@ extern "C" {
 #include "motor_types.h"
 #include "motor_settings.h"
 #include "motor_feedback.h"
+#include "motor_snapshot.h"
 /* Private typedef -----------------------------------------------------------*/
 
 /**
@@ -34,45 +35,10 @@ typedef struct {
     bool enable;       /* true=允许输出；false=停机命令 */
     int mode;          /* MOTOR_OL_MODE_VF 或 MOTOR_OL_MODE_IF */
     float target_rpm;  /* 目标机械转速 (RPM)，负数为反转；零不等于停机 */
-    float iq_set;      /* I/F 目标 Iq 幅值 (A)，符号由转速方向决定 */
+    float iq_set;      /* I/F 目标 Iq (A)，正负表示转矩方向 */
     float id_set;      /* I/F 目标 Id (A) */
     bool speed_enable; /* true=速度环生成 Iq；仍须观测器反馈有效 */
 } motor_command_t;
-
-/**
- * @description: 只读运行快照，供 Shell/日志一次读取，避免跨周期拼接。
- */
-typedef struct {
-    bool enable;
-    int mode;
-    float target_rpm;  /* RPM */
-    float current_rpm; /* 斜坡转速 RPM */
-    float ia;          /* A */
-    float ib;          /* A */
-    float ic;          /* A */
-    float current_adc[3];    /* CURR1/2/3 原始 ADC 计数，与 abc 同一快照 */
-    float current_offset[3]; /* CURR1/2/3 零偏 ADC 计数 */
-    float id;          /* A */
-    float iq;          /* A */
-    float id_target;   /* 本拍电流环 Id 目标 A */
-    float iq_target;   /* 本拍电流环 Iq 目标 A */
-    float v_bus;       /* V */
-    float theta;       /* 本拍 Park/PWM 电角度 rad */
-    uint32_t duty1;    /* TIM1 CCR1 */
-    uint32_t duty2;    /* TIM1 CCR2 */
-    uint32_t duty3;    /* TIM1 CCR3 */
-    float vd_int;      /* V */
-    float vq_int;      /* V */
-    bool speed_enable;
-    float measured_rpm; /* 速度环反馈 RPM；无效时为 0 */
-    float speed_error;  /* 与 measured_rpm 同一快照时刻的速度误差 RPM */
-    float speed_iq;     /* 速度环 Iq 目标 A */
-    motor_feedback_sample_t feedback; /* 同一时刻的统一转子反馈样本 */
-    bool aligning;
-    float align_elapsed_s; /* s */
-    mc_fault_code fault;
-    bool fault_latched;
-} motor_status_t;
 
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -92,7 +58,7 @@ motor_result_t Motor_GetCommand(const MOTOR_PARAM_S *motor, motor_command_t *cmd
 
 /**
  * @description: 校验并整体提交命令到电机对象。
- * @detail: 拒绝 NaN/Inf、非法模式与负 Iq 幅值；按 ol_max_rpm 限幅目标转速。
+ * @detail: 拒绝 NaN/Inf 与非法模式；Iq 符号表示转矩方向；按 ol_max_rpm 限幅目标转速。
  *          短临界区写入 enable/mode/目标电流/速度环开关。模式变化或停机时清零
  *          电流积分与斜坡转速，并复位速度环状态。不写 Flash。
  *          成功后按 enable 同步功率桥（PwmStart / PwmSetSafe）；Shell 勿再直写 PWM。

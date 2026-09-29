@@ -55,7 +55,7 @@ int main(void)
     assert(!FlashStorage_Load(&out, &detect));
     m.ol_current_kp = 0.2f;
     assert(FlashStorage_Save(&m, &detect));
-    assert(a->format_version == 2 && a->payload_size == MOTOR_SETTINGS_WIRE_SIZE);
+    assert(a->format_version == FLASH_STORAGE_FORMAT_VERSION && a->payload_size == MOTOR_SETTINGS_WIRE_SIZE);
     assert(FlashStorage_Load(&out, &detect) && out.ol_current_kp == 0.2f);
     out.ol_target_rpm = 987;
     out.ol_vd_int = 456;

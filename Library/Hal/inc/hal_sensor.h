@@ -18,21 +18,21 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 初始化 AB 正交编码器定时器
+ * @description: 初始化当前编码器硬件接口（MT6701 使用 I2C2）
  * @return {*}
  * @author: lkc
  */
 void Hal_Encoder_Init(void);
 
 /**
- * @description: 读取编码器计数值
+ * @description: 读取最近一次完整编码器角度快照
  * @return {uint16_t} 当前计数
  * @author: lkc
  */
 uint16_t Hal_Encoder_GetCount(void);
 
 /**
- * @description: 设置编码器计数值
+ * @description: 发布编码器角度快照
  * @param {uint16_t} count 目标计数
  * @return {*}
  * @author: lkc
@@ -45,6 +45,18 @@ void Hal_Encoder_SetCount(uint16_t count);
  * @author: lkc
  */
 uint32_t Hal_Encoder_CountsPerRev(void);
+
+/**
+ * @description: 读取位置传感器 I2C 寄存器。
+ * @param {uint8_t} address_7bit 7 位设备地址
+ * @param {uint8_t} reg          寄存器地址
+ * @param {uint8_t *} value      输出数据，不可为空
+ * @return {bool} true=读取成功
+ */
+bool Hal_Encoder_I2cReadRegister(uint8_t address_7bit, uint8_t reg, uint8_t *value);
+
+void Hal_Encoder_SsiInit(void);
+bool Hal_Encoder_SsiReadFrame(uint32_t *frame);
 
 /**
  * @description: 读取三相霍尔状态

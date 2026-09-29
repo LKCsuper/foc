@@ -5,7 +5,7 @@
  * @Date: 2025-07-13
  * @detail:
  *   静态命令表 + 最简 tokenizer + 串口回显，去掉 linker section 自动发现、
- *   历史记录、Tab 补全、用户认证等嵌入式调试用不上的功能，约 200 行。
+ *   保留方向键命令历史，去掉 linker section 自动发现、Tab 补全和用户认证。
  */
 #ifndef _COMMAND_H
 #define _COMMAND_H

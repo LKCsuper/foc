@@ -19,7 +19,9 @@ extern "C" {
 #include "motor_sensorless.h"
 #include "motor_feedback.h"
 #include "motor_hall.h"
+#include "motor_encoder.h"
 /* Private define ------------------------------------------------------------*/
+/* 机械 RPM → rad/s，再乘极对数得到电角速度。 */
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -506,7 +508,8 @@ static void Motor_Control_PublishSensoredSpeed(MOTOR_PARAM_S *motor)
 
 /**
  * @description: 判断当前转速是否已达到速度 PI 的平滑接管门槛
- * @detail: 门槛至少为启动转速的一半；一旦接管，须跌到约 30% 才退回启动 Iq，避免 72 RPM 直起时在门槛附近来回切。
+ * @detail: 编码器速度有效后立即交给速度 PI，低速和反转都不退回启动 Iq。
+ *          霍尔与无感仍用转速门槛：至少为启动转速的一半，跌到约 30% 才退回启动 Iq。
  */
 static bool Motor_Control_SpeedLoopReady(motor_control_t *ctrl, const MOTOR_PARAM_S *motor)
 {
@@ -520,8 +523,11 @@ static bool Motor_Control_SpeedLoopReady(motor_control_t *ctrl, const MOTOR_PARA
         }
         return false;
     }
-    /* 零速是闭环命令而非重新启动，须持续由速度 PI 管理，不能跌回启动 Iq。 */
-    if (motor->ol_target_rpm == 0.0f) {
+    /*
+     * 编码器角和速度从第一拍起就有效。退回固定启动 Iq 会在电流环已经跟上时把轴来回猛推。
+     * 零速命令同样必须留在速度 PI 里。
+     */
+    if (motor->ol_target_rpm == 0.0f || Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER) {
         ctrl->speed_loop_latched = true;
         return true;
     }
@@ -672,12 +678,9 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
     }
     /* 电流目标已按 soft/drag 比例爬升；电压上限不再叠乘 soft，避免积分顶满后过流。 */
     voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, &motor->id_target, &motor->iq_target);
+    /* 编码器 PLL 只提供转速反馈；恢复基线期间不向电流环叠加 ODrive 速度前馈。 */
     ctrl->fw.last_vd = voltage.vd;
     ctrl->fw.last_vq = voltage.vq;
-    /*
-     * I/F 的 Park 角是开环磁场角，不是转子角。ωψf 前馈必须在转子 dq 上；
-     * 加在 I/F 轴上会随转速把 Id/Iq 打偏（72 RPM 还行，300 RPM 见过 0.17 A 或 1.0/1.1 A）。
-     */
     return Motor_Control_ResultDq(voltage.vd, voltage.vq, theta);
 }
 
@@ -736,7 +739,8 @@ static motor_control_result_t Motor_Control_RunHallDetect(MOTOR_PARAM_S *motor, 
     float v_limit;
     motor_dq_voltage_t voltage;
 
-    if (!Motor_Hall_DetectGetTargets(motor, &theta, &id_target, &iq_target)) {
+    if (!Motor_Encoder_DetectGetTargets(&theta, &id_target, &iq_target) &&
+        !Motor_Hall_DetectGetTargets(motor, &theta, &id_target, &iq_target)) {
         return Motor_Control_ResultSafe();
     }
 
@@ -897,15 +901,48 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
                 if (Motor_Control_SpeedLoopReady(ctrl, motor)) {
                     if (!was_latched) {
                         /*
-                         * 与无感接管相同：用当前启动 Iq 预置积分。
-                         * 从 0 A 起算时 Kp=0.006 在 36 RPM 误差上只有约 0.2 A，齿槽会把转子拽停。
+                         * 速度 PI 首次接管时预置起动转矩，避免从 0 A 慢积分。
+                         * 编码器使用当前电机的小电流预置；后续由 PI 自由增减，
+                         * 不再按转速强制一个电流下限，因此不会在退出阈值反复起停。
                          */
                         float ref_rpm = motor->ol_current_rpm;
+                        float prime_iq;
 
                         if (fabsf(ref_rpm) < 1.0f) {
                             ref_rpm = motor->ol_target_rpm;
                         }
-                        Motor_SpeedLoop_PrimeIq(SIGN(ref_rpm) * fabsf(motor->ol_iq_set));
+                        if (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER) {
+                            float command_rpm = motor->ol_target_rpm;
+                            float direction = command_rpm > 0.0f ? 1.0f : (command_rpm < 0.0f ? -1.0f : 0.0f);
+                            float measured_rpm = Motor_SpeedLoop_GetMeasuredRpm();
+                            float iq_limit = fabsf(motor->speed_iq_limit);
+                            float desired_iq = direction * fminf(MOTOR_ENCODER_START_IQ_A, iq_limit);
+                            float proportional = motor->speed_kp * (command_rpm - measured_rpm);
+
+                            /*
+                             * MOTOR_ENCODER_START_IQ_A 是启动总电流，不是额外叠加的积分。
+                             * 例如 30 RPM、Kp=0.001 时 P=0.03 A，只预置剩余 0.02 A。
+                             * 已沿命令方向转起来时不再注入静摩擦启动电流。
+                             */
+                            if (direction == 0.0f || direction * measured_rpm > 5.0f) {
+                                prime_iq = 0.0f;
+                            } else {
+                                prime_iq = desired_iq - proportional;
+                                if ((direction > 0.0f && prime_iq < 0.0f) ||
+                                    (direction < 0.0f && prime_iq > 0.0f)) {
+                                    prime_iq = 0.0f;
+                                }
+                                if (prime_iq > iq_limit) {
+                                    prime_iq = iq_limit;
+                                } else if (prime_iq < -iq_limit) {
+                                    prime_iq = -iq_limit;
+                                }
+                            }
+                        } else {
+                            prime_iq = fminf(fabsf(motor->ol_iq_set), fabsf(motor->speed_iq_limit));
+                            prime_iq = SIGN(ref_rpm) * prime_iq;
+                        }
+                        Motor_SpeedLoop_PrimeIq(prime_iq);
                     }
                     /* 速度 PI 在 foc pid 任务中积分；本拍电流环先用预置/上一拍 Iq。 */
                     Motor_SpeedLoop_SetRunAllowed(true);

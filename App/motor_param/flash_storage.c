@@ -64,14 +64,19 @@ static bool flash_storage_get_slot(uint8_t index, hal_flash_slot_t *slot)
 static bool flash_storage_valid(const flash_storage_t *storage)
 {
     uint32_t crc;
+    uint32_t committed;
+    uint32_t expected_size;
     motor_settings_t settings;
 
-    if (storage->magic != FLASH_STORAGE_MAGIC || storage->format_version != FLASH_STORAGE_FORMAT_VERSION ||
-        storage->payload_size != MOTOR_SETTINGS_WIRE_SIZE || storage->committed != FLASH_STORAGE_COMMITTED) {
+    expected_size = storage->format_version == FLASH_STORAGE_FORMAT_VERSION ? MOTOR_SETTINGS_WIRE_SIZE :
+                    storage->format_version == FLASH_STORAGE_FORMAT_VERSION_V2 ? MOTOR_SETTINGS_WIRE_SIZE_V2 : 0U;
+    if (storage->magic != FLASH_STORAGE_MAGIC || storage->payload_size != expected_size || expected_size == 0U) {
         return false;
     }
+    memcpy(&committed, storage->payload + storage->payload_size, sizeof(committed));
+    if (committed != FLASH_STORAGE_COMMITTED) return false;
 
-    crc = utils_crc32c((uint8_t *)storage->payload, MOTOR_SETTINGS_WIRE_SIZE);
+    crc = utils_crc32c((uint8_t *)storage->payload, storage->payload_size);
     return crc == storage->crc32 && Motor_Settings_Decode(storage->payload, storage->payload_size, &settings);
 }
 

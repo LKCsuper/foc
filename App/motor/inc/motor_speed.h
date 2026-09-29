@@ -30,10 +30,20 @@ typedef struct {
     float integral;  /* PI 积分 A */
     float error;     /* 速度误差 RPM */
     float iq_target; /* Iq 目标 A */
+    float control_target_rpm;   /* 最近一次 PI 计算实际使用的目标 RPM */
+    float control_measured_rpm; /* 最近一次 PI 计算实际使用的反馈 RPM */
     bool zero_brake_active;    /* 零速制动已锁定进入时的方向 */
     bool zero_brake_released;  /* 已越过零点，在新的非零指令前保持释放 */
     int8_t zero_brake_direction;
 } motor_speed_state_t;
+
+/** 最近一次速度 PI 计算帧；四个字段来自同一次计算。 */
+typedef struct {
+    float target_rpm;
+    float measured_rpm;
+    float error;
+    float iq_target;
+} motor_speed_snapshot_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
@@ -190,6 +200,14 @@ float Motor_SpeedLoop_GetError(void);
  * @author: lkc
  */
 bool Motor_SpeedLoop_IsFeedbackValid(void);
+
+/**
+ * @description: 读取最近一次速度 PI 使用的同一帧目标、反馈、误差和 Iq。
+ * @param {motor_speed_snapshot_t *} snapshot  输出帧，不可为空
+ * @return {bool} true=已写出；snapshot 为空返回 false
+ * @author: lkc
+ */
+bool Motor_SpeedLoop_GetSnapshot(motor_speed_snapshot_t *snapshot);
 /* Private functions ---------------------------------------------------------*/
 #ifdef __cplusplus
 }

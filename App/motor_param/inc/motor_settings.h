@@ -62,6 +62,9 @@ typedef struct {
     float voltage_offset[3];                   /* 采样点 V */
     float undriven_offset[3];                  /* 采样点 V */
     uint8_t hall_table[MOTOR_HALL_TABLE_SIZE]; /* 0..200，255 未标定；保留旧表字节编码 */
+    float encoder_offset_rad;
+    bool encoder_inverted;
+    bool encoder_calibrated;
 } motor_calibration_t;
 
 typedef struct {
@@ -71,7 +74,8 @@ typedef struct {
 
 /* v2 固定线格式：配置字、9 个 IEEE754 binary32、8 个霍尔字节。
  * 顺序固定，修改字段/顺序/编码必须更新 Flash 格式版本。禁止直接写 sizeof(struct)。 */
-#define MOTOR_SETTINGS_WIRE_SIZE (216U)
+#define MOTOR_SETTINGS_WIRE_SIZE_V2 (216U)
+#define MOTOR_SETTINGS_WIRE_SIZE    (228U)
 
 /**
  * @description: 从旧电机对象提取配置/校准；调用者保证快照一致，不提取命令和积分。

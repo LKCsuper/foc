@@ -1,11 +1,11 @@
 /*
- * @Description: AB 增量编码器（TIM4 正交 4 倍频）
+ * @Description: 编码器角度、速度与零点处理（当前硬件源为 MT6701）
  * @Author: lkc
  *
  * 学习要点：
  *   1) 电角绝对有效仅在零点标定（Detect）之后；上电仅清零计数不等于已标定。
- *   2) 速度由计数差分/回绕估算；angle_valid 与 speed_valid 分开。
- *   3) *State API 供主机双实例测试；默认包装读 HAL。
+ *   2) FOC 电角使用最新已验收的绝对计数；ODrive 临界阻尼 PLL 只估算转速。
+ *   3) *State API 供主机双实例测试；默认包装读 HAL。绝对角查询仍用原始计数。
  */
 #ifndef MOTOR_ENCODER_H
 #define MOTOR_ENCODER_H
@@ -18,7 +18,7 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /**
- * @description: 编码器运行时（计数差分、零点偏置与速度有效标志）
+ * @description: 编码器运行时（ODrive PLL、零点偏置与速度有效标志）
  */
 typedef struct {
     uint32_t counts_per_rev; /* 每机械圈计数（含倍频） */
@@ -26,10 +26,19 @@ typedef struct {
     float elec_offset_rad;   /* 电角度零点偏置 (rad) */
     bool zero_valid;         /* Detect/MarkZero 成功后为 true */
 
-    uint16_t last_count; /* 上一拍计数 */
+    uint16_t last_count; /* 上一拍原始计数 */
     bool have_last;      /* 是否已有上一拍（首拍速度无效） */
-    float mech_rpm;      /* 机械转速 (RPM) */
+    bool pll_inverted;   /* pll_pos 采用的方向；与 inverted 不一致时重锚 */
+    float pll_pos;       /* PLL 位置 (count)，范围 [0, cpr) */
+    float pll_vel;       /* PLL 速度 (count/s)，近零已打成 0 */
+    float edge_age_s;    /* 距最近一次计数变化的时间 (s) */
+    float sample_age_s;  /* 距最近一次传感器新帧的时间 (s) */
+    float mech_rpm_raw;  /* snap 前的机械转速 (RPM) */
+    float mech_rpm;      /* snap 后的机械转速 (RPM) */
     bool speed_valid;    /* 本拍速度是否可信 */
+    bool signal_fault;   /* 检出不可能的计数跳变 */
+    bool sample_stale;   /* 传感器新帧超时 */
+    uint32_t invalid_count; /* 累计拒绝的异常样本数 */
 } motor_encoder_runtime_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -46,8 +55,8 @@ typedef struct {
 void Motor_Encoder_RuntimeInit(motor_encoder_runtime_t *rt, uint32_t counts_per_rev, bool inverted);
 
 /**
- * @description: 用新计数与采样间隔更新机械转速（处理计数回绕）
- * @detail: 不修改电角零点；dt 过小/过大或首拍时 speed_valid=false
+ * @description: 用新计数更新 ODrive PLL 的位置与转速
+ * @detail: 不修改电角零点；dt 过小/过大或首拍时 speed_valid=false。带宽约 100 rad/s。
  * @param {motor_encoder_runtime_t} *rt  运行时状态
  * @param {uint16_t} count               当前正交解码计数值
  * @param {float} dt_s                   距上一拍时间 (s)
@@ -57,7 +66,17 @@ void Motor_Encoder_RuntimeInit(motor_encoder_runtime_t *rt, uint32_t counts_per_
 void Motor_Encoder_UpdateState(motor_encoder_runtime_t *rt, uint16_t count, float dt_s);
 
 /**
- * @description: 由运行时与当前计数计算单圈机械角
+ * @description: 没有新传感器帧时只按 PLL 速度预测位置。
+ * @detail: 采样年龄超过超时后清 speed_valid，不把缺帧当成零速。
+ * @param {motor_encoder_runtime_t *} rt  运行时状态
+ * @param {float} dt_s                    距上一拍时间 (s)
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_Encoder_PredictState(motor_encoder_runtime_t *rt, float dt_s);
+
+/**
+ * @description: 由原始计数计算单圈机械角（标定用，不含 PLL 插值）
  * @param {const motor_encoder_runtime_t} *rt  运行时状态
  * @param {uint16_t} count                     当前计数值
  * @return {float} 机械角度 (rad)，归一化到 [0, 2π)
@@ -83,6 +102,34 @@ float Motor_Encoder_GetElecAngleState(const motor_encoder_runtime_t *rt, uint16_
  * @author: lkc
  */
 float Motor_Encoder_GetMechRpmState(const motor_encoder_runtime_t *rt);
+
+/**
+ * @description: 读取近零 snap 前的机械转速
+ * @param {const motor_encoder_runtime_t} *rt  运行时状态
+ * @return {float} 原始机械转速 (RPM)
+ */
+float Motor_Encoder_GetRawMechRpmState(const motor_encoder_runtime_t *rt);
+
+/**
+ * @description: 读取距最近一次计数变化的时间
+ * @param {const motor_encoder_runtime_t} *rt  运行时状态
+ * @return {float} 边沿年龄 (s)
+ */
+float Motor_Encoder_GetEdgeAgeState(const motor_encoder_runtime_t *rt);
+
+/**
+ * @description: 查询是否检测到不合理计数跳变
+ * @param {const motor_encoder_runtime_t} *rt  运行时状态
+ * @return {bool} true=当前信号故障
+ */
+bool Motor_Encoder_IsSignalFaultState(const motor_encoder_runtime_t *rt);
+
+/**
+ * @description: 读取累计异常样本数
+ * @param {const motor_encoder_runtime_t} *rt  运行时状态
+ * @return {uint32_t} 被拒绝样本数
+ */
+uint32_t Motor_Encoder_GetInvalidCountState(const motor_encoder_runtime_t *rt);
 
 /**
  * @description: 查询本拍机械转速是否可信
@@ -111,7 +158,7 @@ bool Motor_Encoder_IsZeroValidState(const motor_encoder_runtime_t *rt);
 void Motor_Encoder_MarkZeroState(motor_encoder_runtime_t *rt, uint16_t count, float pole_pairs);
 
 /**
- * @description: 清除电角零点与速度差分历史（Reset 路径用）
+ * @description: 清除电角零点与 PLL 历史（Reset 路径用）
  * @param {motor_encoder_runtime_t} *rt  运行时状态
  * @return {*}
  * @author: lkc
@@ -150,7 +197,7 @@ void Motor_Encoder_Reset(void);
 void Motor_Encoder_Update(float dt_s);
 
 /**
- * @description: 读取默认实例当前机械角（结合 HAL 计数）
+ * @description: 读取默认实例最新已验收的机械角（不使用 PLL 预测位置）
  * @return {float} 机械角度 (rad)，[0, 2π)
  * @author: lkc
  */
@@ -170,6 +217,25 @@ float Motor_Encoder_GetElecAngle(void);
  * @author: lkc
  */
 float Motor_Encoder_GetMechRpm(void);
+
+/** @description: 读取默认实例原始机械转速 (RPM) */
+float Motor_Encoder_GetRawMechRpm(void);
+
+/** @description: 读取默认实例距最近一次计数变化的时间 (s) */
+float Motor_Encoder_GetEdgeAge(void);
+
+/**
+ * @description: 读取默认实例距最近一次 SSI/I2C 新帧的时间。
+ * @return {float} 采样年龄 (s)
+ * @author: lkc
+ */
+float Motor_Encoder_GetSampleAge(void);
+
+/** @description: 查询默认实例是否检测到信号跳变故障 */
+bool Motor_Encoder_IsSignalFault(void);
+
+/** @description: 读取默认实例累计异常样本数 */
+uint32_t Motor_Encoder_GetInvalidCount(void);
 
 /**
  * @description: 查询默认实例本拍转速是否有效
@@ -192,6 +258,33 @@ bool Motor_Encoder_IsZeroValid(void);
  * @author: lkc
  */
 void Motor_Encoder_Detect(void);
+
+/**
+ * @description: 查询编码器电角零点对齐是否正在占用控制输出。
+ * @return {bool} true=对齐进行中，本拍输出由检测目标决定
+ * @author: lkc
+ */
+bool Motor_Encoder_DetectIsActive(void);
+
+/**
+ * @description: 读取编码器对齐阶段的固定电角和 Id 目标。
+ * @param {float *} theta_rad   输出电角度 (rad)，不可为空
+ * @param {float *} id_target   输出 Id 目标 (A)，不可为空
+ * @param {float *} iq_target   输出 Iq 目标 (A)，不可为空；对齐时为 0
+ * @return {bool} true=对齐进行中且三个指针都已写出
+ * @author: lkc
+ */
+bool Motor_Encoder_DetectGetTargets(float *theta_rad, float *id_target, float *iq_target);
+
+/**
+ * @description: 把已保存的编码器零点和方向装回运行时。
+ * @param {float} offset_rad  电角零点 (rad)；valid 为 false 时忽略
+ * @param {bool} inverted     true=机械正方向与计数方向相反
+ * @param {bool} valid        true=零点可用
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_Encoder_ApplyCalibration(float offset_rad, bool inverted, bool valid);
 /* Private functions ---------------------------------------------------------*/
 #ifdef __cplusplus
 }

@@ -16,6 +16,7 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+static volatile uint16_t s_encoder_count;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -295,44 +296,59 @@ bool Hal_Motor_HasThreeShunts(void)
 }
 
 /**
- * @description: 初始化 AB 正交编码器
+ * @description: 初始化 MT6701 使用的 I2C2 外设
  * @return {*}
  * @author: lkc
  */
 void Hal_Encoder_Init(void)
 {
-    Bsp_Tim4_EncInit();
+    Bsp_I2c2_Init();
 }
 
 /**
- * @description: 读取编码器计数值
- * @return {uint16_t} 当前计数
+ * @description: 读取后台任务发布的 MT6701 14 位角度快照
+ * @return {uint16_t} 当前绝对角度计数
  * @author: lkc
  */
 uint16_t Hal_Encoder_GetCount(void)
 {
-    return Bsp_Tim4_EncGetCount();
+    return s_encoder_count;
 }
 
 /**
- * @description: 设置编码器计数值
- * @param {uint16_t} count
+ * @description: 发布 MT6701 14 位角度快照
+ * @param {uint16_t} count 角度计数
  * @return {*}
  * @author: lkc
  */
 void Hal_Encoder_SetCount(uint16_t count)
 {
-    Bsp_Tim4_EncSetCount(count);
+    s_encoder_count = count;
 }
 
 /**
- * @description: 每机械圈计数值
+ * @description: MT6701 14 位绝对角度每机械圈计数值
  * @return {uint32_t} count/rev
  * @author: lkc
  */
 uint32_t Hal_Encoder_CountsPerRev(void)
 {
-    return (uint32_t)BSP_ENCODER_COUNTS;
+    return 16384U;
+}
+
+bool Hal_Encoder_I2cReadRegister(uint8_t address_7bit, uint8_t reg, uint8_t *value)
+{
+    return Bsp_I2c2_ReadRegister(address_7bit, reg, value);
+}
+
+void Hal_Encoder_SsiInit(void)
+{
+    Bsp_MT6701_SsiInit();
+}
+
+bool Hal_Encoder_SsiReadFrame(uint32_t *frame)
+{
+    return Bsp_MT6701_SsiReadFrame(frame);
 }
 
 /**

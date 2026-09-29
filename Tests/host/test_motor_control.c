@@ -111,6 +111,27 @@ float Motor_Encoder_GetMechRpm(void)
     return s_enc_rpm;
 }
 
+float Motor_Encoder_GetRawMechRpm(void)
+{
+    return s_enc_rpm;
+}
+
+float Motor_Encoder_GetEdgeAge(void)
+{
+    return 0.0f;
+}
+
+
+float Motor_Encoder_GetSampleAge(void)
+{
+    return 0.0001f;
+}
+
+bool Motor_Encoder_IsSignalFault(void)
+{
+    return false;
+}
+
 bool Motor_Encoder_IsSpeedValid(void)
 {
     return s_enc_speed_ok;
@@ -169,6 +190,14 @@ bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad, float *id_t
     return false;
 }
 
+bool Motor_Encoder_DetectGetTargets(float *theta_rad, float *id_target, float *iq_target)
+{
+    (void)theta_rad;
+    (void)id_target;
+    (void)iq_target;
+    return false;
+}
+
 void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
 {
     (void)motor;
@@ -184,6 +213,21 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
     (void)dt;
     (void)v_limit;
     return v;
+}
+
+static int s_ff_calls;
+
+void Motor_Current_ApplySpeedFeedforward(motor_dq_voltage_t *v, float omega_e, float inductance, float flux,
+                                         float id_ref, float iq_ref, float v_limit)
+{
+    (void)inductance;
+    (void)id_ref;
+    (void)iq_ref;
+    (void)v_limit;
+    s_ff_calls++;
+    if (v != NULL) {
+        v->vq += omega_e * flux;
+    }
 }
 
 motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const motor_current_target_ctx_t *ctx,
@@ -495,6 +539,7 @@ int main(void)
         m.ol_ramp_rpm_s = 0.0f;
         m.ol_theta = 0.25f;
         m.speed_enable = true;
+        m.speed_iq_limit = 0.20f;
         s_enc_zero = true;
         s_enc_elec = 1.57f;
         s_enc_rpm = 321.0f;
@@ -512,6 +557,7 @@ int main(void)
         assert(s_speed_fb_valid);
         assert(fabsf(s_speed_fb_rpm - 321.0f) < 1e-3f);
         assert(s_last_speed_loop_active);
+        assert(fabsf(s_speed_prime_iq) < 1e-5f); /* 电机已在沿目标方向转动，不加启动预置 */
         /* Step 只置允许标志；Iq 由 foc pid 任务（此处手动 Run）在下一拍被电流环读到。 */
         Motor_SpeedLoop_Run(&m, 0.001f);
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
@@ -524,45 +570,43 @@ int main(void)
         assert(!s_speed_fb_valid);
         assert(!s_last_speed_loop_active);
 
-        /* 有感反转未达到速度 PI 接管门槛时，启动 Iq 必须先翻为负转矩。 */
+        /* 编码器反转也留在速度 PI，不退回带符号的启动 Iq。 */
         s_enc_zero = true;
         s_enc_rpm = 28.0f;
         m.ol_target_rpm = -150.0f;
         m.ol_current_rpm = -150.0f;
         m.ol_min_rpm = 500.0f;
+        m.ol_iq_set = 0.6f;
+        s_speed_prime_iq = 0.0f;
         s_last_speed_loop_active = false;
         s_last_if_iq_scale = 0.0f;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(s_speed_fb_valid);
-        assert(!s_last_speed_loop_active);
-        assert(s_last_if_iq_scale < 0.0f);
+        assert(s_last_speed_loop_active);
+        assert(fabsf(s_speed_prime_iq + 0.05f) < 1e-5f);
 
-        /* 有感直起：低于 50% 门槛用启动 Iq；越过后门限滞回，预置启动电流。 */
+        /* 编码器低速直接接管：起动总 Iq=0.05 A，扣除 P=0.03 A 后预置 0.02 A。 */
         Motor_Control_Init(&ctrl);
         ctrl.startup.phase = MOTOR_STARTUP_DRAG_RAMP;
         ctrl.startup.soft_current_scale = 1.0f;
         ctrl.startup.drag_current_scale = 1.0f;
-        m.ol_target_rpm = 72.0f;
-        m.ol_current_rpm = 72.0f;
+        m.ol_target_rpm = 30.0f;
+        m.ol_current_rpm = 30.0f;
         m.ol_min_rpm = 72.0f;
         m.ol_iq_set = 0.6f;
-        s_enc_rpm = 20.0f;
+        m.speed_kp = 0.001f;
+        m.speed_iq_limit = 0.20f;
+        s_enc_rpm = 0.0f;
         s_speed_prime_iq = 0.0f;
-        s_last_speed_loop_active = true;
-        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
-        assert(!s_last_speed_loop_active);
-        assert(s_speed_prime_iq == 0.0f);
-
-        s_enc_rpm = 40.0f;
+        s_last_speed_loop_active = false;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(s_last_speed_loop_active);
-        assert(fabsf(s_speed_prime_iq - 0.6f) < 1e-5f);
+        assert(fabsf(s_speed_prime_iq - 0.02f) < 1e-5f);
 
-        s_speed_prime_iq = 0.0f;
         s_enc_rpm = 25.0f;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(s_last_speed_loop_active);
-        assert(s_speed_prime_iq == 0.0f);
+        assert(fabsf(s_speed_prime_iq - 0.02f) < 1e-5f); /* 接管后不重复预置 */
 
         /* 有效有感反馈下，零速命令保持速度闭环，不能退回启动 Iq 或 SAFE。 */
         m.ol_target_rpm = 0.0f;
@@ -573,6 +617,25 @@ int main(void)
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
         assert(s_last_speed_loop_active);
+
+        /* 恢复原 FOC 基线：编码器 PLL 只供转速反馈，不向电流环叠加 ODrive 电压前馈。 */
+        s_ff_calls = 0;
+        m.ol_pole_pairs = 7.0f;
+        m.sensorless_flux_linkage = 0.01f;
+        m.sensorless_motor_l = 0.0f;
+        s_enc_zero = true;
+        s_enc_speed_ok = true;
+        s_enc_rpm = 150.0f;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(s_ff_calls == 0);
+        assert(fabsf(result.vq - 0.2f) < 1e-4f);
+
+        /* 无感来源不加前馈。 */
+        Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_SENSORLESS);
+        s_ff_calls = 0;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(s_ff_calls == 0);
+        assert(fabsf(result.vq - 0.2f) < 1e-4f);
 
         Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_SENSORLESS);
     }

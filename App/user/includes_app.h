@@ -30,6 +30,7 @@ extern "C" {
 /* sensor */
 #include "motor_hall.h"
 #include "motor_encoder.h"
+#include "motor_mt6701.h"
 #include "motor_phase_order.h"
 #include "motor_feedback.h"
 #include "motor_hall_angle.h"

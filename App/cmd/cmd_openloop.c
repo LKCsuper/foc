@@ -652,6 +652,9 @@ int Cmd_OlStart(int argc, char *argv[])
            (motor.ol_mode == MOTOR_OL_MODE_VF) ? "V/F" : "I/F", cmd.target_rpm);
     if (motor.ol_mode == MOTOR_OL_MODE_VF) {
         PRINTF(", boost=%.1fV\n", motor.ol_v_boost);
+    } else if (motor.speed_enable && Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER) {
+        PRINTF(", speed Iq limit=%.2fA, start preload=%.2fA\n", motor.speed_iq_limit,
+               fminf(MOTOR_ENCODER_START_IQ_A, fabsf(motor.speed_iq_limit)));
     } else {
         PRINTF(", Iq=%.2fA\n", motor.ol_iq_set);
     }
@@ -780,6 +783,14 @@ int Cmd_OlSnap(int argc, char *argv[])
     PRINTF("  FW         : max=%.2fA duty=%.2f\n", motor.fw_current_max, motor.fw_duty_start);
     PRINTF("  Speed Iq   : %.3f A\n", status.speed_iq);
     PRINTF("  Vd, Vq int : %.3f %.3f\n", status.vd_int, status.vq_int);
+    {
+        motor_current_pi_diag_t pi_diag;
+
+        Motor_Current_TakePiDiag(&pi_diag);
+        PRINTF("  PI trace   : n=%lu clamp=%lu ki=%.2f dt=%.1fus Ierr=%.4f |Ierr|=%.4f dVint=%.3f\n",
+               (unsigned long)pi_diag.samples, (unsigned long)pi_diag.clamp_samples, pi_diag.ki, pi_diag.dt * 1.0e6f,
+               pi_diag.iq_err_avg, pi_diag.iq_err_abs_avg, pi_diag.vq_int_delta);
+    }
     /* 电流 PI 的限幅/抗饱和会回写积分项，故同一快照可还原本拍限幅后的 DQ 请求。 */
     vd_out = status.vd_int + (status.id_target - status.id) * motor.ol_current_kp;
     vq_out = status.vq_int + (status.iq_target - status.iq) * motor.ol_current_kp;

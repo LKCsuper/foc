@@ -34,6 +34,20 @@ typedef struct {
 } motor_dq_voltage_t;
 
 /**
+ * @description: 两次读取之间的 q 轴电流 PI 统计
+ * @detail: 由 Motor_Current_RunPi 累加，Motor_Current_TakePiDiag 读出后清零
+ */
+typedef struct {
+    uint32_t samples;      /* 电流 PI 拍数 */
+    uint32_t clamp_samples; /* 积分增量被限幅或抗饱和改写的拍数 */
+    float iq_err_avg;      /* Iq 误差平均值 (A) */
+    float iq_err_abs_avg;  /* Iq 误差绝对值平均 (A) */
+    float vq_int_delta;    /* q 轴积分实际变化量 (V) */
+    float ki;              /* 最近一拍 Ki (V/(A·s)) */
+    float dt;              /* 最近一拍周期 (s) */
+} motor_current_pi_diag_t;
+
+/**
  * @description: 电流目标选择时由调用者注入的上下文（对齐/I/F/速度环）
  */
 typedef struct {
@@ -133,6 +147,15 @@ void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, flo
  * @author: lkc
  */
 motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, float iq_target, float dt, float v_limit);
+
+/**
+ * @description: 读出并清零 q 轴电流 PI 统计
+ * @detail: 关中断后复制，避免和 FOC 中断同时改累加器。samples 为 0 时平均值记 0。
+ * @param {motor_current_pi_diag_t *} diag  输出统计，不可为空
+ * @return {*}
+ * @author: lkc
+ */
+void Motor_Current_TakePiDiag(motor_current_pi_diag_t *diag);
 
 /**
  * @description: 电流环一步：反馈变换 + 取目标 + PI（不含 PWM）

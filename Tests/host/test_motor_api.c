@@ -8,6 +8,7 @@
 #include "motor_settings.h"
 #include "motor_types.h"
 #include "motor_feedback.h"
+#include "motor_speed.h"
 
 static int speed_reset_calls;
 static int save_calls;
@@ -59,6 +60,15 @@ float Motor_SpeedLoop_GetIqTarget(void)
 float Motor_SpeedLoop_GetError(void)
 {
     return -7.0f;
+}
+
+bool Motor_SpeedLoop_GetSnapshot(motor_speed_snapshot_t *snapshot)
+{
+    snapshot->target_rpm = 100.0f;
+    snapshot->measured_rpm = 123.0f;
+    snapshot->error = -23.0f;
+    snapshot->iq_target = 0.45f;
+    return true;
 }
 
 bool Motor_OpenLoop_IsAligning(void)
@@ -169,7 +179,7 @@ int main(void)
     assert(Motor_SetConfig(&motor, &cfg) == MOTOR_ERR_BUSY);
     assert(motor.ol_pole_pairs == settings.config.ol_pole_pairs);
 
-    /* NaN / 非法模式 / 负 Iq 拒绝，且不改写对象。 */
+    /* NaN / 非法模式拒绝；负 Iq 作为反向转矩命令接受。 */
     cmd.target_rpm = NAN;
     assert(Motor_SetCommand(&motor, &cmd) == MOTOR_ERR_INVALID);
     assert(motor.ol_target_rpm == 500.0f);
@@ -178,8 +188,8 @@ int main(void)
     assert(Motor_SetCommand(&motor, &cmd) == MOTOR_ERR_INVALID);
     cmd.mode = MOTOR_OL_MODE_IF;
     cmd.iq_set = -1.0f;
-    assert(Motor_SetCommand(&motor, &cmd) == MOTOR_ERR_INVALID);
-    assert(motor.ol_iq_set == 0.5f);
+    assert(Motor_SetCommand(&motor, &cmd) == MOTOR_OK);
+    assert(motor.ol_iq_set == -1.0f);
 
     /* 超限目标被限幅。 */
     cmd.iq_set = 0.5f;
