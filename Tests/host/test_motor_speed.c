@@ -72,6 +72,15 @@ int main(void)
     Motor_SpeedLoop_RunState(&a, &motor_a, dt);
     assert(Motor_SpeedLoop_GetIqTargetState(&a) == 0.0f);
 
+    /* 位置保持时零速是定住目标，禁止制动也不能把保持转矩清掉。 */
+    Motor_SpeedLoop_PrimeIqState(&a, 1.5f);
+    motor_a.position_hold = true;
+    motor_a.ol_current_rpm = 0.0f;
+    Motor_SpeedFeedback_SetState(&a, 0.0f, true);
+    Motor_SpeedLoop_RunState(&a, &motor_a, dt);
+    assert(Motor_SpeedLoop_GetIqTargetState(&a) == 1.5f);
+    motor_a.position_hold = false;
+
     /* Hall 制动越过零点后必须锁定释放，不得反向满电流形成往返振荡。 */
     Motor_SpeedLoop_ResetState(&a);
     motor_a.ol_target_rpm = 0.0f;

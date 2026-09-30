@@ -34,22 +34,48 @@ static bool flash_storage_anticog_decode(const uint8_t *payload, float *table, b
 static flash_storage_t s_write_storage;
 static float s_anticogging_table[MOTOR_ANTICOGGING_BINS];
 
+/**
+ * @description: 按小端读取 16 位无符号数。
+ * @param {const uint8_t} *p  至少 2 字节，不可为空
+ * @return {uint16_t} 读出的值
+ * @author: lkc
+ */
 static uint16_t flash_get_u16(const uint8_t *p)
 {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
 
+/**
+ * @description: 按小端读取 32 位无符号数。
+ * @param {const uint8_t} *p  至少 4 字节，不可为空
+ * @return {uint32_t} 读出的值
+ * @author: lkc
+ */
 static uint32_t flash_get_u32(const uint8_t *p)
 {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
+/**
+ * @description: 按小端写入 16 位无符号数。
+ * @param {uint8_t} *p     至少 2 字节，不可为空
+ * @param {uint16_t} value 待写入的值
+ * @return {void} 无
+ * @author: lkc
+ */
 static void flash_put_u16(uint8_t *p, uint16_t value)
 {
     p[0] = (uint8_t)value;
     p[1] = (uint8_t)(value >> 8);
 }
 
+/**
+ * @description: 按小端写入 32 位无符号数。
+ * @param {uint8_t} *p     至少 4 字节，不可为空
+ * @param {uint32_t} value 待写入的值
+ * @return {void} 无
+ * @author: lkc
+ */
 static void flash_put_u32(uint8_t *p, uint32_t value)
 {
     p[0] = (uint8_t)value;
@@ -58,6 +84,17 @@ static void flash_put_u32(uint8_t *p, uint32_t value)
     p[3] = (uint8_t)(value >> 24);
 }
 
+/**
+ * @description: 从参数载荷尾部解出抗齿槽表。
+ * @detail: 魔数、桶数须匹配。使能但未标定、或任一点非有限且超出 ±0.5 V 时拒绝。
+ *          table、enabled、calibrated 可分别传空，空指针只跳过对应输出。
+ * @param {const uint8_t} *payload  参数区起点，其后为抗齿槽块，不可为空
+ * @param {float} *table            输出补偿电压 (V)，可为空
+ * @param {bool} *enabled           输出使能，可为空
+ * @param {bool} *calibrated        输出是否已标定，可为空
+ * @return {bool} true=块格式和数值都合法
+ * @author: lkc
+ */
 static bool flash_storage_anticog_decode(const uint8_t *payload, float *table, bool *enabled, bool *calibrated)
 {
     const uint8_t *p = payload + MOTOR_SETTINGS_WIRE_SIZE;

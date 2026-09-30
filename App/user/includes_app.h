@@ -57,6 +57,7 @@ extern "C" {
 /* 环路 / 遗留 */
 #include "motor_protect.h"
 #include "motor_speed.h"
+#include "motor_position.h"
 #include "motor_tim.h"
 #include "motor_ctrl.h"
 

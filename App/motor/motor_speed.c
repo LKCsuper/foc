@@ -158,12 +158,21 @@ void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, 
         return;
     }
 
-    /* 零速且禁止制动表示自然滑停：立即释放历史正向积分，避免停住后仍持续施加转矩。 */
-    if (!motor->speed_allow_braking && motor->ol_target_rpm == 0.0f) {
+    /* 位置环自己出电压，原速度 PI 的低速噪声和起动前馈不能再叠进去。 */
+    if (motor->position_voltage_hold) {
         Motor_SpeedLoop_ResetState(state);
         return;
     }
-    if (motor->ol_target_rpm != 0.0f) {
+
+    /*
+     * 零速且禁止制动表示自然滑停：立即释放历史正向积分，避免停住后仍持续施加转矩。
+     * 位置环保持时零速是要定住的目标，不能走这条松开路径。
+     */
+    if (!motor->speed_allow_braking && !motor->position_hold && motor->ol_target_rpm == 0.0f) {
+        Motor_SpeedLoop_ResetState(state);
+        return;
+    }
+    if (motor->position_hold || motor->ol_target_rpm != 0.0f) {
         state->zero_brake_active = false;
         state->zero_brake_released = false;
         state->zero_brake_direction = 0;

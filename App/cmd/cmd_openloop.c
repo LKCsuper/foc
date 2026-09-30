@@ -394,6 +394,7 @@ int Cmd_OlSpeed(int argc, char *argv[])
     }
 
     rpm = atof(argv[1]);
+    (void)Motor_Position_Enable(false);
     if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
         return -1;
     }
@@ -644,7 +645,7 @@ int Cmd_OlStart(int argc, char *argv[])
     if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
         return -1;
     }
-    if (cmd.target_rpm == 0.0f) {
+    if (cmd.target_rpm == 0.0f && !Motor_Position_IsEnabled()) {
         cmd.target_rpm = motor.ol_min_rpm;
     }
     /* 先打完串口再使能：FOC 一起转 UART DMA 完成中断会被饿死，连 “started” 都发不出去。 */
@@ -682,6 +683,7 @@ int Cmd_OlStop(int argc, char *argv[])
     (void)argv;
 
     Motor_Hall_DetectAbort();
+    (void)Motor_Position_Enable(false);
     if (Motor_RequestStop(&motor) != MOTOR_OK) {
         return -1;
     }
@@ -1121,6 +1123,9 @@ int Cmd_OlMode(int argc, char *argv[])
     if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
         return -1;
     }
+    if (mode != MOTOR_OL_MODE_IF) {
+        (void)Motor_Position_Enable(false);
+    }
     cmd.mode = mode;
     if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) {
         PRINTF("Invalid mode command\n");
@@ -1184,6 +1189,9 @@ int Cmd_OlFeedback(int argc, char *argv[])
     if (Motor_SetFeedbackSource(src) != MOTOR_OK) {
         PRINTF("Set feedback failed\n");
         return -1;
+    }
+    if (src != MOTOR_FEEDBACK_SRC_ENCODER) {
+        (void)Motor_Position_Enable(false);
     }
     PRINTF("feedback set to %d\n", (int)src);
     return 0;
@@ -1417,7 +1425,6 @@ int Cmd_OlAlign(int argc, char *argv[])
         PRINTF("Invalid enable value, use 0 or 1\n");
         return -1;
     }
-
     if (!ol_capture_config(&cfg)) {
         PRINTF("Invalid config\n");
         return -1;
@@ -1538,6 +1545,9 @@ int Cmd_SpeedEnable(int argc, char *argv[])
     if (enable != 0 && enable != 1) {
         PRINTF("Invalid value, use 0 or 1\n");
         return -1;
+    }
+    if (!enable) {
+        (void)Motor_Position_Enable(false);
     }
     if (enable && motor.ol_mode != MOTOR_OL_MODE_IF) {
         PRINTF("Speed loop requires I/F mode; run: olmode 1\n");

@@ -25,6 +25,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor speed host compilation failed' }
     & .build/host/test_motor_speed.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor speed host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_position.c Tests/host/test_motor_position.c -o .build/host/test_motor_position.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor position host compilation failed' }
+    & .build/host/test_motor_position.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor position host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_protect.c Tests/host/stubs/protect_deps.c Tests/host/test_motor_protect.c -o .build/host/test_motor_protect.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor protect host compilation failed' }
     & .build/host/test_motor_protect.exe

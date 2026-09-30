@@ -174,6 +174,9 @@ typedef struct motor_param {
     /* ---- command / config（speed_enable 作命令开关；其余为配置） ---- */
     bool speed_enable;
     bool speed_allow_braking;
+    bool position_hold;         /* 运行时：位置环使能。不写入 Flash */
+    bool position_voltage_hold; /* 运行时：位置速度 PI 直接给 Vq，原速度环不参与 */
+    float position_hold_v;      /* 运行时：位置速度 PI 电压 (V)，不含齿槽补偿 */
     float speed_kp;
     float speed_ki;
     float speed_iq_limit;

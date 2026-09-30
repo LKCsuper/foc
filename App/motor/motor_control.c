@@ -746,15 +746,26 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
         if (voltage_mode_limit < 0.0f) {
             voltage_mode_limit = 0.0f;
         }
-        if (motor->ol_target_rpm > 0.0f) {
+        if (motor->position_voltage_hold) {
+            /*
+             * 位置环全程自己做速度 PI 并直接给 Vq。转速命令保持 0，
+             * 起动前馈不会因为非零转速在终点被踢出来。
+             */
+            vq_feedforward = 0.0f;
+            vq_pi = motor->position_hold_v;
+        } else if (motor->ol_target_rpm > 0.0f) {
             vq_feedforward = MOTOR_ENCODER_SPEED_FF_BOOST_V +
                              MOTOR_ENCODER_SPEED_FF_V_PER_RPM * fabsf(motor->ol_target_rpm);
+            vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
         } else if (motor->ol_target_rpm < 0.0f) {
             vq_feedforward = -(MOTOR_ENCODER_SPEED_FF_BOOST_V +
                                MOTOR_ENCODER_SPEED_FF_V_PER_RPM * fabsf(motor->ol_target_rpm));
+            vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
+        } else {
+            vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
         }
         vq_anticogging = Motor_Anticogging_GetVoltage(Motor_Encoder_GetMechAngle());
-        vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP + vq_anticogging;
+        vq_pi += vq_anticogging;
         vq = (vq_pi + vq_feedforward) * ctx.soft_current_scale;
         if (vq > voltage_mode_limit) {
             vq = voltage_mode_limit;

@@ -135,6 +135,12 @@ static void Encoder_CoggingStatus(void)
            (double)status.min_voltage, (double)status.max_voltage);
 }
 
+/**
+ * @description: 把机械角折回 [0, 2π)。
+ * @param {float} angle  机械角 (rad)
+ * @return {float} 折回后的机械角 (rad)
+ * @author: lkc
+ */
 static float Encoder_CoggingWrap(float angle)
 {
     while (angle < 0.0f) angle += 2.0f * (float)M_PI;
@@ -142,6 +148,13 @@ static float Encoder_CoggingWrap(float angle)
     return angle;
 }
 
+/**
+ * @description: 计算目标相对当前机械角的最短有符号误差。
+ * @param {float} target   目标机械角 (rad)
+ * @param {float} current  当前机械角 (rad)
+ * @return {float} 误差 (rad)，范围 (-π, π]
+ * @author: lkc
+ */
 static float Encoder_CoggingDelta(float target, float current)
 {
     float delta = Encoder_CoggingWrap(target) - Encoder_CoggingWrap(current);
@@ -151,8 +164,12 @@ static float Encoder_CoggingDelta(float target, float current)
 }
 
 /**
- * @description: SimpleFOC 式电压位置保持扫描，记录维持每个位置所需的积分 Vq。
- * @detail: 位置 PI 直接产生 Vq，并以编码器速度作阻尼；绕开小电机低电流采样分辨率限制。
+ * @description: 用电压位置保持扫描每个齿槽桶，记下维持该位置的积分 Vq。
+ * @detail: 位置 PI 直接产生 Vq，并以编码器速度作阻尼。要求电机已停、零点有效且无故障。
+ *          失败时停学习并恢复进入前的命令，且保持停机。
+ * @param {uint16_t} passes  正反向扫描次数，调用方须已限制在 1～5
+ * @return {bool} true=各桶都已记满并收表
+ * @author: lkc
  */
 static bool Encoder_CoggingLearnPosition(uint16_t passes)
 {

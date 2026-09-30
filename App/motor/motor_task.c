@@ -125,8 +125,8 @@ static void Motor_Task_Pid(void *argument)
             dt = MOTOR_TASK_PID_DT_MAX_S;
         }
 
+        Motor_Position_Run(dt);
         Motor_SpeedLoop_Run(&motor, dt);
-        /* 位置环尚未实现；有编码器位置伺服时与速度环互斥，同 VESC pid_thread。 */
     }
 }
 
@@ -174,6 +174,7 @@ static void Motor_Task_Encoder(void *argument)
  */
 void Motor_Task_Start(void)
 {
+    Motor_Position_Init();
     if (s_pid_thread == NULL) {
         s_pid_thread = osThreadNew(Motor_Task_Pid, NULL, &s_pid_attr);
         if (s_pid_thread == NULL) {

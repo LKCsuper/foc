@@ -29,6 +29,7 @@ extern "C" {
 /* cmd_encoder.c      */ extern int Cmd_Motor_Encoder(int argc, char *argv[]);
 /* cmd_serial_plot.c  */ extern int Cmd_Serial_Plot(int argc, char *argv[]);
 /* cmd_bldc.c         */ extern int Cmd_Bldc(int argc, char *argv[]);
+/* cmd_position.c     */ extern int Cmd_Position(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_Motor_OpenLoop(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlSpeed(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlStatus(int argc, char *argv[]);
@@ -105,6 +106,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "spki",       Cmd_SpeedKi,            "set speed PI Ki" },
     { "spiq",       Cmd_SpeedIqLimit,       "set speed PI Iq limit <A>" },
     { "spbrake",    Cmd_SpeedBrake,         "allow speed loop braking <0/1>" },
+    { "pos",        Cmd_Position,           "encoder position loop: status|zero|set|move" },
     /* 无感观测器 */
     { "slenable",   Cmd_SensorlessEnable,   "enable sensorless observer <0/1>" },
     { "sltakeover", Cmd_SensorlessTakeover, "allow observer angle takeover <0/1>" },

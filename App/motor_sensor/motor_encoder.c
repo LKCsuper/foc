@@ -497,6 +497,13 @@ uint32_t Motor_Encoder_GetInvalidCountState(const motor_encoder_runtime_t *rt)
     return rt == NULL ? 0U : rt->invalid_count;
 }
 
+/**
+ * @description: 读取每帧验收后累计的机械计数。
+ * @detail: 正反方向已按 inverted 统一。返回值按 uint32_t 自然回绕，两次读数作 int32_t 差可得到短窗口增量。
+ * @param {const motor_encoder_runtime_t *} rt  运行时状态
+ * @return {uint32_t} 累计机械计数（模 2^32）；rt 为空返回 0
+ * @author: lkc
+ */
 uint32_t Motor_Encoder_GetAccumulatedCountState(const motor_encoder_runtime_t *rt)
 {
     return rt == NULL ? 0U : rt->accumulated_count;
@@ -731,6 +738,11 @@ uint32_t Motor_Encoder_GetInvalidCount(void)
     return Motor_Encoder_GetInvalidCountState(&s_encoder);
 }
 
+/**
+ * @description: 读取默认实例每帧验收后的累计机械计数。
+ * @return {uint32_t} 累计机械计数（模 2^32）
+ * @author: lkc
+ */
 uint32_t Motor_Encoder_GetAccumulatedCount(void)
 {
     return Motor_Encoder_GetAccumulatedCountState(&s_encoder);
