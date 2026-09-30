@@ -53,11 +53,12 @@ static void Encoder_PrintStatus(void)
     PRINTF("  zero_valid=%d signal_fault=%d rejected=%lu\r\n",
            Motor_Encoder_IsZeroValid() ? 1 : 0, Motor_Encoder_IsSignalFault() ? 1 : 0,
            (unsigned long)Motor_Encoder_GetInvalidCount());
-    PRINTF("  %s@%luHz valid=%d ok=%lu err=%lu crc_err=%lu consecutive=%lu mag=0x%X\r\n",
+    PRINTF("  %s@%luHz valid=%d ok=%lu err=%lu xfer_err=%lu crc_err=%lu status_err=%lu consecutive=%lu mag=0x%X last_bad_mag=0x%X\r\n",
            Motor_MT6701_InterfaceName(), (unsigned long)MOTOR_MT6701_POLL_HZ, mt.valid ? 1 : 0,
-           (unsigned long)mt.success_count,
-           (unsigned long)mt.error_count, (unsigned long)mt.crc_error_count,
-           (unsigned long)mt.consecutive_errors, (unsigned)mt.magnetic_status);
+           (unsigned long)mt.success_count, (unsigned long)mt.error_count,
+           (unsigned long)mt.transfer_error_count, (unsigned long)mt.crc_error_count,
+           (unsigned long)mt.status_error_count, (unsigned long)mt.consecutive_errors,
+           (unsigned)mt.magnetic_status, (unsigned)mt.last_bad_magnetic_status);
 }
 
 /**
@@ -72,7 +73,7 @@ static void Encoder_PrintStatus(void)
  */
 static void Encoder_Watch(float duration_s)
 {
-    uint16_t last_count = Motor_Encoder_GetCount();
+    uint32_t last_accumulated = Motor_Encoder_GetAccumulatedCount();
     uint32_t last_us = Hal_Motor_TimeUs();
     uint32_t samples;
     uint32_t i;
@@ -90,6 +91,7 @@ static void Encoder_Watch(float duration_s)
     PRINTF("Encoder watch %.1fs TIM5: count delta dt_s raw_rpm pll_rpm valid\r\n", (double)duration_s);
     for (i = 0U; i < samples; i++) {
         uint16_t count;
+        uint32_t accumulated;
         uint32_t now_us;
         uint32_t elapsed_us;
         int32_t delta;
@@ -99,15 +101,8 @@ static void Encoder_Watch(float duration_s)
         osDelay(pdMS_TO_TICKS(ENCODER_WATCH_PERIOD_MS));
         now_us = Hal_Motor_TimeUs();
         count = Motor_Encoder_GetCount();
-        delta = (int32_t)count - (int32_t)last_count;
-        if (delta > cpr / 2) {
-            delta -= cpr;
-        } else if (delta < -(cpr / 2)) {
-            delta += cpr;
-        }
-        if (motor.encoder_inverted) {
-            delta = -delta;
-        }
+        accumulated = Motor_Encoder_GetAccumulatedCount();
+        delta = (int32_t)(accumulated - last_accumulated);
         elapsed_us = now_us - last_us;
         if (elapsed_us == 0U) {
             elapsed_s = 0.0f;
@@ -119,7 +114,7 @@ static void Encoder_Watch(float duration_s)
         PRINTF("  %5u %+6ld dt=%7.4f raw=%8.2f pll=%8.2f valid=%d\r\n", (unsigned)count, (long)delta,
                (double)elapsed_s, (double)raw_rpm, (double)Motor_Encoder_GetMechRpm(),
                Motor_Encoder_IsSpeedValid() ? 1 : 0);
-        last_count = count;
+        last_accumulated = accumulated;
         last_us = now_us;
     }
 }

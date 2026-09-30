@@ -173,6 +173,7 @@ static float Motor_Encoder_MeasuredCounts(const motor_encoder_runtime_t *rt, uin
 static void Motor_Encoder_Seed(motor_encoder_runtime_t *rt, uint16_t count)
 {
     rt->last_count = count;
+    rt->accumulated_count = 0U;
     rt->have_last = true;
     rt->pll_inverted = rt->inverted;
     rt->pll_pos = Motor_Encoder_MeasuredCounts(rt, count);
@@ -278,6 +279,7 @@ void Motor_Encoder_RuntimeInit(motor_encoder_runtime_t *rt, uint32_t counts_per_
     rt->elec_offset_rad = 0.0f;
     rt->zero_valid = false;
     rt->last_count = 0U;
+    rt->accumulated_count = 0U;
     rt->have_last = false;
     rt->pll_inverted = inverted;
     rt->pll_pos = 0.0f;
@@ -351,6 +353,7 @@ static void Motor_Encoder_CorrectFreshSample(motor_encoder_runtime_t *rt, uint16
 
     /* last_count 也是 FOC 使用的最新已验收角度，坏帧不得覆盖。 */
     rt->last_count = count;
+    rt->accumulated_count += (uint32_t)delta;
     rt->signal_fault = false;
     rt->sample_stale = false;
     rt->sample_age_s = 0.0f;
@@ -494,6 +497,11 @@ uint32_t Motor_Encoder_GetInvalidCountState(const motor_encoder_runtime_t *rt)
     return rt == NULL ? 0U : rt->invalid_count;
 }
 
+uint32_t Motor_Encoder_GetAccumulatedCountState(const motor_encoder_runtime_t *rt)
+{
+    return rt == NULL ? 0U : rt->accumulated_count;
+}
+
 /**
  * @description: 查询本拍机械转速是否可信
  * @param {const motor_encoder_runtime_t} *rt  运行时状态
@@ -548,6 +556,7 @@ void Motor_Encoder_ClearZeroState(motor_encoder_runtime_t *rt)
     rt->elec_offset_rad = 0.0f;
     rt->zero_valid = false;
     rt->have_last = false;
+    rt->accumulated_count = 0U;
     rt->pll_inverted = rt->inverted;
     rt->pll_pos = 0.0f;
     rt->pll_vel = 0.0f;
@@ -720,6 +729,11 @@ bool Motor_Encoder_IsSignalFault(void)
 uint32_t Motor_Encoder_GetInvalidCount(void)
 {
     return Motor_Encoder_GetInvalidCountState(&s_encoder);
+}
+
+uint32_t Motor_Encoder_GetAccumulatedCount(void)
+{
+    return Motor_Encoder_GetAccumulatedCountState(&s_encoder);
 }
 
 /**

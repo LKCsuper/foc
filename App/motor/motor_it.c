@@ -528,7 +528,7 @@ static void Motor_OpenLoop_OutputSafe(MOTOR_PARAM_S *m)
 
 /**
  * @description: 反 Park + SVPWM，将 vd/vq 落到三相 PWM
- * @detail: 保留已验证的 FOC 输出基线：Hall 可选 VESC SVM，编码器与其余模式使用 svm_hqd。相序保持 A-C-B。
+ * @detail: Hall/encoder 有感 I/F 使用已验证的 VESC SVM，其余模式保留 svm_hqd。相序保持 A-C-B。
  * @param {MOTOR_PARAM_S} *m  电机对象（写 duty）
  * @param {float} vd          D 轴电压 (V)
  * @param {float} vq          Q 轴电压 (V)
@@ -543,14 +543,17 @@ static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq, float 
     float v_beta;
     uint32_t sector;
     uint32_t period = Hal_Motor_PwmPeriodCounts();
-    bool hall_if;
+    motor_feedback_source_t feedback_source;
+    bool sensored_if;
 
     inverse_park(vd, vq, theta, &v_alpha, &v_beta);
     Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
-    hall_if = (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_HALL) &&
-              (m->ol_mode == MOTOR_OL_MODE_IF) && MOTOR_HALL_USE_VESC_SVM;
-    /* Hall 保留已验证的 VESC SVM 分支；编码器不再改写原 FOC 调制与极性约定。 */
-    if (hall_if) {
+    feedback_source = Motor_Feedback_GetSourceDefault();
+    sensored_if = (m->ol_mode == MOTOR_OL_MODE_IF) &&
+                  (((feedback_source == MOTOR_FEEDBACK_SRC_HALL) && MOTOR_HALL_USE_VESC_SVM) ||
+                   (feedback_source == MOTOR_FEEDBACK_SRC_ENCODER));
+    /* 编码器与 Hall 共用同一 VESC 电压归一化，避免 svm_hqd 约 1/3 的实际调制增益。 */
+    if (sensored_if) {
         foc_svm_from_voltage(-v_alpha, -v_beta, v_bus, MOTOR_FOC_SVM_MAX_DUTY, period, &m->duty1, &m->duty2,
                              &m->duty3, &sector);
     } else {
@@ -816,6 +819,15 @@ static void Motor_DmaInt_Foc(void)
      */
     if (feedback_source == MOTOR_FEEDBACK_SRC_ENCODER) {
         Motor_Encoder_Update(protection_dt);
+        /*
+         * 编码器是当前控制角来源时，反馈丢失不得回退到开环角和固定 oliq。
+         * MT6701 已对连续坏帧去抖；这里锁存故障，让统一出口立即进入 SAFE。
+         * 编码器标定和抗齿槽学习自行管理输出，期间不由正常运行保护抢占。
+         */
+        if (motor.ol_enable && Motor_Encoder_IsSignalFault() && !Motor_Encoder_DetectIsActive() &&
+            !Motor_Anticogging_IsLearning()) {
+            Motor_Protect_TriggerFault(FAULT_CODE_ENCODER_SPI, &motor);
+        }
     }
     if (feedback_source == MOTOR_FEEDBACK_SRC_HALL) {
         s_hall_dt_acc_s += protection_dt;

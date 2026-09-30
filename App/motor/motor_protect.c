@@ -609,6 +609,8 @@ const char *Motor_Protect_GetFaultName(mc_fault_code fault)
             return "MOTOR_STALL";
         case FAULT_CODE_MOTOR_SPEED_LOSS:
             return "MOTOR_SPEED_LOSS";
+        case FAULT_CODE_ENCODER_SPI:
+            return "ENCODER_SPI";
         default:
             return "UNKNOWN";
     }

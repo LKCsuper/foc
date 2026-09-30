@@ -67,6 +67,8 @@ int main(void)
     assert(status.valid);
     assert(status.magnetic_status == magnetic_status);
     assert(status.crc_error_count == 0U);
+    assert(status.transfer_error_count == 0U);
+    assert(status.status_error_count == 0U);
     assert(status.sample_sequence == 1U);
     assert(status.sample_time_us == 100U);
 
@@ -74,10 +76,20 @@ int main(void)
     assert(!Motor_MT6701_Poll());
     Motor_MT6701_GetStatus(&status);
     assert(status.crc_error_count == 1U);
+    assert(status.transfer_error_count == 0U);
+
+    magnetic_status = 0x08U;
+    payload = ((uint32_t)angle << 4U) | magnetic_status;
+    s_frame = (payload << 6U) | crc6(payload, 18U);
+    assert(!Motor_MT6701_Poll());
+    Motor_MT6701_GetStatus(&status);
+    assert(status.status_error_count == 1U);
+    assert(status.last_bad_magnetic_status == magnetic_status);
 
     s_transfer_ok = false;
     assert(!Motor_MT6701_Poll());
-    assert(!Motor_MT6701_Poll());
+    Motor_MT6701_GetStatus(&status);
+    assert(status.transfer_error_count == 1U);
     assert(!Motor_MT6701_IsValid());
     puts("test_motor_mt6701_ssi: pass");
     return 0;

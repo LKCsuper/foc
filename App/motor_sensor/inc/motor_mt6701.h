@@ -29,7 +29,10 @@ typedef struct {
     uint32_t success_count;
     uint32_t error_count;
     uint32_t crc_error_count;
+    uint32_t transfer_error_count;
+    uint32_t status_error_count;
     uint32_t consecutive_errors;
+    uint8_t last_bad_magnetic_status;
     uint32_t sample_sequence; /* 每次成功采样递增，供控制侧识别新帧 */
     uint32_t sample_time_us;  /* 最近一次成功采样的系统时间 */
     bool valid;

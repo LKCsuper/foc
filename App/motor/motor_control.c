@@ -1027,7 +1027,13 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
                              * 例如 30 RPM、Kp=0.001 时 P=0.03 A，只预置剩余 0.02 A。
                              * 已沿命令方向转起来时不再注入静摩擦启动电流。
                              */
-                            if (direction == 0.0f || direction * measured_rpm > 5.0f) {
+                            if (MOTOR_ENCODER_SPEED_VOLTAGE_MODE != 0U) {
+                                /*
+                                 * 电压速度模式已有基础电压前馈和低速助推。若再把启动 Iq 写入
+                                 * PI 积分，Ki=0 时该推力会永久残留，造成实际转速长期高于目标。
+                                 */
+                                prime_iq = 0.0f;
+                            } else if (direction == 0.0f || direction * measured_rpm > 5.0f) {
                                 prime_iq = 0.0f;
                             } else {
                                 prime_iq = desired_iq - proportional;

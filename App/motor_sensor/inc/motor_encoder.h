@@ -27,6 +27,7 @@ typedef struct {
     bool zero_valid;         /* Detect/MarkZero 成功后为 true */
 
     uint16_t last_count; /* 上一拍原始计数 */
+    uint32_t accumulated_count; /* 每帧验收后累计的有符号机械计数（模 2^32），供跨圈诊断 */
     bool have_last;      /* 是否已有上一拍（首拍速度无效） */
     bool pll_inverted;   /* pll_pos 采用的方向；与 inverted 不一致时重锚 */
     float pll_pos;       /* PLL 位置 (count)，范围 [0, cpr) */
@@ -134,6 +135,14 @@ bool Motor_Encoder_IsSignalFaultState(const motor_encoder_runtime_t *rt);
  * @author: lkc
  */
 uint32_t Motor_Encoder_GetInvalidCountState(const motor_encoder_runtime_t *rt);
+
+/**
+ * @description: 读取每帧验收后累计的机械计数。
+ * @detail: 正反方向已按 inverted 统一；返回值按 uint32_t 自然回绕，两次读数作 int32_t 差可得到短窗口增量。
+ * @param {const motor_encoder_runtime_t *} rt  运行时状态
+ * @return {uint32_t} 累计机械计数（模 2^32）
+ */
+uint32_t Motor_Encoder_GetAccumulatedCountState(const motor_encoder_runtime_t *rt);
 
 /**
  * @description: 查询本拍机械转速是否可信
@@ -257,6 +266,12 @@ bool Motor_Encoder_IsSignalFault(void);
  * @author: lkc
  */
 uint32_t Motor_Encoder_GetInvalidCount(void);
+
+/**
+ * @description: 读取默认实例每帧验收后的累计机械计数。
+ * @return {uint32_t} 累计机械计数（模 2^32）
+ */
+uint32_t Motor_Encoder_GetAccumulatedCount(void);
 
 /**
  * @description: 查询默认实例本拍转速是否有效

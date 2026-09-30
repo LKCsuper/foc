@@ -23,7 +23,12 @@ static volatile motor_mt6701_status_t s_mt6701;
 #if MOTOR_MT6701_INTERFACE == MOTOR_MT6701_INTERFACE_SSI
 static uint8_t Motor_MT6701_Crc6(uint32_t data, uint8_t bit_count);
 #endif
-static void Motor_MT6701_RecordFailure(bool crc_error);
+typedef enum {
+    MOTOR_MT6701_FAILURE_TRANSFER = 0,
+    MOTOR_MT6701_FAILURE_CRC,
+    MOTOR_MT6701_FAILURE_STATUS
+} motor_mt6701_failure_t;
+static void Motor_MT6701_RecordFailure(motor_mt6701_failure_t reason);
 /* Private functions ---------------------------------------------------------*/
 
 #if MOTOR_MT6701_INTERFACE == MOTOR_MT6701_INTERFACE_SSI
@@ -54,17 +59,21 @@ static uint8_t Motor_MT6701_Crc6(uint32_t data, uint8_t bit_count)
 
 /**
  * @description: 记录一次坏帧；连续失败达上限后作废角度。
- * @detail: 成功帧在 Poll 末尾清零 consecutive_errors 并置 valid。此处只累计失败。
- *          crc_error 为真时额外增加 crc_error_count；I2C 无 CRC，调用方传 false。
- * @param {bool} crc_error  true=本帧因 CRC 失败
+ * @detail: 成功帧在 Poll 末尾清零 consecutive_errors 并置 valid。此处按传输、CRC、状态位分类累计失败。
+ * @param {motor_mt6701_failure_t} reason  本帧失败原因
  * @return {void} 无
  * @author: lkc
  */
-static void Motor_MT6701_RecordFailure(bool crc_error)
+static void Motor_MT6701_RecordFailure(motor_mt6701_failure_t reason)
 {
     s_mt6701.error_count++;
-    if (crc_error) {
+    if (reason == MOTOR_MT6701_FAILURE_CRC) {
         s_mt6701.crc_error_count++;
+    } else if (reason == MOTOR_MT6701_FAILURE_TRANSFER) {
+        s_mt6701.transfer_error_count++;
+    } else if (reason == MOTOR_MT6701_FAILURE_STATUS) {
+        s_mt6701.status_error_count++;
+        s_mt6701.last_bad_magnetic_status = s_mt6701.magnetic_status;
     }
     s_mt6701.consecutive_errors++;
     if (s_mt6701.consecutive_errors >= MOTOR_MT6701_ERROR_LIMIT) {
@@ -84,7 +93,10 @@ void Motor_MT6701_Init(void)
     s_mt6701.success_count = 0U;
     s_mt6701.error_count = 0U;
     s_mt6701.crc_error_count = 0U;
+    s_mt6701.transfer_error_count = 0U;
+    s_mt6701.status_error_count = 0U;
     s_mt6701.consecutive_errors = 0U;
+    s_mt6701.last_bad_magnetic_status = 0U;
     s_mt6701.sample_sequence = 0U;
     s_mt6701.sample_time_us = 0U;
     s_mt6701.valid = false;
@@ -113,7 +125,7 @@ bool Motor_MT6701_Poll(void)
     /* 手册要求先读 0x03，再读 0x04。 */
     if (!Hal_Encoder_I2cReadRegister(MOTOR_MT6701_I2C_ADDRESS_7BIT, MOTOR_MT6701_REG_ANGLE_MSB, &msb) ||
         !Hal_Encoder_I2cReadRegister(MOTOR_MT6701_I2C_ADDRESS_7BIT, MOTOR_MT6701_REG_ANGLE_LSB, &lsb)) {
-        Motor_MT6701_RecordFailure(false);
+        Motor_MT6701_RecordFailure(MOTOR_MT6701_FAILURE_TRANSFER);
         return false;
     }
 
@@ -127,14 +139,14 @@ bool Motor_MT6701_Poll(void)
     uint8_t received_crc;
 
     if (!Hal_Encoder_SsiReadFrame(&frame)) {
-        Motor_MT6701_RecordFailure(false);
+        Motor_MT6701_RecordFailure(MOTOR_MT6701_FAILURE_TRANSFER);
         return false;
     }
 
     payload = (frame >> 6U) & 0x3FFFFU; /* D[13:0] + Mg[3:0] */
     received_crc = (uint8_t)(frame & 0x3FU);
     if (Motor_MT6701_Crc6(payload, 18U) != received_crc) {
-        Motor_MT6701_RecordFailure(true);
+        Motor_MT6701_RecordFailure(MOTOR_MT6701_FAILURE_CRC);
         return false;
     }
 
@@ -142,7 +154,7 @@ bool Motor_MT6701_Poll(void)
     s_mt6701.magnetic_status = (uint8_t)((frame >> 6U) & 0x0FU);
     /* Mg[1:0]=磁场强弱异常，Mg[3]=超速；Mg[2] 仅为 PUSH 状态。 */
     if ((s_mt6701.magnetic_status & 0x0BU) != 0U) {
-        Motor_MT6701_RecordFailure(false);
+        Motor_MT6701_RecordFailure(MOTOR_MT6701_FAILURE_STATUS);
         return false;
     }
 #endif
@@ -172,7 +184,10 @@ void Motor_MT6701_GetStatus(motor_mt6701_status_t *status)
     status->success_count = s_mt6701.success_count;
     status->error_count = s_mt6701.error_count;
     status->crc_error_count = s_mt6701.crc_error_count;
+    status->transfer_error_count = s_mt6701.transfer_error_count;
+    status->status_error_count = s_mt6701.status_error_count;
     status->consecutive_errors = s_mt6701.consecutive_errors;
+    status->last_bad_magnetic_status = s_mt6701.last_bad_magnetic_status;
     status->sample_sequence = s_mt6701.sample_sequence;
     status->sample_time_us = s_mt6701.sample_time_us;
     status->valid = s_mt6701.valid;

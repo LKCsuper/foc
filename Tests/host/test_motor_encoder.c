@@ -89,6 +89,7 @@ int main(void)
     }
     assert(Motor_Encoder_IsSpeedValidState(&a));
     assert(Motor_Encoder_GetMechRpmState(&a) > 1.0f);
+    assert((int32_t)Motor_Encoder_GetAccumulatedCountState(&a) == 500);
 
     /* 零点标定后，原始计数对应的电角≈0。标定角不走 PLL。 */
     Motor_Encoder_MarkZeroState(&a, 100U, 2.0f);
@@ -117,6 +118,7 @@ int main(void)
         Motor_Encoder_UpdateState(&b, (uint16_t)(500 - i), dt);
     }
     assert(Motor_Encoder_GetMechRpmState(&b) > 1.0f);
+    assert((int32_t)Motor_Encoder_GetAccumulatedCountState(&b) == 500);
 
     /* 不可能的单拍跳变被拒绝并置诊断，不把速度拉飞。 */
     Motor_Encoder_RuntimeInit(&b, cpr, false);

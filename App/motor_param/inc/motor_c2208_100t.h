@@ -54,16 +54,19 @@ extern "C" {
 #define MOTOR_ENCODER_COGGING_ASSIST_RELEASE_RPM (20.0f)
 /* BM75 低电流分辨率不足：C2208 编码器速度环直接输出 Vq。 */
 #define MOTOR_ENCODER_SPEED_VOLTAGE_MODE  (1U)
-#define MOTOR_ENCODER_SPEED_VOLT_PER_AMP  (15.0f)
-#define MOTOR_ENCODER_SPEED_VOLT_LIMIT_V  (2.0f)
-/* SimpleFOC 风格速度前馈：30 RPM=1.1 V，60 RPM=1.7 V，PI 只修正速度误差。 */
-#define MOTOR_ENCODER_SPEED_FF_BOOST_V   (0.5f)
-#define MOTOR_ENCODER_SPEED_FF_V_PER_RPM (0.02f)
+#define MOTOR_ENCODER_SPEED_VOLT_PER_AMP  (5.0f)
+#define MOTOR_ENCODER_SPEED_VOLT_LIMIT_V  (13.8f)
+/*
+ * SimpleFOC 风格速度前馈：换用标准 VESC SVM 后，按旧 svm_hqd 约 1/3 的实际增益重新标定。
+ * 30 RPM 基础前馈约 0.367 V，PI 只修正速度误差；最高限幅仍保留给高速段。
+ */
+#define MOTOR_ENCODER_SPEED_FF_BOOST_V   (0.1666667f)
+#define MOTOR_ENCODER_SPEED_FF_V_PER_RPM (0.0066667f)
 /* 低速齿槽明显，降低速度 PLL 带宽；电角度仍直接使用 MT6701 原始角度。 */
 #define MOTOR_ENCODER_PLL_BW_RAD_S (30.0f)
-/* 2026-09 上板验证：30/60 RPM 编码器电压速度环可连续稳定运行。 */
-#define MOTOR_SPEED_KP_DEFAULT       (0.003f)
-#define MOTOR_SPEED_KI_DEFAULT       (0.0005f)
+/* 2026-09 上板验证：10/30 RPM 编码器电压速度环使用该组参数可连续稳定运行。 */
+#define MOTOR_SPEED_KP_DEFAULT       (0.008f)
+#define MOTOR_SPEED_KI_DEFAULT       (0.002f)
 #define MOTOR_SPEED_IQ_LIMIT_DEFAULT (0.20f)
 
 /* motor_param 使用的统一铭牌接口。 */
