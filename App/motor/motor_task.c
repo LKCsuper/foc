@@ -174,8 +174,8 @@ static void Motor_Task_Encoder(void *argument)
  */
 void Motor_Task_Start(void)
 {
-    Motor_Position_Init();
     if (s_pid_thread == NULL) {
+        Motor_Position_Init();
         s_pid_thread = osThreadNew(Motor_Task_Pid, NULL, &s_pid_attr);
         if (s_pid_thread == NULL) {
             PRINTF("foc pid task create failed\r\n");

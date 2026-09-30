@@ -166,14 +166,16 @@ static float Motor_Encoder_MeasuredCounts(const motor_encoder_runtime_t *rt, uin
 }
 
 /**
- * @description: 用当前计数重锚 PLL，本拍速度无效
- * @param {motor_encoder_runtime_t} *rt  运行时状态
+ * @description: 用当前计数重锚 PLL，本拍速度无效。
+ * @detail: 不改累计机械计数。缺帧或非法周期里的位移补不回来，但位置环零点不会被清成 0。
+ * @param {motor_encoder_runtime_t *} rt  运行时状态
  * @param {uint16_t} count               原始计数
+ * @return {void} 无
+ * @author: lkc
  */
 static void Motor_Encoder_Seed(motor_encoder_runtime_t *rt, uint16_t count)
 {
     rt->last_count = count;
-    rt->accumulated_count = 0U;
     rt->have_last = true;
     rt->pll_inverted = rt->inverted;
     rt->pll_pos = Motor_Encoder_MeasuredCounts(rt, count);

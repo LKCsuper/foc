@@ -98,7 +98,8 @@ bool Motor_Position_SetMaxRpm(float max_rpm);
 void Motor_Position_Run(float dt);
 
 /**
- * @description: 复制位置环状态。
+ * @description: 获取位置环状态，并用当前累计计数刷新返回快照中的位置、误差和速度目标。
+ * @detail: 只刷新快照，不推进速度 PI，也不修改保持电压和积分。
  * @param {motor_position_state_t} *state  输出，为空则忽略
  * @return {void} 无
  * @author: lkc

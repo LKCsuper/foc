@@ -106,10 +106,11 @@ int main(void)
     assert(fabsf(Motor_Encoder_GetMechRpmState(&b)) < 1e-3f);
     assert(Motor_Encoder_GetMechRpmState(&a) > 1.0f);
 
-    /* 非法 dt：速度无效，但不清零点 */
+    /* 非法 dt：速度无效，不清零点，也不把多圈累计计数清成 0。 */
     Motor_Encoder_UpdateState(&a, 200U, 1.0f);
     assert(!Motor_Encoder_IsSpeedValidState(&a));
     assert(Motor_Encoder_IsZeroValidState(&a));
+    assert((int32_t)Motor_Encoder_GetAccumulatedCountState(&a) == 500);
 
     /* 方向取反后，计数减小对应正转速。 */
     Motor_Encoder_RuntimeInit(&b, cpr, true);

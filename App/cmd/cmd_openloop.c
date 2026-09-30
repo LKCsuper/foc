@@ -394,7 +394,6 @@ int Cmd_OlSpeed(int argc, char *argv[])
     }
 
     rpm = atof(argv[1]);
-    (void)Motor_Position_Enable(false);
     if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
         return -1;
     }
@@ -407,6 +406,7 @@ int Cmd_OlSpeed(int argc, char *argv[])
             return -1;
         }
     }
+    (void)Motor_Position_Enable(false);
     /* 只改目标转速，保留 enable；启动/停止必须用 olstart / olstop，避免 olspeed 误启动过流 */
     cmd.target_rpm = rpm;
     if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) {

@@ -32,7 +32,7 @@ static void Cmd_PositionPrint(void)
 /**
  * @description: 位置环命令 pos。
  * @detail: zero 只能在停机时改零点。hold/set/move/on 要求反馈源为编码器，且首次使能前电机已停。
- *          成功后把模式设为 I/F 并打开速度环，仍须 olstart 才上电。
+ *          成功后把模式设为 I/F 并打开速度环；电机尚未运行时仍须 olstart 才上电。
  * @param {int} argc       参数个数，含命令名
  * @param {char *[]} argv  参数表；子命令在 argv[1]
  * @return {int} 0=已执行，-1=参数或前置条件不满足
@@ -59,7 +59,10 @@ int Cmd_Position(int argc, char *argv[])
     }
     if (strcmp(argv[1], "off") == 0) {
         (void)Motor_Position_Enable(false);
-        motor.ol_target_rpm = 0.0f;
+        if (Motor_GetCommand(&motor, &cmd) == MOTOR_OK) {
+            cmd.target_rpm = 0.0f;
+            (void)Motor_SetCommand(&motor, &cmd);
+        }
         PRINTF("Position loop disabled\r\n");
         return 0;
     }
@@ -112,7 +115,9 @@ int Cmd_Position(int argc, char *argv[])
     cmd.target_rpm = 0.0f;
     if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) return -1;
     Cmd_PositionPrint();
-    PRINTF("Use olstart to energize position control\r\n");
+    if (!motor.ol_enable) {
+        PRINTF("Use olstart to energize position control\r\n");
+    }
     return 0;
 }
 #ifdef __cplusplus

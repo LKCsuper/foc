@@ -30,6 +30,10 @@ int main(void)
     assert(Motor_Position_SetKp(0.5f));
     assert(Motor_Position_SetMaxRpm(30.0f));
     assert(Motor_Position_Enable(true));
+    /* 改目标后即使控制任务尚未运行，命令行快照也必须反映新误差。 */
+    Motor_Position_GetState(&state);
+    assert(fabsf(state.error_deg - 90.0f) < 1e-4f);
+    assert(fabsf(state.target_rpm - 30.0f) < 1e-4f);
     motor.ol_enable = true;
     Motor_Position_Run(0.001f);
     Motor_Position_GetState(&state);

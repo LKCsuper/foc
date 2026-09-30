@@ -237,7 +237,18 @@ void Motor_Position_Run(float dt)
  */
 void Motor_Position_GetState(motor_position_state_t *state)
 {
-    if (state != NULL) *state = s_position;
+    if (state == NULL) return;
+
+    *state = s_position;
+    /*
+     * Shell 可能刚改完目标、控制任务还没运行下一拍。只刷新返回快照中的观测量，
+     * 不推进 PI、不改积分，避免立即打印上一拍的位置误差和速度命令。
+     */
+    state->position_deg = Motor_Position_ReadDeg();
+    state->error_deg = state->target_deg - state->position_deg;
+    state->target_rpm = Motor_Encoder_IsSignalFault()
+                            ? 0.0f
+                            : Motor_Position_Clamp(state->kp_rpm_per_deg * state->error_deg, state->max_rpm);
 }
 
 /**
