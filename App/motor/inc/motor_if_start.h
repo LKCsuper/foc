@@ -5,12 +5,13 @@
 #ifndef MOTOR_IF_START_H
 #define MOTOR_IF_START_H
 
-#include <stdbool.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+/* Includes ------------------------------------------------------------------*/
+#include <stdbool.h>
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
 typedef struct {
     float min_rpm;
     float phase_boost;

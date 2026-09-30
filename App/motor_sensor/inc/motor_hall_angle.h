@@ -130,16 +130,32 @@ float Motor_Hall_AngleGetTheta(void);
  */
 float Motor_Hall_AngleGetMechRpm(void);
 
-/** @description: 默认实例最近单边沿原始机械转速 (RPM) */
+/**
+ * @description: 读取默认实例最近单边沿原始机械转速。
+ * @return {float} 机械转速 (RPM)
+ * @author: lkc
+ */
 float Motor_Hall_AngleGetRawMechRpm(void);
 
-/** @description: 默认实例 Hall-PLL 机械转速，供控制环使用 (RPM) */
+/**
+ * @description: 读取默认实例 Hall-PLL 机械转速，供控制环使用。
+ * @return {float} 机械转速 (RPM)
+ * @author: lkc
+ */
 float Motor_Hall_AngleGetFastMechRpm(void);
 
-/** @description: 默认实例距最近霍尔边沿的时间 (s) */
+/**
+ * @description: 读取默认实例距最近一次霍尔边沿的时间。
+ * @return {float} 边沿年龄 (s)
+ * @author: lkc
+ */
 float Motor_Hall_AngleGetEdgeAge(void);
 
-/** @description: 默认实例当前霍尔状态；尚无有效状态返回 -1 */
+/**
+ * @description: 读取默认实例当前霍尔状态。
+ * @return {int} 霍尔状态 1..6；尚无有效状态返回 -1
+ * @author: lkc
+ */
 int Motor_Hall_AngleGetState(void);
 
 /**

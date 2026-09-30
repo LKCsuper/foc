@@ -28,6 +28,13 @@ static bool Motor_Hall_NeighborHalfWidths(const int8_t *table, float sector_cent
                                           float *half_pos);
 /* Private functions ---------------------------------------------------------*/
 
+/**
+ * @description: 把电角折到 (−π, π]。
+ * @detail: 非有限值或绝对值过大时返回 0，避免在中断里死循环。
+ * @param {float} x  电角 (rad)
+ * @return {float} 折回后的电角 (rad)
+ * @author: lkc
+ */
 static float Motor_Hall_WrapPi(float x)
 {
     if (!(x > -1.0e6f) || !(x < 1.0e6f)) {
@@ -136,6 +143,13 @@ static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, const int8_t *ta
     st->theta_rad = theta;
 }
 
+/**
+ * @description: 把 PLL 位置折回 [0, cpr)。
+ * @detail: 非有限值或绝对值过大时返回 0，避免在中断里死循环。
+ * @param {float} x  位置 (count)
+ * @return {float} 折回后的位置 (count)
+ * @author: lkc
+ */
 static float Motor_Hall_WrapCpr(float x)
 {
     float n;
@@ -155,6 +169,12 @@ static float Motor_Hall_WrapCpr(float x)
     return x;
 }
 
+/**
+ * @description: 把 PLL 位置误差折到 ±cpr/2。
+ * @param {float} x  未折回的误差 (count)
+ * @return {float} 最短路径误差 (count)；非法输入返回 0
+ * @author: lkc
+ */
 static float Motor_Hall_WrapDelta(float x)
 {
     const float half = 0.5f * MOTOR_HALL_PLL_CPR;
@@ -173,6 +193,12 @@ static float Motor_Hall_WrapDelta(float x)
     return x;
 }
 
+/**
+ * @description: 清零霍尔 PLL 位置和速度，并进入低速模式。
+ * @param {motor_hall_angle_t *} st  霍尔角度状态，调用方保证非空
+ * @return {void} 无
+ * @author: lkc
+ */
 static void Motor_Hall_PllReset(motor_hall_angle_t *st)
 {
     st->pll_count = 0;
@@ -225,6 +251,14 @@ static void Motor_Hall_PllRun(motor_hall_angle_t *st, float pole_pairs, float dt
     }
 }
 
+/**
+ * @description: 低速用 PLL 估速，转速升高后改用边沿间隔转速。
+ * @param {motor_hall_angle_t *} st  霍尔角度状态
+ * @param {float} pole_pairs        极对数
+ * @param {float} dt_s              距上一拍时间 (s)
+ * @return {void} 无
+ * @author: lkc
+ */
 static void Motor_Hall_UpdateSpeedEstimate(motor_hall_angle_t *st, float pole_pairs, float dt_s)
 {
     float rpm_abs = fabsf(st->mech_rpm);
@@ -535,21 +569,41 @@ float Motor_Hall_AngleGetMechRpm(void)
     return s_hall_angle.mech_rpm;
 }
 
+/**
+ * @description: 读取默认实例最近单边沿原始机械转速。
+ * @return {float} 机械转速 (RPM)
+ * @author: lkc
+ */
 float Motor_Hall_AngleGetRawMechRpm(void)
 {
     return s_hall_angle.mech_rpm_raw;
 }
 
+/**
+ * @description: 读取默认实例 Hall-PLL 机械转速，供控制环使用。
+ * @return {float} 机械转速 (RPM)
+ * @author: lkc
+ */
 float Motor_Hall_AngleGetFastMechRpm(void)
 {
     return s_hall_angle.mech_rpm_fast;
 }
 
+/**
+ * @description: 读取默认实例距最近一次霍尔边沿的时间。
+ * @return {float} 边沿年龄 (s)
+ * @author: lkc
+ */
 float Motor_Hall_AngleGetEdgeAge(void)
 {
     return s_hall_angle.sector_timer_s;
 }
 
+/**
+ * @description: 读取默认实例最近一次有效霍尔状态。
+ * @return {int} 霍尔状态 1..6；尚未收到有效状态时返回 -1
+ * @author: lkc
+ */
 int Motor_Hall_AngleGetState(void)
 {
     return s_hall_angle.have_state ? s_hall_angle.last_state : -1;

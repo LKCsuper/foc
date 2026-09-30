@@ -17,7 +17,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Flash host compilation failed' }
     & .build/host/test_flash_storage.exe
     if ($LASTEXITCODE -ne 0) { throw 'Flash host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Common/inc -ILibrary/Hal/inc App/motor/motor.c App/motor/motor_snapshot.c App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_api.c -o .build/host/test_motor_api.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Common/inc -ILibrary/Hal/inc App/motor/motor.c App/motor/motor_anticogging.c App/motor/motor_snapshot.c App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_api.c -o .build/host/test_motor_api.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor API host compilation failed' }
     & .build/host/test_motor_api.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor API host tests failed' }
@@ -65,10 +65,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor SMO host compilation failed' }
     & .build/host/test_motor_smo.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor SMO host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_control.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control host compilation failed' }
     & .build/host/test_motor_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_anticogging.c Tests/host/test_motor_anticogging.c -o .build/host/test_motor_anticogging.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor anticogging host compilation failed' }
+    & .build/host/test_motor_anticogging.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor anticogging host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/motor_sense.c Tests/host/test_motor_sense.c -o .build/host/test_motor_sense.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor sense host compilation failed' }
     & .build/host/test_motor_sense.exe

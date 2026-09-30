@@ -23,6 +23,10 @@
 #ifndef UTILS_MATH_H_
 #define UTILS_MATH_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
@@ -556,4 +560,7 @@ static inline bool utils_saturate_vector_2d(float *x, float *y, float max) {
 	return retval;
 }
 
+#ifdef __cplusplus
+}
+#endif
 #endif  /* UTILS_MATH_H_ */

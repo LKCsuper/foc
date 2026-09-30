@@ -258,6 +258,7 @@ void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, flo
 
 /**
  * @description: d/q 双轴电流 PI + 矢量限幅。
+ * @detail: Iq 误差在 PI 前取样，限幅抗饱和和钳位统计共用这一拍。PI 不改 Id/Iq。
  * @param {MOTOR_PARAM_S} * motor  反馈与积分
  * @param {float} id_target  Id 目标 (A)
  * @param {float} iq_target  Iq 目标 (A)

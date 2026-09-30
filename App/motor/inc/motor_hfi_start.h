@@ -5,14 +5,15 @@
 #ifndef MOTOR_HFI_START_H
 #define MOTOR_HFI_START_H
 
-#include <stdbool.h>
-#include <stdint.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+/* Includes ------------------------------------------------------------------*/
+#include <stdbool.h>
+#include <stdint.h>
+/* Private define ------------------------------------------------------------*/
 #define MOTOR_HFI_START_AXIS_COUNT (12U)
+/* Private typedef -----------------------------------------------------------*/
 
 typedef struct {
     bool enabled;

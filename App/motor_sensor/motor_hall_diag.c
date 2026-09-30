@@ -40,12 +40,25 @@ static void Motor_Hall_DiagFillFrame(motor_hall_current_worst_t *dst, float sign
 static void Motor_Hall_DiagCaptureBeat(float signed_phase_sum, float phase_sum, int hall_state);
 /* Private functions ---------------------------------------------------------*/
 
+/**
+ * @description: 记下本拍 TIM1 计数和 ARR，供扇区时间诊断。
+ * @param {uint16_t} tim1_cnt  TIM1 当前计数
+ * @param {uint16_t} tim1_arr  TIM1 自动重装值
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Hall_DiagNoteTimer(uint16_t tim1_cnt, uint16_t tim1_arr)
 {
     s_hall_isr_cnt = tim1_cnt;
     s_hall_isr_arr = tim1_arr;
 }
 
+/**
+ * @description: 在关中断下复制 8 个霍尔扇区的电流统计。
+ * @param {motor_hall_current_diag_sector_t[]} sectors  输出，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Hall_DiagGetSectors(motor_hall_current_diag_sector_t sectors[8])
 {
     uint32_t primask;
@@ -61,6 +74,12 @@ void Motor_Hall_DiagGetSectors(motor_hall_current_diag_sector_t sectors[8])
     }
 }
 
+/**
+ * @description: 在关中断下复制三相和最大的那一拍快照。
+ * @param {motor_hall_current_worst_t *} out  输出，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Hall_DiagGetWorst(motor_hall_current_worst_t *out)
 {
     uint32_t primask;
@@ -76,6 +95,12 @@ void Motor_Hall_DiagGetWorst(motor_hall_current_worst_t *out)
     }
 }
 
+/**
+ * @description: 在关中断下复制 Id 误差最大的那一拍快照。
+ * @param {motor_hall_current_worst_t *} out  输出，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Hall_DiagGetWorstId(motor_hall_current_worst_t *out)
 {
     uint32_t primask;
@@ -91,6 +116,12 @@ void Motor_Hall_DiagGetWorstId(motor_hall_current_worst_t *out)
     }
 }
 
+/**
+ * @description: 在关中断下复制霍尔换相边沿电流统计。
+ * @param {motor_hall_current_edge_diag_t *} out  输出，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Hall_DiagGetEdge(motor_hall_current_edge_diag_t *out)
 {
     uint32_t primask;
@@ -224,6 +255,12 @@ static void Motor_Hall_DiagCaptureBeat(float signed_phase_sum, float phase_sum, 
     s_hall_prev_ic = motor.ic;
 }
 
+/**
+ * @description: 在霍尔 I/F 运行时累计扇区电流和换相边沿统计。
+ * @detail: 未使能、反馈不是霍尔或不是 I/F 时停止累计。目标转速变化后清零重新计。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Hall_DiagUpdate(void)
 {
     motor_hall_current_diag_sector_t *sector;

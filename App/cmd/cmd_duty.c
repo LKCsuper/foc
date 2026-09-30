@@ -21,6 +21,12 @@ STATIC const osThreadAttr_t taskDutyAttr = {
     .priority = PRI_INIT,
 };
 /* Private function prototypes -----------------------------------------------*/
+/**
+ * @description: 判断当前是否允许手动改 PWM。
+ * @detail: 故障已锁存或电机仍使能时拒绝，并打印原因。
+ * @return {bool} true=可以下发占空比
+ * @author: lkc
+ */
 static bool Duty_AllowManualPwm(void)
 {
     if (Motor_Protect_IsFaultLatched()) {

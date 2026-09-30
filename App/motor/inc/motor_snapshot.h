@@ -10,12 +10,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+/* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
 #include "motor_feedback.h"
 #include "motor_protect.h"
-
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
 typedef struct {
     bool enable;
     int mode;
@@ -47,6 +48,9 @@ typedef struct {
     mc_fault_code fault;
     bool fault_latched;
 } motor_status_t;
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
 
 #ifdef __cplusplus
 }

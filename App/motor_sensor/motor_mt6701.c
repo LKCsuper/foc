@@ -27,6 +27,14 @@ static void Motor_MT6701_RecordFailure(bool crc_error);
 /* Private functions ---------------------------------------------------------*/
 
 #if MOTOR_MT6701_INTERFACE == MOTOR_MT6701_INTERFACE_SSI
+/**
+ * @description: 计算 MT6701 SSI 帧的 CRC-6。
+ * @detail: 多项式 x^6 + x + 1，对角度与磁场状态共 bit_count 位。
+ * @param {uint32_t} data      待校验位，低 bit_count 位有效
+ * @param {uint8_t} bit_count  参与校验的位数
+ * @return {uint8_t} 6 位 CRC
+ * @author: lkc
+ */
 static uint8_t Motor_MT6701_Crc6(uint32_t data, uint8_t bit_count)
 {
     uint8_t crc = 0U;
@@ -46,8 +54,10 @@ static uint8_t Motor_MT6701_Crc6(uint32_t data, uint8_t bit_count)
 
 /**
  * @description: 记录一次坏帧；连续失败达上限后作废角度。
- * @param {bool} crc_error  true=本帧因 CRC 失败，额外计入 crc_error_count
- * @return {*}
+ * @detail: 成功帧在 Poll 末尾清零 consecutive_errors 并置 valid。此处只累计失败。
+ *          crc_error 为真时额外增加 crc_error_count；I2C 无 CRC，调用方传 false。
+ * @param {bool} crc_error  true=本帧因 CRC 失败
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_MT6701_RecordFailure(bool crc_error)

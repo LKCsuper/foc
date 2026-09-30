@@ -2,15 +2,25 @@
  * @Description: 平台无关的配置与校准快照；保持旧控制字段兼容。
  * @Author: lkc
  */
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Includes ------------------------------------------------------------------*/
 #include "motor_settings.h"
 #include <stddef.h>
 #include <string.h>
 #include <math.h>
 #include <float.h>
-
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
 /* 当前线格式要求 IEEE754 单精度；不支持的平台应在编译时失败。 */
 typedef char
     motor_float_size_check[(sizeof(float) == 4 && FLT_RADIX == 2 && FLT_MANT_DIG == 24 && FLT_MAX_EXP == 128) ? 1 : -1];
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+static bool settings_valid(const motor_settings_t *s);
+/* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 校验完整 settings 快照：所有配置为有限值且取值合法。
@@ -720,3 +730,7 @@ bool Motor_Settings_Decode(const uint8_t *data, uint32_t size, motor_settings_t 
     *settings = candidate;
     return true;
 }
+
+#ifdef __cplusplus
+}
+#endif

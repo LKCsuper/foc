@@ -18,8 +18,8 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 打印编码器计数值、机械角和电角度
- * @return {*}
+ * @description: 打印编码器角度、转速和 MT6701 帧状态。
+ * @return {void} 无
  * @author: lkc
  */
 static void Encoder_PrintStatus(void)
@@ -51,8 +51,11 @@ static void Encoder_PrintStatus(void)
 
 /**
  * @description: 短时对比 MT6701 原始计数窗口转速与 PLL 转速。
- * @detail: Shell 打印耗时计入真实采样间隔，避免按固定 100 ms 计算导致 raw_rpm 偏高；
- *          不进 ISR，最长 5 s，避免长时阻塞停机命令。
+ * @detail: Shell 打印耗时计入真实采样间隔，避免按固定 100 ms 计算导致 raw_rpm 偏高。
+ *          不进 ISR。时长小于等于 0 时用 2 s，超过 5 s 则截断，避免长时挡住停机命令。
+ * @param {float} duration_s  观察时长 (s)
+ * @return {void} 无
+ * @author: lkc
  */
 static void Encoder_Watch(float duration_s)
 {
@@ -106,10 +109,79 @@ static void Encoder_Watch(float duration_s)
 }
 
 /**
- * @description: MT6701 编码器：show / reset / detect / watch
- * @param {int} argc
- * @param {char} *argv[]
- * @return {int} 0 成功，-1 失败
+ * @description: 打印齿槽学习进度、标定使能状态和补偿电压范围。
+ * @return {void} 无
+ * @author: lkc
+ */
+static void Encoder_CoggingStatus(void)
+{
+    motor_anticogging_status_t status;
+    Motor_Anticogging_GetStatus(&status);
+    PRINTF("Cogging: learning=%d calibrated=%d enabled=%d bins=%u progress=%u/%u samples=%lu range=%.3f..%.3fV\r\n",
+           status.learning ? 1 : 0, status.calibrated ? 1 : 0, status.enabled ? 1 : 0,
+           (unsigned)MOTOR_ANTICOGGING_BINS, (unsigned)status.min_samples,
+           (unsigned)status.target_samples, (unsigned long)status.total_samples,
+           (double)status.min_voltage, (double)status.max_voltage);
+}
+
+/**
+ * @description: 处理 encoder cog 子命令。
+ * @detail: status 只打印。learn 要求电机已使能、速度环打开且反馈为编码器，每桶样本数 1..50。
+ *          on 在未标定时失败。stop 不清除表，clear 清表。
+ * @param {int} argc       参数个数，含命令名
+ * @param {char *[]} argv  参数表；子命令在 argv[2]
+ * @return {int} 0=已执行，-1=参数或前置条件不满足
+ * @author: lkc
+ */
+static int Encoder_CoggingCommand(int argc, char *argv[])
+{
+    int turns = 10;
+    if (argc < 3 || strcmp(argv[2], "status") == 0) {
+        Encoder_CoggingStatus();
+        return 0;
+    }
+    if (strcmp(argv[2], "learn") == 0) {
+        if (argc >= 4) turns = atoi(argv[3]);
+        if (!motor.ol_enable || !motor.speed_enable ||
+            Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER) {
+            PRINTF("Cogging learn requires running encoder speed loop\r\n");
+            return -1;
+        }
+        if (turns < 1 || turns > 50 || !Motor_Anticogging_Start((uint16_t)turns)) {
+            PRINTF("usage: encoder cog learn [1..50]\r\n");
+            return -1;
+        }
+        PRINTF("Cogging learn started: %d samples/bin, keep constant speed until complete\r\n", turns);
+        return 0;
+    }
+    if (strcmp(argv[2], "on") == 0 || strcmp(argv[2], "off") == 0) {
+        bool enable = strcmp(argv[2], "on") == 0;
+        if (!Motor_Anticogging_SetEnabled(enable)) {
+            PRINTF("Cogging table not calibrated\r\n");
+            return -1;
+        }
+        Encoder_CoggingStatus();
+        return 0;
+    }
+    if (strcmp(argv[2], "clear") == 0) {
+        Motor_Anticogging_Clear();
+        PRINTF("Cogging table cleared\r\n");
+        return 0;
+    }
+    if (strcmp(argv[2], "stop") == 0) {
+        Motor_Anticogging_Stop();
+        PRINTF("Cogging learn stopped\r\n");
+        return 0;
+    }
+    PRINTF("usage: encoder cog [status|learn [1..50]|on|off|stop|clear]\r\n");
+    return -1;
+}
+
+/**
+ * @description: MT6701 编码器命令：show / reset / detect / watch / cog。
+ * @param {int} argc       参数个数，含命令名
+ * @param {char *[]} argv  参数表；子命令在 argv[1]
+ * @return {int} 0=已执行，-1=无法识别的子命令；cog 失败时透传其子命令返回值
  * @author: lkc
  */
 int Cmd_Motor_Encoder(int argc, char *argv[])
@@ -134,8 +206,11 @@ int Cmd_Motor_Encoder(int argc, char *argv[])
         Encoder_Watch(duration_s);
         return 0;
     }
+    if (strcmp(argv[1], "cog") == 0) {
+        return Encoder_CoggingCommand(argc, argv);
+    }
 
-    PRINTF("usage: encoder [show|reset|detect|watch [seconds]]\r\n");
+    PRINTF("usage: encoder [show|reset|detect|watch [seconds]|cog ...]\r\n");
     return -1;
 }
 

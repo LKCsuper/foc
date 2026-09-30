@@ -836,7 +836,14 @@ int Cmd_OlSnap(int argc, char *argv[])
     return 0;
 }
 
-/* 停机后读取上一轮 Hall 稳态电流统计；运行中也可只读查询。 */
+/**
+ * @description: 打印霍尔扇区电流诊断。
+ * @detail: 停机后读上一轮统计；运行中也可只读查询。不修改控制状态。
+ * @param {int} argc       参数个数，未使用
+ * @param {char *[]} argv  参数表，未使用
+ * @return {int} 0=已打印
+ * @author: lkc
+ */
 int Cmd_OlCurrentDiag(int argc, char *argv[])
 {
     motor_hall_current_diag_sector_t sectors[8];

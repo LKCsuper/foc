@@ -8,12 +8,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+/* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
 #include <stdbool.h>
 #include "motor_param.h"
 #include "motor_detect.h"
 #include "motor_settings.h"
+/* Private define ------------------------------------------------------------*/
 
 /* 槽物理地址由 Hal_Flash 提供；本头仅约定逻辑存储格式。 */
 #define FLASH_STORAGE_MAGIC          0x464C4B43U

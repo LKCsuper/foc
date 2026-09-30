@@ -1044,6 +1044,11 @@
               <FilePath>..\motor\motor_control.c</FilePath>
             </File>
             <File>
+              <FileName>motor_anticogging.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_anticogging.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_protect.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_protect.c</FilePath>

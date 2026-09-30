@@ -45,6 +45,12 @@ static float Motor_Speed_Clamp(float value, float minimum, float maximum)
     return value;
 }
 
+/**
+ * @description: 清零速度 PI 的积分、误差和 Iq，保留反馈转速。
+ * @param {motor_speed_state_t *} state  速度环状态，调用方保证非空
+ * @return {void} 无
+ * @author: lkc
+ */
 static void Motor_Speed_ClearPi(motor_speed_state_t *state)
 {
     state->loop_time = 0.0f;

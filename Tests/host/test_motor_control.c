@@ -106,6 +106,11 @@ float Motor_Encoder_GetElecAngle(void)
     return s_enc_elec;
 }
 
+float Motor_Encoder_GetMechAngle(void)
+{
+    return s_enc_elec;
+}
+
 float Motor_Encoder_GetMechRpm(void)
 {
     return s_enc_rpm;

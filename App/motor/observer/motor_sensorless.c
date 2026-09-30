@@ -8,7 +8,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+/* Includes ------------------------------------------------------------------*/
 #include <math.h>
 #include <string.h>
 #include <stdbool.h>
@@ -19,6 +19,12 @@ extern "C" {
 #include "motor_math.h"
 #include "motor_speed.h"
 #include "motor_protect.h"
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
 
 /*
  * ======================== 无感观测器整体流程 ========================
@@ -78,6 +84,12 @@ static void Motor_Sensorless_ApplyEffects(MOTOR_PARAM_S *motor, const motor_sens
     Motor_SpeedFeedback_Set(effects->feedback_rpm, effects->feedback_valid);
 }
 
+/**
+ * @description: 把观测器本拍要上报的副作用清零。
+ * @param {motor_sensorless_effects_t *} effects  副作用输出，为空则直接返回
+ * @return {void} 无
+ * @author: lkc
+ */
 static void Motor_Sensorless_ClearEffects(motor_sensorless_effects_t *effects)
 {
     if (effects == NULL) {
@@ -86,7 +98,14 @@ static void Motor_Sensorless_ClearEffects(motor_sensorless_effects_t *effects)
     memset(effects, 0, sizeof(*effects));
 }
 
-/* 将 value 限制到 [minimum, maximum]，防止速度、积分量或混合比例越界。 */
+/**
+ * @description: 把数值限制到给定闭区间。
+ * @param {float} value    输入值
+ * @param {float} minimum  下限
+ * @param {float} maximum  上限
+ * @return {float} 限制后的值
+ * @author: lkc
+ */
 static float Motor_Sensorless_Clamp(float value, float minimum, float maximum)
 {
     if (value > maximum) {
@@ -111,6 +130,16 @@ static float Motor_Sensorless_Clamp(float value, float minimum, float maximum)
  *
  * 注意：这只是数值初始化，不代表开环角度一定是真实转子角度。后续仍需
  * 依靠电机转动产生的电压/电流信息，让观测器逐渐收敛。
+ */
+/**
+ * @description: 用当前 I/F 强制角初始化磁链积分器。
+ * @detail: 按 L×I 加假定永磁磁链给出初值，避免第一次 atan2 从零磁链出发。这不是真实转子角。
+ * @param {motor_sensorless_runtime_t *} rt  观测器运行时
+ * @param {const MOTOR_PARAM_S *} motor     电感、磁链和开环角
+ * @param {float} i_alpha                   Iα (A)
+ * @param {float} i_beta                    Iβ (A)
+ * @return {void} 无
+ * @author: lkc
  */
 static void Motor_Sensorless_Seed(motor_sensorless_runtime_t *rt, const MOTOR_PARAM_S *motor, float i_alpha,
                                   float i_beta)
@@ -140,6 +169,15 @@ static void Motor_Sensorless_Seed(motor_sensorless_runtime_t *rt, const MOTOR_PA
  * Kp 负责让 PLL 角度快速追上观测角，Ki 的积分结果就是估算电角速度。
  * PLL 可以滤掉 atan2 角度中的高频抖动，并连续输出带正负方向的速度。
  * 输出速度单位是 electrical rad/s，后续除以极对数换算机械 RPM。
+ */
+/**
+ * @description: 用二阶 PLL 跟踪观测电角并积分出电角速度。
+ * @detail: 速度限制在最高机械转速对应电角速度的 1.5 倍以内。单位是 rad/s。
+ * @param {motor_sensorless_runtime_t *} rt  观测器运行时
+ * @param {const MOTOR_PARAM_S *} motor     PLL 增益和转速上限
+ * @param {float} dt                        步长 (s)
+ * @return {void} 无
+ * @author: lkc
  */
 static void Motor_Sensorless_RunPll(motor_sensorless_runtime_t *rt, const MOTOR_PARAM_S *motor, float dt)
 {

@@ -20,6 +20,7 @@ extern "C" {
 #include "motor_feedback.h"
 #include "motor_hall.h"
 #include "motor_encoder.h"
+#include "motor_anticogging.h"
 /* Private define ------------------------------------------------------------*/
 /* 机械 RPM → rad/s，再乘极对数得到电角速度。 */
 /* Private typedef -----------------------------------------------------------*/
@@ -735,6 +736,8 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
         Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER) {
         float voltage_mode_limit = MOTOR_ENCODER_SPEED_VOLT_LIMIT_V;
         float vq_feedforward = 0.0f;
+        float vq_pi;
+        float vq_anticogging;
         float vq;
 
         if (voltage_mode_limit > v_limit) {
@@ -750,8 +753,10 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
             vq_feedforward = -(MOTOR_ENCODER_SPEED_FF_BOOST_V +
                                MOTOR_ENCODER_SPEED_FF_V_PER_RPM * fabsf(motor->ol_target_rpm));
         }
-        vq = (ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP + vq_feedforward) *
-             ctx.soft_current_scale;
+        vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
+        Motor_Anticogging_LearnStep(Motor_Encoder_GetMechAngle(), vq_pi);
+        vq_anticogging = Motor_Anticogging_GetVoltage(Motor_Encoder_GetMechAngle());
+        vq = (vq_pi + vq_feedforward + vq_anticogging) * ctx.soft_current_scale;
         if (vq > voltage_mode_limit) {
             vq = voltage_mode_limit;
         } else if (vq < -voltage_mode_limit) {

@@ -2,11 +2,21 @@
  * @Description: I/F 开环启动：相位补偿、Iq 缩放与角度积分转速
  * @Author: lkc
  */
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Includes ------------------------------------------------------------------*/
 #include "motor_if_start.h"
-
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+static float MotorIfStart_Sign(float value);
+/* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 符号函数，负数返回 -1.0，否则返回 +1.0。
@@ -127,3 +137,7 @@ void MotorIfStart_Step(motor_if_start_t *state,
         state->angle_rpm = input->current_rpm;
     }
 }
+
+#ifdef __cplusplus
+}
+#endif

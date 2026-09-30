@@ -141,7 +141,12 @@ QueueHandle_t queueCmdHandle;
 #define CMD_QUEUE_LENGTH    8
 #define CMD_QUEUE_SIZE      sizeof(CMD_QUEUE_ITEM)
 
-/* -- 解析 & 分发 ------------------------------------------------------------*/
+/**
+ * @description: 按空格拆分一行命令并调用命令表。
+ * @param {char *} line  输入行，会被 strtok 改写
+ * @return {void} 无
+ * @author: lkc
+ */
 static void cmd_dispatch(char *line)
 {
     int   argc = 0;
@@ -199,11 +204,22 @@ void Cmd_FormatUptime(char *buf, unsigned buf_size)
     (void)snprintf(buf, buf_size, "[T+%u.%03us]", sec, ms);
 }
 
+/**
+ * @description: 向命令串口回显一个字符。
+ * @param {char} c  待发送字符
+ * @return {void} 无
+ * @author: lkc
+ */
 static void cmd_putc(char c)
 {
     Bsp_Usart_PutChar((uint8_t)c);
 }
 
+/**
+ * @description: 打印带上电时基的命令提示符。
+ * @return {void} 无
+ * @author: lkc
+ */
 static void cmd_put_prompt(void)
 {
     char ts[20];
@@ -212,6 +228,12 @@ static void cmd_put_prompt(void)
     printf("%s $ ", ts);
 }
 
+/**
+ * @description: 在执行前打印命令和时间戳。
+ * @param {const char *} line  即将执行的命令行
+ * @return {void} 无
+ * @author: lkc
+ */
 static void cmd_print_run_stamp(const char *line)
 {
     char ts[20];
@@ -220,6 +242,12 @@ static void cmd_print_run_stamp(const char *line)
     printf("%s > %s\r\n", ts, line);
 }
 
+/**
+ * @description: 用退格擦掉当前输入行并换成新内容。
+ * @param {const char *} line  替换后的行
+ * @return {void} 无
+ * @author: lkc
+ */
 static void cmd_replace_line(const char *line)
 {
     while (s_cmd_len > 0U) {
@@ -237,6 +265,12 @@ static void cmd_replace_line(const char *line)
     s_cmd_buf[s_cmd_len] = '\0';
 }
 
+/**
+ * @description: 把非空且不与上一条重复的命令写入历史环。
+ * @param {const char *} line  已执行的命令行
+ * @return {void} 无
+ * @author: lkc
+ */
 static void cmd_history_add(const char *line)
 {
     uint8_t latest;
@@ -256,6 +290,12 @@ static void cmd_history_add(const char *line)
     }
 }
 
+/**
+ * @description: 方向键上：回退到更早的一条历史命令。
+ * @detail: 第一次上翻时保存当前未提交的草稿。
+ * @return {void} 无
+ * @author: lkc
+ */
 static void cmd_history_up(void)
 {
     uint8_t index;
@@ -275,6 +315,11 @@ static void cmd_history_up(void)
     cmd_replace_line(s_cmd_history[index]);
 }
 
+/**
+ * @description: 方向键下：回到更新的历史，或恢复草稿。
+ * @return {void} 无
+ * @author: lkc
+ */
 static void cmd_history_down(void)
 {
     uint8_t index;
@@ -294,6 +339,13 @@ static void cmd_history_down(void)
     cmd_replace_line(s_cmd_history[index]);
 }
 
+/**
+ * @description: 处理一个串口输入字符。
+ * @detail: 识别方向键转义、回车执行、退格和可打印字符。help 直接打印命令表。
+ * @param {char} c  输入字符
+ * @return {void} 无
+ * @author: lkc
+ */
 static void cmd_handle_char(char c)
 {
     if (s_cmd_escape_state == 1U) {

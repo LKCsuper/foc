@@ -2,13 +2,22 @@
  * @Description: 电机状态帧捕获；临界区内只复制，不格式化、不发送串口
  * @Author: lkc
  */
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Includes ------------------------------------------------------------------*/
 #include <string.h>
-
 #include "motor.h"
 #include "motor_feedback.h"
 #include "motor_speed.h"
 #include "motor_it.h"
 #include "motor_crit.h"
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 获取一致的只读运行快照。
@@ -34,7 +43,6 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
     snap.enable = motor->ol_enable;
     snap.mode = motor->ol_mode;
     snap.target_rpm = motor->ol_target_rpm;
-    /* V/F、速度环未运行或尚无 PI 快照时，状态页仍应显示真实斜坡转速。 */
     snap.current_rpm = motor->ol_current_rpm;
     snap.ia = motor->ia;
     snap.ib = motor->ib;
@@ -55,7 +63,10 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
     snap.speed_enable = motor->speed_enable;
     Motor_Feedback_SampleDefault(motor, motor->ol_theta, &snap.feedback);
     if (Motor_SpeedLoop_GetSnapshot(&speed_snap)) {
-        /* 速度闭环运行时显示 PI 本帧实际采用的斜坡目标，保证目标/反馈/误差来自同一帧。 */
+        /*
+         * 指针非空时 GetSnapshot 总会成功，斜坡转速改为最近一次速度 PI 的目标。
+         * 速度环还没跑过一拍时该值为 0；measured_rpm、speed_error、speed_iq 与它同一帧。
+         */
         snap.current_rpm = speed_snap.target_rpm;
         snap.measured_rpm = speed_snap.measured_rpm;
         snap.speed_error = speed_snap.error;
@@ -72,3 +83,7 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
     *status = snap;
     return MOTOR_OK;
 }
+
+#ifdef __cplusplus
+}
+#endif

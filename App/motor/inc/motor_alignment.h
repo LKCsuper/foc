@@ -5,12 +5,13 @@
 #ifndef MOTOR_ALIGNMENT_H
 #define MOTOR_ALIGNMENT_H
 
-#include <stdbool.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+/* Includes ------------------------------------------------------------------*/
+#include <stdbool.h>
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
 typedef struct {
     bool enabled;
     float current;

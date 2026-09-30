@@ -55,10 +55,10 @@ static void Motor_Task_Encoder(void *argument);
 
 /**
  * @description: 推进周期基准并休眠到下一拍。
- * @detail: 本拍已错过（now 超过 tick）时按当前时间重锚，避免连续补拍。
- * @param {uint32_t *} tick    周期基准（tick），读改写
- * @param {uint32_t} period    本拍周期（tick）
- * @return {*}
+ * @detail: 用有符号 tick 差判断是否错过本拍，计数回绕后仍成立。错过则把基准拉到 now，避免连续补拍。
+ * @param {uint32_t *} tick    周期基准（tick），读改写，不可为空
+ * @param {uint32_t} period    本拍周期（tick），调用方保证至少为 1
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Task_DelayNextTick(uint32_t *tick, uint32_t period)
@@ -130,6 +130,12 @@ static void Motor_Task_Pid(void *argument)
     }
 }
 
+/**
+ * @description: 按 MT6701 轮询频率计算采集周期。
+ * @detail: MOTOR_MT6701_POLL_HZ 是编译期常量，tick 频率在内核启动后不变，任务里只算一次。
+ * @return {uint32_t} 周期（tick），至少 1
+ * @author: lkc
+ */
 static uint32_t Motor_Task_EncoderPeriodTicks(void)
 {
     uint32_t tick_hz = osKernelGetTickFreq();

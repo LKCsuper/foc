@@ -18,6 +18,7 @@ extern "C" {
 #include "hal_motor.h"
 #include "motor_feedback.h"
 #include "motor_crit.h"
+#include "motor_anticogging.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -177,6 +178,7 @@ motor_result_t Motor_RequestStop(MOTOR_PARAM_S *motor)
         return result;
     }
     cmd.enable = false;
+    Motor_Anticogging_Stop();
     return Motor_SetCommand(motor, &cmd);
 }
 

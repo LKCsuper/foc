@@ -2,10 +2,19 @@
  * @Description: 弱磁：电压利用率触发负 Id
  * @Author: lkc
  */
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Includes ------------------------------------------------------------------*/
 #include "motor_fw.h"
-
 #include <math.h>
 #include <stddef.h>
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 复位弱磁状态
@@ -120,3 +129,7 @@ float Motor_Fw_Step(motor_fw_t *fw, float current_max, float duty_start, float r
     fw->id = id;
     return id;
 }
+
+#ifdef __cplusplus
+}
+#endif

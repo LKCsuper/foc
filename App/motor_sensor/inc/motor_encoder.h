@@ -104,30 +104,34 @@ float Motor_Encoder_GetElecAngleState(const motor_encoder_runtime_t *rt, uint16_
 float Motor_Encoder_GetMechRpmState(const motor_encoder_runtime_t *rt);
 
 /**
- * @description: 读取近零 snap 前的机械转速
- * @param {const motor_encoder_runtime_t} *rt  运行时状态
- * @return {float} 原始机械转速 (RPM)
+ * @description: 读取近零吸附前的机械转速。
+ * @param {const motor_encoder_runtime_t *} rt  运行时状态
+ * @return {float} 原始机械转速 (RPM)；rt 为空返回 0
+ * @author: lkc
  */
 float Motor_Encoder_GetRawMechRpmState(const motor_encoder_runtime_t *rt);
 
 /**
- * @description: 读取距最近一次计数变化的时间
- * @param {const motor_encoder_runtime_t} *rt  运行时状态
- * @return {float} 边沿年龄 (s)
+ * @description: 读取距最近一次计数变化的时间。
+ * @param {const motor_encoder_runtime_t *} rt  运行时状态
+ * @return {float} 边沿年龄 (s)；rt 为空返回 0
+ * @author: lkc
  */
 float Motor_Encoder_GetEdgeAgeState(const motor_encoder_runtime_t *rt);
 
 /**
- * @description: 查询是否检测到不合理计数跳变
- * @param {const motor_encoder_runtime_t} *rt  运行时状态
- * @return {bool} true=当前信号故障
+ * @description: 查询是否检测到不合理计数跳变。
+ * @param {const motor_encoder_runtime_t *} rt  运行时状态
+ * @return {bool} true=当前信号故障；rt 为空返回 false
+ * @author: lkc
  */
 bool Motor_Encoder_IsSignalFaultState(const motor_encoder_runtime_t *rt);
 
 /**
- * @description: 读取累计异常样本数
- * @param {const motor_encoder_runtime_t} *rt  运行时状态
- * @return {uint32_t} 被拒绝样本数
+ * @description: 读取累计被拒绝的异常样本数。
+ * @param {const motor_encoder_runtime_t *} rt  运行时状态
+ * @return {uint32_t} 被拒绝样本数；rt 为空返回 0
+ * @author: lkc
  */
 uint32_t Motor_Encoder_GetInvalidCountState(const motor_encoder_runtime_t *rt);
 
@@ -218,10 +222,18 @@ float Motor_Encoder_GetElecAngle(void);
  */
 float Motor_Encoder_GetMechRpm(void);
 
-/** @description: 读取默认实例原始机械转速 (RPM) */
+/**
+ * @description: 读取默认实例近零吸附前的机械转速。
+ * @return {float} 原始机械转速 (RPM)
+ * @author: lkc
+ */
 float Motor_Encoder_GetRawMechRpm(void);
 
-/** @description: 读取默认实例距最近一次计数变化的时间 (s) */
+/**
+ * @description: 读取默认实例距最近一次计数变化的时间。
+ * @return {float} 边沿年龄 (s)
+ * @author: lkc
+ */
 float Motor_Encoder_GetEdgeAge(void);
 
 /**
@@ -231,10 +243,19 @@ float Motor_Encoder_GetEdgeAge(void);
  */
 float Motor_Encoder_GetSampleAge(void);
 
-/** @description: 查询默认实例是否检测到信号跳变故障 */
+/**
+ * @description: 查询默认实例是否处于信号故障。
+ * @detail: MT6701 无效、采样超时或运行时计数突跳，任一成立即为故障。
+ * @return {bool} true=信号不可用
+ * @author: lkc
+ */
 bool Motor_Encoder_IsSignalFault(void);
 
-/** @description: 读取默认实例累计异常样本数 */
+/**
+ * @description: 读取默认实例累计被拒绝的异常样本数。
+ * @return {uint32_t} 被拒绝样本数
+ * @author: lkc
+ */
 uint32_t Motor_Encoder_GetInvalidCount(void);
 
 /**

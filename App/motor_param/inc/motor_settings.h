@@ -4,13 +4,15 @@
  */
 #ifndef MOTOR_SETTINGS_H
 #define MOTOR_SETTINGS_H
-#include <stdint.h>
-#include <stdbool.h>
-#include "motor_param.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+/* Includes ------------------------------------------------------------------*/
+#include <stdint.h>
+#include <stdbool.h>
+#include "motor_param.h"
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
 typedef struct {
     float ol_max_rpm;           /* max target speed RPM */
     float ol_v_boost;           /* V/F 启动补偿 V */

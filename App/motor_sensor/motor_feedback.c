@@ -125,6 +125,7 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
          * 调用方须先 Motor_Encoder_Update(dt)；此处不伪造有效零速。
          */
         (void)motor;
+        /* 角度和速度共用同一次故障采样，避免本拍中途标志变化使两者不一致。 */
         encoder_fault = Motor_Encoder_IsSignalFault();
         if (Motor_Encoder_IsZeroValid() && !encoder_fault) {
             out->elec_angle_rad = Motor_Encoder_GetElecAngle();

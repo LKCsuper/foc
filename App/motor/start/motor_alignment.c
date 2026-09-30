@@ -2,10 +2,19 @@
  * @Description: I/F 启动前转子 D 轴预对齐状态机
  * @Author: lkc
  */
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Includes ------------------------------------------------------------------*/
 #include "motor_alignment.h"
-
 #include <stddef.h>
 #include <string.h>
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 复位对齐状态机，恢复到“已停止”的初始状态
@@ -116,3 +125,7 @@ motor_alignment_result_t MotorAlignment_Step(
     }
     return started ? MOTOR_ALIGNMENT_STARTED : MOTOR_ALIGNMENT_RUNNING;
 }
+
+#ifdef __cplusplus
+}
+#endif

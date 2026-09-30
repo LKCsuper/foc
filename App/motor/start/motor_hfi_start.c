@@ -2,15 +2,24 @@
  * @Description: HFI 凸极扫描零速初始位置估计
  * @Author: lkc
  */
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Includes ------------------------------------------------------------------*/
 #include "motor_hfi_start.h"
-
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
-
+/* Private define ------------------------------------------------------------*/
 #define MOTOR_HFI_START_PI                   (3.14159265358979323846f)
 #define MOTOR_HFI_START_TWO_PI               (2.0f * MOTOR_HFI_START_PI)
 #define MOTOR_HFI_START_MIN_CURRENT_RESPONSE (1.0e-5f)
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+static float MotorHfiStart_NormalizeAngle(float angle);
+/* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 将角度循环归一化到 [0, 2π) 区间。
@@ -173,3 +182,7 @@ motor_hfi_start_result_t MotorHfiStart_Step(
     output->theta = theta;
     return MOTOR_HFI_START_RUNNING;
 }
+
+#ifdef __cplusplus
+}
+#endif

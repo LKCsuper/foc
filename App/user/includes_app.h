@@ -39,6 +39,7 @@ extern "C" {
 /* 主控 / 环路 */
 #include "motor_foc.h"
 #include "motor_current.h"
+#include "motor_anticogging.h"
 #include "motor_sense.h"
 #include "motor_task.h"
 #include "motor_it.h"

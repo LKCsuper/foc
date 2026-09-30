@@ -12,8 +12,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+/* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
 
 /* 命令函数统一签名：argc/argv 风格，返回 0 表示成功 */
 typedef int (*cmd_func_t)(int argc, char *argv[]);
