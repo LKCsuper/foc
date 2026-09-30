@@ -12,6 +12,17 @@ extern "C" {
 #define ENCODER_WATCH_PERIOD_MS (100U)
 #define ENCODER_WATCH_DEFAULT_S (2.0f)
 #define ENCODER_WATCH_MAX_S     (5.0f)
+#define ENCODER_COG_DEFAULT_PASSES (2U)
+#define ENCODER_COG_MAX_PASSES     (5U)
+#define ENCODER_COG_STEP_MS        (2U)
+#define ENCODER_COG_POS_KP_V_RAD   (20.0f)
+#define ENCODER_COG_POS_KI_V_RAD_S (30.0f)
+#define ENCODER_COG_VEL_KD_V_RPM   (0.005f)
+#define ENCODER_COG_VQ_LIMIT_V     (1.50f)
+#define ENCODER_COG_POS_COUNTS     (16.0f)
+#define ENCODER_COG_VEL_THRESH_RPM (0.5f)
+#define ENCODER_COG_STABLE_SAMPLES (20U)
+#define ENCODER_COG_POINT_TIMEOUT  (5000U)
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
@@ -51,16 +62,18 @@ static void Encoder_PrintStatus(void)
 
 /**
  * @description: 短时对比 MT6701 原始计数窗口转速与 PLL 转速。
- * @detail: Shell 打印耗时计入真实采样间隔，避免按固定 100 ms 计算导致 raw_rpm 偏高。
- *          不进 ISR。时长小于等于 0 时用 2 s，超过 5 s 则截断，避免长时挡住停机命令。
- * @param {float} duration_s  观察时长 (s)
+ * @detail: raw_rpm 用 TIM5 微秒时基（Hal_Motor_TimeUs，1 us/tick）计算窗口时长。
+ *          FOC ISR 占用高时 RTOS tick 会变慢，按 tick 计时会把转速读高。
+ *          Shell 打印耗时计入该真实间隔。采样节拍仍用 osDelay，不进 ISR。
+ *          时长小于等于 0 时用 2 s，超过 5 s 则截断，避免长时挡住停机命令。
+ * @param {float} duration_s  观察时长 (s)，按 RTOS tick 睡眠
  * @return {void} 无
  * @author: lkc
  */
 static void Encoder_Watch(float duration_s)
 {
     uint16_t last_count = Motor_Encoder_GetCount();
-    TickType_t last_tick = xTaskGetTickCount();
+    uint32_t last_us = Hal_Motor_TimeUs();
     uint32_t samples;
     uint32_t i;
     int32_t cpr = (int32_t)Hal_Encoder_CountsPerRev();
@@ -74,16 +87,17 @@ static void Encoder_Watch(float duration_s)
     if (samples < 1U) {
         samples = 1U;
     }
-    PRINTF("Encoder watch %.1fs: count delta raw_rpm pll_rpm valid\r\n", (double)duration_s);
+    PRINTF("Encoder watch %.1fs TIM5: count delta dt_s raw_rpm pll_rpm valid\r\n", (double)duration_s);
     for (i = 0U; i < samples; i++) {
         uint16_t count;
-        TickType_t now_tick;
-        TickType_t elapsed_ticks;
+        uint32_t now_us;
+        uint32_t elapsed_us;
         int32_t delta;
+        float elapsed_s;
         float raw_rpm;
 
         osDelay(pdMS_TO_TICKS(ENCODER_WATCH_PERIOD_MS));
-        now_tick = xTaskGetTickCount();
+        now_us = Hal_Motor_TimeUs();
         count = Motor_Encoder_GetCount();
         delta = (int32_t)count - (int32_t)last_count;
         if (delta > cpr / 2) {
@@ -94,17 +108,19 @@ static void Encoder_Watch(float duration_s)
         if (motor.encoder_inverted) {
             delta = -delta;
         }
-        elapsed_ticks = now_tick - last_tick;
-        if (elapsed_ticks == 0U) {
+        elapsed_us = now_us - last_us;
+        if (elapsed_us == 0U) {
+            elapsed_s = 0.0f;
             raw_rpm = 0.0f;
         } else {
-            raw_rpm = (float)delta * (60.0f * (float)configTICK_RATE_HZ) /
-                      ((float)cpr * (float)elapsed_ticks);
+            elapsed_s = (float)elapsed_us * 1.0e-6f;
+            raw_rpm = (float)delta * 60.0f / ((float)cpr * elapsed_s);
         }
-        PRINTF("  %5u %+6ld raw=%8.2f pll=%8.2f valid=%d\r\n", (unsigned)count, (long)delta,
-               (double)raw_rpm, (double)Motor_Encoder_GetMechRpm(), Motor_Encoder_IsSpeedValid() ? 1 : 0);
+        PRINTF("  %5u %+6ld dt=%7.4f raw=%8.2f pll=%8.2f valid=%d\r\n", (unsigned)count, (long)delta,
+               (double)elapsed_s, (double)raw_rpm, (double)Motor_Encoder_GetMechRpm(),
+               Motor_Encoder_IsSpeedValid() ? 1 : 0);
         last_count = count;
-        last_tick = now_tick;
+        last_us = now_us;
     }
 }
 
@@ -124,9 +140,129 @@ static void Encoder_CoggingStatus(void)
            (double)status.min_voltage, (double)status.max_voltage);
 }
 
+static float Encoder_CoggingWrap(float angle)
+{
+    while (angle < 0.0f) angle += 2.0f * (float)M_PI;
+    while (angle >= 2.0f * (float)M_PI) angle -= 2.0f * (float)M_PI;
+    return angle;
+}
+
+static float Encoder_CoggingDelta(float target, float current)
+{
+    float delta = Encoder_CoggingWrap(target) - Encoder_CoggingWrap(current);
+    if (delta > (float)M_PI) delta -= 2.0f * (float)M_PI;
+    if (delta < -(float)M_PI) delta += 2.0f * (float)M_PI;
+    return delta;
+}
+
+/**
+ * @description: SimpleFOC 式电压位置保持扫描，记录维持每个位置所需的积分 Vq。
+ * @detail: 位置 PI 直接产生 Vq，并以编码器速度作阻尼；绕开小电机低电流采样分辨率限制。
+ */
+static bool Encoder_CoggingLearnPosition(uint16_t passes)
+{
+    motor_command_t saved;
+    motor_command_t calibration;
+    uint16_t start_bin;
+    float vq_integrator = 0.0f;
+    float vq_command = 0.0f;
+    float control_sign = 1.0f;
+    float pos_threshold = ENCODER_COG_POS_COUNTS * 2.0f * (float)M_PI /
+                          (float)Hal_Encoder_CountsPerRev();
+    uint16_t pass;
+    bool ok = false;
+
+    if (Motor_GetCommand(&motor, &saved) != MOTOR_OK || saved.enable || !Motor_Encoder_IsZeroValid() ||
+        !Motor_MT6701_IsValid() || Motor_Protect_IsFaultLatched()) {
+        PRINTF("Cogging learn requires stopped motor, valid encoder zero and no fault\r\n");
+        return false;
+    }
+    if (!Motor_Anticogging_Start(passes)) return false;
+
+    calibration = saved;
+    calibration.enable = true;
+    calibration.mode = MOTOR_OL_MODE_IF;
+    calibration.target_rpm = 0.0f;
+    calibration.iq_set = 0.0f;
+    calibration.id_set = 0.0f;
+    calibration.speed_enable = false;
+    Motor_Anticogging_SetLearnTarget(Motor_Encoder_GetElecAngle(), 0.0f);
+    if (Motor_SetCommand(&motor, &calibration) != MOTOR_OK) goto cleanup;
+
+    PRINTF("Cogging control direction: motor config sign=%+.0f\r\n", (double)control_sign);
+    start_bin = (uint16_t)(Motor_Encoder_GetMechAngle() * (float)MOTOR_ANTICOGGING_BINS /
+                           (2.0f * (float)M_PI));
+    if (start_bin >= MOTOR_ANTICOGGING_BINS) start_bin = 0U;
+
+    for (pass = 0U; pass < passes; pass++) {
+        uint16_t k;
+        bool reverse = (pass & 1U) != 0U;
+        PRINTF("Cogging position scan: pass %u/%u direction=%s\r\n",
+               (unsigned)(pass + 1U), (unsigned)passes, reverse ? "reverse" : "forward");
+        for (k = 0U; k < MOTOR_ANTICOGGING_BINS; k++) {
+            uint16_t bin = reverse ?
+                               (uint16_t)((start_bin + MOTOR_ANTICOGGING_BINS - 1U - k) %
+                                          MOTOR_ANTICOGGING_BINS) :
+                               (uint16_t)((start_bin + k) % MOTOR_ANTICOGGING_BINS);
+            float target = ((float)bin + 0.5f) * 2.0f * (float)M_PI /
+                           (float)MOTOR_ANTICOGGING_BINS;
+            uint16_t stable = 0U;
+            uint16_t iteration;
+
+            for (iteration = 0U; iteration < ENCODER_COG_POINT_TIMEOUT; iteration++) {
+                float position_error;
+                float velocity;
+
+                if (Motor_Protect_IsFaultLatched() || !Motor_MT6701_IsValid()) goto cleanup;
+                position_error = Encoder_CoggingDelta(target, Motor_Encoder_GetMechAngle());
+                velocity = Motor_Encoder_GetMechRpm();
+                vq_integrator += ENCODER_COG_POS_KI_V_RAD_S * position_error *
+                                 ((float)ENCODER_COG_STEP_MS * 0.001f);
+                if (vq_integrator > ENCODER_COG_VQ_LIMIT_V) vq_integrator = ENCODER_COG_VQ_LIMIT_V;
+                if (vq_integrator < -ENCODER_COG_VQ_LIMIT_V) vq_integrator = -ENCODER_COG_VQ_LIMIT_V;
+                vq_command = control_sign *
+                             (vq_integrator + ENCODER_COG_POS_KP_V_RAD * position_error -
+                              ENCODER_COG_VEL_KD_V_RPM * velocity);
+                if (vq_command > ENCODER_COG_VQ_LIMIT_V) vq_command = ENCODER_COG_VQ_LIMIT_V;
+                if (vq_command < -ENCODER_COG_VQ_LIMIT_V) vq_command = -ENCODER_COG_VQ_LIMIT_V;
+                Motor_Anticogging_SetLearnTarget(Motor_Encoder_GetElecAngle(), vq_command);
+
+                if (fabsf(position_error) <= pos_threshold &&
+                    fabsf(velocity) <= ENCODER_COG_VEL_THRESH_RPM) {
+                    stable++;
+                    if (stable >= ENCODER_COG_STABLE_SAMPLES) break;
+                } else {
+                    stable = 0U;
+                }
+                osDelay(pdMS_TO_TICKS(ENCODER_COG_STEP_MS));
+            }
+            if (stable < ENCODER_COG_STABLE_SAMPLES ||
+                !Motor_Anticogging_Record(bin, control_sign * vq_integrator)) {
+                PRINTF("Cogging point timeout: bin=%u err=%.4frad rpm=%.2f vq=%.3fV\r\n",
+                       (unsigned)bin, (double)Encoder_CoggingDelta(target, Motor_Encoder_GetMechAngle()),
+                       (double)Motor_Encoder_GetMechRpm(), (double)vq_integrator);
+                goto cleanup;
+            }
+        }
+    }
+
+    for (pass = 25U; pass > 0U; pass--) {
+        Motor_Anticogging_SetLearnTarget(Motor_Encoder_GetElecAngle(),
+                                         vq_command * (float)(pass - 1U) / 25.0f);
+        osDelay(pdMS_TO_TICKS(ENCODER_COG_STEP_MS));
+    }
+    ok = Motor_Anticogging_Finish();
+
+cleanup:
+    if (!ok) Motor_Anticogging_Stop();
+    saved.enable = false;
+    (void)Motor_SetCommand(&motor, &saved);
+    return ok;
+}
+
 /**
  * @description: 处理 encoder cog 子命令。
- * @detail: status 只打印。learn 要求电机已使能、速度环打开且反馈为编码器，每桶样本数 1..50。
+ * @detail: status 只打印。learn 要求电机停机、编码器零点有效且无故障；执行静态正反向逐点扫描。
  *          on 在未标定时失败。stop 不清除表，clear 清表。
  * @param {int} argc       参数个数，含命令名
  * @param {char *[]} argv  参数表；子命令在 argv[2]
@@ -135,23 +271,34 @@ static void Encoder_CoggingStatus(void)
  */
 static int Encoder_CoggingCommand(int argc, char *argv[])
 {
-    int turns = 10;
+    int passes = (int)ENCODER_COG_DEFAULT_PASSES;
     if (argc < 3 || strcmp(argv[2], "status") == 0) {
         Encoder_CoggingStatus();
         return 0;
     }
     if (strcmp(argv[2], "learn") == 0) {
-        if (argc >= 4) turns = atoi(argv[3]);
-        if (!motor.ol_enable || !motor.speed_enable ||
-            Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER) {
-            PRINTF("Cogging learn requires running encoder speed loop\r\n");
+        if (argc >= 4) passes = atoi(argv[3]);
+        if (passes < 1 || passes > (int)ENCODER_COG_MAX_PASSES) {
+            PRINTF("usage: encoder cog learn [passes 1..5]\r\n");
             return -1;
         }
-        if (turns < 1 || turns > 50 || !Motor_Anticogging_Start((uint16_t)turns)) {
-            PRINTF("usage: encoder cog learn [1..50]\r\n");
+        PRINTF("Cogging voltage-position learn: %d pass(es), motor will hold %u positions\r\n",
+               passes, (unsigned)MOTOR_ANTICOGGING_BINS);
+        if (!Encoder_CoggingLearnPosition((uint16_t)passes)) {
+            PRINTF("Cogging position learn FAILED\r\n");
             return -1;
         }
-        PRINTF("Cogging learn started: %d samples/bin, keep constant speed until complete\r\n", turns);
+        PRINTF("Cogging position learn complete\r\n");
+        {
+            motor_detect_result_t detect_compat = {0};
+            detect_compat.version = MOTOR_DETECT_RESULT_VERSION;
+            if (FlashStorage_Save(&motor, &detect_compat)) {
+                PRINTF("Cogging table saved to flash\r\n");
+            } else {
+                PRINTF("Cogging table save FAILED; table remains active in RAM\r\n");
+            }
+        }
+        Encoder_CoggingStatus();
         return 0;
     }
     if (strcmp(argv[2], "on") == 0 || strcmp(argv[2], "off") == 0) {
@@ -173,7 +320,7 @@ static int Encoder_CoggingCommand(int argc, char *argv[])
         PRINTF("Cogging learn stopped\r\n");
         return 0;
     }
-    PRINTF("usage: encoder cog [status|learn [1..50]|on|off|stop|clear]\r\n");
+    PRINTF("usage: encoder cog [status|learn [passes 1..5]|on|off|stop|clear]\r\n");
     return -1;
 }
 

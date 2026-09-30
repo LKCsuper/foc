@@ -7,11 +7,13 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
+#include <math.h>
 #include <string.h>
 #include "flash_storage.h"
 #include "hal_flash.h"
 #include "motor_hall.h"
 #include "motor_math.h"
+#include "motor_anticogging.h"
 /* Private define ------------------------------------------------------------*/
 #ifndef FLASH_STORAGE_PRINTF
 #define FLASH_STORAGE_PRINTF(...) ((void)0)
@@ -27,7 +29,55 @@ static bool flash_storage_sequence_newer(uint32_t lhs, uint32_t rhs);
 static bool flash_storage_valid(const flash_storage_t *storage);
 static bool flash_storage_get_slot(uint8_t index, hal_flash_slot_t *slot);
 static const flash_storage_t *flash_storage_current(uint8_t *out_index);
+static bool flash_storage_anticog_decode(const uint8_t *payload, float *table, bool *enabled, bool *calibrated);
 /* Private functions ---------------------------------------------------------*/
+static flash_storage_t s_write_storage;
+static float s_anticogging_table[MOTOR_ANTICOGGING_BINS];
+
+static uint16_t flash_get_u16(const uint8_t *p)
+{
+    return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
+}
+
+static uint32_t flash_get_u32(const uint8_t *p)
+{
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static void flash_put_u16(uint8_t *p, uint16_t value)
+{
+    p[0] = (uint8_t)value;
+    p[1] = (uint8_t)(value >> 8);
+}
+
+static void flash_put_u32(uint8_t *p, uint32_t value)
+{
+    p[0] = (uint8_t)value;
+    p[1] = (uint8_t)(value >> 8);
+    p[2] = (uint8_t)(value >> 16);
+    p[3] = (uint8_t)(value >> 24);
+}
+
+static bool flash_storage_anticog_decode(const uint8_t *payload, float *table, bool *enabled, bool *calibrated)
+{
+    const uint8_t *p = payload + MOTOR_SETTINGS_WIRE_SIZE;
+    uint16_t i;
+    if (flash_get_u32(p) != FLASH_STORAGE_ANTICOG_MAGIC ||
+        flash_get_u16(p + 4U) != MOTOR_ANTICOGGING_BINS || p[6] > 1U || p[7] > 1U || (p[6] != 0U && p[7] == 0U)) {
+        return false;
+    }
+    if (enabled != NULL) *enabled = p[6] != 0U;
+    if (calibrated != NULL) *calibrated = p[7] != 0U;
+    p += 8U;
+    for (i = 0U; i < MOTOR_ANTICOGGING_BINS; i++, p += 4U) {
+        uint32_t bits = flash_get_u32(p);
+        float value;
+        memcpy(&value, &bits, sizeof(value));
+        if (!isfinite(value) || value < -0.5f || value > 0.5f) return false;
+        if (table != NULL) table[i] = value;
+    }
+    return true;
+}
 
 /**
  * @description: 按 32 位序号比较新旧，lhs 比 rhs 新则返回 true。
@@ -68,7 +118,8 @@ static bool flash_storage_valid(const flash_storage_t *storage)
     uint32_t expected_size;
     motor_settings_t settings;
 
-    expected_size = storage->format_version == FLASH_STORAGE_FORMAT_VERSION ? MOTOR_SETTINGS_WIRE_SIZE :
+    expected_size = storage->format_version == FLASH_STORAGE_FORMAT_VERSION ? FLASH_STORAGE_PAYLOAD_SIZE :
+                    storage->format_version == FLASH_STORAGE_FORMAT_VERSION_V3 ? MOTOR_SETTINGS_WIRE_SIZE :
                     storage->format_version == FLASH_STORAGE_FORMAT_VERSION_V2 ? MOTOR_SETTINGS_WIRE_SIZE_V2 : 0U;
     if (storage->magic != FLASH_STORAGE_MAGIC || storage->payload_size != expected_size || expected_size == 0U) {
         return false;
@@ -77,7 +128,15 @@ static bool flash_storage_valid(const flash_storage_t *storage)
     if (committed != FLASH_STORAGE_COMMITTED) return false;
 
     crc = utils_crc32c((uint8_t *)storage->payload, storage->payload_size);
-    return crc == storage->crc32 && Motor_Settings_Decode(storage->payload, storage->payload_size, &settings);
+    if (crc != storage->crc32 ||
+        !Motor_Settings_Decode(storage->payload,
+                               storage->format_version == FLASH_STORAGE_FORMAT_VERSION_V2 ?
+                                   MOTOR_SETTINGS_WIRE_SIZE_V2 : MOTOR_SETTINGS_WIRE_SIZE,
+                               &settings)) {
+        return false;
+    }
+    return storage->format_version != FLASH_STORAGE_FORMAT_VERSION ||
+           flash_storage_anticog_decode(storage->payload, NULL, NULL, NULL);
 }
 
 /**
@@ -153,9 +212,21 @@ bool FlashStorage_Load(MOTOR_PARAM_S *motor, motor_detect_result_t *detect)
         return false;
     }
 
-    if (!Motor_Settings_Decode(storage->payload, storage->payload_size, &settings) ||
+    if (!Motor_Settings_Decode(storage->payload,
+                               storage->format_version == FLASH_STORAGE_FORMAT_VERSION_V2 ?
+                                   MOTOR_SETTINGS_WIRE_SIZE_V2 : MOTOR_SETTINGS_WIRE_SIZE,
+                               &settings) ||
         !Motor_Settings_Apply(motor, &settings)) {
         return false;
+    }
+    Motor_Anticogging_Clear();
+    if (storage->format_version == FLASH_STORAGE_FORMAT_VERSION) {
+        bool enabled;
+        bool calibrated;
+        if (!flash_storage_anticog_decode(storage->payload, s_anticogging_table, &enabled, &calibrated)) {
+            return false;
+        }
+        if (calibrated && !Motor_Anticogging_Import(s_anticogging_table, MOTOR_ANTICOGGING_BINS, enabled)) return false;
     }
     memset(detect, 0, sizeof(*detect));
     detect->version = MOTOR_DETECT_RESULT_VERSION;
@@ -174,13 +245,13 @@ bool FlashStorage_Load(MOTOR_PARAM_S *motor, motor_detect_result_t *detect)
 bool FlashStorage_Save(const MOTOR_PARAM_S *motor, const motor_detect_result_t *detect)
 {
     const flash_storage_t *current;
-    flash_storage_t storage;
+    flash_storage_t *storage = &s_write_storage;
     motor_settings_t settings;
     hal_flash_slot_t target_slot;
     uint8_t current_index;
     uint8_t target_index;
     uint32_t target_addr;
-    uint32_t committed_offset = (uint32_t)offsetof(flash_storage_t, committed);
+    uint32_t committed_offset = (uint32_t)offsetof(flash_storage_t, payload) + FLASH_STORAGE_PAYLOAD_SIZE;
     const uint32_t committed = FLASH_STORAGE_COMMITTED;
 
     if (motor == NULL || detect == NULL || motor->ol_enable || Motor_Detect_IsActive() || Motor_Hall_DetectIsActive()) {
@@ -189,7 +260,7 @@ bool FlashStorage_Save(const MOTOR_PARAM_S *motor, const motor_detect_result_t *
     if (Hal_Flash_SlotCount() < 2U) {
         return false;
     }
-    if (!Hal_Flash_GetSlot(0U, &target_slot) || sizeof(storage) > target_slot.size) {
+    if (!Hal_Flash_GetSlot(0U, &target_slot) || committed_offset + sizeof(uint32_t) > target_slot.size) {
         return false;
     }
 
@@ -197,9 +268,29 @@ bool FlashStorage_Save(const MOTOR_PARAM_S *motor, const motor_detect_result_t *
     if (!Motor_Settings_Capture(motor, &settings)) {
         return false;
     }
-    memset(&storage, 0xFF, sizeof(storage));
-    if (!Motor_Settings_Encode(&settings, storage.payload, MOTOR_SETTINGS_WIRE_SIZE)) {
+    memset(storage, 0xFF, sizeof(*storage));
+    if (!Motor_Settings_Encode(&settings, storage->payload, MOTOR_SETTINGS_WIRE_SIZE)) {
         return false;
+    }
+    {
+        uint8_t *p = storage->payload + MOTOR_SETTINGS_WIRE_SIZE;
+        bool enabled = false;
+        uint16_t i;
+        bool calibrated = Motor_Anticogging_Export(s_anticogging_table, MOTOR_ANTICOGGING_BINS, &enabled);
+        if (!calibrated) {
+            memset(s_anticogging_table, 0, sizeof(s_anticogging_table));
+            enabled = false;
+        }
+        flash_put_u32(p, FLASH_STORAGE_ANTICOG_MAGIC);
+        flash_put_u16(p + 4U, MOTOR_ANTICOGGING_BINS);
+        p[6] = enabled ? 1U : 0U;
+        p[7] = calibrated ? 1U : 0U;
+        p += 8U;
+        for (i = 0U; i < MOTOR_ANTICOGGING_BINS; i++, p += 4U) {
+            uint32_t bits;
+            memcpy(&bits, &s_anticogging_table[i], sizeof(bits));
+            flash_put_u32(p, bits);
+        }
     }
 
     current = flash_storage_current(&current_index);
@@ -213,14 +304,14 @@ bool FlashStorage_Save(const MOTOR_PARAM_S *motor, const motor_detect_result_t *
     }
     target_addr = (uint32_t)target_slot.base;
 
-    storage.magic = FLASH_STORAGE_MAGIC;
-    storage.format_version = FLASH_STORAGE_FORMAT_VERSION;
-    storage.sequence = current == NULL ? 1U : current->sequence + 1U;
-    storage.payload_size = MOTOR_SETTINGS_WIRE_SIZE;
-    storage.crc32 = utils_crc32c(storage.payload, MOTOR_SETTINGS_WIRE_SIZE);
+    storage->magic = FLASH_STORAGE_MAGIC;
+    storage->format_version = FLASH_STORAGE_FORMAT_VERSION;
+    storage->sequence = current == NULL ? 1U : current->sequence + 1U;
+    storage->payload_size = FLASH_STORAGE_PAYLOAD_SIZE;
+    storage->crc32 = utils_crc32c(storage->payload, FLASH_STORAGE_PAYLOAD_SIZE);
 
     if (!Hal_Flash_EraseSlot(target_index) ||
-        !Hal_Flash_Program((uintptr_t)target_addr, (const uint8_t *)&storage, committed_offset) ||
+        !Hal_Flash_Program((uintptr_t)target_addr, (const uint8_t *)storage, committed_offset) ||
         !Hal_Flash_Program((uintptr_t)(target_addr + committed_offset), (const uint8_t *)&committed,
                            sizeof(uint32_t))) {
         FLASH_STORAGE_ERROR("FlashStorage: erase/program failed\r\n");
@@ -232,7 +323,7 @@ bool FlashStorage_Save(const MOTOR_PARAM_S *motor, const motor_detect_result_t *
         return false;
     }
 
-    FLASH_STORAGE_PRINTF("FlashStorage: saved slot sequence %u\r\n", storage.sequence);
+    FLASH_STORAGE_PRINTF("FlashStorage: saved slot sequence %u\r\n", storage->sequence);
     return true;
 }
 

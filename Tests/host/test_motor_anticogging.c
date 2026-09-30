@@ -10,23 +10,31 @@
 int main(void)
 {
     motor_anticogging_status_t status;
-    unsigned pass;
     unsigned bin;
 
     Motor_Anticogging_Init();
-    assert(Motor_Anticogging_Start(2U));
-    for (pass = 0U; pass < 2U; ++pass) {
-        for (bin = 0U; bin < MOTOR_ANTICOGGING_BINS; ++bin) {
-            float angle = ((float)bin + 0.25f) * 2.0f * (float)M_PI /
-                          (float)MOTOR_ANTICOGGING_BINS;
-            float correction = 0.1f + 0.2f * sinf(angle);
-            Motor_Anticogging_LearnStep(angle, correction);
-        }
+    assert(Motor_Anticogging_Start(1U));
+    Motor_Anticogging_SetLearnTarget(1.0f, 0.02f);
+    {
+        float theta;
+        float vd;
+        float vq;
+        assert(Motor_Anticogging_GetLearnTargets(&theta, &vd, &vq));
+        assert(fabsf(theta - 1.0f) < 1e-6f);
+        assert(fabsf(vd) < 1e-6f);
+        assert(fabsf(vq - 0.02f) < 1e-6f);
     }
+    for (bin = 0U; bin < MOTOR_ANTICOGGING_BINS; bin++) {
+        float angle = ((float)bin + 0.5f) * 2.0f * (float)M_PI /
+                      (float)MOTOR_ANTICOGGING_BINS;
+        assert(Motor_Anticogging_Record((uint16_t)bin, 0.01f + 0.02f * sinf(84.0f * angle)));
+    }
+    assert(Motor_Anticogging_Finish());
     Motor_Anticogging_GetStatus(&status);
     assert(!status.learning && status.calibrated && status.enabled);
-    assert(status.min_samples == 2U);
-    assert(fabsf(Motor_Anticogging_GetVoltage(0.5f * (float)M_PI) - 0.2f) < 0.02f);
+    assert(status.min_samples == 1U);
+    assert(status.total_samples == MOTOR_ANTICOGGING_BINS);
+    assert(status.min_voltage < -0.013f && status.max_voltage > 0.013f);
     assert(Motor_Anticogging_SetEnabled(false));
     assert(fabsf(Motor_Anticogging_GetVoltage(0.5f * (float)M_PI)) < 1e-6f);
     assert(Motor_Anticogging_SetEnabled(true));

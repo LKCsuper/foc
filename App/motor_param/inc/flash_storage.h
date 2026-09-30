@@ -14,13 +14,18 @@ extern "C" {
 #include "motor_param.h"
 #include "motor_detect.h"
 #include "motor_settings.h"
+#include "motor_anticogging.h"
 /* Private define ------------------------------------------------------------*/
 
 /* 槽物理地址由 Hal_Flash 提供；本头仅约定逻辑存储格式。 */
 #define FLASH_STORAGE_MAGIC          0x464C4B43U
-#define FLASH_STORAGE_FORMAT_VERSION    3U
+#define FLASH_STORAGE_FORMAT_VERSION    4U
+#define FLASH_STORAGE_FORMAT_VERSION_V3 3U
 #define FLASH_STORAGE_FORMAT_VERSION_V2 2U
 #define FLASH_STORAGE_COMMITTED      0xA55AA55AU
+#define FLASH_STORAGE_ANTICOG_MAGIC   0x434F4731U
+#define FLASH_STORAGE_ANTICOG_SIZE    (8U + MOTOR_ANTICOGGING_BINS * 4U)
+#define FLASH_STORAGE_PAYLOAD_SIZE    (MOTOR_SETTINGS_WIRE_SIZE + FLASH_STORAGE_ANTICOG_SIZE)
 
 /* v1 整体 MOTOR_PARAM_S 格式不迁移：拒绝加载，使用默认配置并重新校准。 */
 typedef struct {
@@ -29,7 +34,7 @@ typedef struct {
     uint32_t sequence;
     uint32_t crc32;
     uint32_t payload_size;
-    uint8_t payload[MOTOR_SETTINGS_WIRE_SIZE];
+    uint8_t payload[FLASH_STORAGE_PAYLOAD_SIZE];
     uint32_t committed;
 } flash_storage_t;
 

@@ -13,7 +13,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Host compilation failed' }
     & .build/host/test_motor_settings.exe
     if ($LASTEXITCODE -ne 0) { throw 'Host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -Wno-int-to-void-pointer-cast -ITests/host/stubs -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_param/motor_settings.c App/motor_param/flash_storage.c Tests/host/stubs/hal_flash_host.c Tests/host/test_flash_storage.c -o .build/host/test_flash_storage.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -Wno-int-to-void-pointer-cast -ITests/host/stubs -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_anticogging.c App/motor_param/motor_settings.c App/motor_param/flash_storage.c Tests/host/stubs/hal_flash_host.c Tests/host/test_flash_storage.c -o .build/host/test_flash_storage.exe
     if ($LASTEXITCODE -ne 0) { throw 'Flash host compilation failed' }
     & .build/host/test_flash_storage.exe
     if ($LASTEXITCODE -ne 0) { throw 'Flash host tests failed' }

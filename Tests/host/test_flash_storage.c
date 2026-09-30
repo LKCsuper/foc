@@ -55,7 +55,7 @@ int main(void)
     assert(!FlashStorage_Load(&out, &detect));
     m.ol_current_kp = 0.2f;
     assert(FlashStorage_Save(&m, &detect));
-    assert(a->format_version == FLASH_STORAGE_FORMAT_VERSION && a->payload_size == MOTOR_SETTINGS_WIRE_SIZE);
+    assert(a->format_version == FLASH_STORAGE_FORMAT_VERSION && a->payload_size == FLASH_STORAGE_PAYLOAD_SIZE);
     assert(FlashStorage_Load(&out, &detect) && out.ol_current_kp == 0.2f);
     out.ol_target_rpm = 987;
     out.ol_vd_int = 456;
@@ -78,7 +78,7 @@ int main(void)
     a->payload[1] = 0;
     a->payload[2] = 0xc0;
     a->payload[3] = 0x7f;
-    a->crc32 = utils_crc32c(a->payload, MOTOR_SETTINGS_WIRE_SIZE);
+    a->crc32 = utils_crc32c(a->payload, FLASH_STORAGE_PAYLOAD_SIZE);
     assert(FlashStorage_Load(&out, &detect) && out.ol_current_kp == 0.3f);
     assert(FlashStorage_Save(&m, &detect));
     a->payload[0] ^= 1; /* CRC failure must fall back to B. */
@@ -97,6 +97,25 @@ int main(void)
     b->format_version = 2;
     b->payload_size--;
     assert(!FlashStorage_Load(&out, &detect));
+    /* V4 persists and restores a calibrated anticogging voltage table. */
+    assert(Hal_Flash_EraseSlot(0U) && Hal_Flash_EraseSlot(1U));
+    m.ol_pole_pairs = 2.0f;
+    Motor_Anticogging_Clear();
+    assert(Motor_Anticogging_Start(1U));
+    for (unsigned bin = 0U; bin < MOTOR_ANTICOGGING_BINS; bin++) {
+        float angle = ((float)bin + 0.5f) * 6.28318530718f / (float)MOTOR_ANTICOGGING_BINS;
+        assert(Motor_Anticogging_Record((uint16_t)bin, 0.2f * sinf(84.0f * angle)));
+    }
+    assert(Motor_Anticogging_Finish());
+    assert(FlashStorage_Save(&m, &detect));
+    Motor_Anticogging_Clear();
+    assert(FlashStorage_Load(&out, &detect));
+    {
+        motor_anticogging_status_t cog;
+        Motor_Anticogging_GetStatus(&cog);
+        assert(cog.calibrated && cog.enabled);
+        assert(fabsf(Motor_Anticogging_GetVoltage(0.01f)) > 0.01f);
+    }
     assert(Host_Flash_UnmapSlots());
     puts("PASS: real Flash storage code, A/B fallback, interrupted writes, version/length and save guards");
     return 0;

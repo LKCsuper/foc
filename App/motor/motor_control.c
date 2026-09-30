@@ -753,10 +753,9 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
             vq_feedforward = -(MOTOR_ENCODER_SPEED_FF_BOOST_V +
                                MOTOR_ENCODER_SPEED_FF_V_PER_RPM * fabsf(motor->ol_target_rpm));
         }
-        vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
-        Motor_Anticogging_LearnStep(Motor_Encoder_GetMechAngle(), vq_pi);
         vq_anticogging = Motor_Anticogging_GetVoltage(Motor_Encoder_GetMechAngle());
-        vq = (vq_pi + vq_feedforward + vq_anticogging) * ctx.soft_current_scale;
+        vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP + vq_anticogging;
+        vq = (vq_pi + vq_feedforward) * ctx.soft_current_scale;
         if (vq > voltage_mode_limit) {
             vq = voltage_mode_limit;
         } else if (vq < -voltage_mode_limit) {
@@ -835,6 +834,13 @@ static motor_control_result_t Motor_Control_RunHallDetect(MOTOR_PARAM_S *motor, 
     float iq_target;
     float v_limit;
     motor_dq_voltage_t voltage;
+
+    if (Motor_Anticogging_GetLearnTargets(&theta, &id_target, &iq_target)) {
+        v_limit = Motor_Control_GetVoltageLimit(motor, v_bus);
+        if (iq_target > v_limit) iq_target = v_limit;
+        if (iq_target < -v_limit) iq_target = -v_limit;
+        return Motor_Control_ResultDq(id_target, iq_target, theta);
+    }
 
     if (!Motor_Encoder_DetectGetTargets(&theta, &id_target, &iq_target) &&
         !Motor_Hall_DetectGetTargets(motor, &theta, &id_target, &iq_target)) {

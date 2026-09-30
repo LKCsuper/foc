@@ -852,7 +852,8 @@ static void Motor_DmaInt_Foc(void)
 
     dt = protection_dt;
     result = Motor_Control_Step(&s_control, &motor, motor.v_bus, dt,
-                                Motor_Hall_DetectIsActive() || Motor_Encoder_DetectIsActive());
+                                Motor_Hall_DetectIsActive() || Motor_Encoder_DetectIsActive() ||
+                                    Motor_Anticogging_IsLearning());
     Motor_Hall_DiagUpdate();
     /*
      * 无感可能在本拍 Step 内锁存失速。先仲裁：故障态只允许 SAFE，
