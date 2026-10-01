@@ -63,6 +63,7 @@ extern "C" {
 #include "hw.h"
 
 /* bsp */
+#include "ringbuf.h"
 #include "bsp_adc.h"
 #include "bsp_gpio.h"
 #include "bsp_usart.h"

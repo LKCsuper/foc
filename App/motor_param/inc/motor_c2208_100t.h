@@ -57,11 +57,13 @@ extern "C" {
 #define MOTOR_ENCODER_SPEED_VOLT_PER_AMP  (5.0f)
 #define MOTOR_ENCODER_SPEED_VOLT_LIMIT_V  (13.8f)
 /*
- * SimpleFOC 风格速度前馈：换用标准 VESC SVM 后，按旧 svm_hqd 约 1/3 的实际增益重新标定。
- * 30 RPM 基础前馈约 0.367 V，PI 只修正速度误差；最高限幅仍保留给高速段。
+ * 速度前馈：低速助推仍是 0.167 V。斜率按 2026-10-01 空载实测：
+ * 目标 1800 RPM 时 PI 顶在 -0.20 A，实际约 1875 RPM，对应电压约 11.17 V。
+ * 0.00586 V/RPM 使 1800 RPM 的前馈落在这个电压上，±1 V 的 PI 余量还能修正偏差。
+ * 30 RPM 基础前馈约 0.343 V。
  */
 #define MOTOR_ENCODER_SPEED_FF_BOOST_V   (0.1666667f)
-#define MOTOR_ENCODER_SPEED_FF_V_PER_RPM (0.0066667f)
+#define MOTOR_ENCODER_SPEED_FF_V_PER_RPM (0.00586f)
 /* 低速齿槽明显，降低速度 PLL 带宽；电角度仍直接使用 MT6701 原始角度。 */
 #define MOTOR_ENCODER_PLL_BW_RAD_S (30.0f)
 /* 2026-09 上板验证：10/30 RPM 编码器电压速度环使用该组参数可连续稳定运行。 */

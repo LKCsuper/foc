@@ -8,6 +8,7 @@
 #include "motor_feedback.h"
 
 static float s_last_current_theta;
+static int s_current_step_calls;
 static int s_sensorless_updates;
 static bool s_speed_fb_valid;
 static float s_speed_fb_rpm;
@@ -258,6 +259,7 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
     (void)motor;
     (void)dt;
     (void)v_limit;
+    s_current_step_calls++;
     s_last_current_theta = theta;
     s_last_alignment_running = ctx != NULL && ctx->alignment_running;
     s_last_soft_current_scale = ctx != NULL ? ctx->soft_current_scale : 0.0f;
@@ -568,24 +570,25 @@ int main(void)
         s_sensorless_updates = 0;
         s_enc_angle_reads = 0;
         s_last_current_theta = -1.0f;
+        s_current_step_calls = 0;
         s_last_speed_loop_active = false;
         s_speed_fb_valid = false;
         Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_ENCODER);
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
         assert(fabsf(result.theta - 1.57f) < 1e-5f);
-        assert(fabsf(s_last_current_theta - 1.57f) < 1e-5f);
+        assert(s_current_step_calls == 0); /* 电压模式不跑电流 PI */
+        assert(fabsf(m.iq_target) < 1e-5f);
         assert(s_enc_angle_reads == 1);
         assert(s_sensorless_updates == 0);
         assert(s_speed_fb_valid);
         assert(fabsf(s_speed_fb_rpm - 321.0f) < 1e-3f);
-        assert(s_last_speed_loop_active);
         assert(fabsf(s_speed_prime_iq) < 1e-5f); /* 电机已在沿目标方向转动，不加启动预置 */
-        /* Step 只置允许标志；Iq 由 foc pid 任务（此处手动 Run）在下一拍被电流环读到。 */
+        /* Step 只置允许标志；Iq 由 foc pid 任务（此处手动 Run）在下一拍被电压路径读到。 */
         Motor_SpeedLoop_Run(&m, 0.001f);
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
-        assert(s_last_speed_loop_active);
-        assert(fabsf(s_last_speed_iq_target - 1.25f) < 1e-5f);
+        assert(s_current_step_calls == 0);
+        assert(fabsf(m.iq_target - 1.25f) < 1e-5f);
 
         /* 角无效则不发布速度，速度环不激活 */
         s_enc_zero = false;
@@ -605,7 +608,7 @@ int main(void)
         s_last_if_iq_scale = 0.0f;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(s_speed_fb_valid);
-        assert(s_last_speed_loop_active);
+        assert(s_current_step_calls == 1);
         assert(fabsf(s_speed_prime_iq) < 1e-5f);
 
         /* 编码器电压速度模式使用前馈/助推，不向速度 PI 积分写入启动预置。 */
@@ -625,30 +628,34 @@ int main(void)
         s_speed_prime_iq = 0.0f;
         s_last_speed_loop_active = false;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
-        assert(s_last_speed_loop_active);
+        assert(s_current_step_calls == 1);
         assert(fabsf(s_speed_prime_iq) < 1e-5f);
 
         s_enc_rpm = 25.0f;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
-        assert(s_last_speed_loop_active);
+        assert(s_current_step_calls == 1);
         assert(fabsf(s_speed_prime_iq) < 1e-5f); /* 接管后不重复预置 */
 
         /* 齿槽助推：10 RPM 内保持 0.08 A，15 RPM 衰减到 0.04 A，20 RPM 退出。 */
-        s_enc_rpm = 5.0f;
-        s_speed_iq_out = 0.01f;
-        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
-        assert(fabsf(s_last_speed_iq_target - 0.08f) < 1e-5f);
-        assert(fabsf(result.vq - 0.766668f * s_last_soft_current_scale) < 1e-5f);
+        {
+            float ff_30 = MOTOR_ENCODER_SPEED_FF_BOOST_V + MOTOR_ENCODER_SPEED_FF_V_PER_RPM * 30.0f;
 
-        s_enc_rpm = 15.0f;
-        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
-        assert(fabsf(s_last_speed_iq_target - 0.04f) < 1e-5f);
-        assert(fabsf(result.vq - 0.566668f * s_last_soft_current_scale) < 1e-5f);
+            s_enc_rpm = 5.0f;
+            s_speed_iq_out = 0.01f;
+            result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+            assert(fabsf(m.iq_target - 0.08f) < 1e-5f);
+            assert(fabsf(result.vq - (0.08f * MOTOR_ENCODER_SPEED_VOLT_PER_AMP + ff_30)) < 1e-4f);
 
-        s_enc_rpm = 20.0f;
-        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
-        assert(fabsf(s_last_speed_iq_target - 0.01f) < 1e-5f);
-        assert(fabsf(result.vq - 0.416668f * s_last_soft_current_scale) < 1e-5f);
+            s_enc_rpm = 15.0f;
+            result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+            assert(fabsf(m.iq_target - 0.04f) < 1e-5f);
+            assert(fabsf(result.vq - (0.04f * MOTOR_ENCODER_SPEED_VOLT_PER_AMP + ff_30)) < 1e-4f);
+
+            s_enc_rpm = 20.0f;
+            result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+            assert(fabsf(m.iq_target - 0.01f) < 1e-5f);
+            assert(fabsf(result.vq - (0.01f * MOTOR_ENCODER_SPEED_VOLT_PER_AMP + ff_30)) < 1e-4f);
+        }
 
         /* 有效有感反馈下，零速命令保持速度闭环，不能退回启动 Iq 或 SAFE。 */
         m.ol_target_rpm = 0.0f;
@@ -658,7 +665,7 @@ int main(void)
         s_speed_iq_out = 0.0f;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
-        assert(s_last_speed_loop_active);
+        assert(s_current_step_calls == 1);
 
         /* C2208 编码器速度环使用电压模式；零速命令时 Vq 为 0。 */
         s_ff_calls = 0;
@@ -672,19 +679,21 @@ int main(void)
         assert(s_ff_calls == 0);
         assert(fabsf(result.vq) < 1e-4f);
 
-        /* 电压前馈跟随目标方向，反转 30 RPM 时基础前馈约为 -0.367 V。 */
+        /* 电压前馈跟随目标方向，反转 30 RPM 时为负的基础前馈。 */
         m.ol_target_rpm = -30.0f;
         m.ol_current_rpm = -30.0f;
         s_enc_rpm = -30.0f;
         s_speed_iq_out = 0.0f;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
-        assert(fabsf(result.vq + 0.366668f * s_last_soft_current_scale) < 1e-4f);
+        assert(fabsf(result.vq + (MOTOR_ENCODER_SPEED_FF_BOOST_V + MOTOR_ENCODER_SPEED_FF_V_PER_RPM * 30.0f)) < 1e-4f);
+        assert(s_current_step_calls == 1);
 
         /* 无感来源不加前馈。 */
         Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_SENSORLESS);
         s_ff_calls = 0;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
         assert(s_ff_calls == 0);
+        assert(s_current_step_calls == 2);
         assert(fabsf(result.vq - 0.2f) < 1e-4f);
 
         Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_SENSORLESS);

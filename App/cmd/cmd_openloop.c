@@ -118,12 +118,46 @@ static void ol_status_unlock(void)
 }
 
 /**
+ * @description: 把状态页按块送入 DMA，并在换行前补 CR。
+ * @detail: 不逐字节关中断。块与块之间让出 1 个 tick，避免 1800 RPM 时电流环被挤偏。
+ * @param {const char *} data  已格式化的文本
+ * @param {size_t} len  字节数
+ * @return {void} 无
+ */
+static void ol_status_send(const char *data, size_t len)
+{
+    size_t index = 0U;
+
+    while (index < len) {
+        char chunk[160];
+        size_t filled = 0U;
+
+        while (index < len) {
+            size_t need = (data[index] == '\n') ? 2U : 1U;
+
+            if ((filled + need) > sizeof(chunk)) {
+                break;
+            }
+            if (data[index] == '\n') {
+                chunk[filled++] = '\r';
+            }
+            chunk[filled++] = data[index++];
+        }
+        (void)Bsp_Usart_Write((const UCHAR *)chunk, (ULONG)filled);
+        if (osKernelGetState() == osKernelRunning) {
+            (void)osDelay(1U);
+        }
+    }
+}
+
+/**
  * @description: 向状态页尾部追加一段格式化文字。
  * @param {size_t *} used 已用字节数，入参出参
  * @param {const char *} format printf 风格格式串
  * @return {void} 无
  * @author: lkc
  */
+
 static void ol_status_append(size_t *used, const char *format, ...)
 {
     size_t remaining;
@@ -297,8 +331,11 @@ static void ol_print_status(void)
     ol_status_append(&used, "  FOC loop   : %.0f Hz adc=%.0f div=%d avg=%.1fus max=%.1fus load=%.0f%%\n",
                      foc_frequency_hz, adc_frequency_hz, FOC_CONTROL_LOOP_FREQ_DIVIDER, foc_average_us, foc_maximum_us,
                      foc_load_percent);
-    ol_status_append(&used, "  UART TX    : %s @ %lu baud\n", Bsp_Usart_TxDmaIsReady() ? "DMA" : "POLLING",
-                     (unsigned long)DEBUG_USART_BAUD);
+    ol_status_append(&used, "  UART TX    : %s @ %lu baud, bytes=%lu drop=%lu\n",
+                     Bsp_Usart_TxDmaIsReady() ? "DMA" : "POLLING",
+                     (unsigned long)DEBUG_USART_BAUD,
+                     (unsigned long)Bsp_Usart_GetTxBytes(),
+                     (unsigned long)Bsp_Usart_GetTxDrops());
 
     if (status.mode == MOTOR_OL_MODE_IF) {
         /* 电流模式 */
@@ -370,7 +407,7 @@ static void ol_print_status(void)
     ol_status_append(&used, "  Status fmt : %lu us (RAM)\n", (unsigned long)format_elapsed_us);
     ol_status_append(&used, "=============================\n\n");
 
-    Bsp_Usart_PutBuf((const UCHAR *)sgcOlStatusBuffer, (ULONG)used);
+    ol_status_send(sgcOlStatusBuffer, used);
     Bsp_Usart_Flush();
     ol_status_unlock();
 }

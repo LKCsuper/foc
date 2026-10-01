@@ -68,6 +68,8 @@ VOID  Bsp_Usart_TxDmaInit(VOID);
 VOID  Bsp_Usart_TxDmaHandler(VOID);
 VOID  Bsp_Usart_TxDmaPoll(VOID);
 bool  Bsp_Usart_TxDmaIsReady(VOID);
+ULONG Bsp_Usart_GetTxBytes(VOID);
+ULONG Bsp_Usart_GetTxDrops(VOID);
 VOID Bsp_Usart_PutBuf(const UCHAR *cStr, ULONG ulLen);
 ULONG Bsp_Usart_GetBuf(UCHAR *ucBuf, ULONG ulLen);
 int fputc(int ch, FILE *f);

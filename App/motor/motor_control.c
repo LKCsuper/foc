@@ -722,10 +722,21 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
     float theta = Motor_Control_GetCurrentTheta(ctrl, motor, feedback);
     float v_limit = Motor_Control_GetVoltageLimit(motor, v_bus);
     motor_current_target_ctx_t ctx;
-    motor_dq_voltage_t voltage;
+    motor_dq_voltage_t voltage = {0.0f, 0.0f};
+    bool encoder_voltage_mode;
 
     Motor_Control_FillCurrentCtx(ctrl, motor, &ctx);
-    if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
+    /*
+     * 编码器电压模式的 Vq 由位置环或速度前馈决定。电流 PI、弱磁算出的电压
+     * 会在下面被整段覆盖，积分也会改成实际 Vq。这条路径不再做那段计算。
+     * Id/Iq 仍从三相电流更新，供状态显示。
+     */
+    encoder_voltage_mode = (MOTOR_ENCODER_SPEED_VOLTAGE_MODE != 0U) && ctx.speed_loop_active &&
+                           (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER);
+    if (encoder_voltage_mode) {
+        Motor_Fw_Reset(&ctrl->fw);
+        Motor_Current_FeedbackUpdateDq(motor, theta);
+    } else if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
         float iq_abs;
         float fw_max;
         float id_room;
@@ -742,13 +753,13 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
         }
         ctx.id_fw = Motor_Fw_Step(&ctrl->fw, fw_max, motor->fw_duty_start, motor->fw_ramp_a_s, ctrl->fw.last_vd,
                                   ctrl->fw.last_vq, v_limit, dt);
+        /* 电流目标已按 soft/drag 比例爬升；电压上限不再叠乘 soft，避免积分顶满后过流。 */
+        voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, &motor->id_target, &motor->iq_target);
     } else {
         Motor_Fw_Reset(&ctrl->fw);
+        voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, &motor->id_target, &motor->iq_target);
     }
-    /* 电流目标已按 soft/drag 比例爬升；电压上限不再叠乘 soft，避免积分顶满后过流。 */
-    voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, &motor->id_target, &motor->iq_target);
-    if (MOTOR_ENCODER_SPEED_VOLTAGE_MODE != 0U && ctx.speed_loop_active &&
-        Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER) {
+    if (encoder_voltage_mode) {
         float voltage_mode_limit = MOTOR_ENCODER_SPEED_VOLT_LIMIT_V;
         float vq_feedforward = 0.0f;
         float vq_pi;
@@ -798,7 +809,7 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
         /*
          * SimpleFOC 式电压速度模式：目标转速提供基础电压前馈，速度 PI 只修正误差；
          * 编码器仍提供 Park 角，但 Vq 不依赖低分辨率电流反馈。
-         * 电流 PI 的本拍结果被忽略，并使其积分跟随实际电压，避免切回电流模式时突跳。
+         * 积分直接跟随本拍实际电压，切回电流模式时不会从旧的电流 PI 积分突跳。
          */
         voltage.vd = 0.0f;
         voltage.vq = vq;

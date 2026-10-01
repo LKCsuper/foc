@@ -13,23 +13,20 @@ extern "C" {
 #include "includes.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define USART_TX_BUF_MASK                 (USART_TX_BUF_SIZE - 1U)
 #define USART_TX_WRITE_CHUNK_MAX          (128U)
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /*
- * 调试串口发送环形缓冲区。
- *
- * head 指向“下一次写入”的位置，tail 指向“下一次发送”的位置。
- * head == tail 表示缓冲区为空；为了区分“空”和“满”，始终保留一个空字节，
- * 所以实际最多存放 USART_TX_BUF_SIZE - 1 个字节。
+ * 调试串口发送队列。容量为 2 的幂，放在普通 SRAM：STM32F405 的 DMA 不能访问 CCM。
+ * 多个任务写入时用短临界区串起来；DMA 只读 peek_contig 返回的连续段，完成后 drop。
  */
 STATIC UCHAR sgucUsartTxBuf[USART_TX_BUF_SIZE];
-STATIC volatile ULONG sgulUsartTxHead = 0U;
-STATIC volatile ULONG sgulUsartTxTail = 0U;
+STATIC ringbuf_t s_usart_tx;
 
-/* 当前 DMA 正在发送的连续字节数，完成中断中用它推进 tail。 */
+/* 当前 DMA 正在发送的连续字节数，完成中断中用它 drop。 */
 STATIC volatile ULONG sgulUsartTxDmaLen = 0U;
+STATIC volatile ULONG sgulUsartTxBytes = 0U;
+STATIC volatile ULONG sgulUsartTxDrops = 0U;
 /* true 表示 DMA 正在使用 sgucUsartTxBuf 中的一段数据。 */
 STATIC volatile bool sgbUsartTxDmaBusy = false;
 /* DMA 初始化前，启动日志仍使用轮询发送；初始化后自动切换为异步 DMA。 */
@@ -40,7 +37,20 @@ STATIC VOID Bsp_Usart_TxDmaStartLocked(VOID);
 STATIC VOID Bsp_Usart_TxDmaCompleteLocked(VOID);
 STATIC VOID Bsp_Usart_TxDmaPollLocked(VOID);
 STATIC bool Bsp_Usart_TxQueueByte(UCHAR ucData);
+STATIC VOID Bsp_Usart_YieldToIsr(VOID);
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @brief  任务里让出一次 tick，让 FOC 中断按原节拍跑。
+ * @note   调度器未启动或当前在中断里时不延时。tick 为 10 kHz，一次是 0.1 ms。
+ */
+STATIC VOID Bsp_Usart_YieldToIsr(VOID)
+{
+	if ((__get_IPSR() != 0U) || (osKernelGetState() != osKernelRunning)) {
+		return;
+	}
+	(void)osDelay(1U);
+}
 
 /**
  * @brief  使用轮询方式发送一个字节。
@@ -57,17 +67,15 @@ STATIC VOID Bsp_Usart_PollingPutChar(UCHAR ucData)
  * @brief  启动环形缓冲区中的下一段 DMA 发送。
  * @note   调用本函数前必须先关闭全局中断，防止 head/tail/busy 被并发修改。
  *
- * 环形缓冲区在物理内存末尾可能发生回绕，而一次 DMA 只能发送一段连续内存：
- *
- *   情况 1：tail < head，发送 [tail, head)
- *   情况 2：tail > head，先发送 [tail, 缓冲区末尾)，完成后再发送 [0, head)
+ * 环形缓冲在物理内存末尾会回绕，而一次 DMA 只能发送一段连续内存。
+ * peek_contig 只给出从 out 到环尾的那一段，drop 之后再启动下一段。
  */
 STATIC VOID Bsp_Usart_TxDmaStartLocked(VOID)
 {
-	ULONG ulContinuousLen;
+	const uint8_t *pucData;
+	uint32_t ulContinuousLen;
 
-	if (!sgbUsartTxDmaReady || sgbUsartTxDmaBusy ||
-		(sgulUsartTxHead == sgulUsartTxTail)) {
+	if (!sgbUsartTxDmaReady || sgbUsartTxDmaBusy) {
 		return;
 	}
 
@@ -76,10 +84,9 @@ STATIC VOID Bsp_Usart_TxDmaStartLocked(VOID)
 		return;
 	}
 
-	if (sgulUsartTxHead > sgulUsartTxTail) {
-		ulContinuousLen = sgulUsartTxHead - sgulUsartTxTail;
-	} else {
-		ulContinuousLen = USART_TX_BUF_SIZE - sgulUsartTxTail;
+	ulContinuousLen = ringbuf_peek_contig(&s_usart_tx, &pucData);
+	if ((ulContinuousLen == 0U) || (pucData == NULL)) {
+		return;
 	}
 
 	sgulUsartTxDmaLen = ulContinuousLen;
@@ -87,8 +94,7 @@ STATIC VOID Bsp_Usart_TxDmaStartLocked(VOID)
 
 	/* 清除上一次发送标志，再设置本次连续内存块的首地址和长度。 */
 	DMA_ClearFlag(DEBUG_USART_TX_DMA_STREAM, DEBUG_USART_TX_DMA_FLAGS);
-	DEBUG_USART_TX_DMA_STREAM->M0AR =
-		(uint32_t)&sgucUsartTxBuf[sgulUsartTxTail];
+	DEBUG_USART_TX_DMA_STREAM->M0AR = (uint32_t)pucData;
 	DMA_SetCurrDataCounter(DEBUG_USART_TX_DMA_STREAM, ulContinuousLen);
 
 	/* 保证缓冲区内容和 DMA 寄存器写入完成后，才真正使能 DMA。 */
@@ -104,7 +110,7 @@ STATIC VOID Bsp_Usart_TxDmaCompleteLocked(VOID)
 {
 	volatile uint32_t ulTimeout = 1000U;
 
-	sgulUsartTxTail = (sgulUsartTxTail + sgulUsartTxDmaLen) & USART_TX_BUF_MASK;
+	(void)ringbuf_drop(&s_usart_tx, sgulUsartTxDmaLen);
 	sgulUsartTxDmaLen = 0U;
 	sgbUsartTxDmaBusy = false;
 
@@ -147,19 +153,16 @@ STATIC VOID Bsp_Usart_TxDmaPollLocked(VOID)
  */
 STATIC bool Bsp_Usart_TxQueueByte(UCHAR ucData)
 {
-	ULONG ulNextHead;
 	uint32_t ulPrimask;
 
 	while (true) {
 		ulPrimask = __get_PRIMASK();
 		__disable_irq();
 
-		ulNextHead = (sgulUsartTxHead + 1U) & USART_TX_BUF_MASK;
-		if (ulNextHead != sgulUsartTxTail) {
-			sgucUsartTxBuf[sgulUsartTxHead] = ucData;
-			sgulUsartTxHead = ulNextHead;
+		Bsp_Usart_TxDmaPollLocked();
+		if (ringbuf_put_byte(&s_usart_tx, ucData) != 0U) {
+			sgulUsartTxBytes++;
 			Bsp_Usart_TxDmaStartLocked();
-			Bsp_Usart_TxDmaPollLocked();
 
 			if (0U == ulPrimask) {
 				__enable_irq();
@@ -167,13 +170,17 @@ STATIC bool Bsp_Usart_TxQueueByte(UCHAR ucData)
 			return true;
 		}
 
-		if (0U == ulPrimask) {
-			__enable_irq();
-		}
-
 		/* 中断或外部临界区中绝不等待，避免 DMA 完成中断无法执行。 */
 		if ((__get_IPSR() != 0U) || (ulPrimask != 0U)) {
+			sgulUsartTxDrops++;
+			if (0U == ulPrimask) {
+				__enable_irq();
+			}
 			return false;
+		}
+
+		if (0U == ulPrimask) {
+			__enable_irq();
 		}
 
 		ulPrimask = __get_PRIMASK();
@@ -326,8 +333,12 @@ VOID Bsp_Usart_TxDmaInit(VOID)
 
 	ulPrimask = __get_PRIMASK();
 	__disable_irq();
-	sgulUsartTxHead = 0U;
-	sgulUsartTxTail = 0U;
+	if (ringbuf_init(&s_usart_tx, sgucUsartTxBuf, USART_TX_BUF_SIZE) == 0U) {
+		if (0U == ulPrimask) {
+			__enable_irq();
+		}
+		return;
+	}
 	sgulUsartTxDmaLen = 0U;
 	sgbUsartTxDmaBusy = false;
 	sgbUsartTxDmaReady = true;
@@ -377,6 +388,24 @@ VOID Bsp_Usart_TxDmaPoll(VOID)
 	if (0U == ulPrimask) {
 		__enable_irq();
 	}
+}
+
+/**
+ * @description: 已进入 DMA 发送队列的字节数
+ * @return {ULONG} 累计入队字节数
+ */
+ULONG Bsp_Usart_GetTxBytes(VOID)
+{
+	return sgulUsartTxBytes;
+}
+
+/**
+ * @description: 队列满时从中断或临界区丢弃的字节数
+ * @return {ULONG} 累计丢弃字节数
+ */
+ULONG Bsp_Usart_GetTxDrops(VOID)
+{
+	return sgulUsartTxDrops;
 }
 
 /**
@@ -474,22 +503,25 @@ ULONG Bsp_Usart_Write(const UCHAR *data, ULONG len)
 
 		__disable_irq();
 		Bsp_Usart_TxDmaPollLocked();
-		free_len = (sgulUsartTxTail - sgulUsartTxHead - 1U) & USART_TX_BUF_MASK;
-		continuous_len = USART_TX_BUF_SIZE - sgulUsartTxHead;
+		free_len = ringbuf_free(&s_usart_tx);
+		continuous_len = len - written;
 		if (continuous_len > free_len) {
 			continuous_len = free_len;
-		}
-		if (continuous_len > (len - written)) {
-			continuous_len = len - written;
 		}
 		if (continuous_len > USART_TX_WRITE_CHUNK_MAX) {
 			continuous_len = USART_TX_WRITE_CHUNK_MAX;
 		}
 		if (continuous_len > 0U) {
-			memcpy(&sgucUsartTxBuf[sgulUsartTxHead], &data[written], continuous_len);
-			sgulUsartTxHead = (sgulUsartTxHead + continuous_len) & USART_TX_BUF_MASK;
-			written += continuous_len;
-			Bsp_Usart_TxDmaStartLocked();
+			continuous_len = ringbuf_write(&s_usart_tx, &data[written], continuous_len);
+			if (continuous_len > 0U) {
+				written += continuous_len;
+				sgulUsartTxBytes += continuous_len;
+				Bsp_Usart_TxDmaStartLocked();
+			}
+		}
+		if ((continuous_len == 0U) &&
+		    ((__get_IPSR() != 0U) || (ulPrimask != 0U))) {
+			sgulUsartTxDrops += (len - written);
 		}
 		if (0U == ulPrimask) {
 			__enable_irq();
@@ -498,6 +530,10 @@ ULONG Bsp_Usart_Write(const UCHAR *data, ULONG len)
 		if ((continuous_len == 0U) &&
 		    ((__get_IPSR() != 0U) || (ulPrimask != 0U))) {
 			break;
+		}
+		if (continuous_len == 0U) {
+			/* 队列已满。空转关中断会把 15 kHz 电流环挤偏，改成等 DMA 腾出空间。 */
+			Bsp_Usart_YieldToIsr();
 		}
 	}
 	return written;
@@ -520,14 +556,18 @@ VOID Bsp_Usart_Flush(VOID)
 			ulPrimask = __get_PRIMASK();
 			__disable_irq();
 			Bsp_Usart_TxDmaPollLocked();
-			bQueueEmpty = (sgulUsartTxHead == sgulUsartTxTail) &&
+			bQueueEmpty = (ringbuf_is_empty(&s_usart_tx) != 0U) &&
 						  !sgbUsartTxDmaBusy;
 			if (0U == ulPrimask) {
 				__enable_irq();
 			}
+			if (bQueueEmpty) {
+				break;
+			}
 			ulSpins++;
-			/* FOC 高负载时 DMA TC 可能长期不到；无限等会把命令任务卡死，串口整段失联。 */
-			if (ulSpins >= 200000U) {
+			/* 2 Mbaud 下整页大约 15 ms。让出 tick，避免空转关中断拖住电流环。 */
+			Bsp_Usart_YieldToIsr();
+			if (ulSpins >= 200U) {
 				break;
 			}
 		} while (!bQueueEmpty);
