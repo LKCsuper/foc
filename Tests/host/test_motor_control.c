@@ -86,6 +86,20 @@ float Motor_SpeedLoop_GetIqTarget(void)
     return s_speed_iq_out;
 }
 
+float Motor_Speed_LimitNoBrakeOutput(float command_rpm, float output, bool allow_braking)
+{
+    if (allow_braking) {
+        return output;
+    }
+    if (command_rpm > 0.0f && output < 0.0f) {
+        return 0.0f;
+    }
+    if (command_rpm < 0.0f && output > 0.0f) {
+        return 0.0f;
+    }
+    return output;
+}
+
 float Motor_Sensorless_GetControlAngle(float open_loop_angle)
 {
     return open_loop_angle + 9.0f; /* 无感路径可区分 */
@@ -95,6 +109,7 @@ static bool s_enc_zero;
 static float s_enc_elec = 1.57f;
 static float s_enc_rpm = 321.0f;
 static bool s_enc_speed_ok = true;
+static int s_enc_angle_reads;
 
 bool Motor_Encoder_IsZeroValid(void)
 {
@@ -103,6 +118,7 @@ bool Motor_Encoder_IsZeroValid(void)
 
 float Motor_Encoder_GetElecAngle(void)
 {
+    s_enc_angle_reads++;
     return s_enc_elec;
 }
 
@@ -550,6 +566,7 @@ int main(void)
         s_enc_rpm = 321.0f;
         s_enc_speed_ok = true;
         s_sensorless_updates = 0;
+        s_enc_angle_reads = 0;
         s_last_current_theta = -1.0f;
         s_last_speed_loop_active = false;
         s_speed_fb_valid = false;
@@ -558,6 +575,7 @@ int main(void)
         assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
         assert(fabsf(result.theta - 1.57f) < 1e-5f);
         assert(fabsf(s_last_current_theta - 1.57f) < 1e-5f);
+        assert(s_enc_angle_reads == 1);
         assert(s_sensorless_updates == 0);
         assert(s_speed_fb_valid);
         assert(fabsf(s_speed_fb_rpm - 321.0f) < 1e-3f);

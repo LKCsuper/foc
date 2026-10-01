@@ -43,6 +43,7 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_BLDC_AUTO_DUTY_MIN 0.08f
 #define MOTOR_BLDC_AUTO_DUTY_MAX 0.10f
+#define MOTOR_STATUS_PUBLISH_DIVIDER 300U /* 30 kHz ADC callback -> 100 Hz status */
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -74,6 +75,7 @@ static uint8_t s_hall_adc_div;
 static float s_hall_dt_acc_s;
 static float s_recon_diag_target_rpm;
 static bool s_recon_diag_enable;
+static uint8_t s_status_publish_divider;
 /* Private function prototypes -----------------------------------------------*/
 static void Motor_DmaInt_RecordRuntime(uint32_t start_time);
 static bool Motor_Bldc_InitDefault(void);
@@ -981,6 +983,11 @@ void Motor_DmaInt(void *p, uint32_t flags)
     }
 
     Motor_DmaInt_Foc();
+    s_status_publish_divider++;
+    if (s_status_publish_divider >= MOTOR_STATUS_PUBLISH_DIVIDER) {
+        s_status_publish_divider = 0U;
+        Motor_StatusSnapshotPublishFromIsr(&motor);
+    }
 }
 
 #ifdef __cplusplus

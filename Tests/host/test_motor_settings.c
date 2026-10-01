@@ -9,18 +9,16 @@ static int save_calls;
 static int load_mode;
 static motor_settings_t saved;
 
-bool FlashStorage_Load(MOTOR_PARAM_S *m, motor_detect_result_t *d)
+bool FlashStorage_Load(MOTOR_PARAM_S *m)
 {
-    (void)d;
     if (load_mode) {
         return Motor_Settings_Apply(m, &saved);
     }
     return false;
 }
-bool FlashStorage_Save(const MOTOR_PARAM_S *m, const motor_detect_result_t *d)
+bool FlashStorage_Save(const MOTOR_PARAM_S *m)
 {
     (void)m;
-    (void)d;
     ++save_calls;
     return true;
 }

@@ -21,36 +21,14 @@ typedef enum
 } Direction;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-extern long sensor_direction;
 extern float voltage_power_supply;
 extern float voltage_limit;
-extern float voltage_sensor_align;
 extern int  pole_pairs;
 extern unsigned long open_loop_timestamp;
 extern float velocity_limit;
-extern float current_limit;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /******************************************************************************/
-
-/**
- * @description: 初始化电机硬件与外设（占位接口）。
- * @return {*}
- * @author: lkc
- */
-void Motor_init(void);
-/**
- * @description: 初始化 FOC 控制所需状态（占位接口）。
- * @return {*}
- * @author: lkc
- */
-void Motor_initFOC(void);
-/**
- * @description: FOC 主循环单步（占位接口）。
- * @return {*}
- * @author: lkc
- */
-void loopFOC(void);
 /**
  * @description: 按当前控制模式更新开环目标并输出电压。
  * @param {float} new_target  速度 (rad/s) 或角度 (rad) 目标值

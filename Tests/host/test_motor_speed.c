@@ -154,6 +154,28 @@ int main(void)
     assert(a.integral > 0.055f);
     assert(Motor_SpeedLoop_GetIqTargetState(&a) > 0.0f);
 
+    /* 禁用制动时，负速度误差的 PI 仍给出负修正，不在 PI 内部钳成 0。 */
+    Motor_SpeedLoop_ResetState(&a);
+    motor_a.ol_target_rpm = 30.0f;
+    motor_a.ol_current_rpm = 30.0f;
+    motor_a.speed_kp = 0.01f;
+    motor_a.speed_ki = 0.0f;
+    motor_a.speed_iq_limit = 5.0f;
+    motor_a.speed_allow_braking = false;
+    motor_a.position_hold = false;
+    motor_a.position_voltage_hold = false;
+    Motor_SpeedFeedback_SetState(&a, 40.0f, true);
+    Motor_SpeedLoop_RunState(&a, &motor_a, dt);
+    assert(Motor_SpeedLoop_GetErrorState(&a) < 0.0f);
+    assert(Motor_SpeedLoop_GetIqTargetState(&a) < 0.0f);
+
+    /* 负修正小于前馈时最终电压仍为正；大于前馈时收到 0，不允许制动时不反向。 */
+    assert(Motor_Speed_LimitNoBrakeOutput(30.0f, 0.37f - 0.10f, false) > 0.20f);
+    assert(Motor_Speed_LimitNoBrakeOutput(30.0f, 0.37f - 0.10f, false) < 0.37f);
+    assert(fabsf(Motor_Speed_LimitNoBrakeOutput(30.0f, 0.37f - 1.0f, false)) < 1e-6f);
+    assert(fabsf(Motor_Speed_LimitNoBrakeOutput(-30.0f, -0.37f + 1.0f, false)) < 1e-6f);
+    assert(Motor_Speed_LimitNoBrakeOutput(30.0f, 0.37f - 1.0f, true) < 0.0f);
+
     printf("test_motor_speed: pass\n");
     return 0;
 }

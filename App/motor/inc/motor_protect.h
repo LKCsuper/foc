@@ -241,42 +241,6 @@ void Motor_Protect_Init(const motor_protect_config_t *config);
 void Motor_Protect_SetSpeedFeedback(float rpm, bool valid);
 
 /**
- * @description: 默认实例过流去抖检测
- * @param {const MOTOR_PARAM_S} *motor  电机实时参数
- * @param {float} dt  本拍时间 (s)
- * @return {bool} true=过流条件已满足去抖
- * @author: lkc
- */
-bool Motor_Protect_CheckOverCurrent(const MOTOR_PARAM_S *motor, float dt);
-
-/**
- * @description: 默认实例欠压去抖检测
- * @param {const MOTOR_PARAM_S} *motor  电机实时参数
- * @param {float} dt  本拍时间 (s)
- * @return {bool} true=欠压条件已满足去抖
- * @author: lkc
- */
-bool Motor_Protect_CheckUnderVoltage(const MOTOR_PARAM_S *motor, float dt);
-
-/**
- * @description: 默认实例堵转去抖检测
- * @param {const MOTOR_PARAM_S} *motor  电机实时参数
- * @param {float} dt  本拍时间 (s)
- * @return {bool} true=堵转条件已满足去抖
- * @author: lkc
- */
-bool Motor_Protect_CheckStall(const MOTOR_PARAM_S *motor, float dt);
-
-/**
- * @description: 默认实例失速去抖检测
- * @param {const MOTOR_PARAM_S} *motor  电机实时参数
- * @param {float} dt  本拍时间 (s)
- * @return {bool} true=失速条件已满足去抖
- * @author: lkc
- */
-bool Motor_Protect_CheckSpeedLoss(const MOTOR_PARAM_S *motor, float dt);
-
-/**
  * @description: 默认实例完整保护步进（内部采集无感/速度辅助快照）
  * @param {const MOTOR_PARAM_S} *motor  电机实时参数
  * @param {float} dt  本拍时间 (s)，ADC 路径约 1/30kHz

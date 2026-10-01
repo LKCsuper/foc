@@ -480,54 +480,6 @@ void Motor_Protect_SetSpeedFeedback(float rpm, bool valid)
 }
 
 /**
- * @description: 默认实例过流去抖检测
- * @param {const MOTOR_PARAM_S} *motor  电机实时参数
- * @param {float} dt  本拍时间 (s)
- * @return {bool} true=过流去抖完成
- * @author: lkc
- */
-bool Motor_Protect_CheckOverCurrent(const MOTOR_PARAM_S *motor, float dt)
-{
-    return Motor_Protect_CheckOverCurrentState(&s_protect, motor, dt);
-}
-
-/**
- * @description: 默认实例欠压去抖检测
- * @param {const MOTOR_PARAM_S} *motor  电机实时参数
- * @param {float} dt  本拍时间 (s)
- * @return {bool} true=欠压去抖完成
- * @author: lkc
- */
-bool Motor_Protect_CheckUnderVoltage(const MOTOR_PARAM_S *motor, float dt)
-{
-    return Motor_Protect_CheckUnderVoltageState(&s_protect, motor, dt);
-}
-
-/**
- * @description: 默认实例堵转去抖检测
- * @param {const MOTOR_PARAM_S} *motor  电机实时参数
- * @param {float} dt  本拍时间 (s)
- * @return {bool} true=堵转去抖完成
- * @author: lkc
- */
-bool Motor_Protect_CheckStall(const MOTOR_PARAM_S *motor, float dt)
-{
-    return Motor_Protect_CheckStallState(&s_protect, motor, dt);
-}
-
-/**
- * @description: 默认实例失速去抖检测
- * @param {const MOTOR_PARAM_S} *motor  电机实时参数
- * @param {float} dt  本拍时间 (s)
- * @return {bool} true=失速去抖完成
- * @author: lkc
- */
-bool Motor_Protect_CheckSpeedLoss(const MOTOR_PARAM_S *motor, float dt)
-{
-    return Motor_Protect_CheckSpeedLossState(&s_protect, motor, dt);
-}
-
-/**
  * @description: 默认实例完整保护步进（内部 FillAuxDefault）
  * @param {const MOTOR_PARAM_S} *motor  电机实时参数
  * @param {float} dt  本拍时间 (s)

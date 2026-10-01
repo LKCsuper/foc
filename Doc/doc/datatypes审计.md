@@ -55,7 +55,7 @@
 
 | 符号 | 用途 | 引用位置 | 迁移建议 |
 |------|------|----------|----------|
-| `foc_pll_run(..., mc_configuration*)` | PLL 算法 | `motor_foc.c` | **当前无调用**；改为 `(kp, ki)` 两参数或删 |
+| `foc_pll_run(...)` | PLL 算法 | 已删除 | 无调用者；各观测器保留自身已验证的 PLL 状态更新 |
 | `VESC_Calc_Foc_cc_kp_ki_gain(mc_configuration*)` | 根据 R/L 算 PI | `motor_cal.c` | 改为写 `MOTOR_PARAM_S` 的 `ol_current_kp/ki` |
 | `foc_hall_table[8]` | 霍尔表 | `mc_configuration` 字段；`DETECT_Hall` 写入 | 迁到 `MOTOR_PARAM_S` 或独立 `motor_hall_config_t` |
 | `m_hall_extra_samples` | 霍尔滤波次数 | `motor_hall.c` 读 `motor->m_conf->` | 迁到 `MOTOR_PARAM_S` 或宏 |

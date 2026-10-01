@@ -525,10 +525,15 @@ static void Motor_Control_StartupIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
  * @return {float} 电角度 (rad)
  * @author: lkc
  */
-static float Motor_Control_GetCurrentTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
+static float Motor_Control_GetCurrentTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor,
+                                           const motor_feedback_sample_t *sample)
 {
     float theta = motor->ol_theta + ctrl->startup.if_start.phase_boost;
     motor_feedback_sample_t feedback;
+
+    if (sample != NULL) {
+        return sample->elec_angle_rad;
+    }
 
     utils_norm_angle_rad(&theta);
     /*
@@ -545,17 +550,18 @@ static float Motor_Control_GetCurrentTheta(motor_control_t *ctrl, MOTOR_PARAM_S 
  * @return {*}
  * @author: lkc
  */
-static void Motor_Control_PublishSensoredSpeed(MOTOR_PARAM_S *motor)
+static void Motor_Control_PublishSensoredSpeed(const motor_feedback_sample_t *feedback)
 {
-    motor_feedback_sample_t feedback;
-    float open = motor->ol_theta;
     bool publish;
 
-    utils_norm_angle_rad(&open);
-    Motor_Feedback_SampleDefault(motor, open, &feedback);
-    publish = feedback.angle_valid && feedback.speed_valid;
+    if (feedback == NULL) {
+        Motor_SpeedFeedback_Set(0.0f, false);
+        return;
+    }
+
+    publish = feedback->angle_valid && feedback->speed_valid;
     /* Hall 用 PLL 速度闭环；六边沿滤波值保留给状态显示和稳定性审核。 */
-    Motor_SpeedFeedback_Set(publish ? feedback.mech_rpm_fast : 0.0f, publish);
+    Motor_SpeedFeedback_Set(publish ? feedback->mech_rpm_fast : 0.0f, publish);
 }
 
 /**
@@ -624,6 +630,14 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
     ctx->speed_iq_target = ctx->speed_loop_active
                                ? Motor_Control_EncoderCoggingAssist(motor, Motor_SpeedLoop_GetIqTarget())
                                : 0.0f;
+    /*
+     * 电流模式没有前馈可抵消，Iq 就是最终转矩。禁止制动时在这里挡住反向电流。
+     * 电压模式要留着负 PI，去抵消起动前馈，反向限制放在电压相加之后。
+     */
+    if (MOTOR_ENCODER_SPEED_VOLTAGE_MODE == 0U) {
+        ctx->speed_iq_target = Motor_Speed_LimitNoBrakeOutput(motor->ol_current_rpm, ctx->speed_iq_target,
+                                                              motor->speed_allow_braking);
+    }
     /*
      * 有感速度环接管前仍靠 ol_iq_set 起转。Park 角已来自转子传感器，此时 Iq 的符号
      * 直接决定转矩方向；反转命令必须先给负 Iq，不能沿用开环旋转磁场下的正 Iq。
@@ -702,9 +716,10 @@ static void Motor_Control_UpdateDragCurrent(motor_control_t *ctrl, float dt)
  * @return {motor_control_result_t} DQ 电压请求
  * @author: lkc
  */
-static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus, float dt)
+static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus, float dt,
+                                                  const motor_feedback_sample_t *feedback)
 {
-    float theta = Motor_Control_GetCurrentTheta(ctrl, motor);
+    float theta = Motor_Control_GetCurrentTheta(ctrl, motor, feedback);
     float v_limit = Motor_Control_GetVoltageLimit(motor, v_bus);
     motor_current_target_ctx_t ctx;
     motor_dq_voltage_t voltage;
@@ -763,6 +778,13 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
             vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
         } else {
             vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
+        }
+        if (!motor->position_voltage_hold) {
+            float speed_v = vq_feedforward + vq_pi;
+
+            /* 负 PI 先抵消前馈。禁止制动时最终速度电压收到 0，不反向。 */
+            speed_v = Motor_Speed_LimitNoBrakeOutput(motor->ol_target_rpm, speed_v, motor->speed_allow_braking);
+            vq_pi = speed_v - vq_feedforward;
         }
         vq_anticogging = Motor_Anticogging_GetVoltage(Motor_Encoder_GetMechAngle());
         vq_pi += vq_anticogging;
@@ -936,6 +958,8 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
 {
     motor_control_result_t result;
     motor_control_result_t hfi_result;
+    motor_feedback_sample_t sensored_feedback;
+    const motor_feedback_sample_t *current_feedback = NULL;
 
     memset(&result, 0, sizeof(result));
     result.action = MOTOR_CONTROL_ACTION_NONE;
@@ -1005,7 +1029,13 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
             Motor_Control_StartupIf(ctrl, motor);
             Motor_Control_UpdateTheta(ctrl, motor, dt);
             if (sensored) {
-                Motor_Control_PublishSensoredSpeed(motor);
+                float open = motor->ol_theta + ctrl->startup.if_start.phase_boost;
+
+                utils_norm_angle_rad(&open);
+                /* 同一 FOC 拍内的角度和速度必须来自同一份有感快照。 */
+                Motor_Feedback_SampleDefault(motor, open, &sensored_feedback);
+                current_feedback = &sensored_feedback;
+                Motor_Control_PublishSensoredSpeed(current_feedback);
             } else {
                 Motor_Sensorless_Update(motor, dt);
             }
@@ -1072,7 +1102,7 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
                 }
             }
         }
-        return Motor_Control_PublishTheta(motor, Motor_Control_RunIf(ctrl, motor, v_bus, dt));
+        return Motor_Control_PublishTheta(motor, Motor_Control_RunIf(ctrl, motor, v_bus, dt, current_feedback));
     }
 
     /* V/F：电压软起 + 幅值上限；与转速同时斜坡（不做高压直流励磁）。 */

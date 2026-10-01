@@ -16,6 +16,7 @@ MAlonzo/**
 /ThirtyLibrary/hoverboard-firmware-hack-FOC/
 /ThirtyLibrary/Arduino-FOC/
 /ThirtyLibrary/ODrive/
+/ThirtyLibrary/common_code/
 
 # MATLAB 验证输出
 /Doc/matlab/out/

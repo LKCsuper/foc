@@ -14,7 +14,9 @@ extern "C" {
 #define MOTOR_MT6701_I2C_ADDRESS_7BIT (0x06U)
 #define MOTOR_MT6701_REG_ANGLE_MSB     (0x03U)
 #define MOTOR_MT6701_REG_ANGLE_LSB     (0x04U)
-#define MOTOR_MT6701_ERROR_LIMIT       (3U)
+#define MOTOR_MT6701_ERROR_TIMEOUT_MS  (2U)
+#define MOTOR_MT6701_ERROR_LIMIT_CALC  ((MOTOR_MT6701_POLL_HZ * MOTOR_MT6701_ERROR_TIMEOUT_MS + 999U) / 1000U)
+#define MOTOR_MT6701_ERROR_LIMIT       ((MOTOR_MT6701_ERROR_LIMIT_CALC < 3U) ? 3U : MOTOR_MT6701_ERROR_LIMIT_CALC)
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -58,7 +60,7 @@ static uint8_t Motor_MT6701_Crc6(uint32_t data, uint8_t bit_count)
 #endif
 
 /**
- * @description: 记录一次坏帧；连续失败达上限后作废角度。
+ * @description: 记录一次坏帧；连续失败达到约2ms后作废角度。
  * @detail: 成功帧在 Poll 末尾清零 consecutive_errors 并置 valid。此处按传输、CRC、状态位分类累计失败。
  * @param {motor_mt6701_failure_t} reason  本帧失败原因
  * @return {void} 无
@@ -80,6 +82,20 @@ static void Motor_MT6701_RecordFailure(motor_mt6701_failure_t reason)
         s_mt6701.valid = false;
     }
 }
+
+/**
+ * @description: 记录不影响当前角度有效性的MT6701状态告警。
+ * @detail: Mg[3]超速位可能瞬态出现；实际电机超速由软件测速保护判断，不让该位单独中断FOC。
+ * @return {void}
+ */
+#if MOTOR_MT6701_INTERFACE == MOTOR_MT6701_INTERFACE_SSI
+static void Motor_MT6701_RecordStatusWarning(void)
+{
+    s_mt6701.error_count++;
+    s_mt6701.status_error_count++;
+    s_mt6701.last_bad_magnetic_status = s_mt6701.magnetic_status;
+}
+#endif
 
 /**
  * @description: 清零 MT6701 状态并初始化当前接口（SSI 或 I2C）。
@@ -152,10 +168,13 @@ bool Motor_MT6701_Poll(void)
 
     angle = (uint16_t)((frame >> 10U) & 0x3FFFU);
     s_mt6701.magnetic_status = (uint8_t)((frame >> 6U) & 0x0FU);
-    /* Mg[1:0]=磁场强弱异常，Mg[3]=超速；Mg[2] 仅为 PUSH 状态。 */
-    if ((s_mt6701.magnetic_status & 0x0BU) != 0U) {
+    /* Mg[1:0] 磁场异常会使角度失效；Mg[2] PUSH 和 Mg[3] 超速不单独阻断角度。 */
+    if ((s_mt6701.magnetic_status & 0x03U) != 0U) {
         Motor_MT6701_RecordFailure(MOTOR_MT6701_FAILURE_STATUS);
         return false;
+    }
+    if ((s_mt6701.magnetic_status & 0x08U) != 0U) {
+        Motor_MT6701_RecordStatusWarning();
     }
 #endif
     Hal_Encoder_SetCount(angle);

@@ -15,14 +15,10 @@ extern "C" {
 /* types */
 #include "motor_types.h"
 
-/* simple foc（学习分支，未接入主 ISR） */
-#include "motor_simple_utils.h"
-
 /* param */
 #include "motor_common.h"
 #include "motor_nameplate.h"
 #include "motor_param.h"
-#include "motor_cal.h"
 
 /* 算法 */
 #include "motor_math.h"
@@ -54,12 +50,10 @@ extern "C" {
 #include "motor_smo.h"
 #include "motor_sensorless.h"
 
-/* 环路 / 遗留 */
+/* 环路 */
 #include "motor_protect.h"
 #include "motor_speed.h"
 #include "motor_position.h"
-#include "motor_tim.h"
-#include "motor_ctrl.h"
 
 /* 校准 / 存储 */
 #include "motor_detect.h"

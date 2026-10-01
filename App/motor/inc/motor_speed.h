@@ -76,6 +76,18 @@ void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool va
 void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, float dt);
 
 /**
+ * @description: 禁用制动时，把最终电压或电流限制成不与转速命令反向。
+ * @detail: 速度 PI 本身可以出负修正，用来抵消前馈。本函数用在前馈与 PI 相加之后。
+ *          允许制动，或命令转速为 0 时，原样返回。
+ * @param {float} command_rpm  转速命令 (RPM)，符号表示驱动方向
+ * @param {float} output       即将执行的电压 (V) 或电流 (A)
+ * @param {bool} allow_braking true=允许反向制动
+ * @return {float} 限幅后的输出，单位与 output 相同
+ * @author: lkc
+ */
+float Motor_Speed_LimitNoBrakeOutput(float command_rpm, float output, bool allow_braking);
+
+/**
  * @description: 清除指定状态对象的 PI（保留反馈转速）
  * @param {motor_speed_state_t} *state 状态对象，不可为空
  * @return {*}

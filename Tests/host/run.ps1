@@ -9,6 +9,10 @@ try {
         $Compiler = Join-Path $root '.build/tools/ziglang/zig.exe'
         if (!(Test-Path $Compiler)) { throw 'Specify -Compiler path to zig.exe, or install ziglang into .build/tools.' }
     }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IThirtyLibrary/common_code/lib/seqlock -IThirtyLibrary/common_code/lib/ringbuf ThirtyLibrary/common_code/lib/seqlock/seqlock.c ThirtyLibrary/common_code/lib/seqlock/seqlock_test.c ThirtyLibrary/common_code/lib/ringbuf/ringbuf.c ThirtyLibrary/common_code/lib/ringbuf/ringbuf_test.c Tests/host/test_common_code.c -o .build/host/test_common_code.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Common-code host compilation failed' }
+    & .build/host/test_common_code.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Common-code host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -Wno-unused-variable -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Common/inc App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_settings.c -o .build/host/test_motor_settings.exe
     if ($LASTEXITCODE -ne 0) { throw 'Host compilation failed' }
     & .build/host/test_motor_settings.exe
@@ -17,7 +21,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Flash host compilation failed' }
     & .build/host/test_flash_storage.exe
     if ($LASTEXITCODE -ne 0) { throw 'Flash host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Common/inc -ILibrary/Hal/inc App/motor/motor.c App/motor/motor_anticogging.c App/motor/motor_snapshot.c App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_api.c -o .build/host/test_motor_api.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IThirtyLibrary/common_code/lib/seqlock -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Common/inc -ILibrary/Hal/inc ThirtyLibrary/common_code/lib/seqlock/seqlock.c App/motor/motor.c App/motor/motor_anticogging.c App/motor/motor_snapshot.c App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_api.c -o .build/host/test_motor_api.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor API host compilation failed' }
     & .build/host/test_motor_api.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor API host tests failed' }

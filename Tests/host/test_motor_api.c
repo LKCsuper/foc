@@ -4,7 +4,6 @@
 #include <string.h>
 #include "motor.h"
 #include "motor_param.h"
-#include "motor_detect.h"
 #include "motor_settings.h"
 #include "motor_types.h"
 #include "motor_feedback.h"
@@ -19,17 +18,15 @@ bool Motor_Bldc_IsSelected(void)
     return bldc_selected;
 }
 
-bool FlashStorage_Load(MOTOR_PARAM_S *m, motor_detect_result_t *d)
+bool FlashStorage_Load(MOTOR_PARAM_S *m)
 {
     (void)m;
-    (void)d;
     return false;
 }
 
-bool FlashStorage_Save(const MOTOR_PARAM_S *m, const motor_detect_result_t *d)
+bool FlashStorage_Save(const MOTOR_PARAM_S *m)
 {
     (void)m;
-    (void)d;
     ++save_calls;
     return true;
 }
@@ -238,6 +235,14 @@ int main(void)
     assert(!status.enable && status.v_bus == motor.v_bus);
     assert(status.measured_rpm == 123.0f && status.speed_iq == 0.45f);
     assert(status.fault == FAULT_CODE_NONE && !status.fault_latched);
+
+    /* ISR 发布后，任务读取的是完整已发布帧，不是随后变化的现场对象。 */
+    Motor_StatusSnapshotPublishFromIsr(&motor);
+    motor.currentAdc[0] = 1000.0f;
+    motor.v_bus += 1.0f;
+    assert(Motor_GetStatus(&motor, &status) == MOTOR_OK);
+    assert(status.current_adc[0] == 2037.0f);
+    assert(status.v_bus != motor.v_bus);
 
     /* runtime 适配：清控制态不改配置/命令目标电流。 */
     {

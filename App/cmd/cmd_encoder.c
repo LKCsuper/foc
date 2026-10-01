@@ -8,10 +8,20 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
 /* Private typedef -----------------------------------------------------------*/
+typedef struct {
+    uint16_t count;
+    int32_t delta;
+    uint32_t elapsed_us;
+    int32_t raw_centi_rpm;
+    int32_t pll_centi_rpm;
+    bool valid;
+} encoder_watch_sample_t;
+
 /* Private define ------------------------------------------------------------*/
 #define ENCODER_WATCH_PERIOD_MS (100U)
 #define ENCODER_WATCH_DEFAULT_S (2.0f)
 #define ENCODER_WATCH_MAX_S     (5.0f)
+#define ENCODER_WATCH_MAX_SAMPLES ((uint32_t)(ENCODER_WATCH_MAX_S * 1000.0f / ENCODER_WATCH_PERIOD_MS))
 #define ENCODER_COG_DEFAULT_PASSES (2U)
 #define ENCODER_COG_MAX_PASSES     (5U)
 #define ENCODER_COG_STEP_MS        (2U)
@@ -25,8 +35,77 @@ extern "C" {
 #define ENCODER_COG_POINT_TIMEOUT  (5000U)
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+static encoder_watch_sample_t s_encoder_watch_samples[ENCODER_WATCH_MAX_SAMPLES];
 /* Private function prototypes -----------------------------------------------*/
+static char *Encoder_AppendChar(char *dst, const char *end, char value);
+static char *Encoder_AppendString(char *dst, const char *end, const char *value);
+static char *Encoder_AppendU32(char *dst, const char *end, uint32_t value);
+static char *Encoder_AppendI32(char *dst, const char *end, int32_t value, bool always_sign);
+static char *Encoder_AppendFixed2(char *dst, const char *end, int32_t centi_value);
 /* Private functions ---------------------------------------------------------*/
+
+static char *Encoder_AppendChar(char *dst, const char *end, char value)
+{
+    if (dst < end) {
+        *dst++ = value;
+    }
+    return dst;
+}
+
+static char *Encoder_AppendString(char *dst, const char *end, const char *value)
+{
+    while ((*value != '\0') && (dst < end)) {
+        *dst++ = *value++;
+    }
+    return dst;
+}
+
+static char *Encoder_AppendU32(char *dst, const char *end, uint32_t value)
+{
+    char reversed[10];
+    uint32_t count = 0U;
+
+    do {
+        reversed[count++] = (char)('0' + value % 10U);
+        value /= 10U;
+    } while ((value != 0U) && (count < sizeof(reversed)));
+    while ((count > 0U) && (dst < end)) {
+        *dst++ = reversed[--count];
+    }
+    return dst;
+}
+
+static char *Encoder_AppendI32(char *dst, const char *end, int32_t value, bool always_sign)
+{
+    uint32_t magnitude;
+
+    if (value < 0) {
+        dst = Encoder_AppendChar(dst, end, '-');
+        magnitude = (uint32_t)(-(value + 1)) + 1U;
+    } else {
+        if (always_sign) {
+            dst = Encoder_AppendChar(dst, end, '+');
+        }
+        magnitude = (uint32_t)value;
+    }
+    return Encoder_AppendU32(dst, end, magnitude);
+}
+
+static char *Encoder_AppendFixed2(char *dst, const char *end, int32_t centi_value)
+{
+    uint32_t magnitude;
+
+    if (centi_value < 0) {
+        dst = Encoder_AppendChar(dst, end, '-');
+        magnitude = (uint32_t)(-(centi_value + 1)) + 1U;
+    } else {
+        magnitude = (uint32_t)centi_value;
+    }
+    dst = Encoder_AppendU32(dst, end, magnitude / 100U);
+    dst = Encoder_AppendChar(dst, end, '.');
+    dst = Encoder_AppendChar(dst, end, (char)('0' + ((magnitude / 10U) % 10U)));
+    return Encoder_AppendChar(dst, end, (char)('0' + (magnitude % 10U)));
+}
 
 /**
  * @description: 打印编码器角度、转速和 MT6701 帧状态。
@@ -65,7 +144,8 @@ static void Encoder_PrintStatus(void)
  * @description: 短时对比 MT6701 原始计数窗口转速与 PLL 转速。
  * @detail: raw_rpm 用 TIM5 微秒时基（Hal_Motor_TimeUs，1 us/tick）计算窗口时长。
  *          FOC ISR 占用高时 RTOS tick 会变慢，按 tick 计时会把转速读高。
- *          Shell 打印耗时计入该真实间隔。采样节拍仍用 osDelay，不进 ISR。
+ *          循环用 TIM5 真实时间截止；转速用整数定点打印，避免每行浮点 printf
+ *          把 100 ms 观察节拍拉长。采样等待仍在任务中，不进 ISR。
  *          时长小于等于 0 时用 2 s，超过 5 s 则截断，避免长时挡住停机命令。
  * @param {float} duration_s  观察时长 (s)，按 RTOS tick 睡眠
  * @return {void} 无
@@ -73,10 +153,14 @@ static void Encoder_PrintStatus(void)
  */
 static void Encoder_Watch(float duration_s)
 {
-    uint32_t last_accumulated = Motor_Encoder_GetAccumulatedCount();
-    uint32_t last_us = Hal_Motor_TimeUs();
-    uint32_t samples;
+    uint32_t last_accumulated;
+    uint32_t last_us;
+    uint32_t start_us;
+    uint32_t duration_us;
+    uint32_t duration_tenths;
+    uint32_t sample_count = 0U;
     uint32_t i;
+    char line[128];
     int32_t cpr = (int32_t)Hal_Encoder_CountsPerRev();
 
     if (duration_s <= 0.0f) {
@@ -84,38 +168,76 @@ static void Encoder_Watch(float duration_s)
     } else if (duration_s > ENCODER_WATCH_MAX_S) {
         duration_s = ENCODER_WATCH_MAX_S;
     }
-    samples = (uint32_t)(duration_s * 1000.0f / (float)ENCODER_WATCH_PERIOD_MS);
-    if (samples < 1U) {
-        samples = 1U;
-    }
-    PRINTF("Encoder watch %.1fs TIM5: count delta dt_s raw_rpm pll_rpm valid\r\n", (double)duration_s);
-    for (i = 0U; i < samples; i++) {
-        uint16_t count;
+    duration_us = (uint32_t)(duration_s * 1000000.0f);
+    duration_tenths = (uint32_t)(duration_s * 10.0f + 0.5f);
+    PRINTF("Encoder watch capturing %lu.%lus...\r\n",
+           (unsigned long)(duration_tenths / 10U), (unsigned long)(duration_tenths % 10U));
+    last_accumulated = Motor_Encoder_GetAccumulatedCount();
+    last_us = Hal_Motor_TimeUs();
+    start_us = last_us;
+    do {
         uint32_t accumulated;
         uint32_t now_us;
         uint32_t elapsed_us;
         int32_t delta;
-        float elapsed_s;
         float raw_rpm;
+        uint32_t target_us = last_us + ENCODER_WATCH_PERIOD_MS * 1000U;
 
-        osDelay(pdMS_TO_TICKS(ENCODER_WATCH_PERIOD_MS));
+        while ((int32_t)(Hal_Motor_TimeUs() - target_us) < 0) {
+            osDelay(1U);
+        }
         now_us = Hal_Motor_TimeUs();
-        count = Motor_Encoder_GetCount();
         accumulated = Motor_Encoder_GetAccumulatedCount();
         delta = (int32_t)(accumulated - last_accumulated);
         elapsed_us = now_us - last_us;
-        if (elapsed_us == 0U) {
-            elapsed_s = 0.0f;
-            raw_rpm = 0.0f;
-        } else {
-            elapsed_s = (float)elapsed_us * 1.0e-6f;
-            raw_rpm = (float)delta * 60.0f / ((float)cpr * elapsed_s);
+        raw_rpm = (elapsed_us == 0U) ? 0.0f :
+                  (float)delta * 60000000.0f / ((float)cpr * (float)elapsed_us);
+
+        if (sample_count < ENCODER_WATCH_MAX_SAMPLES) {
+            encoder_watch_sample_t *sample = &s_encoder_watch_samples[sample_count++];
+            sample->count = Motor_Encoder_GetCount();
+            sample->delta = delta;
+            sample->elapsed_us = elapsed_us;
+            sample->raw_centi_rpm = (int32_t)(raw_rpm * 100.0f);
+            sample->pll_centi_rpm = (int32_t)(Motor_Encoder_GetMechRpm() * 100.0f);
+            sample->valid = Motor_Encoder_IsSpeedValid();
         }
-        PRINTF("  %5u %+6ld dt=%7.4f raw=%8.2f pll=%8.2f valid=%d\r\n", (unsigned)count, (long)delta,
-               (double)elapsed_s, (double)raw_rpm, (double)Motor_Encoder_GetMechRpm(),
-               Motor_Encoder_IsSpeedValid() ? 1 : 0);
         last_accumulated = accumulated;
         last_us = now_us;
+    } while (((uint32_t)(last_us - start_us) < duration_us) &&
+             (sample_count < ENCODER_WATCH_MAX_SAMPLES));
+
+    {
+        char *cursor = line;
+        const char *end = line + sizeof(line);
+        cursor = Encoder_AppendString(cursor, end, "Encoder watch ");
+        cursor = Encoder_AppendU32(cursor, end, duration_tenths / 10U);
+        cursor = Encoder_AppendChar(cursor, end, '.');
+        cursor = Encoder_AppendU32(cursor, end, duration_tenths % 10U);
+        cursor = Encoder_AppendString(cursor, end,
+                                     "s TIM5: count delta dt_ms raw_rpm pll_rpm valid\r\n");
+        (void)Bsp_Usart_Write((const UCHAR *)line, (ULONG)(cursor - line));
+    }
+    for (i = 0U; i < sample_count; i++) {
+        const encoder_watch_sample_t *sample = &s_encoder_watch_samples[i];
+        {
+            char *cursor = line;
+            const char *end = line + sizeof(line);
+            cursor = Encoder_AppendString(cursor, end, "count=");
+            cursor = Encoder_AppendU32(cursor, end, sample->count);
+            cursor = Encoder_AppendString(cursor, end, " delta=");
+            cursor = Encoder_AppendI32(cursor, end, sample->delta, true);
+            cursor = Encoder_AppendString(cursor, end, " dt_ms=");
+            cursor = Encoder_AppendU32(cursor, end, (sample->elapsed_us + 500U) / 1000U);
+            cursor = Encoder_AppendString(cursor, end, " raw=");
+            cursor = Encoder_AppendFixed2(cursor, end, sample->raw_centi_rpm);
+            cursor = Encoder_AppendString(cursor, end, " pll=");
+            cursor = Encoder_AppendFixed2(cursor, end, sample->pll_centi_rpm);
+            cursor = Encoder_AppendString(cursor, end, " valid=");
+            cursor = Encoder_AppendU32(cursor, end, sample->valid ? 1U : 0U);
+            cursor = Encoder_AppendString(cursor, end, "\r\n");
+            (void)Bsp_Usart_Write((const UCHAR *)line, (ULONG)(cursor - line));
+        }
     }
 }
 
@@ -301,14 +423,10 @@ static int Encoder_CoggingCommand(int argc, char *argv[])
             return -1;
         }
         PRINTF("Cogging position learn complete\r\n");
-        {
-            motor_detect_result_t detect_compat = {0};
-            detect_compat.version = MOTOR_DETECT_RESULT_VERSION;
-            if (FlashStorage_Save(&motor, &detect_compat)) {
-                PRINTF("Cogging table saved to flash\r\n");
-            } else {
-                PRINTF("Cogging table save FAILED; table remains active in RAM\r\n");
-            }
+        if (FlashStorage_Save(&motor)) {
+            PRINTF("Cogging table saved to flash\r\n");
+        } else {
+            PRINTF("Cogging table save FAILED; table remains active in RAM\r\n");
         }
         Encoder_CoggingStatus();
         return 0;

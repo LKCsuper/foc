@@ -132,7 +132,7 @@ void Motor_SpeedLoop_PrimeIqState(motor_speed_state_t *state, float iq)
  * @description: 运行指定状态对象的速度 PI，输出 Iq 目标
  * @detail: 仅 I/F+使能且反馈有效时分频执行；输出限幅到 speed_iq_limit。
  *          输出与误差同向顶满时积分按 MOTOR_SPEED_LIMIT_DECAY_S 泄放，不再累加。
- *          禁止制动时按转速方向削负输出。
+ *          负误差可以出负 Iq，用来抵消前馈。禁止制动的反向限制不在这里做。
  * @param {motor_speed_state_t} *state 状态对象，不可为空
  * @param {MOTOR_PARAM_S} *motor 配置与目标来源，不可为空
  * @param {float} dt 距上一拍时间 (s)
@@ -231,16 +231,31 @@ void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, 
         state->integral = Motor_Speed_Clamp(integral_candidate, -iq_limit, iq_limit);
     }
     output = Motor_Speed_Clamp(proportional + state->integral, -iq_limit, iq_limit);
-
-    if (!motor->speed_allow_braking) {
-        if (motor->ol_current_rpm > 0.0f && output < 0.0f) {
-            output = 0.0f;
-        } else if (motor->ol_current_rpm < 0.0f && output > 0.0f) {
-            output = 0.0f;
-        }
-    }
-
     state->iq_target = output;
+}
+
+/**
+ * @description: 禁用制动时，把最终电压或电流限制成不与转速命令反向。
+ * @detail: 速度 PI 本身可以出负修正，用来抵消前馈。本函数用在前馈与 PI 相加之后。
+ *          允许制动，或命令转速为 0 时，原样返回。
+ * @param {float} command_rpm  转速命令 (RPM)，符号表示驱动方向
+ * @param {float} output       即将执行的电压 (V) 或电流 (A)
+ * @param {bool} allow_braking true=允许反向制动
+ * @return {float} 限幅后的输出，单位与 output 相同
+ * @author: lkc
+ */
+float Motor_Speed_LimitNoBrakeOutput(float command_rpm, float output, bool allow_braking)
+{
+    if (allow_braking) {
+        return output;
+    }
+    if (command_rpm > 0.0f && output < 0.0f) {
+        return 0.0f;
+    }
+    if (command_rpm < 0.0f && output > 0.0f) {
+        return 0.0f;
+    }
+    return output;
 }
 
 /**

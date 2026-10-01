@@ -37,7 +37,7 @@
 | 编码器        | `App/motor_sensor/motor_encoder.c` 及对应头文件                  | 已存在；完善速度、有效性、标定并接入主反馈链，禁止重复新建 |
 | 霍尔          | `App/motor_sensor/motor_hall.c`                                  | 分清标定与正常解码，补齐正常运行角度/速度反馈              |
 | 硬件抽象      | `Library/Hal/inc/`、`Library/Hal/port/stm32f4/`                | 补足采样/PWM 时序、故障输出和板级能力约定                  |
-| 存储与校准    | `flash_storage.c`、`motor_detect.c`                            | 分离 STM32 Flash、RTOS 等平台依赖                          |
+| 存储与校准    | `flash_storage.c`、`motor_detect.c`                            | 已停用的 R/L/磁链结果类型已移除；继续分离 RTOS 等平台依赖 |
 | 学习/遗留路径 | `App/motor_simple_foc/`、`motor_ctrl.c` 等                     | 核查调用后独立为示例或兼容代码，明确唯一主控制实现         |
 
 当前不能宣称已跨平台：去掉 `includes.h` 不等于去掉平台依赖；`DETECT_Offset`/`DETECT_Hall` 包装仍用 RTOS，采样增益/通道仍来自板级宏经 HAL 包装，相电压 SENS 映射仍在 Sense。

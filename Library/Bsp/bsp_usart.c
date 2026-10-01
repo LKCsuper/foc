@@ -14,6 +14,7 @@ extern "C" {
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define USART_TX_BUF_MASK                 (USART_TX_BUF_SIZE - 1U)
+#define USART_TX_WRITE_CHUNK_MAX          (128U)
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /*
@@ -444,6 +445,62 @@ void Bsp_Usart_PutChar(UCHAR cKey)
 	(void)Bsp_Usart_TxQueueByte(cKey);
 
 	return;
+}
+
+/**
+ * @brief  把一整块字节写入 UART DMA 环形队列。
+ * @detail 任务上下文会等到全部入队；ISR/外部临界区只写当前空闲部分。
+ *         每块只进入一次短临界区，避免 printf/fputc 逐字节反复关中断。
+ * @return 已入队字节数。
+ */
+ULONG Bsp_Usart_Write(const UCHAR *data, ULONG len)
+{
+	ULONG written = 0U;
+
+	if (data == NULL || len == 0U) {
+		return 0U;
+	}
+	if (!sgbUsartTxDmaReady) {
+		while (written < len) {
+			Bsp_Usart_PollingPutChar(data[written++]);
+		}
+		return written;
+	}
+
+	while (written < len) {
+		ULONG free_len;
+		ULONG continuous_len;
+		uint32_t ulPrimask = __get_PRIMASK();
+
+		__disable_irq();
+		Bsp_Usart_TxDmaPollLocked();
+		free_len = (sgulUsartTxTail - sgulUsartTxHead - 1U) & USART_TX_BUF_MASK;
+		continuous_len = USART_TX_BUF_SIZE - sgulUsartTxHead;
+		if (continuous_len > free_len) {
+			continuous_len = free_len;
+		}
+		if (continuous_len > (len - written)) {
+			continuous_len = len - written;
+		}
+		if (continuous_len > USART_TX_WRITE_CHUNK_MAX) {
+			continuous_len = USART_TX_WRITE_CHUNK_MAX;
+		}
+		if (continuous_len > 0U) {
+			memcpy(&sgucUsartTxBuf[sgulUsartTxHead], &data[written], continuous_len);
+			sgulUsartTxHead = (sgulUsartTxHead + continuous_len) & USART_TX_BUF_MASK;
+			written += continuous_len;
+			Bsp_Usart_TxDmaStartLocked();
+		}
+		if (0U == ulPrimask) {
+			__enable_irq();
+		}
+
+		if ((continuous_len == 0U) &&
+		    ((__get_IPSR() != 0U) || (ulPrimask != 0U))) {
+			break;
+		}
+	}
+	return written;
 }
 
 /**

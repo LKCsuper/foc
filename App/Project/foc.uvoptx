@@ -2024,8 +2024,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\motor\motor_ctrl.c</PathWithFileName>
-      <FilenameWithoutPath>motor_ctrl.c</FilenameWithoutPath>
+      <PathWithFileName>..\motor\motor.c</PathWithFileName>
+      <FilenameWithoutPath>motor.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -2036,8 +2036,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\motor\motor.c</PathWithFileName>
-      <FilenameWithoutPath>motor.c</FilenameWithoutPath>
+      <PathWithFileName>..\motor\motor_snapshot.c</PathWithFileName>
+      <FilenameWithoutPath>motor_snapshot.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -2048,8 +2048,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\motor\motor_snapshot.c</PathWithFileName>
-      <FilenameWithoutPath>motor_snapshot.c</FilenameWithoutPath>
+      <PathWithFileName>..\..\ThirtyLibrary\common_code\lib\seqlock\seqlock.c</PathWithFileName>
+      <FilenameWithoutPath>seqlock.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>

@@ -275,20 +275,6 @@ int16_t data_to_int16(uint8_t *data);
  */
 float data_to_float(uint8_t *data);
 
-/**
- * @description: 运行 FOC 角度 PLL 锁相环。
- * @param {float} phase       本次观测相位 (rad)
- * @param {float} dt          控制周期 (s)
- * @param {float} *phase_var  相位状态，就地更新 (rad)
- * @param {float} *speed_var  角速度状态，就地更新 (rad/s)
- * @param {float} pll_kp      PLL 比例增益
- * @param {float} pll_ki      PLL 积分增益
- * @return {*}
- * @author: lkc
- */
-void foc_pll_run(float phase, float dt, float *phase_var,
-                 float *speed_var, float pll_kp, float pll_ki);
-
 #ifdef __cplusplus
 }
 #endif

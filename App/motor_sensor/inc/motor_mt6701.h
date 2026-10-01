@@ -49,7 +49,7 @@ void Motor_MT6701_Init(void);
 
 /**
  * @description: 读一帧绝对角度并更新有效标志。
- * @detail: SSI 校验 CRC6 和磁场状态；连续失败达到上限后 valid 变 false。不阻塞控制中断以外的长等待。
+ * @detail: SSI 校验CRC6和磁场强弱状态；Mg[3]超速位仅记录告警。连续失败约2ms后valid变false。
  * @return {bool} true=本帧角度可用
  * @author: lkc
  */

@@ -10,42 +10,8 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
 #include <stdbool.h>
-#include "motor_types.h"
 /* Private define ------------------------------------------------------------*/
-#define MOTOR_DETECT_RESULT_VERSION (1U)
 /* Private typedef -----------------------------------------------------------*/
-/*
- * 旧 v1 Flash 曾保存该结构；v2 不再存储，仅保留调用兼容。R/L/磁链检测仍停用。
- */
-typedef enum {
-    MOTOR_DETECT_ERROR_NONE = 0,
-    MOTOR_DETECT_ERROR_BUSY,
-    MOTOR_DETECT_ERROR_MOTOR_RUNNING,
-    MOTOR_DETECT_ERROR_FAULT,
-    MOTOR_DETECT_ERROR_TIMEOUT,
-    MOTOR_DETECT_ERROR_CURRENT,
-    MOTOR_DETECT_ERROR_RESISTANCE,
-    MOTOR_DETECT_ERROR_INDUCTANCE,
-    MOTOR_DETECT_ERROR_FLUX,
-    MOTOR_DETECT_ERROR_MECHANICAL_REFERENCE,
-    MOTOR_DETECT_ERROR_USER_ABORT,
-} motor_detect_error_t;
-
-typedef struct {
-    uint32_t version;
-    bool resistance_valid;
-    bool inductance_valid;
-    bool flux_valid;
-    bool pole_pairs_valid;
-    float resistance_ohm;
-    float inductance_h;
-    float flux_linkage_wb;
-    float pole_pairs;
-    float test_current_a;
-    float test_electrical_rpm;
-    motor_detect_error_t error;
-    mc_fault_code fault;
-} motor_detect_result_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/

@@ -62,11 +62,7 @@ static bool Detect_ShouldAbort(void)
  */
 static bool Detect_SaveOffsetToFlash(void)
 {
-    motor_detect_result_t detect;
-
-    memset(&detect, 0, sizeof(detect));
-    detect.version = MOTOR_DETECT_RESULT_VERSION;
-    if (!FlashStorage_Save(&motor, &detect)) {
+    if (!FlashStorage_Save(&motor)) {
         PRINTF("Detect offset: flash save failed\r\n");
         return false;
     }

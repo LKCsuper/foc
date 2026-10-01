@@ -32,35 +32,6 @@ extern "C" {
 #include <math.h>
 
 /**
- * @description: 将角度映射到 [min, max] 区间对应的 [0, 1] 比例。
- * @param {float} angle  输入角度 (deg)
- * @param {float} min    映射区间下限 (deg)
- * @param {float} max    映射区间上限 (deg)
- * @return {float} 映射比例 [0, 1]；min==max 时返回 -1
- * @author: lkc
- */
-float utils_map_angle(float angle, float min, float max);
-
-/**
- * @description: 对输入值施加死区并重新映射到 [-max, max]。
- * @param {float} *value  输入输出值
- * @param {float} tres    死区阈值；|value|<tres 时置 0
- * @param {float} max     输出满量程
- * @return {*}
- * @author: lkc
- */
-void utils_deadband(float *value, float tres, float max);
-
-/**
- * @description: 计算两角度之差并限制在 [-180°, 180°]。
- * @param {float} angle1  角度 1 (deg)
- * @param {float} angle2  角度 2 (deg)
- * @return {float} 角度差 (deg)
- * @author: lkc
- */
-float utils_angle_difference(float angle1, float angle2);
-
-/**
  * @description: 计算两角度之差并限制在 [-π, π]。
  * @param {float} angle1  角度 1 (rad)
  * @param {float} angle2  角度 2 (rad)
@@ -68,36 +39,6 @@ float utils_angle_difference(float angle1, float angle2);
  * @author: lkc
  */
 float utils_angle_difference_rad(float angle1, float angle2);
-
-/**
- * @description: 按权重对多个弧度角求平均。
- * @param {float} *angles      角度数组 (rad)
- * @param {float} *weights     权重数组
- * @param {int} angles_num     角度个数
- * @return {float} 加权平均角 (rad)
- * @author: lkc
- */
-float utils_avg_angles_rad_fast(float *angles, float *weights, int angles_num);
-
-/**
- * @description: 取三个 float 值的中间值。
- * @param {float} a
- * @param {float} b
- * @param {float} c
- * @return {float} 中间值
- * @author: lkc
- */
-float utils_middle_of_3(float a, float b, float c);
-
-/**
- * @description: 取三个 int 值的中间值。
- * @param {int} a
- * @param {int} b
- * @param {int} c
- * @return {int} 中间值
- * @author: lkc
- */
-int utils_middle_of_3_int(int a, int b, int c);
 
 /**
  * @description: 快速 atan2 近似。
@@ -109,64 +50,6 @@ int utils_middle_of_3_int(int a, int b, int c);
 float utils_fast_atan2(float y, float x);
 
 /**
- * @description: 快速 sin/cos 近似（基础版）。
- * @param {float} angle  输入角度 (rad)
- * @param {float} *sin   输出 sin 值
- * @param {float} *cos   输出 cos 值
- * @return {*}
- * @author: lkc
- */
-void utils_fast_sincos(float angle, float *sin, float *cos);
-
-/**
- * @description: 快速 sin/cos 近似（精度更高版）。
- * @param {float} angle  输入角度 (rad)
- * @param {float} *sin   输出 sin 值
- * @param {float} *cos   输出 cos 值
- * @return {*}
- * @author: lkc
- */
-void utils_fast_sincos_better(float angle, float *sin, float *cos);
-
-/**
- * @description: 返回绝对值较小的数值。
- * @param {float} va
- * @param {float} vb
- * @return {float} |va| 与 |vb| 中模长较小者（保留原符号）
- * @author: lkc
- */
-float utils_min_abs(float va, float vb);
-
-/**
- * @description: 返回绝对值较大的数值。
- * @param {float} va
- * @param {float} vb
- * @return {float} |va| 与 |vb| 中模长较大者（保留原符号）
- * @author: lkc
- */
-float utils_max_abs(float va, float vb);
-
-/**
- * @description: 将字节转换为 8 位二进制字符串。
- * @param {int} x    输入字节
- * @param {char} *b  输出字符串缓冲（至少 9 byte）
- * @return {*}
- * @author: lkc
- */
-void utils_byte_to_binary(int x, char *b);
-
-/**
- * @description: 对油门输入施加加速/制动曲线映射。
- * @param {float} val         输入值 [-1, 1]
- * @param {float} curve_acc   加速曲线系数
- * @param {float} curve_brake 制动曲线系数
- * @param {int} mode          曲线模式：0=指数，1=自然，2=多项式，其他=线性
- * @return {float} 曲线映射后的值
- * @author: lkc
- */
-float utils_throttle_curve(float val, float curve_acc, float curve_brake, int mode);
-
-/**
  * @description: 计算数据的 CRC-32C (Castagnoli) 校验值。
  * @param {uint8_t} *data  待校验数据指针
  * @param {uint32_t} len   数据长度 (byte)
@@ -174,127 +57,6 @@ float utils_throttle_curve(float val, float curve_acc, float curve_brake, int mo
  * @author: lkc
  */
 uint32_t utils_crc32c(uint8_t *data, uint32_t len);
-
-/**
- * @description: 计算 32 点 DFT 的 0 号频点（直流分量）。
- * @param {float} *real_in  输入时域序列（32 点）
- * @param {float} *real     输出实部
- * @param {float} *imag     输出虚部（置 0）
- * @return {*}
- * @author: lkc
- */
-void utils_fft32_bin0(float *real_in, float *real, float *imag);
-
-/**
- * @description: 计算 32 点 DFT 的 1 号频点（基波）分量。
- * @param {float} *real_in  输入时域序列（32 点）
- * @param {float} *real     输出实部
- * @param {float} *imag     输出虚部
- * @return {*}
- * @author: lkc
- */
-void utils_fft32_bin1(float *real_in, float *real, float *imag);
-
-/**
- * @description: 计算 32 点 DFT 的 2 号频点（2 次谐波）分量。
- * @param {float} *real_in  输入时域序列（32 点）
- * @param {float} *real     输出实部
- * @param {float} *imag     输出虚部
- * @return {*}
- * @author: lkc
- */
-void utils_fft32_bin2(float *real_in, float *real, float *imag);
-
-/**
- * @description: 计算 16 点 DFT 的 0 号频点（直流分量）。
- * @param {float} *real_in  输入时域序列（16 点）
- * @param {float} *real     输出实部
- * @param {float} *imag     输出虚部
- * @return {*}
- * @author: lkc
- */
-void utils_fft16_bin0(float *real_in, float *real, float *imag);
-
-/**
- * @description: 计算 16 点 DFT 的 1 号频点（基波）分量。
- * @param {float} *real_in  输入时域序列（16 点）
- * @param {float} *real     输出实部
- * @param {float} *imag     输出虚部
- * @return {*}
- * @author: lkc
- */
-void utils_fft16_bin1(float *real_in, float *real, float *imag);
-
-/**
- * @description: 计算 16 点 DFT 的 2 号频点（2 次谐波）分量。
- * @param {float} *real_in  输入时域序列（16 点）
- * @param {float} *real     输出实部
- * @param {float} *imag     输出虚部
- * @return {*}
- * @author: lkc
- */
-void utils_fft16_bin2(float *real_in, float *real, float *imag);
-
-/**
- * @description: 计算 8 点 DFT 的 0 号频点（直流分量）。
- * @param {float} *real_in  输入时域序列（8 点）
- * @param {float} *real     输出实部
- * @param {float} *imag     输出虚部
- * @return {*}
- * @author: lkc
- */
-void utils_fft8_bin0(float *real_in, float *real, float *imag);
-
-/**
- * @description: 计算 8 点 DFT 的 1 号频点（基波）分量。
- * @param {float} *real_in  输入时域序列（8 点）
- * @param {float} *real     输出实部
- * @param {float} *imag     输出虚部
- * @return {*}
- * @author: lkc
- */
-void utils_fft8_bin1(float *real_in, float *real, float *imag);
-
-/**
- * @description: 计算 8 点 DFT 的 2 号频点（2 次谐波）分量。
- * @param {float} *real_in  输入时域序列（8 点）
- * @param {float} *real     输出实部
- * @param {float} *imag     输出虚部
- * @return {*}
- * @author: lkc
- */
-void utils_fft8_bin2(float *real_in, float *real, float *imag);
-
-/**
- * @description: 将归一化锂电池电压映射为剩余容量比例。
- * @param {float} norm_v  归一化电压 [0, 1]（对应约 3.2~4.2 V）
- * @return {float} 剩余容量比例 [0, 1]
- * @author: lkc
- */
-float utils_batt_liion_norm_v_to_capacity(float norm_v);
-
-/**
- * @description: 运行一步 uint16 中值滤波。
- * @param {uint16_t} *buffer           环形缓冲，长度需为 filter_len
- * @param {unsigned int} *buffer_index 环形缓冲写索引，调用后自动推进取模
- * @param {unsigned int} filter_len    滤波窗口长度
- * @param {uint16_t} sample            本次输入采样值
- * @return {uint16_t} 中值滤波结果
- * @author: lkc
- */
-uint16_t utils_median_filter_uint16_run(uint16_t *buffer,
-		unsigned int *buffer_index, unsigned int filter_len, uint16_t sample);
-
-/**
- * @description: 用旋转角构成的旋转矩阵旋转 3D 矢量。
- * @param {float} *input     输入 3D 矢量
- * @param {float} *rotation  三个轴向旋转角 [x, y, z] (rad)
- * @param {float} *output    输出 3D 矢量
- * @param {bool} reverse     true=应用逆旋转
- * @return {*}
- * @author: lkc
- */
-void utils_rotate_vector3(float *input, float *rotation, float *output, bool reverse);
 
 /* ========================================================================
  * 基础运算宏
@@ -383,15 +145,6 @@ void utils_rotate_vector3(float *input, float *rotation, float *output, bool rev
 #define COS_MINUS_30_DEG		(0.86602540378f)   /* cos(-30°) */
 #define SIN_MINUS_30_DEG		(-0.5f)            /* sin(-30°) */
 #define ONE_BY_SQRT2			(0.7071067811865475f) /* 1/√2 */
-
-/* ========================================================================
- * 正弦/余弦查表 — 32 点分段线性插值用。
- * 实现在 motor_math.c 中。
- * ======================================================================== */
-extern const float utils_tab_sin_32_1[];
-extern const float utils_tab_sin_32_2[];
-extern const float utils_tab_cos_32_1[];
-extern const float utils_tab_cos_32_2[];
 
 /* ========================================================================
  * 内联工具函数

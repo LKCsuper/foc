@@ -11,6 +11,7 @@ extern "C" {
 #include <string.h>
 #include "flash_storage.h"
 #include "hal_flash.h"
+#include "motor_detect.h"
 #include "motor_hall.h"
 #include "motor_math.h"
 #include "motor_anticogging.h"
@@ -228,19 +229,18 @@ static const flash_storage_t *flash_storage_current(uint8_t *out_index)
 }
 
 /**
- * @description: 从最新有效槽加载配置/校准，清空兼容检测结果。
+ * @description: 从最新有效槽加载配置/校准。
  * @detail: 无有效槽时返回 false，由调用方回退默认参数。
  * @param {MOTOR_PARAM_S *} motor 目标电机对象，须停机中，不可为空
- * @param {motor_detect_result_t *} detect 输出检测结果，成功时清零并写版本，不可为空
  * @return {bool} 加载并应用成功返回 true
  * @author: lkc
  */
-bool FlashStorage_Load(MOTOR_PARAM_S *motor, motor_detect_result_t *detect)
+bool FlashStorage_Load(MOTOR_PARAM_S *motor)
 {
     const flash_storage_t *storage;
     motor_settings_t settings;
 
-    if (motor == NULL || detect == NULL || motor->ol_enable) {
+    if (motor == NULL || motor->ol_enable) {
         return false;
     }
     storage = flash_storage_current(NULL);
@@ -265,8 +265,6 @@ bool FlashStorage_Load(MOTOR_PARAM_S *motor, motor_detect_result_t *detect)
         }
         if (calibrated && !Motor_Anticogging_Import(s_anticogging_table, MOTOR_ANTICOGGING_BINS, enabled)) return false;
     }
-    memset(detect, 0, sizeof(*detect));
-    detect->version = MOTOR_DETECT_RESULT_VERSION;
     FLASH_STORAGE_PRINTF("FlashStorage: loaded slot sequence %u\r\n", storage->sequence);
     return true;
 }
@@ -275,11 +273,10 @@ bool FlashStorage_Load(MOTOR_PARAM_S *motor, motor_detect_result_t *detect)
  * @description: 把配置/校准保存到当前未使用的一侧槽。
  * @detail: 双槽交替写入；先编码再擦除；主体写完后写 committed；写毕回读整体校验。
  * @param {const MOTOR_PARAM_S *} motor 来源电机对象，须停机中，不可为空
- * @param {const motor_detect_result_t *} detect 检测结果，仅判空不读取；不可为空
  * @return {bool} 保存并通过回读校验返回 true
  * @author: lkc
  */
-bool FlashStorage_Save(const MOTOR_PARAM_S *motor, const motor_detect_result_t *detect)
+bool FlashStorage_Save(const MOTOR_PARAM_S *motor)
 {
     const flash_storage_t *current;
     flash_storage_t *storage = &s_write_storage;
@@ -291,7 +288,7 @@ bool FlashStorage_Save(const MOTOR_PARAM_S *motor, const motor_detect_result_t *
     uint32_t committed_offset = (uint32_t)offsetof(flash_storage_t, payload) + FLASH_STORAGE_PAYLOAD_SIZE;
     const uint32_t committed = FLASH_STORAGE_COMMITTED;
 
-    if (motor == NULL || detect == NULL || motor->ol_enable || Motor_Detect_IsActive() || Motor_Hall_DetectIsActive()) {
+    if (motor == NULL || motor->ol_enable || Motor_Detect_IsActive() || Motor_Hall_DetectIsActive()) {
         return false;
     }
     if (Hal_Flash_SlotCount() < 2U) {

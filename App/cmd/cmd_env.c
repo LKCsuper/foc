@@ -29,17 +29,12 @@ extern "C" {
  */
 int Cmd_Saveparam(int argc, char **argv)
 {
-    motor_detect_result_t detect;
-
     if (motor.ol_enable || Motor_Detect_IsActive() || Motor_Hall_DetectIsActive()) {
         printf("Stop motor and finish calibration before saving.\r\n");
         return -1;
     }
 
-    memset(&detect, 0, sizeof(detect));
-    detect.version = MOTOR_DETECT_RESULT_VERSION;
-
-    if (FlashStorage_Save(&motor, &detect)) {
+    if (FlashStorage_Save(&motor)) {
         printf("Parameters saved to Flash A/B slots.\r\n");
     } else {
         printf("Save failed!\r\n");

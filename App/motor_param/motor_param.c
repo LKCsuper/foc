@@ -9,7 +9,6 @@ extern "C" {
 #include <string.h>
 #include <stdio.h>
 #include "motor_param.h"
-#include "motor_detect.h"
 #include "flash_storage.h"
 #include "motor_math.h"
 #include "motor_speed.h"
@@ -35,7 +34,6 @@ static MOTOR_PARAM_S *gpstMotorDefault = &motorDefault;
  */
 void MOTOR_Param_Init(void)
 {
-    motor_detect_result_t detect_buf;
     bool flash_ok;
     motor_settings_t defaults;
     motor_settings_t loaded;
@@ -140,18 +138,13 @@ void MOTOR_Param_Init(void)
     /* 先建立完整默认对象，再仅加载配置/校准，绝不反序列化运行状态。 */
     *gpstMotor = *gpstMotorDefault;
 
-    /* 尝试从 Flash 加载已保存的电机参数和检测结果 */
-    flash_ok = FlashStorage_Load(gpstMotor, &detect_buf);
+    /* 尝试从 Flash 加载已保存的电机配置与校准 */
+    flash_ok = FlashStorage_Load(gpstMotor);
     if (!flash_ok) {
         /* 首次上电、旧格式或数据损坏：保留代码默认值 */
-        memset(&detect_buf, 0, sizeof(detect_buf));
-        detect_buf.version = MOTOR_DETECT_RESULT_VERSION;
-
         /* 不在上电自动擦写：保留旧版本槽，用户校准后用 saveparam 显式保存。 */
         PRINTF("Default Flash Param\r\n");
     }
-    (void)detect_buf;
-
     /* 保留当前开发策略：控制增益用代码默认值，校准与霍尔采样配置从 Flash 恢复。
      * 通过独立配置对象覆盖，避免逐个字段复制时漏清运行状态或漏掉新增配置。 */
     if (Motor_Settings_Capture(gpstMotorDefault, &defaults) && Motor_Settings_Capture(gpstMotor, &loaded)) {

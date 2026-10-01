@@ -836,7 +836,6 @@ void Motor_Encoder_Detect(void)
     const float scan_range = 2.0f * (float)M_PI * pole_pairs;
     uint32_t step;
     bool success = false;
-    motor_detect_result_t detect = {0};
 
     if (!Motor_MT6701_IsValid()) {
         printf("Encoder detect rejected: MT6701 %s data invalid\r\n", Motor_MT6701_InterfaceName());
@@ -946,8 +945,7 @@ void Motor_Encoder_Detect(void)
     motor.encoder_offset_rad = s_encoder.elec_offset_rad;
     motor.encoder_inverted = s_encoder.inverted;
     motor.encoder_calibrated = true;
-    detect.version = MOTOR_DETECT_RESULT_VERSION;
-    if (FlashStorage_Save(&motor, &detect)) {
+    if (FlashStorage_Save(&motor)) {
         printf("Encoder calibration saved to flash\r\n");
     } else {
         printf("Encoder calibration save FAILED\r\n");

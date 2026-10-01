@@ -13,6 +13,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
+#include "motor_param.h"
 #include "motor_feedback.h"
 #include "motor_protect.h"
 /* Private define ------------------------------------------------------------*/
@@ -51,6 +52,8 @@ typedef struct {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
+/** 在 ADC-DMA/FOC ISR 中发布一帧状态；单写者，调用频率由适配层限制。 */
+void Motor_StatusSnapshotPublishFromIsr(const MOTOR_PARAM_S *motor);
 
 #ifdef __cplusplus
 }

@@ -47,12 +47,11 @@ extern "C" {
 /*
  * 调试串口波特率。
  *
- * 115200 在输出 olstatus 这种长状态页时需要较长时间，
- * 会让 Shell 命令交互显得卡顿。UART4 及常见的 USB-串口模块都支持
- * 460800，可以将输出时间缩短为原来的约 1/4。下载固件后，上位机也必须设为
- * 460800、8N1、无流控。如果转接模块不支持，只需将此值改回 115200U。
+ * 状态页和连续诊断输出量较大，使用 2 Mbaud 缩短 DMA 队列占用时间。
+ * 当前 UART4 的 APB1 时钟为 42 MHz，2 Mbaud 可精确分频。下载固件后，
+ * 上位机必须同步设为 2000000、8N1、无流控。
  */
-#define DEBUG_USART_BAUD                    460800U
+#define DEBUG_USART_BAUD                    2000000U
 
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -62,6 +61,7 @@ VOID  Bsp_Usart_DebugInit(ULONG ulBound);
 VOID  Bsp_Usart_PutString(const CHAR *cStr);
 ULONG Bsp_Usart_GetChar(UCHAR* cKey);
 VOID  Bsp_Usart_PutChar(UCHAR cKey);
+ULONG Bsp_Usart_Write(const UCHAR *data, ULONG len);
 VOID  Bsp_Usart_Flush(VOID);
 VOID  Bsp_Usart_Handler(VOID);
 VOID  Bsp_Usart_TxDmaInit(VOID);

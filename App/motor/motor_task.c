@@ -27,8 +27,8 @@ static StackType_t s_encoder_stack[MOTOR_TASK_ENCODER_STACK_WORDS];
 static StaticTask_t s_encoder_tcb;
 static const osThreadAttr_t s_pid_attr = {
     .name = "foc pid",
-    /* 与 Shell 同级轮转；FOC 电流环仍由 ADC ISR 保证实时性。 */
-    .priority = PRI_CMD,
+    /* 速度/位置环必须抢占 Shell 的浮点格式化和串口排队，避免打印改变控制周期。 */
+    .priority = PRI_SPEED,
     .cb_mem = &s_pid_tcb,
     .cb_size = sizeof(s_pid_tcb),
     .stack_mem = &s_pid_stack,
@@ -37,8 +37,8 @@ static const osThreadAttr_t s_pid_attr = {
 static osThreadId_t s_pid_thread;
 static const osThreadAttr_t s_encoder_attr = {
     .name = "mt6701",
-    /* SSI 采样不可长期饿死命令/停机任务。 */
-    .priority = PRI_CMD,
+    /* 编码器反馈优先于 Shell；每拍事务有界并主动延时，不会持续占用 CPU。 */
+    .priority = PRI_SPEED,
     .cb_mem = &s_encoder_tcb,
     .cb_size = sizeof(s_encoder_tcb),
     .stack_mem = &s_encoder_stack,
@@ -158,11 +158,18 @@ static void Motor_Task_Encoder(void *argument)
     (void)argument;
     tick = osKernelGetTickCount();
     for (;;) {
+        motor_mt6701_status_t before;
+        motor_mt6701_status_t after;
+
         Motor_Task_DelayNextTick(&tick, period);
+        Motor_MT6701_GetStatus(&before);
         if (!Motor_MT6701_Poll()) {
-            /* 设备未应答时退避，禁止高优先级任务连续超时饿死 Shell。 */
-            (void)osDelay(pdMS_TO_TICKS(MOTOR_TASK_ENCODER_RETRY_MS));
-            tick = osKernelGetTickCount();
+            Motor_MT6701_GetStatus(&after);
+            if (after.transfer_error_count != before.transfer_error_count) {
+                /* 仅总线超时退避；CRC/状态坏帧须按原采样周期重试，避免单帧异常制造采样超时。 */
+                (void)osDelay(pdMS_TO_TICKS(MOTOR_TASK_ENCODER_RETRY_MS));
+                tick = osKernelGetTickCount();
+            }
         }
     }
 }

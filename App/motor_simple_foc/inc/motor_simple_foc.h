@@ -53,18 +53,6 @@ extern float sensor_offset;
 extern float zero_electric_angle;
 /******************************************************************************/
 /**
- * @description: 获取当前机械轴角。
- * @return {float} 机械角 (rad)
- * @author: lkc
- */
-float shaftAngle(void);
-/**
- * @description: 获取当前机械轴角速度。
- * @return {float} 角速度 (rad/s)
- * @author: lkc
- */
-float shaftVelocity(void);
-/**
  * @description: 计算当前电角度（含传感器偏移与零位校准）。
  * @return {float} 电角度 (rad)
  * @author: lkc
