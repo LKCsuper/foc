@@ -13,12 +13,14 @@ static bool s_zero_valid = true;
 static bool s_fault;
 static float s_rpm;
 static bool s_speed_valid;
+static uint32_t s_time_us;
 
 uint32_t Motor_Encoder_GetAccumulatedCount(void) { return s_count; }
 bool Motor_Encoder_IsZeroValid(void) { return s_zero_valid; }
 bool Motor_Encoder_IsSignalFault(void) { return s_fault; }
 float Motor_Encoder_GetMechRpm(void) { return s_rpm; }
 bool Motor_Encoder_IsSpeedValid(void) { return s_speed_valid; }
+uint32_t Hal_Motor_TimeUs(void) { return s_time_us; }
 
 int main(void)
 {
@@ -109,6 +111,33 @@ int main(void)
     Motor_Joint_GetState(&state);
     assert(fabsf(state.bias_v - 0.10f) < 1e-3f);
     assert(fabsf(motor.joint_hold_v - 0.20f) < 1e-4f);
+
+    /* 完整SI命令整体提交；超时后只保留反向速度阻尼。 */
+    {
+        motor_joint_command_si_t command = {
+            .enable = true,
+            .timeout_enable = true,
+            .timeout_us = 100000U,
+            .position_rad = 0.0f,
+            .velocity_rad_s = 0.0f,
+            .feedforward_v = 0.0f,
+            .kp_v_per_rad = 8.5943669f,
+            .kd_v_per_rad_s = 0.1909859f,
+            .ki_v_per_rad_s = 8.5943669f,
+            .output_limit_v = 2.0f,
+        };
+
+        s_time_us = 1000U;
+        assert(Motor_Joint_SubmitCommand(&command));
+        s_rpm = 10.0f;
+        s_time_us = 102000U;
+        Motor_Joint_Run(0.001f);
+        Motor_Joint_GetState(&state);
+        assert(state.command_timeout);
+        assert(state.timeout_enabled);
+        assert(state.command_age_us == 101000U);
+        assert(fabsf(motor.joint_hold_v + 0.20f) < 1e-4f);
+    }
 
     s_fault = true;
     Motor_Joint_Run(0.001f);

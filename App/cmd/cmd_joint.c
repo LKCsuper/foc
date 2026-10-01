@@ -279,10 +279,11 @@ static void Cmd_JointPrint(void)
 
     Motor_Joint_GetState(&state);
     PRINTF("Joint: en=%d pos=%.2f target=%.2f err=%.2f vel=%.1f vdes=%.1f "
-           "tff=%.3fA vq=%.3fV kp=%.3f kd=%.3f ki=%.3f bias=%.3f lim=%.2fV\r\n",
+           "tff=%.3fA vq=%.3fV kp=%.3f kd=%.3f ki=%.3f bias=%.3f lim=%.2fV age=%luus timeout=%d\r\n",
            state.enabled ? 1 : 0, state.position_deg, state.target_deg, state.error_deg, state.measured_rpm,
            state.target_rpm, state.torque_ff_a, state.output_v, state.kp_v_per_deg, state.kd_v_per_rpm,
-           state.ki_v_per_deg_s, state.bias_v, state.v_limit_v);
+           state.ki_v_per_deg_s, state.bias_v, state.v_limit_v, (unsigned long)state.command_age_us,
+           state.command_timeout ? 1 : 0);
 }
 
 /**

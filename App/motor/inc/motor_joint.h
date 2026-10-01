@@ -33,7 +33,29 @@ typedef struct {
     float bias_v;         /* 慢积分输出 (V)，用来抵消停住时的齿槽和摩擦 */
     float v_limit_v;      /* 输出电压绝对值上限 (V) */
     float output_v;       /* 本拍合成电压 (V) */
+    uint32_t command_age_us; /* 最近一次完整命令距今时间 (us) */
+    bool timeout_enabled;    /* true=启用命令超时保护 */
+    bool command_timeout;    /* true=命令已超时，当前执行阻尼输出 */
+    bool speed_valid;        /* true=速度反馈可用于阻尼 */
+    bool encoder_fault;      /* true=编码器信号故障 */
 } motor_joint_state_t;
+
+/**
+ * @description: 关节完整命令，供UART/CAN/SPI等适配层一次性提交。
+ * @detail: 当前硬件后端为Vq，因此增益和前馈仍使用V；位置和速度统一使用SI单位。
+ */
+typedef struct {
+    bool enable;
+    bool timeout_enable;
+    uint32_t timeout_us;       /* 0时使用默认100 ms */
+    float position_rad;
+    float velocity_rad_s;
+    float feedforward_v;
+    float kp_v_per_rad;
+    float kd_v_per_rad_s;
+    float ki_v_per_rad_s;
+    float output_limit_v;
+} motor_joint_command_si_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
@@ -120,6 +142,13 @@ void Motor_Joint_Run(float dt);
  * @author: lkc
  */
 void Motor_Joint_GetState(motor_joint_state_t *state);
+
+/**
+ * @description: 校验并整体提交一帧SI单位关节命令。
+ * @detail: 所有字段在同一短临界区更新；成功提交会刷新超时计时。当前不写Flash。
+ * @return {bool} true=命令合法并已提交
+ */
+bool Motor_Joint_SubmitCommand(const motor_joint_command_si_t *command);
 
 /**
  * @description: 查询关节阻抗是否使能。
