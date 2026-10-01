@@ -1546,18 +1546,239 @@ int Cmd_HfiStart(int argc, char *argv[])
     return 0;
 }
 
+#define SPEED_TEST_DWELL_DEFAULT_MS 2000U
+#define SPEED_TEST_DWELL_MIN_MS     500U
+#define SPEED_TEST_DWELL_MAX_MS     10000U
+#define SPEED_TEST_POLL_MS          50U
+
+static const float s_speed_test_rpm[] = {
+    150.0f, 300.0f, 600.0f, 300.0f, 150.0f, 0.0f, -150.0f, -300.0f, -150.0f, 0.0f,
+};
+static CMD_QUEUE_ITEM s_speed_key;
+
 /**
- * @description: speed 命令 — 查看速度环与开环综合状态。
+ * @description: 把已拼好的字节写入串口发送队列。
+ * @param {const char *} buf  内容，可为空
+ * @param {uint32_t} len  字节数
+ * @return {*} 无
+ */
+static void speed_emit_buf(const char *buf, uint32_t len)
+{
+    if ((buf == NULL) || (len == 0U)) {
+        return;
+    }
+    (void)Bsp_Usart_Write((const UCHAR *)buf, (ULONG)len);
+}
+
+/**
+ * @description: 发送以 0 结尾的字符串。
+ * @param {const char *} text  内容，可为空
+ * @return {*} 无
+ */
+static void speed_emit_str(const char *text)
+{
+    if (text == NULL) {
+        return;
+    }
+    speed_emit_buf(text, (uint32_t)strlen(text));
+}
+
+/**
+ * @description: 测试过程中是否收到任意按键。
+ * @detail: 命令任务正占用在转速序列里，主循环不会取队列。读到一包就停止并清掉后续输入。
+ * @return {bool} true=要停止
+ */
+static bool speed_stop_key(void)
+{
+    if (queueCmdHandle == NULL) {
+        return false;
+    }
+    if (osMessageQueueGet(queueCmdHandle, &s_speed_key, NULL, 0) != osOK) {
+        return false;
+    }
+    while (osMessageQueueGet(queueCmdHandle, &s_speed_key, NULL, 0) == osOK) {
+    }
+    return true;
+}
+
+/**
+ * @description: 等待转速保持时间，中途有按键则提前返回。
+ * @param {uint32_t} period_ms  等待时间，单位 ms
+ * @return {bool} true=用户按键
+ */
+static bool speed_wait_or_key(uint32_t period_ms)
+{
+    uint32_t waited_ms = 0U;
+
+    while (waited_ms < period_ms) {
+        uint32_t step_ms = period_ms - waited_ms;
+
+        if (step_ms > SPEED_TEST_POLL_MS) {
+            step_ms = SPEED_TEST_POLL_MS;
+        }
+        osDelay(pdMS_TO_TICKS(step_ms));
+        waited_ms += step_ms;
+        if (speed_stop_key()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @description: 按固定两位小数追加转速。
+ * @param {textbuf_t *} tb  输出缓冲
+ * @param {float} rpm  转速，单位 RPM
+ * @return {*} 无
+ */
+static void speed_append_rpm(textbuf_t *tb, float rpm)
+{
+    float scaled = rpm * 100.0f;
+    int32_t centi;
+
+    if (scaled >= 0.0f) {
+        scaled += 0.5f;
+    } else {
+        scaled -= 0.5f;
+    }
+    centi = (int32_t)scaled;
+    (void)textbuf_append_fixed2(tb, centi);
+}
+
+/**
+ * @description: 写入一个速度测试目标。
+ * @detail: 关掉位置环并打开速度环。运行中禁止正负直接对穿，必须先经过 0。
+ * @param {float} rpm  目标转速，单位 RPM
+ * @return {bool} true=已写入
+ */
+static bool speed_test_set_rpm(float rpm)
+{
+    motor_command_t cmd;
+    float ref_rpm;
+
+    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
+        return false;
+    }
+    if (cmd.enable) {
+        ref_rpm = (fabsf(motor.ol_current_rpm) > 1.0f) ? motor.ol_current_rpm : cmd.target_rpm;
+        if ((rpm != 0.0f) && (ref_rpm != 0.0f) && ((rpm > 0.0f) != (ref_rpm > 0.0f))) {
+            speed_emit_str("speed test: pass through 0 before reverse\r\n");
+            return false;
+        }
+    }
+    (void)Motor_Position_Enable(false);
+    cmd.mode = MOTOR_OL_MODE_IF;
+    cmd.speed_enable = true;
+    cmd.target_rpm = rpm;
+    if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) {
+        speed_emit_str("speed test: invalid speed\r\n");
+        return false;
+    }
+    return true;
+}
+
+/**
+ * @description: 依次切到预设转速，任意键停止。
+ * @detail: 每段之间 osDelay，不关调度器。正转到反转中间有 0 RPM。
+ * @param {uint32_t} dwell_ms  每个转速的保持时间，单位 ms
+ * @return {*} 无
+ */
+static void speed_test_run(uint32_t dwell_ms)
+{
+    char line[96];
+    textbuf_t tb;
+    unsigned int count = sizeof(s_speed_test_rpm) / sizeof(s_speed_test_rpm[0]);
+    unsigned int i;
+
+    textbuf_init(&tb, line, sizeof(line));
+    (void)textbuf_append_str(&tb, "speed test ");
+    (void)textbuf_append_u32(&tb, dwell_ms);
+    (void)textbuf_append_str(&tb, " ms, any key stops\r\n");
+    speed_emit_buf(line, textbuf_length(&tb));
+
+    for (i = 0U; i < count; i++) {
+        float measured_rpm;
+        float error_rpm;
+
+        if (!speed_test_set_rpm(s_speed_test_rpm[i])) {
+            return;
+        }
+        textbuf_init(&tb, line, sizeof(line));
+        (void)textbuf_append_u32(&tb, (uint32_t)(i + 1U));
+        (void)textbuf_append_char(&tb, '/');
+        (void)textbuf_append_u32(&tb, (uint32_t)count);
+        (void)textbuf_append_str(&tb, " target=");
+        (void)textbuf_append_i32(&tb, (int32_t)s_speed_test_rpm[i], false);
+        (void)textbuf_append_str(&tb, " RPM\r\n");
+        speed_emit_buf(line, textbuf_length(&tb));
+
+        if (speed_wait_or_key(dwell_ms)) {
+            speed_emit_str("speed test stopped\r\n");
+            return;
+        }
+
+        measured_rpm = Motor_SpeedLoop_GetMeasuredRpm();
+        error_rpm = s_speed_test_rpm[i] - measured_rpm;
+        textbuf_init(&tb, line, sizeof(line));
+        (void)textbuf_append_str(&tb, "  meas=");
+        speed_append_rpm(&tb, measured_rpm);
+        (void)textbuf_append_str(&tb, " err=");
+        speed_append_rpm(&tb, error_rpm);
+        (void)textbuf_append_str(&tb, " RPM\r\n");
+        speed_emit_buf(line, textbuf_length(&tb));
+    }
+    speed_emit_str("speed test done\r\n");
+}
+
+/**
+ * @description: speed 命令 — 查看速度环状态，或按预设转速切换。
  * @param {int} argc 参数个数
- * @param {char *} argv[] 参数列表（无额外参数）
- * @return {int} 0 成功
+ * @param {char *} argv[] 无参数时打印状态；argv[1] 为 test 时跑转速序列，argv[2] 为保持时间 (ms)
+ * @return {int} 0 成功，-1 前置条件不满足
  * @author: lkc
  */
 int Cmd_SpeedStatus(int argc, char *argv[])
 {
-    (void)argc;
-    (void)argv;
-    ol_print_status();
+    uint32_t dwell_ms = SPEED_TEST_DWELL_DEFAULT_MS;
+
+    if ((argc < 2) || (strcmp(argv[1], "test") != 0)) {
+        if (argc >= 2) {
+            PRINTF("Usage: speed [test [ms]]\n");
+            return -1;
+        }
+        ol_print_status();
+        return 0;
+    }
+
+    if (argc >= 3) {
+        dwell_ms = (uint32_t)atoi(argv[2]);
+    }
+    if (dwell_ms < SPEED_TEST_DWELL_MIN_MS) {
+        dwell_ms = SPEED_TEST_DWELL_MIN_MS;
+    }
+    if (dwell_ms > SPEED_TEST_DWELL_MAX_MS) {
+        dwell_ms = SPEED_TEST_DWELL_MAX_MS;
+    }
+    if (Motor_Protect_IsFaultLatched()) {
+        PRINTF("Clear motor fault before speed test\n");
+        return -1;
+    }
+    if (motor.ol_mode != MOTOR_OL_MODE_IF) {
+        PRINTF("Speed test requires I/F mode; run: olmode 1\n");
+        return -1;
+    }
+    if (!motor.sensorless_enable && !Motor_Feedback_IsSensoredSource(Motor_GetFeedbackSource())) {
+        PRINTF("Need speed feedback: slenable 1, or olfb encoder|hall\n");
+        return -1;
+    }
+    if (!speed_test_set_rpm(s_speed_test_rpm[0])) {
+        return -1;
+    }
+    if (!motor.ol_enable) {
+        PRINTF("Target RPM set to 150 (stopped, use olstart)\n");
+        return 0;
+    }
+    speed_test_run(dwell_ms);
     return 0;
 }
 

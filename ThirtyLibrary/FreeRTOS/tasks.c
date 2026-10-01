@@ -3779,7 +3779,10 @@ static void prvCheckTasksWaitingTermination( void )
 			do
 			{
 				listGET_OWNER_OF_NEXT_ENTRY( pxNextTCB, pxList ); /*lint !e9079 void * is used as this macro is used with timers and co-routines too.  Alignment is known to be fine as the type of the pointer stored and retrieved is the same. */
-				vTaskGetInfo( ( TaskHandle_t ) pxNextTCB, &( pxTaskStatusArray[ uxTask ] ), pdTRUE, eState );
+				/* Stack watermark walks the whole unused stack. uxTaskGetSystemState()
+				holds the scheduler lock across this loop, which stalls the 1 kHz speed
+				task. Watermarks are filled afterwards by uxTaskGetStackHighWaterMark(). */
+				vTaskGetInfo( ( TaskHandle_t ) pxNextTCB, &( pxTaskStatusArray[ uxTask ] ), pdFALSE, eState );
 				uxTask++;
 			} while( pxNextTCB != pxFirstTCB );
 		}

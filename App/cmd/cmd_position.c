@@ -8,12 +8,167 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
 /* Private define ------------------------------------------------------------*/
+#define POS_TEST_DWELL_DEFAULT_MS 2000U
+#define POS_TEST_DWELL_MIN_MS     500U
+#define POS_TEST_DWELL_MAX_MS     10000U
+#define POS_TEST_POLL_MS          50U
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+static const float s_pos_test_deg[] = {0.0f, 30.0f, 90.0f, 180.0f, 90.0f, 0.0f, -90.0f, 0.0f};
+static CMD_QUEUE_ITEM s_pos_key;
 /* Private function prototypes -----------------------------------------------*/
 static void Cmd_PositionPrint(void);
+static void pos_emit_buf(const char *buf, uint32_t len);
+static void pos_emit_str(const char *text);
+static bool pos_stop_key(void);
+static bool pos_wait_or_key(uint32_t period_ms);
+static void pos_append_deg(textbuf_t *tb, float deg);
+static void pos_test_run(uint32_t dwell_ms);
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: 把已拼好的字节写入串口发送队列。
+ * @param {const char *} buf  内容，可为空
+ * @param {uint32_t} len  字节数
+ * @return {*} 无
+ */
+static void pos_emit_buf(const char *buf, uint32_t len)
+{
+    if ((buf == NULL) || (len == 0U)) {
+        return;
+    }
+    (void)Bsp_Usart_Write((const UCHAR *)buf, (ULONG)len);
+}
+
+/**
+ * @description: 发送以 0 结尾的字符串。
+ * @param {const char *} text  内容，可为空
+ * @return {*} 无
+ */
+static void pos_emit_str(const char *text)
+{
+    if (text == NULL) {
+        return;
+    }
+    pos_emit_buf(text, (uint32_t)strlen(text));
+}
+
+/**
+ * @description: 测试过程中是否收到任意按键。
+ * @detail: 命令任务正占用在角度序列里，主循环不会取队列。读到一包就停止并清掉后续输入。
+ * @return {bool} true=要停止
+ */
+static bool pos_stop_key(void)
+{
+    if (queueCmdHandle == NULL) {
+        return false;
+    }
+    if (osMessageQueueGet(queueCmdHandle, &s_pos_key, NULL, 0) != osOK) {
+        return false;
+    }
+    while (osMessageQueueGet(queueCmdHandle, &s_pos_key, NULL, 0) == osOK) {
+    }
+    return true;
+}
+
+/**
+ * @description: 等待角度保持时间，中途有按键则提前返回。
+ * @param {uint32_t} period_ms  等待时间，单位 ms
+ * @return {bool} true=用户按键
+ */
+static bool pos_wait_or_key(uint32_t period_ms)
+{
+    uint32_t waited_ms = 0U;
+
+    while (waited_ms < period_ms) {
+        uint32_t step_ms = period_ms - waited_ms;
+
+        if (step_ms > POS_TEST_POLL_MS) {
+            step_ms = POS_TEST_POLL_MS;
+        }
+        osDelay(pdMS_TO_TICKS(step_ms));
+        waited_ms += step_ms;
+        if (pos_stop_key()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @description: 按固定两位小数追加角度。
+ * @param {textbuf_t *} tb  输出缓冲
+ * @param {float} deg  角度，单位 deg
+ * @return {*} 无
+ */
+static void pos_append_deg(textbuf_t *tb, float deg)
+{
+    float scaled = deg * 100.0f;
+    int32_t centi;
+
+    if (scaled >= 0.0f) {
+        scaled += 0.5f;
+    } else {
+        scaled -= 0.5f;
+    }
+    centi = (int32_t)scaled;
+    (void)textbuf_append_fixed2(tb, centi);
+}
+
+/**
+ * @description: 依次切到预设角度，任意键停止。
+ * @detail: 每段之间 osDelay，不关调度器。角度相对 pos zero。
+ * @param {uint32_t} dwell_ms  每个角度的保持时间，单位 ms
+ * @return {*} 无
+ */
+static void pos_test_run(uint32_t dwell_ms)
+{
+    char line[96];
+    textbuf_t tb;
+    unsigned int count = sizeof(s_pos_test_deg) / sizeof(s_pos_test_deg[0]);
+    unsigned int i;
+
+    textbuf_init(&tb, line, sizeof(line));
+    (void)textbuf_append_str(&tb, "pos test ");
+    (void)textbuf_append_u32(&tb, dwell_ms);
+    (void)textbuf_append_str(&tb, " ms, any key stops\r\n");
+    pos_emit_buf(line, textbuf_length(&tb));
+
+    for (i = 0U; i < count; i++) {
+        motor_position_state_t state;
+
+        if (!Motor_Position_SetTargetDeg(s_pos_test_deg[i])) {
+            pos_emit_str("pos test: bad target\r\n");
+            return;
+        }
+        textbuf_init(&tb, line, sizeof(line));
+        (void)textbuf_append_u32(&tb, (uint32_t)(i + 1U));
+        (void)textbuf_append_char(&tb, '/');
+        (void)textbuf_append_u32(&tb, (uint32_t)count);
+        (void)textbuf_append_str(&tb, " target=");
+        pos_append_deg(&tb, s_pos_test_deg[i]);
+        (void)textbuf_append_str(&tb, " deg\r\n");
+        pos_emit_buf(line, textbuf_length(&tb));
+
+        if (pos_wait_or_key(dwell_ms)) {
+            pos_emit_str("pos test stopped\r\n");
+            return;
+        }
+
+        Motor_Position_GetState(&state);
+        textbuf_init(&tb, line, sizeof(line));
+        (void)textbuf_append_str(&tb, "  pos=");
+        pos_append_deg(&tb, state.position_deg);
+        (void)textbuf_append_str(&tb, " err=");
+        pos_append_deg(&tb, state.error_deg);
+        (void)textbuf_append_str(&tb, " vq=");
+        pos_append_deg(&tb, motor.position_hold_v);
+        (void)textbuf_append_str(&tb, " V\r\n");
+        pos_emit_buf(line, textbuf_length(&tb));
+    }
+    pos_emit_str("pos test done\r\n");
+}
 
 /**
  * @description: 打印位置环使能、角度、速度命令、保持电压和比例限幅。
@@ -31,8 +186,9 @@ static void Cmd_PositionPrint(void)
 
 /**
  * @description: 位置环命令 pos。
- * @detail: zero 只能在停机时改零点。hold/set/move/on 要求反馈源为编码器，且首次使能前电机已停。
+ * @detail: zero 只能在停机时改零点。hold/set/move/test/on 要求反馈源为编码器，且首次使能前电机已停。
  *          成功后把模式设为 I/F 并打开速度环；电机尚未运行时仍须 olstart 才上电。
+ *          test 在已上电后按预设角度切换，任意键停止。
  * @param {int} argc       参数个数，含命令名
  * @param {char *[]} argv  参数表；子命令在 argv[1]
  * @return {int} 0=已执行，-1=参数或前置条件不满足
@@ -42,10 +198,12 @@ int Cmd_Position(int argc, char *argv[])
 {
     motor_command_t cmd;
     bool was_enabled = Motor_Position_IsEnabled();
+    bool run_test = false;
+    uint32_t dwell_ms = POS_TEST_DWELL_DEFAULT_MS;
 
     if (argc < 2 || strcmp(argv[1], "status") == 0) {
         Cmd_PositionPrint();
-        PRINTF("usage: pos zero|hold|set <deg>|move <deg>|on|off|kp <rpm/deg>|max <rpm>\r\n");
+        PRINTF("usage: pos zero|hold|set <deg>|move <deg>|test [ms]|on|off|kp <rpm/deg>|max <rpm>\r\n");
         return 0;
     }
     if (strcmp(argv[1], "zero") == 0) {
@@ -91,6 +249,21 @@ int Cmd_Position(int argc, char *argv[])
             PRINTF("Invalid move or encoder not ready\r\n");
             return -1;
         }
+    } else if (strcmp(argv[1], "test") == 0) {
+        if (argc >= 3) {
+            dwell_ms = (uint32_t)atoi(argv[2]);
+        }
+        if (dwell_ms < POS_TEST_DWELL_MIN_MS) {
+            dwell_ms = POS_TEST_DWELL_MIN_MS;
+        }
+        if (dwell_ms > POS_TEST_DWELL_MAX_MS) {
+            dwell_ms = POS_TEST_DWELL_MAX_MS;
+        }
+        if (!Motor_Position_SetTargetDeg(s_pos_test_deg[0]) || !Motor_Position_Enable(true)) {
+            PRINTF("Position loop needs valid calibrated encoder\r\n");
+            return -1;
+        }
+        run_test = true;
     } else if (strcmp(argv[1], "on") == 0) {
         if (!Motor_Position_Enable(true)) {
             PRINTF("Position loop needs valid calibrated encoder\r\n");
@@ -105,7 +278,7 @@ int Cmd_Position(int argc, char *argv[])
         Cmd_PositionPrint();
         return 0;
     } else {
-        PRINTF("usage: pos zero|hold|set <deg>|move <deg>|on|off|kp <rpm/deg>|max <rpm>\r\n");
+        PRINTF("usage: pos zero|hold|set <deg>|move <deg>|test [ms]|on|off|kp <rpm/deg>|max <rpm>\r\n");
         return -1;
     }
 
@@ -117,6 +290,10 @@ int Cmd_Position(int argc, char *argv[])
     Cmd_PositionPrint();
     if (!motor.ol_enable) {
         PRINTF("Use olstart to energize position control\r\n");
+        return 0;
+    }
+    if (run_test) {
+        pos_test_run(dwell_ms);
     }
     return 0;
 }

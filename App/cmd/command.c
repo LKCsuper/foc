@@ -100,13 +100,13 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olalign",    Cmd_OlAlign,            "startup rotor alignment config" },
     { "hfistart",   Cmd_HfiStart,           "HFI startup: <0|1> <V> <cycles> [confidence]" },
     /* 速度环 */
-    { "speed",      Cmd_SpeedStatus,        "show speed loop status" },
+    { "speed",      Cmd_SpeedStatus,        "speed status, or speed test [ms]" },
     { "spenable",   Cmd_SpeedEnable,        "enable speed PI loop <0/1>" },
     { "spkp",       Cmd_SpeedKp,            "set speed PI Kp" },
     { "spki",       Cmd_SpeedKi,            "set speed PI Ki" },
     { "spiq",       Cmd_SpeedIqLimit,       "set speed PI Iq limit <A>" },
     { "spbrake",    Cmd_SpeedBrake,         "allow speed loop braking <0/1>" },
-    { "pos",        Cmd_Position,           "encoder position loop: status|zero|set|move" },
+    { "pos",        Cmd_Position,           "encoder position loop: status|zero|set|move|test" },
     /* 无感观测器 */
     { "slenable",   Cmd_SensorlessEnable,   "enable sensorless observer <0/1>" },
     { "sltakeover", Cmd_SensorlessTakeover, "allow observer angle takeover <0/1>" },
@@ -117,7 +117,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "slphase",    Cmd_SensorlessPhase,    "set observer phase offset <deg>" },
     /* 杂项 */
     { "show",       Cmd_Show,               "show hall sensor state" },
-    { "task",       Cmd_Task_Show,          "show FreeRTOS task stats" },
+    { "task",       Cmd_Task_Show,          "task [watch [ms]]: stack, heap, CPU; key stops" },
     { "reset",      CMD_Reset,              "software reset MCU" },
     { "duty",       Cmd_Motor_Duty,         "duty cycle control: create/destory/set/start/stop" },
     { "encoder",    Cmd_Motor_Encoder,      "AB encoder show/reset/detect" },
