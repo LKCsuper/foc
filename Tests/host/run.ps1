@@ -9,7 +9,7 @@ try {
         $Compiler = Join-Path $root '.build/tools/ziglang/zig.exe'
         if (!(Test-Path $Compiler)) { throw 'Specify -Compiler path to zig.exe, or install ziglang into .build/tools.' }
     }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IThirtyLibrary/common_code/lib/seqlock -IThirtyLibrary/common_code/lib/ringbuf ThirtyLibrary/common_code/lib/seqlock/seqlock.c ThirtyLibrary/common_code/lib/seqlock/seqlock_test.c ThirtyLibrary/common_code/lib/ringbuf/ringbuf.c ThirtyLibrary/common_code/lib/ringbuf/ringbuf_test.c Tests/host/test_common_code.c -o .build/host/test_common_code.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IThirtyLibrary/common_code/lib/seqlock -IThirtyLibrary/common_code/lib/ringbuf -IThirtyLibrary/common_code/lib/textbuf ThirtyLibrary/common_code/lib/seqlock/seqlock.c ThirtyLibrary/common_code/lib/seqlock/seqlock_test.c ThirtyLibrary/common_code/lib/ringbuf/ringbuf.c ThirtyLibrary/common_code/lib/ringbuf/ringbuf_test.c ThirtyLibrary/common_code/lib/textbuf/textbuf.c ThirtyLibrary/common_code/lib/textbuf/textbuf_test.c Tests/host/test_common_code.c -o .build/host/test_common_code.exe
     if ($LASTEXITCODE -ne 0) { throw 'Common-code host compilation failed' }
     & .build/host/test_common_code.exe
     if ($LASTEXITCODE -ne 0) { throw 'Common-code host tests failed' }

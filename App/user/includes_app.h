@@ -65,6 +65,7 @@ extern "C" {
 #include "motor_simple_includes.h"
 
 /* cmd */
+#include "textbuf.h"
 #include "command.h"
 #include "cmd_serial_plot.h"
 

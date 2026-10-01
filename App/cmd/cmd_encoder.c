@@ -37,75 +37,7 @@ typedef struct {
 /* Private variables ---------------------------------------------------------*/
 static encoder_watch_sample_t s_encoder_watch_samples[ENCODER_WATCH_MAX_SAMPLES];
 /* Private function prototypes -----------------------------------------------*/
-static char *Encoder_AppendChar(char *dst, const char *end, char value);
-static char *Encoder_AppendString(char *dst, const char *end, const char *value);
-static char *Encoder_AppendU32(char *dst, const char *end, uint32_t value);
-static char *Encoder_AppendI32(char *dst, const char *end, int32_t value, bool always_sign);
-static char *Encoder_AppendFixed2(char *dst, const char *end, int32_t centi_value);
 /* Private functions ---------------------------------------------------------*/
-
-static char *Encoder_AppendChar(char *dst, const char *end, char value)
-{
-    if (dst < end) {
-        *dst++ = value;
-    }
-    return dst;
-}
-
-static char *Encoder_AppendString(char *dst, const char *end, const char *value)
-{
-    while ((*value != '\0') && (dst < end)) {
-        *dst++ = *value++;
-    }
-    return dst;
-}
-
-static char *Encoder_AppendU32(char *dst, const char *end, uint32_t value)
-{
-    char reversed[10];
-    uint32_t count = 0U;
-
-    do {
-        reversed[count++] = (char)('0' + value % 10U);
-        value /= 10U;
-    } while ((value != 0U) && (count < sizeof(reversed)));
-    while ((count > 0U) && (dst < end)) {
-        *dst++ = reversed[--count];
-    }
-    return dst;
-}
-
-static char *Encoder_AppendI32(char *dst, const char *end, int32_t value, bool always_sign)
-{
-    uint32_t magnitude;
-
-    if (value < 0) {
-        dst = Encoder_AppendChar(dst, end, '-');
-        magnitude = (uint32_t)(-(value + 1)) + 1U;
-    } else {
-        if (always_sign) {
-            dst = Encoder_AppendChar(dst, end, '+');
-        }
-        magnitude = (uint32_t)value;
-    }
-    return Encoder_AppendU32(dst, end, magnitude);
-}
-
-static char *Encoder_AppendFixed2(char *dst, const char *end, int32_t centi_value)
-{
-    uint32_t magnitude;
-
-    if (centi_value < 0) {
-        dst = Encoder_AppendChar(dst, end, '-');
-        magnitude = (uint32_t)(-(centi_value + 1)) + 1U;
-    } else {
-        magnitude = (uint32_t)centi_value;
-    }
-    dst = Encoder_AppendU32(dst, end, magnitude / 100U);
-    dst = Encoder_AppendChar(dst, end, '.');
-    dst = Encoder_AppendChar(dst, end, (char)('0' + ((magnitude / 10U) % 10U)));
-    return Encoder_AppendChar(dst, end, (char)('0' + (magnitude % 10U)));
-}
 
 /**
  * @description: 打印编码器角度、转速和 MT6701 帧状态。
@@ -208,36 +140,35 @@ static void Encoder_Watch(float duration_s)
              (sample_count < ENCODER_WATCH_MAX_SAMPLES));
 
     {
-        char *cursor = line;
-        const char *end = line + sizeof(line);
-        cursor = Encoder_AppendString(cursor, end, "Encoder watch ");
-        cursor = Encoder_AppendU32(cursor, end, duration_tenths / 10U);
-        cursor = Encoder_AppendChar(cursor, end, '.');
-        cursor = Encoder_AppendU32(cursor, end, duration_tenths % 10U);
-        cursor = Encoder_AppendString(cursor, end,
-                                     "s TIM5: count delta dt_ms raw_rpm pll_rpm valid\r\n");
-        (void)Bsp_Usart_Write((const UCHAR *)line, (ULONG)(cursor - line));
+        textbuf_t text;
+
+        textbuf_init(&text, line, sizeof(line));
+        (void)textbuf_append_str(&text, "Encoder watch ");
+        (void)textbuf_append_u32(&text, duration_tenths / 10U);
+        (void)textbuf_append_char(&text, '.');
+        (void)textbuf_append_u32(&text, duration_tenths % 10U);
+        (void)textbuf_append_str(&text, "s TIM5: count delta dt_ms raw_rpm pll_rpm valid\r\n");
+        (void)Bsp_Usart_Write((const UCHAR *)line, (ULONG)textbuf_length(&text));
     }
     for (i = 0U; i < sample_count; i++) {
         const encoder_watch_sample_t *sample = &s_encoder_watch_samples[i];
-        {
-            char *cursor = line;
-            const char *end = line + sizeof(line);
-            cursor = Encoder_AppendString(cursor, end, "count=");
-            cursor = Encoder_AppendU32(cursor, end, sample->count);
-            cursor = Encoder_AppendString(cursor, end, " delta=");
-            cursor = Encoder_AppendI32(cursor, end, sample->delta, true);
-            cursor = Encoder_AppendString(cursor, end, " dt_ms=");
-            cursor = Encoder_AppendU32(cursor, end, (sample->elapsed_us + 500U) / 1000U);
-            cursor = Encoder_AppendString(cursor, end, " raw=");
-            cursor = Encoder_AppendFixed2(cursor, end, sample->raw_centi_rpm);
-            cursor = Encoder_AppendString(cursor, end, " pll=");
-            cursor = Encoder_AppendFixed2(cursor, end, sample->pll_centi_rpm);
-            cursor = Encoder_AppendString(cursor, end, " valid=");
-            cursor = Encoder_AppendU32(cursor, end, sample->valid ? 1U : 0U);
-            cursor = Encoder_AppendString(cursor, end, "\r\n");
-            (void)Bsp_Usart_Write((const UCHAR *)line, (ULONG)(cursor - line));
-        }
+        textbuf_t text;
+
+        textbuf_init(&text, line, sizeof(line));
+        (void)textbuf_append_str(&text, "count=");
+        (void)textbuf_append_u32(&text, sample->count);
+        (void)textbuf_append_str(&text, " delta=");
+        (void)textbuf_append_i32(&text, sample->delta, true);
+        (void)textbuf_append_str(&text, " dt_ms=");
+        (void)textbuf_append_u32(&text, (sample->elapsed_us + 500U) / 1000U);
+        (void)textbuf_append_str(&text, " raw=");
+        (void)textbuf_append_fixed2(&text, sample->raw_centi_rpm);
+        (void)textbuf_append_str(&text, " pll=");
+        (void)textbuf_append_fixed2(&text, sample->pll_centi_rpm);
+        (void)textbuf_append_str(&text, " valid=");
+        (void)textbuf_append_u32(&text, sample->valid ? 1U : 0U);
+        (void)textbuf_append_str(&text, "\r\n");
+        (void)Bsp_Usart_Write((const UCHAR *)line, (ULONG)textbuf_length(&text));
     }
 }
 

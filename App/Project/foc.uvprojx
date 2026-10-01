@@ -341,7 +341,7 @@
               <MiscControls>--locale=english</MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F40_41xxx,__CC_ARM,__TARGET_FPU_VFP=1,__FPU_PRESENT=1,__FPU_USED=1,ARM_MATH_CM4,SIMULINK_USE_ARM_MATH</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\user;..\..\Library\Bsp\inc;..\..\Library\Hal\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\common_code\lib\seqlock;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc;..\..\Doc\matlab\foc_simulink0_ert_rtw;..\Motor_Simple_Foc\inc;..\Motor_Param\inc;..\RTT;..\Motor_Param\inc;..\..\ThirtyLibrary\easyflash\inc;..\Motor_Sensor\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include</IncludePath>
+              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\user;..\..\Library\Bsp\inc;..\..\Library\Hal\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\common_code\lib\seqlock;..\..\ThirtyLibrary\common_code\lib\textbuf;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc;..\..\Doc\matlab\foc_simulink0_ert_rtw;..\Motor_Simple_Foc\inc;..\Motor_Param\inc;..\RTT;..\Motor_Param\inc;..\..\ThirtyLibrary\easyflash\inc;..\Motor_Sensor\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -1102,6 +1102,11 @@
               <FileName>seqlock.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\ThirtyLibrary\common_code\lib\seqlock\seqlock.c</FilePath>
+            </File>
+            <File>
+              <FileName>textbuf.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\ThirtyLibrary\common_code\lib\textbuf\textbuf.c</FilePath>
             </File>
           </Files>
         </Group>
