@@ -1,9 +1,9 @@
 /*
- * @Description: 关节阻抗模式（位置、速度、力矩前馈合成电压）
+ * @Description: 关节级联控制（位置/速度外环生成Iq，电流内环生成电压）
  * @Author: lkc
  *
- * 与 pos / olspeed 分开。无转矩常数时，力矩前馈用 Iq (A)，再按 V/A 换成电压。
- * Vq = Kp·位置误差 + Kd·速度误差 + 力矩前馈 + 慢积分。
+ * 与 pos / olspeed 分开。无转矩常数时，力矩前馈直接使用 Iq (A)。
+ * Iq = Kp·位置误差 + Kd·速度误差 + 力矩前馈 + 慢积分，再交给D/Q电流PI。
  * 慢积分只在低速且接近目标时补偿齿槽和摩擦；目标跳变时清零，避免继承上一落点的补偿。
  */
 #ifndef MOTOR_JOINT_H
@@ -16,11 +16,18 @@ extern "C" {
 #include <stdint.h>
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
+typedef enum {
+    MOTOR_JOINT_BACKEND_VOLTAGE = 0,
+    MOTOR_JOINT_BACKEND_TORQUE_CURRENT = 1,
+    MOTOR_JOINT_BACKEND_CURRENT_DIRECT = 2,
+    MOTOR_JOINT_BACKEND_POSITION_CURRENT = 3,
+} motor_joint_backend_t;
+
 /**
  * @description: 关节阻抗只读状态
  */
 typedef struct {
-    bool enabled;         /* true=本拍由阻抗公式输出电压 */
+    bool enabled;         /* true=本拍由关节级联控制器输出Iq目标 */
     float target_deg;     /* 目标位置 (deg) */
     float position_deg;   /* 当前位置 (deg) */
     float error_deg;      /* 目标减当前位置 (deg) */
@@ -38,11 +45,18 @@ typedef struct {
     bool command_timeout;    /* true=命令已超时，当前执行阻尼输出 */
     bool speed_valid;        /* true=速度反馈可用于阻尼 */
     bool encoder_fault;      /* true=编码器信号故障 */
+    motor_joint_backend_t backend;
+    bool hybrid_current_active; /* 混合位置后端当前是否正在使用Iq内环 */
+    uint32_t hybrid_enter_count; /* 自上次置零以来进入Iq区次数 */
+    uint32_t hybrid_exit_count;  /* 自上次置零以来回到Vq区次数 */
+    float hybrid_peak_iq_a;      /* 自上次置零以来Iq区峰值指令 */
+    float torque_command_nm; /* 扭矩后端的受限关节输出扭矩 (N*m) */
+    float iq_command_a;      /* 扭矩后端换算后的 Iq 目标 (A) */
 } motor_joint_state_t;
 
 /**
  * @description: 关节完整命令，供UART/CAN/SPI等适配层一次性提交。
- * @detail: 当前硬件后端为Vq，因此增益和前馈仍使用V；位置和速度统一使用SI单位。
+ * @detail: 这是旧电压刻度协议的兼容入口；内部按电机V/A标定换算为Iq后进入电流环。
  */
 typedef struct {
     bool enable;
@@ -56,6 +70,33 @@ typedef struct {
     float ki_v_per_rad_s;
     float output_limit_v;
 } motor_joint_command_si_t;
+
+/**
+ * @description: 真实扭矩/Iq后端命令；只有参数完整且有效时才允许启用。
+ */
+typedef struct {
+    bool enable;
+    bool timeout_enable;
+    uint32_t timeout_us;
+    float position_rad;
+    float velocity_rad_s;
+    float torque_ff_nm;
+    float kp_nm_per_rad;
+    float kd_nm_per_rad_s;
+    float torque_limit_nm;
+    float current_limit_a;
+    float torque_constant_nm_per_a; /* 电机轴 Kt */
+    float gear_ratio;               /* 关节输出扭矩/电机轴扭矩，不得小于1 */
+    float efficiency;               /* (0, 1] */
+} motor_joint_torque_command_t;
+
+typedef struct {
+    bool enable;
+    bool timeout_enable;
+    uint32_t timeout_us;
+    float current_a;
+    float current_limit_a;
+} motor_joint_current_command_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
@@ -126,7 +167,7 @@ bool Motor_Joint_SetKi(float ki_v_per_deg_s);
 bool Motor_Joint_SetVoltageLimit(float limit_v);
 
 /**
- * @description: 推进一拍阻抗公式，电压写入 joint_hold_v。
+ * @description: 推进一拍关节外环，Iq目标写入 joint_hold_iq。
  * @detail: 转速命令 ol_target_rpm 保持 0，避免速度前馈叠进来。慢积分仅在目标转速接近零、
  *          实测转速不超过 1 RPM 且位置误差不超过 2 deg 时推进。
  * @param {float} dt  调用周期 (s)。慢积分用它累加，大于 0.05 s 时本拍不积分
@@ -149,6 +190,19 @@ void Motor_Joint_GetState(motor_joint_state_t *state);
  * @return {bool} true=命令合法并已提交
  */
 bool Motor_Joint_SubmitCommand(const motor_joint_command_si_t *command);
+
+/**
+ * @description: 整体提交物理单位扭矩命令，并切换到Iq电流环后端。
+ * @detail: torque = ff + kp*位置误差 + kd*速度误差；Iq=torque/(Kt*ratio*efficiency)。
+ * @return {bool} 参数、编码器状态与限幅全部有效时返回true
+ */
+bool Motor_Joint_SubmitTorqueCommand(const motor_joint_torque_command_t *command);
+
+/**
+ * @description: 提交直接Iq命令，供受限的电流环验证使用。
+ * @detail: 不做扭矩换算；必须有有效编码器，且电流不超过显式限制和电机峰值。
+ */
+bool Motor_Joint_SubmitCurrentCommand(const motor_joint_current_command_t *command);
 
 /**
  * @description: 查询关节阻抗是否使能。

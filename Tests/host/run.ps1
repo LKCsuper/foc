@@ -37,6 +37,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint control host compilation failed' }
     & .build/host/test_motor_joint_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint control host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_joint_protocol.c Tests/host/test_motor_joint_protocol.c -o .build/host/test_motor_joint_protocol.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor joint protocol host compilation failed' }
+    & .build/host/test_motor_joint_protocol.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor joint protocol host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_joint_control.c App/motor/motor_joint.c Tests/host/test_motor_joint.c -o .build/host/test_motor_joint.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint host compilation failed' }
     & .build/host/test_motor_joint.exe

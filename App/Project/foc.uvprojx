@@ -1084,6 +1084,11 @@
               <FilePath>..\motor\motor_joint_control.c</FilePath>
             </File>
             <File>
+              <FileName>motor_joint_protocol.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_joint_protocol.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_foc_divider.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_foc_divider.c</FilePath>

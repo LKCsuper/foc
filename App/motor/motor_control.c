@@ -725,13 +725,30 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
     motor_dq_voltage_t voltage = {0.0f, 0.0f};
     bool encoder_voltage_mode;
 
+    if (motor->joint_current_hold &&
+        (feedback == NULL || !feedback->angle_valid ||
+         Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER)) {
+        /* Iq扭矩后端必须使用有效编码器转子角；禁止退回开环角继续施加转矩。 */
+        motor->id_target = 0.0f;
+        motor->iq_target = 0.0f;
+        motor->ol_vd_int = 0.0f;
+        motor->ol_vq_int = 0.0f;
+        return Motor_Control_ResultSafe();
+    }
+
     Motor_Control_FillCurrentCtx(ctrl, motor, &ctx);
+    if (motor->joint_current_hold) {
+        /* 关节扭矩后端绕过速度PI，直接把受限的关节命令交给现有Iq电流环。 */
+        ctx.speed_loop_active = true;
+        ctx.speed_iq_target = motor->joint_hold_iq;
+    }
     /*
      * 编码器电压模式的 Vq 由位置环或速度前馈决定。电流 PI、弱磁算出的电压
      * 会在下面被整段覆盖，积分也会改成实际 Vq。这条路径不再做那段计算。
      * Id/Iq 仍从三相电流更新，供状态显示。
      */
-    encoder_voltage_mode = (MOTOR_ENCODER_SPEED_VOLTAGE_MODE != 0U) && ctx.speed_loop_active &&
+    encoder_voltage_mode = !motor->joint_current_hold && (MOTOR_ENCODER_SPEED_VOLTAGE_MODE != 0U) &&
+                           ctx.speed_loop_active &&
                            (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER);
     if (encoder_voltage_mode) {
         Motor_Fw_Reset(&ctrl->fw);

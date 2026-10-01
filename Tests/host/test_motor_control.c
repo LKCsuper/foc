@@ -590,6 +590,22 @@ int main(void)
         assert(s_current_step_calls == 0);
         assert(fabsf(m.iq_target - 1.25f) < 1e-5f);
 
+        /* 关节扭矩后端即使当前电机默认使用编码器电压模式，也必须直接进入Iq电流环。 */
+        m.joint_current_hold = true;
+        m.joint_hold_iq = 0.15f;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
+        assert(s_current_step_calls == 1);
+        assert(s_last_speed_loop_active);
+        assert(fabsf(s_last_speed_iq_target - 0.15f) < 1e-5f);
+        s_enc_zero = false;
+        result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);
+        assert(result.action == MOTOR_CONTROL_ACTION_SAFE);
+        assert(fabsf(m.iq_target) < 1e-5f);
+        s_enc_zero = true;
+        m.joint_current_hold = false;
+        s_current_step_calls = 0;
+
         /* 角无效则不发布速度，速度环不激活 */
         s_enc_zero = false;
         result = Motor_Control_Step(&ctrl, &m, 24.0f, 0.001f, false);

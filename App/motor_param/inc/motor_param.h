@@ -205,6 +205,8 @@ typedef struct motor_param {
     int hall_extra_samples;                   /* 霍尔 GPIO 额外滤波次数 */
     bool joint_voltage_hold;                  /* 运行时：关节阻抗直接给 Vq，位置环和速度环不参与 */
     float joint_hold_v;                       /* 运行时：关节阻抗合成电压 (V)，不含齿槽补偿 */
+    bool joint_current_hold;                  /* 运行时：关节扭矩模式直接给 Iq，速度环不参与 */
+    float joint_hold_iq;                      /* 运行时：关节扭矩模式 Iq 目标 (A) */
 } MOTOR_PARAM_S;
 
 typedef struct tagFlashParam {

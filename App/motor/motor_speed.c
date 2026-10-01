@@ -159,7 +159,7 @@ void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, 
     }
 
     /* 位置环自己出电压，原速度 PI 的低速噪声和起动前馈不能再叠进去。 */
-    if (motor->position_voltage_hold || motor->joint_voltage_hold) {
+    if (motor->position_voltage_hold || motor->joint_voltage_hold || motor->joint_current_hold) {
         Motor_SpeedLoop_ResetState(state);
         return;
     }
