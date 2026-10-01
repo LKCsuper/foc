@@ -189,34 +189,6 @@ static void Encoder_CoggingStatus(void)
 }
 
 /**
- * @description: 把机械角折回 [0, 2π)。
- * @param {float} angle  机械角 (rad)
- * @return {float} 折回后的机械角 (rad)
- * @author: lkc
- */
-static float Encoder_CoggingWrap(float angle)
-{
-    while (angle < 0.0f) angle += 2.0f * (float)M_PI;
-    while (angle >= 2.0f * (float)M_PI) angle -= 2.0f * (float)M_PI;
-    return angle;
-}
-
-/**
- * @description: 计算目标相对当前机械角的最短有符号误差。
- * @param {float} target   目标机械角 (rad)
- * @param {float} current  当前机械角 (rad)
- * @return {float} 误差 (rad)，范围 (-π, π]
- * @author: lkc
- */
-static float Encoder_CoggingDelta(float target, float current)
-{
-    float delta = Encoder_CoggingWrap(target) - Encoder_CoggingWrap(current);
-    if (delta > (float)M_PI) delta -= 2.0f * (float)M_PI;
-    if (delta < -(float)M_PI) delta += 2.0f * (float)M_PI;
-    return delta;
-}
-
-/**
  * @description: 用电压位置保持扫描每个齿槽桶，记下维持该位置的积分 Vq。
  * @detail: 位置 PI 直接产生 Vq，并以编码器速度作阻尼。要求电机已停、零点有效且无故障。
  *          失败时停学习并恢复进入前的命令，且保持停机。
@@ -231,7 +203,6 @@ static bool Encoder_CoggingLearnPosition(uint16_t passes)
     uint16_t start_bin;
     float vq_integrator = 0.0f;
     float vq_command = 0.0f;
-    float control_sign = 1.0f;
     float pos_threshold = ENCODER_COG_POS_COUNTS * 2.0f * (float)M_PI /
                           (float)Hal_Encoder_CountsPerRev();
     uint16_t pass;
@@ -254,7 +225,6 @@ static bool Encoder_CoggingLearnPosition(uint16_t passes)
     Motor_Anticogging_SetLearnTarget(Motor_Encoder_GetElecAngle(), 0.0f);
     if (Motor_SetCommand(&motor, &calibration) != MOTOR_OK) goto cleanup;
 
-    PRINTF("Cogging control direction: motor config sign=%+.0f\r\n", (double)control_sign);
     start_bin = (uint16_t)(Motor_Encoder_GetMechAngle() * (float)MOTOR_ANTICOGGING_BINS /
                            (2.0f * (float)M_PI));
     if (start_bin >= MOTOR_ANTICOGGING_BINS) start_bin = 0U;
@@ -279,17 +249,14 @@ static bool Encoder_CoggingLearnPosition(uint16_t passes)
                 float velocity;
 
                 if (Motor_Protect_IsFaultLatched() || !Motor_MT6701_IsValid()) goto cleanup;
-                position_error = Encoder_CoggingDelta(target, Motor_Encoder_GetMechAngle());
+                position_error = utils_angle_difference_rad(target, Motor_Encoder_GetMechAngle());
                 velocity = Motor_Encoder_GetMechRpm();
                 vq_integrator += ENCODER_COG_POS_KI_V_RAD_S * position_error *
                                  ((float)ENCODER_COG_STEP_MS * 0.001f);
-                if (vq_integrator > ENCODER_COG_VQ_LIMIT_V) vq_integrator = ENCODER_COG_VQ_LIMIT_V;
-                if (vq_integrator < -ENCODER_COG_VQ_LIMIT_V) vq_integrator = -ENCODER_COG_VQ_LIMIT_V;
-                vq_command = control_sign *
-                             (vq_integrator + ENCODER_COG_POS_KP_V_RAD * position_error -
-                              ENCODER_COG_VEL_KD_V_RPM * velocity);
-                if (vq_command > ENCODER_COG_VQ_LIMIT_V) vq_command = ENCODER_COG_VQ_LIMIT_V;
-                if (vq_command < -ENCODER_COG_VQ_LIMIT_V) vq_command = -ENCODER_COG_VQ_LIMIT_V;
+                utils_truncate_number_abs(&vq_integrator, ENCODER_COG_VQ_LIMIT_V);
+                vq_command = vq_integrator + ENCODER_COG_POS_KP_V_RAD * position_error -
+                             ENCODER_COG_VEL_KD_V_RPM * velocity;
+                utils_truncate_number_abs(&vq_command, ENCODER_COG_VQ_LIMIT_V);
                 Motor_Anticogging_SetLearnTarget(Motor_Encoder_GetElecAngle(), vq_command);
 
                 if (fabsf(position_error) <= pos_threshold &&
@@ -302,9 +269,9 @@ static bool Encoder_CoggingLearnPosition(uint16_t passes)
                 osDelay(pdMS_TO_TICKS(ENCODER_COG_STEP_MS));
             }
             if (stable < ENCODER_COG_STABLE_SAMPLES ||
-                !Motor_Anticogging_Record(bin, control_sign * vq_integrator)) {
+                !Motor_Anticogging_Record(bin, vq_integrator)) {
                 PRINTF("Cogging point timeout: bin=%u err=%.4frad rpm=%.2f vq=%.3fV\r\n",
-                       (unsigned)bin, (double)Encoder_CoggingDelta(target, Motor_Encoder_GetMechAngle()),
+                       (unsigned)bin, (double)utils_angle_difference_rad(target, Motor_Encoder_GetMechAngle()),
                        (double)Motor_Encoder_GetMechRpm(), (double)vq_integrator);
                 goto cleanup;
             }

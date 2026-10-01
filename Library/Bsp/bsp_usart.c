@@ -182,13 +182,8 @@ STATIC bool Bsp_Usart_TxQueueByte(UCHAR ucData)
 		if (0U == ulPrimask) {
 			__enable_irq();
 		}
-
-		ulPrimask = __get_PRIMASK();
-		__disable_irq();
-		Bsp_Usart_TxDmaPollLocked();
-		if (0U == ulPrimask) {
-			__enable_irq();
-		}
+		/* 队列已满。空转关中断会把 15 kHz 电流环挤偏，改成等 DMA 腾出空间。 */
+		Bsp_Usart_YieldToIsr();
 	}
 }
 /**

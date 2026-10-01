@@ -166,7 +166,6 @@ void Motor_Joint_Init(void)
     s_joint.enabled = false;
     s_joint.target_deg = 0.0f;
     s_joint.position_deg = 0.0f;
-    s_joint.error_deg = 0.0f;
     s_joint.target_rpm = 0.0f;
     s_joint.measured_rpm = 0.0f;
     s_joint.torque_ff_a = 0.0f;
@@ -181,10 +180,6 @@ void Motor_Joint_Init(void)
     s_joint.speed_valid = false;
     s_joint.encoder_fault = false;
     s_joint.backend = MOTOR_JOINT_BACKEND_POSITION_CURRENT;
-    s_joint.hybrid_current_active = false;
-    s_joint.hybrid_enter_count = 0U;
-    s_joint.hybrid_exit_count = 0U;
-    s_joint.hybrid_peak_iq_a = 0.0f;
     s_joint.torque_command_nm = 0.0f;
     s_joint.iq_command_a = 0.0f;
     s_joint_timeout_us = MOTOR_JOINT_TIMEOUT_DEFAULT_US;
@@ -211,7 +206,6 @@ void Motor_Joint_Zero(void)
     s_joint_origin = (int32_t)Motor_Encoder_GetAccumulatedCount();
     s_joint.target_deg = 0.0f;
     s_joint.position_deg = 0.0f;
-    s_joint.error_deg = 0.0f;
     s_joint.target_rpm = 0.0f;
     s_joint.torque_ff_a = 0.0f;
     s_joint.output_v = 0.0f;
@@ -220,8 +214,6 @@ void Motor_Joint_Zero(void)
     s_joint.iq_command_a = 0.0f;
     s_joint.backend = MOTOR_JOINT_BACKEND_POSITION_CURRENT;
     s_joint.hybrid_current_active = false;
-    s_joint.torque_command_nm = 0.0f;
-    s_joint.iq_command_a = 0.0f;
     (void)Motor_Joint_ApplyControlConfig();
     (void)Motor_Joint_ApplyControlCommand();
     Motor_JointControl_Reset(&s_control);
@@ -632,7 +624,6 @@ void Motor_Joint_Run(float dt)
     uint32_t now_us;
 
     s_joint.position_deg = Motor_Joint_ReadDeg();
-    s_joint.error_deg = s_joint.target_deg - s_joint.position_deg;
     speed_valid = Motor_Encoder_IsSpeedValid();
     if (speed_valid) {
         measured_rpm = Motor_Encoder_GetMechRpm();
@@ -715,8 +706,7 @@ void Motor_Joint_Run(float dt)
         motor.joint_current_hold = true;
         motor.joint_hold_iq = iq;
     } else if (s_joint.backend == MOTOR_JOINT_BACKEND_POSITION_CURRENT) {
-        float iq_limit = s_joint_torque_current_limit_a;
-        float iq_current_limit = iq_limit;
+        float iq_current_limit = s_joint_torque_current_limit_a;
         float iq = outer_output;
         float vq;
 
@@ -732,7 +722,7 @@ void Motor_Joint_Run(float dt)
         } else if (s_joint.target_rpm < -MOTOR_JOINT_MOTION_FF_MIN_RPM) {
             iq -= MOTOR_JOINT_MOTION_FF_A;
         }
-        iq = Motor_Joint_LimitOutput(iq, iq_limit);
+        iq = Motor_Joint_LimitOutput(iq, s_joint_torque_current_limit_a);
         if (s_joint.hybrid_current_active) {
             if (fabsf(iq) <= MOTOR_JOINT_HYBRID_IQ_EXIT_A) {
                 s_joint.hybrid_current_active = false;
@@ -748,10 +738,8 @@ void Motor_Joint_Run(float dt)
             }
         }
         s_joint.torque_command_nm = 0.0f;
-        s_joint.iq_command_a = iq;
         if (s_joint.hybrid_current_active) {
             iq = Motor_Joint_LimitOutput(iq, iq_current_limit);
-            s_joint.iq_command_a = iq;
             if (fabsf(iq) > s_joint.hybrid_peak_iq_a) {
                 s_joint.hybrid_peak_iq_a = fabsf(iq);
             }
@@ -768,13 +756,7 @@ void Motor_Joint_Run(float dt)
             motor.joint_current_hold = false;
             motor.joint_hold_iq = 0.0f;
         }
-    } else {
-        /* 仅保留旧电压后端枚举用于兼容；正常关节命令不再进入该路径。 */
-        s_joint.output_v = outer_output;
-        motor.joint_voltage_hold = true;
-        motor.joint_hold_v = outer_output;
-        motor.joint_current_hold = false;
-        motor.joint_hold_iq = 0.0f;
+        s_joint.iq_command_a = iq;
     }
     motor.position_voltage_hold = false;
     motor.position_hold_v = 0.0f;

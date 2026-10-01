@@ -65,7 +65,6 @@ static float Motor_Position_ReadDeg(void)
  */
 static void Motor_Position_ClearHold(void)
 {
-    s_position.target_rpm = 0.0f;
     s_vel_integrator_v = 0.0f;
     motor.position_hold = false;
     motor.position_voltage_hold = false;
@@ -97,8 +96,6 @@ void Motor_Position_Zero(void)
     s_position.origin_count = (int32_t)Motor_Encoder_GetAccumulatedCount();
     s_position.position_deg = 0.0f;
     s_position.target_deg = 0.0f;
-    s_position.error_deg = 0.0f;
-    s_position.target_rpm = 0.0f;
     s_vel_integrator_v = 0.0f;
 }
 
@@ -185,6 +182,7 @@ bool Motor_Position_SetMaxRpm(float max_rpm)
 void Motor_Position_Run(float dt)
 {
     float measured_rpm = 0.0f;
+    float error_deg;
     float vel_des;
     float vel_err;
     float proportional;
@@ -193,7 +191,6 @@ void Motor_Position_Run(float dt)
     bool winding_up;
 
     s_position.position_deg = Motor_Position_ReadDeg();
-    s_position.error_deg = s_position.target_deg - s_position.position_deg;
     if (!s_position.enabled || !motor.ol_enable || Motor_Encoder_IsSignalFault()) {
         Motor_Position_ClearHold();
         if (s_position.enabled) {
@@ -205,7 +202,8 @@ void Motor_Position_Run(float dt)
         dt = 0.0f;
     }
 
-    vel_des = Motor_Position_Clamp(s_position.kp_rpm_per_deg * s_position.error_deg, s_position.max_rpm);
+    error_deg = s_position.target_deg - s_position.position_deg;
+    vel_des = Motor_Position_Clamp(s_position.kp_rpm_per_deg * error_deg, s_position.max_rpm);
     if (Motor_Encoder_IsSpeedValid()) {
         measured_rpm = Motor_Encoder_GetMechRpm();
     }
@@ -222,7 +220,6 @@ void Motor_Position_Run(float dt)
     if (!winding_up) {
         s_vel_integrator_v = integral_candidate;
     }
-    s_position.target_rpm = vel_des;
     motor.position_hold = true;
     motor.position_voltage_hold = true;
     motor.position_hold_v = Motor_Position_Clamp(proportional + s_vel_integrator_v, MOTOR_POSITION_VEL_V_LIMIT_V);

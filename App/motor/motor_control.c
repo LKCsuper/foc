@@ -789,31 +789,24 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
         if (voltage_mode_limit < 0.0f) {
             voltage_mode_limit = 0.0f;
         }
-        if (motor->joint_voltage_hold) {
-            /* 关节阻抗自己合成 Vq。转速命令保持 0，速度前馈不叠进来。 */
-            vq_feedforward = 0.0f;
-            vq_pi = motor->joint_hold_v;
-        } else if (motor->position_voltage_hold) {
+        if (motor->joint_voltage_hold || motor->position_voltage_hold) {
             /*
-             * 位置环全程自己做速度 PI 并直接给 Vq。转速命令保持 0，
-             * 起动前馈不会因为非零转速在终点被踢出来。
+             * 关节或位置环自己合成 Vq。转速命令保持 0，速度前馈不叠进来。
+             * 两者同时置位时用关节电压。
              */
-            vq_feedforward = 0.0f;
-            vq_pi = motor->position_hold_v;
-        } else if (motor->ol_target_rpm > 0.0f) {
-            vq_feedforward = MOTOR_ENCODER_SPEED_FF_BOOST_V +
-                             MOTOR_ENCODER_SPEED_FF_V_PER_RPM * fabsf(motor->ol_target_rpm);
-            vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
-        } else if (motor->ol_target_rpm < 0.0f) {
-            vq_feedforward = -(MOTOR_ENCODER_SPEED_FF_BOOST_V +
-                               MOTOR_ENCODER_SPEED_FF_V_PER_RPM * fabsf(motor->ol_target_rpm));
-            vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
+            vq_pi = motor->joint_voltage_hold ? motor->joint_hold_v : motor->position_hold_v;
         } else {
-            vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
-        }
-        if (!motor->position_voltage_hold && !motor->joint_voltage_hold) {
-            float speed_v = vq_feedforward + vq_pi;
+            float speed_v;
 
+            vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
+            if (motor->ol_target_rpm > 0.0f) {
+                vq_feedforward = MOTOR_ENCODER_SPEED_FF_BOOST_V +
+                                 MOTOR_ENCODER_SPEED_FF_V_PER_RPM * fabsf(motor->ol_target_rpm);
+            } else if (motor->ol_target_rpm < 0.0f) {
+                vq_feedforward = -(MOTOR_ENCODER_SPEED_FF_BOOST_V +
+                                   MOTOR_ENCODER_SPEED_FF_V_PER_RPM * fabsf(motor->ol_target_rpm));
+            }
+            speed_v = vq_feedforward + vq_pi;
             /* 负 PI 先抵消前馈。禁止制动时最终速度电压收到 0，不反向。 */
             speed_v = Motor_Speed_LimitNoBrakeOutput(motor->ol_target_rpm, speed_v, motor->speed_allow_braking);
             vq_pi = speed_v - vq_feedforward;

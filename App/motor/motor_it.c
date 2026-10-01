@@ -827,7 +827,7 @@ static void Motor_DmaInt_Foc(void)
          * 编码器标定和抗齿槽学习自行管理输出，期间不由正常运行保护抢占。
          */
         if (motor.ol_enable && Motor_Encoder_IsSignalFault() && !Motor_Encoder_DetectIsActive() &&
-            !Motor_Anticogging_IsLearning()) {
+            !Motor_Anticogging_IsLearning() && !Motor_Protect_IsFaultLatched()) {
             Motor_Protect_TriggerFault(FAULT_CODE_ENCODER_SPI, &motor);
         }
     }

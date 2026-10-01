@@ -14,7 +14,8 @@ extern "C" {
 #include <stdint.h>
 /* Private define ------------------------------------------------------------*/
 /* 12 槽 14 极有 84 个齿槽周期；336 点提供每周期 4 个采样点。 */
-#define MOTOR_ANTICOGGING_BINS (336U)
+#define MOTOR_ANTICOGGING_BINS        (336U)
+#define MOTOR_ANTICOGGING_MAX_VOLTAGE (0.50f) /* 单点补偿电压绝对值上限 (V) */
 /* Private typedef -----------------------------------------------------------*/
 /**
  * @description: 齿槽学习与补偿表的只读状态

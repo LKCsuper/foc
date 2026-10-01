@@ -87,7 +87,7 @@ static void flash_put_u32(uint8_t *p, uint32_t value)
 
 /**
  * @description: 从参数载荷尾部解出抗齿槽表。
- * @detail: 魔数、桶数须匹配。使能但未标定、或任一点非有限且超出 ±0.5 V 时拒绝。
+ * @detail: 魔数、桶数须匹配。使能但未标定、或任一点非有限且超出补偿电压上限时拒绝。
  *          table、enabled、calibrated 可分别传空，空指针只跳过对应输出。
  * @param {const uint8_t} *payload  参数区起点，其后为抗齿槽块，不可为空
  * @param {float} *table            输出补偿电压 (V)，可为空
@@ -111,7 +111,10 @@ static bool flash_storage_anticog_decode(const uint8_t *payload, float *table, b
         uint32_t bits = flash_get_u32(p);
         float value;
         memcpy(&value, &bits, sizeof(value));
-        if (!isfinite(value) || value < -0.5f || value > 0.5f) return false;
+        if (!isfinite(value) || value < -MOTOR_ANTICOGGING_MAX_VOLTAGE ||
+            value > MOTOR_ANTICOGGING_MAX_VOLTAGE) {
+            return false;
+        }
         if (table != NULL) table[i] = value;
     }
     return true;
