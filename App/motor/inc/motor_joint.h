@@ -187,20 +187,27 @@ void Motor_Joint_GetState(motor_joint_state_t *state);
 /**
  * @description: 校验并整体提交一帧SI单位关节命令。
  * @detail: 所有字段在同一短临界区更新；成功提交会刷新超时计时。当前不写Flash。
+ * @param {const motor_joint_command_si_t *} command  位置 (rad)、速度 (rad/s)、前馈 (V) 和增益
  * @return {bool} true=命令合法并已提交
+ * @author: lkc
  */
 bool Motor_Joint_SubmitCommand(const motor_joint_command_si_t *command);
 
 /**
  * @description: 整体提交物理单位扭矩命令，并切换到Iq电流环后端。
  * @detail: torque = ff + kp*位置误差 + kd*速度误差；Iq=torque/(Kt*ratio*efficiency)。
+ * @param {const motor_joint_torque_command_t *} command  位置 (rad)、转矩 (N·m) 和 Kt (N·m/A)
  * @return {bool} 参数、编码器状态与限幅全部有效时返回true
+ * @author: lkc
  */
 bool Motor_Joint_SubmitTorqueCommand(const motor_joint_torque_command_t *command);
 
 /**
  * @description: 提交直接Iq命令，供受限的电流环验证使用。
  * @detail: 不做扭矩换算；必须有有效编码器，且电流不超过显式限制和电机峰值。
+ * @param {const motor_joint_current_command_t *} command  目标电流 (A) 和电流上限 (A)
+ * @return {bool} true=电流有限且已进入直接电流后端
+ * @author: lkc
  */
 bool Motor_Joint_SubmitCurrentCommand(const motor_joint_current_command_t *command);
 

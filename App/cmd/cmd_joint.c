@@ -292,6 +292,10 @@ static void joint_slow_run(float speed_deg_s)
 /**
  * @description: 短时刷新直接Iq命令，结束后切回Vq并保持当前位置。
  * @detail: 每20 ms刷新100 ms超时保护；按键、提交失败或到时都会退出直接电流模式。
+ * @param {float} current_a  目标 Iq (A)
+ * @param {uint32_t} duration_ms  持续时间 (ms)
+ * @return {void} 无
+ * @author: lkc
  */
 static void joint_iq_test_run(float current_a, uint32_t duration_ms)
 {

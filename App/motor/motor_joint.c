@@ -135,6 +135,13 @@ static bool Motor_Joint_ApplyControlCommand(void)
     return Motor_JointControl_SetCommand(&s_control, &command);
 }
 
+/**
+ * @description: 把数值限制在对称区间内。
+ * @param {float} value  输入
+ * @param {float} limit  绝对值上限
+ * @return {float} 限幅后的值
+ * @author: lkc
+ */
 static float Motor_Joint_LimitOutput(float value, float limit)
 {
     if (value > limit) {
@@ -293,6 +300,13 @@ bool Motor_Joint_SetTarget(float target_deg, float target_rpm, float torque_ff_a
     return true;
 }
 
+/**
+ * @description: 校验并整体提交一帧 SI 单位关节命令。
+ * @detail: 所有字段在同一短临界区更新；成功提交会刷新超时计时。当前不写 Flash。
+ * @param {const motor_joint_command_si_t *} command  位置 (rad)、速度 (rad/s)、前馈 (V) 和增益
+ * @return {bool} true=命令合法并已提交
+ * @author: lkc
+ */
 bool Motor_Joint_SubmitCommand(const motor_joint_command_si_t *command)
 {
     motor_joint_state_t old_state;
@@ -361,6 +375,13 @@ bool Motor_Joint_SubmitCommand(const motor_joint_command_si_t *command)
     return true;
 }
 
+/**
+ * @description: 整体提交物理单位扭矩命令，并切换到 Iq 电流环后端。
+ * @detail: torque = ff + kp*位置误差 + kd*速度误差；Iq=torque/(Kt*ratio*efficiency)。
+ * @param {const motor_joint_torque_command_t *} command  位置 (rad)、转矩 (N·m) 和 Kt (N·m/A)
+ * @return {bool} 参数、编码器状态与限幅全部有效时返回 true
+ * @author: lkc
+ */
 bool Motor_Joint_SubmitTorqueCommand(const motor_joint_torque_command_t *command)
 {
     motor_joint_control_config_t config;
@@ -441,6 +462,13 @@ bool Motor_Joint_SubmitTorqueCommand(const motor_joint_torque_command_t *command
     return true;
 }
 
+/**
+ * @description: 提交直接 Iq 命令，供受限的电流环验证使用。
+ * @detail: 不做扭矩换算；必须有有效编码器，且电流不超过显式限制和电机峰值。
+ * @param {const motor_joint_current_command_t *} command  目标电流 (A) 和电流上限 (A)
+ * @return {bool} true=电流有限且已进入直接电流后端
+ * @author: lkc
+ */
 bool Motor_Joint_SubmitCurrentCommand(const motor_joint_current_command_t *command)
 {
     motor_joint_control_config_t config;

@@ -18,6 +18,14 @@ extern "C" {
 static float Motor_JointControl_Clamp(float value, float limit);
 static bool Motor_JointControl_ConfigValid(const motor_joint_control_config_t *config);
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: 把数值限制在对称区间内。
+ * @param {float} value  输入
+ * @param {float} limit  绝对值上限，须为正
+ * @return {float} 限幅后的值
+ * @author: lkc
+ */
 static float Motor_JointControl_Clamp(float value, float limit)
 {
     if (value > limit) {
@@ -29,6 +37,12 @@ static float Motor_JointControl_Clamp(float value, float limit)
     return value;
 }
 
+/**
+ * @description: 检查配置里的增益、限幅和时间上限都是有限值且符号正确。
+ * @param {const motor_joint_control_config_t *} config  待检查配置
+ * @return {bool} true=可以用于初始化或在线更新
+ * @author: lkc
+ */
 static bool Motor_JointControl_ConfigValid(const motor_joint_control_config_t *config)
 {
     if (config == NULL || !isfinite(config->kp_output_per_rad) || !isfinite(config->kd_output_per_rad_s) ||
@@ -46,6 +60,13 @@ static bool Motor_JointControl_ConfigValid(const motor_joint_control_config_t *c
            config->dt_max_s > 0.0f;
 }
 
+/**
+ * @description: 初始化关节控制实例并校验配置。
+ * @param {motor_joint_control_t *} control  控制实例，成功后被清零再写入配置
+ * @param {const motor_joint_control_config_t *} config  刚度、阻尼、积分和限幅
+ * @return {bool} true=配置有效且初始化完成
+ * @author: lkc
+ */
 bool Motor_JointControl_Init(motor_joint_control_t *control, const motor_joint_control_config_t *config)
 {
     if (control == NULL || !Motor_JointControl_ConfigValid(config)) {
@@ -56,6 +77,13 @@ bool Motor_JointControl_Init(motor_joint_control_t *control, const motor_joint_c
     return true;
 }
 
+/**
+ * @description: 在线更新控制配置，保留并按新上限约束积分。
+ * @param {motor_joint_control_t *} control  已初始化的控制实例
+ * @param {const motor_joint_control_config_t *} config  新配置
+ * @return {bool} true=配置有效
+ * @author: lkc
+ */
 bool Motor_JointControl_Configure(motor_joint_control_t *control, const motor_joint_control_config_t *config)
 {
     if (control == NULL || !Motor_JointControl_ConfigValid(config)) {
@@ -67,6 +95,13 @@ bool Motor_JointControl_Configure(motor_joint_control_t *control, const motor_jo
     return true;
 }
 
+/**
+ * @description: 设置完整命令；位置目标明显变化时清除旧落点积分。
+ * @param {motor_joint_control_t *} control  已初始化的控制实例
+ * @param {const motor_joint_control_command_t *} command  位置 (rad)、速度 (rad/s) 和前馈
+ * @return {bool} true=命令有限且已接收
+ * @author: lkc
+ */
 bool Motor_JointControl_SetCommand(motor_joint_control_t *control,
                                    const motor_joint_control_command_t *command)
 {
@@ -82,6 +117,16 @@ bool Motor_JointControl_SetCommand(motor_joint_control_t *control,
     return true;
 }
 
+/**
+ * @description: 推进一步阻抗控制。
+ * @detail: 速度无效时不使用阻尼且禁止积分。enabled=false 时清除输出和积分。
+ * @param {motor_joint_control_t *} control  已初始化的控制实例
+ * @param {const motor_joint_control_feedback_t *} feedback  实测位置 (rad) 和速度 (rad/s)
+ * @param {float} dt  本周期时间 (s)。非正或大于 dt_max_s 时本拍不积分
+ * @param {bool} enabled  false=清输出和积分并返回 0
+ * @return {float} 限幅后的控制输出，单位与配置中的 output 一致
+ * @author: lkc
+ */
 float Motor_JointControl_Step(motor_joint_control_t *control,
                               const motor_joint_control_feedback_t *feedback,
                               float dt,
@@ -138,6 +183,12 @@ float Motor_JointControl_Step(motor_joint_control_t *control,
     return control->output;
 }
 
+/**
+ * @description: 清除积分、误差和输出，配置与命令保持不变。
+ * @param {motor_joint_control_t *} control  控制实例，为空则忽略
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_JointControl_Reset(motor_joint_control_t *control)
 {
     if (control == NULL) {
