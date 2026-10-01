@@ -12,6 +12,11 @@ extern "C" {
 #define JOINT_TEST_DWELL_MIN_MS     500U
 #define JOINT_TEST_DWELL_MAX_MS     10000U
 #define JOINT_TEST_POLL_MS          50U
+#define JOINT_SLOW_SPEED_DEFAULT_DEG_S (10.0f)
+#define JOINT_SLOW_SPEED_MIN_DEG_S     (0.5f)
+#define JOINT_SLOW_SPEED_MAX_DEG_S     (90.0f)
+#define JOINT_SLOW_UPDATE_MS            20U
+#define JOINT_SLOW_SETTLE_MS            500U
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -26,6 +31,7 @@ static bool joint_stop_key(void);
 static bool joint_wait_or_key(uint32_t period_ms);
 static void joint_append_fixed(textbuf_t *tb, float value);
 static void joint_test_run(uint32_t dwell_ms);
+static void joint_slow_run(float speed_deg_s);
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -182,6 +188,87 @@ static void joint_test_run(uint32_t dwell_ms)
 }
 
 /**
+ * @description: 按恒定目标速度逐步推进预设位置，形成慢速斜坡测试。
+ * @detail: 每20 ms更新一次位置目标，同时给出同方向速度前馈；到达每个目标后以零目标速度保持500 ms。
+ *          任意键停止时把当前位置设为新的保持目标，避免继续追赶尚未到达的轨迹点。
+ * @param {float} speed_deg_s  轨迹速度绝对值 (deg/s)
+ * @return {void} 无
+ */
+static void joint_slow_run(float speed_deg_s)
+{
+    char line[112];
+    textbuf_t tb;
+    motor_joint_state_t state;
+    float command_deg;
+    float step_deg = speed_deg_s * (float)JOINT_SLOW_UPDATE_MS / 1000.0f;
+    unsigned int count = sizeof(s_joint_test_deg) / sizeof(s_joint_test_deg[0]);
+    unsigned int i;
+
+    Motor_Joint_GetState(&state);
+    command_deg = state.position_deg;
+    textbuf_init(&tb, line, sizeof(line));
+    (void)textbuf_append_str(&tb, "joint slow ");
+    joint_append_fixed(&tb, speed_deg_s);
+    (void)textbuf_append_str(&tb, " deg/s, any key stops\r\n");
+    joint_emit_buf(line, textbuf_length(&tb));
+
+    for (i = 0U; i < count; i++) {
+        const float destination_deg = s_joint_test_deg[i];
+
+        textbuf_init(&tb, line, sizeof(line));
+        (void)textbuf_append_u32(&tb, (uint32_t)(i + 1U));
+        (void)textbuf_append_char(&tb, '/');
+        (void)textbuf_append_u32(&tb, (uint32_t)count);
+        (void)textbuf_append_str(&tb, " ramp target=");
+        joint_append_fixed(&tb, destination_deg);
+        (void)textbuf_append_str(&tb, " deg\r\n");
+        joint_emit_buf(line, textbuf_length(&tb));
+
+        while (fabsf(destination_deg - command_deg) > step_deg) {
+            float direction = (destination_deg > command_deg) ? 1.0f : -1.0f;
+            float target_rpm = direction * speed_deg_s / 6.0f;
+
+            command_deg += direction * step_deg;
+            if (!Motor_Joint_SetTarget(command_deg, target_rpm, 0.0f)) {
+                joint_emit_str("joint slow: bad target\r\n");
+                return;
+            }
+            if (joint_wait_or_key(JOINT_SLOW_UPDATE_MS)) {
+                Motor_Joint_GetState(&state);
+                (void)Motor_Joint_SetTarget(state.position_deg, 0.0f, 0.0f);
+                joint_emit_str("joint slow stopped, holding current position\r\n");
+                return;
+            }
+        }
+        command_deg = destination_deg;
+        if (!Motor_Joint_SetTarget(command_deg, 0.0f, 0.0f)) {
+            joint_emit_str("joint slow: bad target\r\n");
+            return;
+        }
+        if (joint_wait_or_key(JOINT_SLOW_SETTLE_MS)) {
+            Motor_Joint_GetState(&state);
+            (void)Motor_Joint_SetTarget(state.position_deg, 0.0f, 0.0f);
+            joint_emit_str("joint slow stopped, holding current position\r\n");
+            return;
+        }
+
+        Motor_Joint_GetState(&state);
+        textbuf_init(&tb, line, sizeof(line));
+        (void)textbuf_append_str(&tb, "  pos=");
+        joint_append_fixed(&tb, state.position_deg);
+        (void)textbuf_append_str(&tb, " err=");
+        joint_append_fixed(&tb, state.error_deg);
+        (void)textbuf_append_str(&tb, " vel=");
+        joint_append_fixed(&tb, state.measured_rpm);
+        (void)textbuf_append_str(&tb, " vq=");
+        joint_append_fixed(&tb, state.output_v);
+        (void)textbuf_append_str(&tb, " V\r\n");
+        joint_emit_buf(line, textbuf_length(&tb));
+    }
+    joint_emit_str("joint slow done\r\n");
+}
+
+/**
  * @description: 打印关节阻抗使能、角度、速度、力矩前馈和电压。
  * @return {void} 无
  * @author: lkc
@@ -223,7 +310,7 @@ static int Cmd_JointArm(void)
  * @description: 关节阻抗命令 joint。
  * @detail: 与 pos、olspeed 互斥。set 的三个数是目标角度 (deg)、目标转速 (RPM)、力矩前馈 (A)。
  *          首次使能前电机须停转。尚未上电时提示 olstart。
- *          test 在已上电后按预设角度切换，任意键停止。
+ *          test 在已上电后按预设角度切换；slow 按指定deg/s生成慢速位置斜坡，任意键停止。
  * @param {int} argc  参数个数
  * @param {char *[]} argv  参数表
  * @return {int} 0=已执行，-1=参数或前置条件不满足
@@ -238,11 +325,13 @@ int Cmd_Joint(int argc, char *argv[])
     float torque_ff_a;
     bool tune_only;
     bool run_test = false;
+    bool run_slow = false;
+    float slow_speed_deg_s = JOINT_SLOW_SPEED_DEFAULT_DEG_S;
     uint32_t dwell_ms = JOINT_TEST_DWELL_DEFAULT_MS;
 
     if (argc < 2 || strcmp(argv[1], "status") == 0) {
         Cmd_JointPrint();
-        PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
+        PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|slow [deg/s]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
         return 0;
     }
     if (strcmp(argv[1], "zero") == 0) {
@@ -301,6 +390,22 @@ int Cmd_Joint(int argc, char *argv[])
             return -1;
         }
         run_test = true;
+    } else if (strcmp(argv[1], "slow") == 0) {
+        if (argc >= 3) {
+            slow_speed_deg_s = (float)atof(argv[2]);
+        }
+        if (!isfinite(slow_speed_deg_s) || slow_speed_deg_s < JOINT_SLOW_SPEED_MIN_DEG_S ||
+            slow_speed_deg_s > JOINT_SLOW_SPEED_MAX_DEG_S) {
+            PRINTF("joint slow speed must be %.1f..%.1f deg/s\r\n", JOINT_SLOW_SPEED_MIN_DEG_S,
+                   JOINT_SLOW_SPEED_MAX_DEG_S);
+            return -1;
+        }
+        (void)Motor_Position_Enable(false);
+        if (!Motor_Joint_SetTarget(state.position_deg, 0.0f, 0.0f) || !Motor_Joint_Enable(true)) {
+            PRINTF("Joint impedance needs valid calibrated encoder\r\n");
+            return -1;
+        }
+        run_slow = true;
     } else if (strcmp(argv[1], "kp") == 0 && argc >= 3) {
         if (!Motor_Joint_SetKp((float)atof(argv[2]))) {
             return -1;
@@ -326,7 +431,7 @@ int Cmd_Joint(int argc, char *argv[])
         Cmd_JointPrint();
         return 0;
     } else {
-        PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
+        PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|slow [deg/s]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
         return -1;
     }
     if (Cmd_JointArm() != 0) {
@@ -339,6 +444,8 @@ int Cmd_Joint(int argc, char *argv[])
     }
     if (run_test) {
         joint_test_run(dwell_ms);
+    } else if (run_slow) {
+        joint_slow_run(slow_speed_deg_s);
     }
     return 0;
 }

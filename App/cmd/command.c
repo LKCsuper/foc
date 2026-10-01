@@ -108,7 +108,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "spiq",       Cmd_SpeedIqLimit,       "set speed PI Iq limit <A>" },
     { "spbrake",    Cmd_SpeedBrake,         "allow speed loop braking <0/1>" },
     { "pos",        Cmd_Position,           "encoder position loop: status|zero|set|move|test" },
-    { "joint",      Cmd_Joint,              "joint impedance: set <deg> [rpm] [A]|test" },
+    { "joint",      Cmd_Joint,              "joint impedance: set|test|slow [deg/s]" },
     /* 无感观测器 */
     { "slenable",   Cmd_SensorlessEnable,   "enable sensorless observer <0/1>" },
     { "sltakeover", Cmd_SensorlessTakeover, "allow observer angle takeover <0/1>" },
