@@ -772,7 +772,11 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
         if (voltage_mode_limit < 0.0f) {
             voltage_mode_limit = 0.0f;
         }
-        if (motor->position_voltage_hold) {
+        if (motor->joint_voltage_hold) {
+            /* 关节阻抗自己合成 Vq。转速命令保持 0，速度前馈不叠进来。 */
+            vq_feedforward = 0.0f;
+            vq_pi = motor->joint_hold_v;
+        } else if (motor->position_voltage_hold) {
             /*
              * 位置环全程自己做速度 PI 并直接给 Vq。转速命令保持 0，
              * 起动前馈不会因为非零转速在终点被踢出来。
@@ -790,7 +794,7 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
         } else {
             vq_pi = ctx.speed_iq_target * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
         }
-        if (!motor->position_voltage_hold) {
+        if (!motor->position_voltage_hold && !motor->joint_voltage_hold) {
             float speed_v = vq_feedforward + vq_pi;
 
             /* 负 PI 先抵消前馈。禁止制动时最终速度电压收到 0，不反向。 */

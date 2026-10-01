@@ -203,6 +203,8 @@ typedef struct motor_param {
     /* ---- calibration ---- */
     int8_t hall_table[MOTOR_HALL_TABLE_SIZE]; /* -1 无效，0~200 为角度编码 */
     int hall_extra_samples;                   /* 霍尔 GPIO 额外滤波次数 */
+    bool joint_voltage_hold;                  /* 运行时：关节阻抗直接给 Vq，位置环和速度环不参与 */
+    float joint_hold_v;                       /* 运行时：关节阻抗合成电压 (V)，不含齿槽补偿 */
 } MOTOR_PARAM_S;
 
 typedef struct tagFlashParam {

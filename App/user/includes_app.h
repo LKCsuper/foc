@@ -54,6 +54,7 @@ extern "C" {
 #include "motor_protect.h"
 #include "motor_speed.h"
 #include "motor_position.h"
+#include "motor_joint.h"
 
 /* 校准 / 存储 */
 #include "motor_detect.h"

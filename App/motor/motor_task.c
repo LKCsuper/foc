@@ -125,7 +125,11 @@ static void Motor_Task_Pid(void *argument)
             dt = MOTOR_TASK_PID_DT_MAX_S;
         }
 
-        Motor_Position_Run(dt);
+        if (Motor_Joint_IsEnabled()) {
+            Motor_Joint_Run(dt);
+        } else {
+            Motor_Position_Run(dt);
+        }
         Motor_SpeedLoop_Run(&motor, dt);
     }
 }
@@ -183,6 +187,7 @@ void Motor_Task_Start(void)
 {
     if (s_pid_thread == NULL) {
         Motor_Position_Init();
+        Motor_Joint_Init();
         s_pid_thread = osThreadNew(Motor_Task_Pid, NULL, &s_pid_attr);
         if (s_pid_thread == NULL) {
             PRINTF("foc pid task create failed\r\n");

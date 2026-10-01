@@ -444,6 +444,7 @@ int Cmd_OlSpeed(int argc, char *argv[])
         }
     }
     (void)Motor_Position_Enable(false);
+    (void)Motor_Joint_Enable(false);
     /* 只改目标转速，保留 enable；启动/停止必须用 olstart / olstop，避免 olspeed 误启动过流 */
     cmd.target_rpm = rpm;
     if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) {
@@ -682,7 +683,7 @@ int Cmd_OlStart(int argc, char *argv[])
     if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
         return -1;
     }
-    if (cmd.target_rpm == 0.0f && !Motor_Position_IsEnabled()) {
+    if (cmd.target_rpm == 0.0f && !Motor_Position_IsEnabled() && !Motor_Joint_IsEnabled()) {
         cmd.target_rpm = motor.ol_min_rpm;
     }
     /* 先打完串口再使能：FOC 一起转 UART DMA 完成中断会被饿死，连 “started” 都发不出去。 */
@@ -1667,6 +1668,7 @@ static bool speed_test_set_rpm(float rpm)
         }
     }
     (void)Motor_Position_Enable(false);
+    (void)Motor_Joint_Enable(false);
     cmd.mode = MOTOR_OL_MODE_IF;
     cmd.speed_enable = true;
     cmd.target_rpm = rpm;
@@ -1820,6 +1822,7 @@ int Cmd_SpeedEnable(int argc, char *argv[])
         return -1;
     }
 
+    (void)Motor_Joint_Enable(false);
     if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
         return -1;
     }

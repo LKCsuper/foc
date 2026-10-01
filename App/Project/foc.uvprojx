@@ -741,6 +741,11 @@
               <FilePath>..\cmd\cmd_position.c</FilePath>
             </File>
             <File>
+              <FileName>cmd_joint.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_joint.c</FilePath>
+            </File>
+            <File>
               <FileName>cmd_bldc.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\cmd\cmd_bldc.c</FilePath>
@@ -1067,6 +1072,11 @@
               <FileName>motor_position.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_position.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_joint.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_joint.c</FilePath>
             </File>
             <File>
               <FileName>motor_foc_divider.c</FileName>

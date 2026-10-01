@@ -234,17 +234,20 @@ int Cmd_Position(int argc, char *argv[])
     }
     if (strcmp(argv[1], "hold") == 0) {
         motor_position_state_t state;
+        (void)Motor_Joint_Enable(false);
         Motor_Position_GetState(&state);
         if (!Motor_Position_SetTargetDeg(state.position_deg) || !Motor_Position_Enable(true)) {
             PRINTF("Position loop needs valid calibrated encoder\r\n");
             return -1;
         }
     } else if (strcmp(argv[1], "set") == 0 && argc >= 3) {
+        (void)Motor_Joint_Enable(false);
         if (!Motor_Position_SetTargetDeg((float)atof(argv[2])) || !Motor_Position_Enable(true)) {
             PRINTF("Invalid target or encoder not ready\r\n");
             return -1;
         }
     } else if (strcmp(argv[1], "move") == 0 && argc >= 3) {
+        (void)Motor_Joint_Enable(false);
         if (!Motor_Position_MoveDeg((float)atof(argv[2])) || !Motor_Position_Enable(true)) {
             PRINTF("Invalid move or encoder not ready\r\n");
             return -1;
@@ -259,12 +262,14 @@ int Cmd_Position(int argc, char *argv[])
         if (dwell_ms > POS_TEST_DWELL_MAX_MS) {
             dwell_ms = POS_TEST_DWELL_MAX_MS;
         }
+        (void)Motor_Joint_Enable(false);
         if (!Motor_Position_SetTargetDeg(s_pos_test_deg[0]) || !Motor_Position_Enable(true)) {
             PRINTF("Position loop needs valid calibrated encoder\r\n");
             return -1;
         }
         run_test = true;
     } else if (strcmp(argv[1], "on") == 0) {
+        (void)Motor_Joint_Enable(false);
         if (!Motor_Position_Enable(true)) {
             PRINTF("Position loop needs valid calibrated encoder\r\n");
             return -1;
