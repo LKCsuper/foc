@@ -9,6 +9,7 @@ extern "C" {
 #include <math.h>
 #include <stddef.h>
 #include "motor_joint.h"
+#include "motor_joint_control.h"
 #include "motor_encoder.h"
 #include "motor_mt6701.h"
 #include "motor_param.h"
@@ -25,38 +26,26 @@ extern "C" {
 #define MOTOR_JOINT_V_LIMIT_MAX_V        (6.0f)
 #define MOTOR_JOINT_TORQUE_FF_MAX_A      (1.0f)
 #define MOTOR_JOINT_DT_MAX_S             (0.05f)
-#define MOTOR_JOINT_TARGET_CHANGE_DEG     (0.01f)
 #define MOTOR_JOINT_INTEGRAL_MAX_ERROR_DEG (2.0f)
 #define MOTOR_JOINT_INTEGRAL_MAX_RPM      (1.0f)
 #define MOTOR_JOINT_INTEGRAL_MAX_TARGET_RPM (0.01f)
+#define MOTOR_JOINT_TARGET_CHANGE_DEG     (0.01f)
+#define MOTOR_JOINT_DEG_TO_RAD            (0.01745329251994329577f)
+#define MOTOR_JOINT_RAD_TO_DEG            (57.295779513082320876f)
+#define MOTOR_JOINT_RPM_TO_RAD_S          (0.10471975511965977462f)
+#define MOTOR_JOINT_RAD_S_TO_RPM          (9.5492965855137201461f)
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 static motor_joint_state_t s_joint;
 static int32_t s_joint_origin;
+static motor_joint_control_t s_control;
 /* Private function prototypes -----------------------------------------------*/
-static float Motor_Joint_Clamp(float value, float limit);
 static float Motor_Joint_ReadDeg(void);
 static void Motor_Joint_ClearHold(void);
+static bool Motor_Joint_ApplyControlConfig(void);
+static bool Motor_Joint_ApplyControlCommand(void);
 /* Private functions ---------------------------------------------------------*/
-
-/**
- * @description: 把数值限制在对称区间内。
- * @param {float} value  输入
- * @param {float} limit  绝对值上限，须为正
- * @return {float} 限幅后的值
- * @author: lkc
- */
-static float Motor_Joint_Clamp(float value, float limit)
-{
-    if (value > limit) {
-        return limit;
-    }
-    if (value < -limit) {
-        return -limit;
-    }
-    return value;
-}
 
 /**
  * @description: 用累计机械计数换算相对关节零点的角度。
@@ -76,10 +65,46 @@ static float Motor_Joint_ReadDeg(void)
  */
 static void Motor_Joint_ClearHold(void)
 {
+    Motor_JointControl_Reset(&s_control);
     s_joint.output_v = 0.0f;
     s_joint.bias_v = 0.0f;
     motor.joint_voltage_hold = false;
     motor.joint_hold_v = 0.0f;
+}
+
+/**
+ * @description: 把兼容Shell使用的deg/RPM/V参数换成纯算法的rad、rad/s和输出单位。
+ * @return {bool} true=配置有效并已应用
+ */
+static bool Motor_Joint_ApplyControlConfig(void)
+{
+    motor_joint_control_config_t config;
+
+    config.kp_output_per_rad = s_joint.kp_v_per_deg * MOTOR_JOINT_RAD_TO_DEG;
+    config.kd_output_per_rad_s = s_joint.kd_v_per_rpm * MOTOR_JOINT_RAD_S_TO_RPM;
+    config.ki_output_per_rad_s = s_joint.ki_v_per_deg_s * MOTOR_JOINT_RAD_TO_DEG;
+    config.output_limit = s_joint.v_limit_v;
+    config.integral_limit = MOTOR_JOINT_BIAS_MAX_V;
+    config.integral_max_error_rad = MOTOR_JOINT_INTEGRAL_MAX_ERROR_DEG * MOTOR_JOINT_DEG_TO_RAD;
+    config.integral_max_velocity_rad_s = MOTOR_JOINT_INTEGRAL_MAX_RPM * MOTOR_JOINT_RPM_TO_RAD_S;
+    config.integral_max_target_rad_s = MOTOR_JOINT_INTEGRAL_MAX_TARGET_RPM * MOTOR_JOINT_RPM_TO_RAD_S;
+    config.target_reset_threshold_rad = MOTOR_JOINT_TARGET_CHANGE_DEG * MOTOR_JOINT_DEG_TO_RAD;
+    config.dt_max_s = MOTOR_JOINT_DT_MAX_S;
+    return Motor_JointControl_Configure(&s_control, &config);
+}
+
+/**
+ * @description: 把兼容Shell命令换成纯算法命令并整体提交。
+ * @return {bool} true=命令有效并已应用
+ */
+static bool Motor_Joint_ApplyControlCommand(void)
+{
+    motor_joint_control_command_t command;
+
+    command.position_rad = s_joint.target_deg * MOTOR_JOINT_DEG_TO_RAD;
+    command.velocity_rad_s = s_joint.target_rpm * MOTOR_JOINT_RPM_TO_RAD_S;
+    command.feedforward_output = s_joint.torque_ff_a * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
+    return Motor_JointControl_SetCommand(&s_control, &command);
 }
 
 /**
@@ -89,6 +114,8 @@ static void Motor_Joint_ClearHold(void)
  */
 void Motor_Joint_Init(void)
 {
+    motor_joint_control_config_t config;
+
     s_joint_origin = (int32_t)Motor_Encoder_GetAccumulatedCount();
     s_joint.enabled = false;
     s_joint.target_deg = 0.0f;
@@ -102,6 +129,18 @@ void Motor_Joint_Init(void)
     s_joint.ki_v_per_deg_s = MOTOR_JOINT_KI_DEFAULT_V_PER_DEG_S;
     s_joint.bias_v = 0.0f;
     s_joint.v_limit_v = MOTOR_JOINT_V_LIMIT_DEFAULT_V;
+    config.kp_output_per_rad = s_joint.kp_v_per_deg * MOTOR_JOINT_RAD_TO_DEG;
+    config.kd_output_per_rad_s = s_joint.kd_v_per_rpm * MOTOR_JOINT_RAD_S_TO_RPM;
+    config.ki_output_per_rad_s = s_joint.ki_v_per_deg_s * MOTOR_JOINT_RAD_TO_DEG;
+    config.output_limit = s_joint.v_limit_v;
+    config.integral_limit = MOTOR_JOINT_BIAS_MAX_V;
+    config.integral_max_error_rad = MOTOR_JOINT_INTEGRAL_MAX_ERROR_DEG * MOTOR_JOINT_DEG_TO_RAD;
+    config.integral_max_velocity_rad_s = MOTOR_JOINT_INTEGRAL_MAX_RPM * MOTOR_JOINT_RPM_TO_RAD_S;
+    config.integral_max_target_rad_s = MOTOR_JOINT_INTEGRAL_MAX_TARGET_RPM * MOTOR_JOINT_RPM_TO_RAD_S;
+    config.target_reset_threshold_rad = MOTOR_JOINT_TARGET_CHANGE_DEG * MOTOR_JOINT_DEG_TO_RAD;
+    config.dt_max_s = MOTOR_JOINT_DT_MAX_S;
+    (void)Motor_JointControl_Init(&s_control, &config);
+    (void)Motor_Joint_ApplyControlCommand();
     Motor_Joint_ClearHold();
 }
 
@@ -120,6 +159,8 @@ void Motor_Joint_Zero(void)
     s_joint.torque_ff_a = 0.0f;
     s_joint.output_v = 0.0f;
     s_joint.bias_v = 0.0f;
+    (void)Motor_Joint_ApplyControlCommand();
+    Motor_JointControl_Reset(&s_control);
 }
 
 /**
@@ -150,19 +191,30 @@ bool Motor_Joint_Enable(bool enable)
  */
 bool Motor_Joint_SetTarget(float target_deg, float target_rpm, float torque_ff_a)
 {
+    float old_target_deg;
+    float old_target_rpm;
+    float old_torque_ff_a;
+
     if (!isfinite(target_deg) || !isfinite(target_rpm) || !isfinite(torque_ff_a)) {
         return false;
     }
     if (fabsf(torque_ff_a) > MOTOR_JOINT_TORQUE_FF_MAX_A) {
         return false;
     }
-    /* 新位置目标不能继承上一落点的静摩擦补偿，否则反向阶跃时旧积分会先推错方向。 */
-    if (fabsf(target_deg - s_joint.target_deg) >= MOTOR_JOINT_TARGET_CHANGE_DEG) {
-        s_joint.bias_v = 0.0f;
-    }
+    old_target_deg = s_joint.target_deg;
+    old_target_rpm = s_joint.target_rpm;
+    old_torque_ff_a = s_joint.torque_ff_a;
     s_joint.target_deg = target_deg;
     s_joint.target_rpm = target_rpm;
     s_joint.torque_ff_a = torque_ff_a;
+    if (!Motor_Joint_ApplyControlCommand()) {
+        s_joint.target_deg = old_target_deg;
+        s_joint.target_rpm = old_target_rpm;
+        s_joint.torque_ff_a = old_torque_ff_a;
+        (void)Motor_Joint_ApplyControlCommand();
+        return false;
+    }
+    s_joint.bias_v = s_control.integral_output;
     return true;
 }
 
@@ -178,7 +230,7 @@ bool Motor_Joint_SetKp(float kp_v_per_deg)
         return false;
     }
     s_joint.kp_v_per_deg = kp_v_per_deg;
-    return true;
+    return Motor_Joint_ApplyControlConfig();
 }
 
 /**
@@ -193,7 +245,7 @@ bool Motor_Joint_SetKd(float kd_v_per_rpm)
         return false;
     }
     s_joint.kd_v_per_rpm = kd_v_per_rpm;
-    return true;
+    return Motor_Joint_ApplyControlConfig();
 }
 
 /**
@@ -209,9 +261,10 @@ bool Motor_Joint_SetKi(float ki_v_per_deg_s)
     }
     s_joint.ki_v_per_deg_s = ki_v_per_deg_s;
     if (ki_v_per_deg_s == 0.0f) {
-        s_joint.bias_v = 0.0f;
+        Motor_JointControl_Reset(&s_control);
     }
-    return true;
+    s_joint.bias_v = s_control.integral_output;
+    return Motor_Joint_ApplyControlConfig();
 }
 
 /**
@@ -226,7 +279,7 @@ bool Motor_Joint_SetVoltageLimit(float limit_v)
         return false;
     }
     s_joint.v_limit_v = limit_v;
-    return true;
+    return Motor_Joint_ApplyControlConfig();
 }
 
 /**
@@ -237,15 +290,15 @@ bool Motor_Joint_SetVoltageLimit(float limit_v)
  */
 void Motor_Joint_Run(float dt)
 {
+    motor_joint_control_feedback_t feedback;
     float measured_rpm = 0.0f;
     float vq;
-    float torque_v;
-    bool winding_up;
-    bool integral_allowed;
+    bool speed_valid;
 
     s_joint.position_deg = Motor_Joint_ReadDeg();
     s_joint.error_deg = s_joint.target_deg - s_joint.position_deg;
-    if (Motor_Encoder_IsSpeedValid()) {
+    speed_valid = Motor_Encoder_IsSpeedValid();
+    if (speed_valid) {
         measured_rpm = Motor_Encoder_GetMechRpm();
     }
     s_joint.measured_rpm = measured_rpm;
@@ -256,25 +309,11 @@ void Motor_Joint_Run(float dt)
         }
         return;
     }
-    if (!(dt > 0.0f) || dt > MOTOR_JOINT_DT_MAX_S) {
-        dt = 0.0f;
-    }
-
-    torque_v = s_joint.torque_ff_a * MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
-    vq = s_joint.kp_v_per_deg * s_joint.error_deg;
-    vq += s_joint.kd_v_per_rpm * (s_joint.target_rpm - measured_rpm);
-    vq += torque_v;
-    winding_up = (vq + s_joint.bias_v >= s_joint.v_limit_v && s_joint.error_deg > 0.0f) ||
-                 (vq + s_joint.bias_v <= -s_joint.v_limit_v && s_joint.error_deg < 0.0f);
-    integral_allowed = fabsf(s_joint.target_rpm) <= MOTOR_JOINT_INTEGRAL_MAX_TARGET_RPM &&
-                       fabsf(measured_rpm) <= MOTOR_JOINT_INTEGRAL_MAX_RPM &&
-                       fabsf(s_joint.error_deg) <= MOTOR_JOINT_INTEGRAL_MAX_ERROR_DEG;
-    if (integral_allowed && !winding_up && dt > 0.0f) {
-        s_joint.bias_v += s_joint.ki_v_per_deg_s * s_joint.error_deg * dt;
-        s_joint.bias_v = Motor_Joint_Clamp(s_joint.bias_v, MOTOR_JOINT_BIAS_MAX_V);
-    }
-    vq += s_joint.bias_v;
-    vq = Motor_Joint_Clamp(vq, s_joint.v_limit_v);
+    feedback.position_rad = s_joint.position_deg * MOTOR_JOINT_DEG_TO_RAD;
+    feedback.velocity_rad_s = measured_rpm * MOTOR_JOINT_RPM_TO_RAD_S;
+    feedback.velocity_valid = speed_valid;
+    vq = Motor_JointControl_Step(&s_control, &feedback, dt, true);
+    s_joint.bias_v = s_control.integral_output;
     s_joint.output_v = vq;
     motor.joint_voltage_hold = true;
     motor.joint_hold_v = vq;
