@@ -77,12 +77,16 @@
 | `App/motor/motor_control.c`（待抽取）                      | 一次完整控制步进与运行状态编排                                   |
 | `App/motor/motor_current.c`（待抽取）                      | d/q 电流反馈、PI、矢量限幅和抗饱和                               |
 | `App/motor/motor_feedback.c`（待抽取）                     | 选择开环/编码器/霍尔/无感角度，发布反馈有效性                    |
-| `App/motor/motor_it.c`                                     | 现有平台集成入口：采样、分频、控制调用、输出应用、耗时统计       |
+| `App/motor/motor_output.c`                                 | SAFE/DQ 结果转三相 PWM，集中调制选择、板级相序和提交             |
+| `App/motor/motor_fast_vf.c`                                | 历史快速 V/F 实机诊断路径，不与正常控制编排混写                  |
+| `App/motor/motor_timing.c`                                 | ADC/控制周期、实际频率及 ISR 平均/最大耗时                       |
+| `App/motor/motor_it.c`                                     | 平台中断入口：模式分派、采样、保护、控制调用与结果应用            |
 | `App/motor/motor_foc.c`、`motor_math.c`、`motor_pid.c` | 无平台依赖的算法                                                 |
 | `App/motor/motor_speed.c`、`motor_protect.c`、启动模块   | 独立状态和明确输入输出的控制模块                                 |
 | `App/motor/start/`                                         | 对齐、I/F、HFI 扫角起步                                          |
 | `App/motor/observer/`                                      | FOC 无感观测（sensorless / flux / luenberger / ekf / smo / hfi） |
 | `App/motor/bldc/`                                          | 六步 BLDC 与悬空相 BEMF，与 FOC 无感不是同一条路径               |
+| `App/motor/bldc/motor_bldc_isr.c`                          | BLDC ADC 采样、保护、BEMF 采样窗与换相步进                       |
 | `App/motor_sensor/`                                        | 已有编码器与霍尔模块，不合并成万能传感器文件                     |
 | `App/motor_param/`                                         | 配置默认值/校验、校准状态机、持久化格式                          |
 | `Library/Hal/inc/`                                         | 平台无关的硬件接口与能力描述                                     |
@@ -187,6 +191,21 @@ I/F 默认启动按三个明确阶段执行：
 ## 6. 硬件边界与停机契约
 
 当前板 IO 清单、FD6288/INA240 接法、ADC 通道和连接器网络以 `Doc/sch/BM75_IO定义.md` 为准。
+
+### 6.1 BM75 低电流采样盲区（每次调试必须先检查）
+
+当前 BM75 电流采样比例约为 `0.0806 A/ADC count`。因此 `0.10 A` 仅约 1.2 个计数，`0.20 A`
+仅约 2.5 个计数；再叠加零点小数、量化、噪声和三相重构误差，这一档属于明显的低电流采样盲区。
+
+- 不得用 `0.10～0.20 A` 的单张 `olsnap`、单拍 Id/Iq 或短时平均，直接判定电流 PI 正常或故障。
+- 空载固定 Iq 会产生转矩并迅速加速，反电势和转速变化会破坏静态工作点，也不得用它代替静态电流环验收。
+- 验证电流环优先采用编码器定向后的静态 D 轴：`Id≈0.30 A、Iq=0`，同时检查目标/实测 Id、残余 Iq、
+  原始 ADC 相对零点的计数差、母线电压和故障状态；必要时使用受控负载或锁轴短脉冲。
+- 低电流关节控制继续按现有混合后端处理：需求低于进入阈值时使用 Vq，达到约 `0.25 A` 才进入 D/Q
+  电流 PI，回落到约 `0.20 A` 时退出，禁止仅为让低电流读数“好看”而修改 VESC 派生 ADC/PWM/定时器配置。
+- 自动测试和人工结论必须把“控制稳定/方向正确”与“电流数值精确跟踪”分开记录。脚本 PASS 不能覆盖上述分辨率限制。
+- 编码器自动方向/零点标定同样不得使用 `0.10～0.20 A`；当前整链路脚本固定使用 `0.30 A`。
+  2026-10-03 曾以 `0.15 A` 标定得到错误反向并导致 60 RPM 测试为 0 RPM，提高到 `0.30 A` 后恢复稳定。
 
 - HAL/BSP 负责 ADC 分辨率、参考电压、增益、极性、通道与相序映射；核心不得硬编码 12 位 ADC 中点或某块板的 B/C 交换。
 - 采样接口交付同一周期的样本帧，说明有效相、序号/时间和读取一致性。

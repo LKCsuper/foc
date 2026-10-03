@@ -349,6 +349,45 @@ static void joint_iq_test_run(float current_a, uint32_t duration_ms)
 }
 
 /**
+ * @description: 单次提交直接 Iq 命令，等待看门狗超时并打印超时后的安全输出。
+ * @detail: 用于上板验证通信停止刷新后的 100 ms 保护；测试结束自动切回当前位置保持。
+ * @param {float} current_a  超时前的目标 Iq (A)
+ * @param {uint32_t} wait_ms 等待时间 (ms)，必须大于看门狗时间
+ * @return {void} 无
+ */
+static void joint_timeout_test_run(float current_a, uint32_t wait_ms)
+{
+    motor_joint_current_command_t command;
+    motor_joint_state_t state;
+
+    memset(&command, 0, sizeof(command));
+    command.enable = true;
+    command.timeout_enable = true;
+    command.timeout_us = 100000U;
+    command.current_a = current_a;
+    command.current_limit_a = JOINT_IQ_TEST_MAX_A;
+
+    PRINTF("joint timeouttest submit %.3fA once, wait %lums\r\n", current_a, (unsigned long)wait_ms);
+    if (!Motor_Joint_SubmitCurrentCommand(&command)) {
+        PRINTF("joint timeouttest: command rejected\r\n");
+        return;
+    }
+    if (joint_wait_or_key(wait_ms)) {
+        PRINTF("joint timeouttest stopped by key\r\n");
+    }
+    Motor_Joint_GetState(&state);
+    PRINTF("joint timeouttest result: timeout=%d age=%luus backend=%d iq_cmd=%.3fA vel=%.2fRPM\r\n",
+           state.command_timeout ? 1 : 0, (unsigned long)state.command_age_us, (int)state.backend,
+           state.iq_command_a, state.measured_rpm);
+    if (!Motor_Joint_SetTarget(state.position_deg, 0.0f, 0.0f) || !Motor_Joint_Enable(true)) {
+        (void)Motor_Joint_Enable(false);
+        PRINTF("joint timeouttest cleanup: encoder invalid, joint disabled\r\n");
+        return;
+    }
+    PRINTF("joint timeouttest cleanup: holding current position\r\n");
+}
+
+/**
  * @description: 记录本段运动里是否出现过 IQ，以及随后回到 VQ。
  * @param {const motor_joint_state_t *} state  当前关节状态
  * @param {uint32_t} enter0  本段开始时的进入次数
@@ -647,15 +686,17 @@ int Cmd_Joint(int argc, char *argv[])
     bool run_test = false;
     bool run_slow = false;
     bool run_iq_test = false;
+    bool run_timeout_test = false;
     bool run_hybrid_test = false;
     float slow_speed_deg_s = JOINT_SLOW_SPEED_DEFAULT_DEG_S;
     float iq_test_a = 0.0f;
     uint32_t iq_test_ms = JOINT_IQ_TEST_DEFAULT_MS;
+    uint32_t timeout_test_ms = 180U;
     uint32_t dwell_ms = JOINT_TEST_DWELL_DEFAULT_MS;
 
     if (argc < 2 || strcmp(argv[1], "status") == 0) {
         Cmd_JointPrint();
-        PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|slow [deg/s]|hybridtest|iqtest <A> [ms]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
+        PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|slow [deg/s]|hybridtest|iqtest <A> [ms]|timeouttest <A> [ms]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
         return 0;
     }
     if (strcmp(argv[1], "zero") == 0) {
@@ -751,6 +792,26 @@ int Cmd_Joint(int argc, char *argv[])
             return -1;
         }
         run_iq_test = true;
+    } else if (strcmp(argv[1], "timeouttest") == 0 && argc >= 3) {
+        iq_test_a = (float)atof(argv[2]);
+        if (argc >= 4) {
+            timeout_test_ms = (uint32_t)atoi(argv[3]);
+        }
+        if (!isfinite(iq_test_a) || fabsf(iq_test_a) > JOINT_IQ_TEST_MAX_A ||
+            fabsf(iq_test_a) < 0.001f) {
+            PRINTF("joint timeouttest current must be -%.2f..-0.001 or 0.001..%.2f A\r\n",
+                   JOINT_IQ_TEST_MAX_A, JOINT_IQ_TEST_MAX_A);
+            return -1;
+        }
+        if (timeout_test_ms < 120U || timeout_test_ms > 1000U) {
+            PRINTF("joint timeouttest wait must be 120..1000 ms\r\n");
+            return -1;
+        }
+        if (!motor.ol_enable || !Motor_Joint_IsEnabled()) {
+            PRINTF("Start joint first: joint on, then olstart\r\n");
+            return -1;
+        }
+        run_timeout_test = true;
     } else if (strcmp(argv[1], "hybridtest") == 0) {
         if (!motor.ol_enable || !Motor_Joint_IsEnabled()) {
             PRINTF("Start joint first: joint on, then olstart\r\n");
@@ -782,7 +843,7 @@ int Cmd_Joint(int argc, char *argv[])
         Cmd_JointPrint();
         return 0;
     } else {
-        PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|slow [deg/s]|hybridtest|iqtest <A> [ms]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
+        PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|slow [deg/s]|hybridtest|iqtest <A> [ms]|timeouttest <A> [ms]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
         return -1;
     }
     if (Cmd_JointArm() != 0) {
@@ -799,6 +860,8 @@ int Cmd_Joint(int argc, char *argv[])
         joint_slow_run(slow_speed_deg_s);
     } else if (run_iq_test) {
         joint_iq_test_run(iq_test_a, iq_test_ms);
+    } else if (run_timeout_test) {
+        joint_timeout_test_run(iq_test_a, timeout_test_ms);
     } else if (run_hybrid_test) {
         joint_hybrid_test_run();
     }

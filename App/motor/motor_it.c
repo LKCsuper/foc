@@ -15,7 +15,6 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <math.h>
 #include <string.h>
 
 #include "stm32f4xx.h"
@@ -25,19 +24,21 @@ extern "C" {
 #include "motor_protect.h"
 #include "motor_control.h"
 #include "motor_current.h"
+#include "motor_output.h"
+#include "motor_fast_vf.h"
+#include "motor_timing.h"
 #include "motor_foc_divider.h"
-#include "motor_foc.h"
-#include "motor_math.h"
 #include "motor_sensorless.h"
 #include "motor_detect.h"
 #include "motor_hall.h"
 #include "motor_bldc_sensorless.h"
+#include "motor_bldc_isr.h"
 #include "motor_bldc_six_step.h"
 #include "motor_bldc_six_step_hal.h"
 #include "hal_motor.h"
 #include "motor.h"
 #include "motor_encoder.h"
-#include "motor_hall_angle.h"
+#include "motor_sensor_update.h"
 #include "motor_hall_diag.h"
 #include "motor_hall.h"
 /* Private define ------------------------------------------------------------*/
@@ -69,30 +70,18 @@ static bool s_bldc_sample_upward = true;
  * ADC-DMA 中断执行时间统计。
  * Hal_Motor_TimeUs 为 1 us/tick 的通用时基，差值即微秒。
  */
-static volatile float s_foc_runtime_average_us = 0.0f;
-static volatile float s_foc_runtime_maximum_us = 0.0f;
-static uint8_t s_hall_adc_div;
-static float s_hall_dt_acc_s;
 static float s_recon_diag_target_rpm;
 static bool s_recon_diag_enable;
 static uint8_t s_status_publish_divider;
 /* Private function prototypes -----------------------------------------------*/
-static void Motor_DmaInt_RecordRuntime(uint32_t start_time);
 static bool Motor_Bldc_InitDefault(void);
 static bool Motor_Bldc_StartInternal(motor_bldc_direction_t direction, float duty,
                                      bool fixed_open_loop, float sector_period_s);
 static uint32_t Motor_Bldc_StatusLock(void);
 static void Motor_Bldc_StatusUnlock(uint32_t primask);
-static float Motor_OpenLoop_GetAdcDt(MOTOR_PARAM_S *m);
-static float Motor_OpenLoop_GetDt(MOTOR_PARAM_S *m);
-static void Motor_OpenLoop_OutputSafe(MOTOR_PARAM_S *m);
-static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq, float theta, float v_bus);
-static void Motor_It_ApplyControlResult(MOTOR_PARAM_S *m, float v_bus, const motor_control_result_t *result);
 static bool Motor_DmaInt_ShouldRun(void);
 static void Motor_DmaInt_Foc(void);
-static void Motor_DmaInt_Bldc(void);
 static void Motor_DmaInt_WhileDetect(void);
-static void Motor_DmaInt_RunFastVf(MOTOR_PARAM_S *m);
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -447,148 +436,6 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
 }
 
 /**
- * @description: 更新本拍 FOC 中断耗时统计（平均与最大值）
- * @detail: 超过 1000 us 的样本丢弃，避免计时回绕或异常拉高最大耗时
- * @param {uint32_t} start_time  本拍开始时的时间戳 (us)
- * @return {*}
- * @author: lkc
- */
-static void Motor_DmaInt_RecordRuntime(uint32_t start_time)
-{
-    uint32_t elapsed_us = Hal_Motor_TimeUs() - start_time;
-    float elapsed = (float)elapsed_us;
-
-    if (elapsed_us > 1000U) {
-        return;
-    }
-
-    if (s_foc_runtime_average_us <= 0.0f) {
-        s_foc_runtime_average_us = elapsed;
-    } else {
-        s_foc_runtime_average_us += 0.02f * (elapsed - s_foc_runtime_average_us);
-    }
-
-    if (elapsed > s_foc_runtime_maximum_us) {
-        s_foc_runtime_maximum_us = elapsed;
-    }
-}
-
-/**
- * @description: 计算 ADC/保护用采样周期 dt
- * @detail: 优先用 Hal_Motor_AdcSampleRateHz()；无效时回退 motor->ol_foc_freq，并写回该字段
- * @param {MOTOR_PARAM_S} *m  电机对象（更新 ol_foc_freq）
- * @return {float} 采样周期 (s)，即 1/ADC 触发频率
- * @author: lkc
- */
-static float Motor_OpenLoop_GetAdcDt(MOTOR_PARAM_S *m)
-{
-    float foc_freq = Hal_Motor_AdcSampleRateHz();
-
-    if (foc_freq > 1.0f) {
-        m->ol_foc_freq = foc_freq;
-    } else {
-        foc_freq = m->ol_foc_freq;
-        if (foc_freq <= 1.0f) {
-            foc_freq = 1.0f;
-            m->ol_foc_freq = foc_freq;
-        }
-    }
-
-    return 1.0f / foc_freq;
-}
-
-/**
- * @description: 计算 FOC 控制环周期 dt（已乘分频）
- * @detail: dt_foc = dt_adc × FOC_CONTROL_LOOP_FREQ_DIVIDER，供斜坡/PI/观测器使用
- * @param {MOTOR_PARAM_S} *m  电机对象
- * @return {float} 控制周期 (s)
- * @author: lkc
- */
-static float Motor_OpenLoop_GetDt(MOTOR_PARAM_S *m)
-{
-    return Motor_OpenLoop_GetAdcDt(m) * (float)FOC_CONTROL_LOOP_FREQ_DIVIDER;
-}
-
-/**
- * @description: 输出三相中点占空比并提交（控制层 SAFE 路径）
- * @detail: 不等于关桥或保证无转矩；同时清零无感本拍应用电压记录
- * @param {MOTOR_PARAM_S} *m  电机对象（写 duty1/2/3）
- * @return {*}
- * @author: lkc
- */
-static void Motor_OpenLoop_OutputSafe(MOTOR_PARAM_S *m)
-{
-    uint32_t mid = Hal_Motor_PwmPeriodCounts() / 2U;
-
-    m->duty1 = mid;
-    m->duty2 = mid;
-    m->duty3 = mid;
-    Hal_Motor_PwmSetDuty(m->duty1, m->duty2, m->duty3);
-    Hal_Motor_PwmCommit();
-    Motor_Sensorless_SetAppliedVoltage(0.0f, 0.0f);
-}
-
-/**
- * @description: 反 Park + SVPWM，将 vd/vq 落到三相 PWM
- * @detail: Hall/encoder 有感 I/F 使用已验证的 VESC SVM，其余模式保留 svm_hqd。相序保持 A-C-B。
- * @param {MOTOR_PARAM_S} *m  电机对象（写 duty）
- * @param {float} vd          D 轴电压 (V)
- * @param {float} vq          Q 轴电压 (V)
- * @param {float} theta       电角度 (rad)
- * @param {float} v_bus       母线电压 (V)
- * @return {*}
- * @author: lkc
- */
-static void Motor_Foc_OutputVoltage(MOTOR_PARAM_S *m, float vd, float vq, float theta, float v_bus)
-{
-    float v_alpha;
-    float v_beta;
-    uint32_t sector;
-    uint32_t period = Hal_Motor_PwmPeriodCounts();
-    motor_feedback_source_t feedback_source;
-    bool sensored_if;
-
-    inverse_park(vd, vq, theta, &v_alpha, &v_beta);
-    Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
-    feedback_source = Motor_Feedback_GetSourceDefault();
-    sensored_if = (m->ol_mode == MOTOR_OL_MODE_IF) &&
-                  (((feedback_source == MOTOR_FEEDBACK_SRC_HALL) && MOTOR_HALL_USE_VESC_SVM) ||
-                   (feedback_source == MOTOR_FEEDBACK_SRC_ENCODER));
-    /* 编码器与 Hall 共用同一 VESC 电压归一化，避免 svm_hqd 约 1/3 的实际调制增益。 */
-    if (sensored_if) {
-        foc_svm_from_voltage(-v_alpha, -v_beta, v_bus, MOTOR_FOC_SVM_MAX_DUTY, period, &m->duty1, &m->duty2,
-                             &m->duty3, &sector);
-    } else {
-        svm_hqd(v_alpha, v_beta, v_bus, period, &m->duty1, &m->duty2, &m->duty3, &sector);
-    }
-    /* HD75 实机验证的相序为 A-C-B。 */
-    Hal_Motor_PwmSetDuty(m->duty1, m->duty3, m->duty2);
-    Hal_Motor_PwmCommit();
-}
-
-/**
- * @description: 将控制编排结果应用到 PWM
- * @detail: 调用前须已用 Motor_Control_ArbitrateOutput；故障锁存时不得传入 OUTPUT_DQ
- * @param {MOTOR_PARAM_S} *m                        电机对象
- * @param {float} v_bus                             母线电压 (V)
- * @param {const motor_control_result_t} *result    仲裁后的输出请求
- * @return {*}
- * @author: lkc
- */
-static void Motor_It_ApplyControlResult(MOTOR_PARAM_S *m, float v_bus, const motor_control_result_t *result)
-{
-    if (result == NULL) {
-        return;
-    }
-
-    if (result->action == MOTOR_CONTROL_ACTION_SAFE) {
-        Motor_OpenLoop_OutputSafe(m);
-    } else if (result->action == MOTOR_CONTROL_ACTION_OUTPUT_DQ) {
-        Motor_Foc_OutputVoltage(m, result->vd, result->vq, result->theta, v_bus);
-    }
-}
-
-/**
  * @description: 查询当前是否正处于 I/F 启动前的转子预对齐阶段
  * @return {bool} true=预对齐进行中
  * @author: lkc
@@ -649,52 +496,6 @@ float Motor_HfiStart_GetConfidence(void)
 }
 
 /**
- * @description: 返回 ADC-DMA 中断的平均执行时间
- * @return {float} 平均耗时 (us)
- * @author: lkc
- */
-float Motor_DmaInt_GetAverageRuntimeUs(void)
-{
-    return s_foc_runtime_average_us;
-}
-
-/**
- * @description: 返回 ADC-DMA 中断的历史最长执行时间
- * @return {float} 最大耗时 (us)
- * @author: lkc
- */
-float Motor_DmaInt_GetMaximumRuntimeUs(void)
-{
-    return s_foc_runtime_maximum_us;
-}
-
-/**
- * @description: 返回实际 ADC-DMA 触发频率
- * @return {float} ADC 采样频率 (Hz)
- * @author: lkc
- */
-float Motor_DmaInt_GetAdcFrequencyHz(void)
-{
-    float adc_trigger_hz = Hal_Motor_AdcSampleRateHz();
-
-    if (adc_trigger_hz <= 0.0f) {
-        adc_trigger_hz = motor.ol_foc_freq;
-    }
-
-    return adc_trigger_hz;
-}
-
-/**
- * @description: 返回 FOC 控制环实际运行频率
- * @return {float} 控制环频率 (Hz)
- * @author: lkc
- */
-float Motor_DmaInt_GetControlFrequencyHz(void)
-{
-    return Motor_DmaInt_GetAdcFrequencyHz() / (float)FOC_CONTROL_LOOP_FREQ_DIVIDER;
-}
-
-/**
  * @description: 判断本拍 ADC 回调是否应跑完整 FOC（电流环/观测器/SVPWM）
  * @return {bool} true=本拍执行完整控制
  * @author: lkc
@@ -719,46 +520,6 @@ void Motor_DmaInt_GetSampleDirectionCounts(uint32_t *up, uint32_t *down)
     if (down != NULL) {
         *down = s_foc_sample_down_count;
     }
-}
-
-/**
- * @description: 复现 3e5d564 已上板成功的最小 V/F 电压开环路径。
- * @detail: 仅供 V/F 基线验证；固定 Vq=5V、每个 15kHz 控制拍推进 0.001rad，
- *          绕过新版启动编排，以判断回归是否位于 Motor_Control_Step。
- * @param {MOTOR_PARAM_S} *m 电机对象
- * @return {*}
- * @author: lkc
- */
-static void Motor_DmaInt_RunFastVf(MOTOR_PARAM_S *m)
-{
-    float rpm = m->ol_target_rpm;
-    float rpm_abs = fabsf(rpm);
-    float control_hz = Motor_DmaInt_GetControlFrequencyHz();
-    float theta_step;
-    float vq = m->ol_v_boost;
-
-    /* 低于实机可稳定拖动的转速时使用启动转速地板；保留目标方向。 */
-    if (rpm_abs > 0.0f && rpm_abs < m->ol_min_rpm) {
-        rpm = (rpm < 0.0f) ? -m->ol_min_rpm : m->ol_min_rpm;
-    }
-    if (control_hz <= 1.0f || m->ol_pole_pairs <= 0.0f) {
-        Motor_OpenLoop_OutputSafe(m);
-        return;
-    }
-    theta_step = RPM2RADPS_f(rpm) * m->ol_pole_pairs / control_hz;
-
-    if (vq < 0.0f) {
-        vq = 0.0f;
-    }
-    if (vq > m->ol_vq_limit) {
-        vq = m->ol_vq_limit;
-    }
-
-    m->ol_current_rpm = rpm;
-    m->theta += theta_step;
-    utils_norm_angle_rad(&m->theta);
-    m->ol_theta = m->theta;
-    Motor_Foc_OutputVoltage(m, 0.0f, vq, m->theta, m->v_bus);
 }
 
 /**
@@ -798,11 +559,11 @@ static void Motor_DmaInt_Foc(void)
          * 向上计数的 ADC 帧直接丢掉。
          */
         if ((TIM1->CR1 & TIM_CR1_DIR) == 0U) {
-            Motor_DmaInt_RecordRuntime(runtime_start);
+            Motor_Timing_RecordRuntime(runtime_start);
             return;
         }
     } else if (!Motor_DmaInt_ShouldRun()) {
-        Motor_DmaInt_RecordRuntime(runtime_start);
+        Motor_Timing_RecordRuntime(runtime_start);
         return;
     }
 
@@ -814,41 +575,14 @@ static void Motor_DmaInt_Foc(void)
     Motor_Hall_DiagNoteTimer((uint16_t)TIM1->CNT, (uint16_t)TIM1->ARR);
 
     Motor_It_ParamCal();
-    protection_dt = Motor_OpenLoop_GetDt(&motor);
-    /*
-     * 纯开环不用编码器/霍尔，不应在控制拍上额外做它们的浮点计算。
-     * 霍尔按 MOTOR_HALL_ADC_DIVIDER 分频更新，dt 累加后交给 PLL。
-     */
-    if (feedback_source == MOTOR_FEEDBACK_SRC_ENCODER) {
-        Motor_Encoder_Update(protection_dt);
-        /*
-         * 编码器是当前控制角来源时，反馈丢失不得回退到开环角和固定 oliq。
-         * MT6701 已对连续坏帧去抖；这里锁存故障，让统一出口立即进入 SAFE。
-         * 编码器标定和抗齿槽学习自行管理输出，期间不由正常运行保护抢占。
-         */
-        if (motor.ol_enable && Motor_Encoder_IsSignalFault() && !Motor_Encoder_DetectIsActive() &&
-            !Motor_Anticogging_IsLearning() && !Motor_Protect_IsFaultLatched()) {
-            Motor_Protect_TriggerFault(FAULT_CODE_ENCODER_SPI, &motor);
-        }
-    }
-    if (feedback_source == MOTOR_FEEDBACK_SRC_HALL) {
-        s_hall_dt_acc_s += protection_dt;
-        s_hall_adc_div++;
-        if (s_hall_adc_div >= MOTOR_HALL_ADC_DIVIDER) {
-            s_hall_adc_div = 0U;
-            Motor_Hall_AngleUpdateDefault(motor.hall_table, Motor_Hall_Read(false, motor.hall_extra_samples),
-                                          motor.ol_pole_pairs, s_hall_dt_acc_s);
-            s_hall_dt_acc_s = 0.0f;
-        }
-    } else {
-        s_hall_adc_div = 0U;
-        s_hall_dt_acc_s = 0.0f;
-    }
+    protection_dt = Motor_Timing_GetControlDt(&motor);
+    /* 开环源不做额外传感器计算；编码器/霍尔的更新细节由传感器模块负责。 */
+    Motor_SensorUpdate_Step(&motor, feedback_source, protection_dt);
 
     if (Motor_Protect_Run(&motor, protection_dt)) {
         Motor_Control_ResetRuntime(&s_control, &motor);
-        Motor_OpenLoop_OutputSafe(&motor);
-        Motor_DmaInt_RecordRuntime(runtime_start);
+        Motor_OutputSafe(&motor);
+        Motor_Timing_RecordRuntime(runtime_start);
         return;
     }
 
@@ -879,47 +613,8 @@ static void Motor_DmaInt_Foc(void)
     } else {
         result = Motor_Control_ArbitrateOutput(false, &result);
     }
-    Motor_It_ApplyControlResult(&motor, motor.v_bus, &result);
-    Motor_DmaInt_RecordRuntime(runtime_start);
-}
-
-/**
- * @description: 无感 BLDC 六步模式的 ADC-DMA 快速入口。
- * @detail: 软件保护处理全部 ADC 帧；BEMF/换相仅使用 PWM 向上计数侧样本，dt 为完整 PWM 周期。
- * @return {void} 无
- * @author: lkc
- */
-static void Motor_DmaInt_Bldc(void)
-{
-    uint32_t runtime_start = Hal_Motor_TimeUs();
-    float dt;
-    float phase_voltage[3];
-
-    Motor_It_ParamCal();
-    dt = Motor_OpenLoop_GetAdcDt(&motor);
-    Motor_BldcSensorless_Stop(&s_bldc_sensorless);
-    if (Motor_Protect_Run(&motor, dt)) {
-        Motor_DmaInt_RecordRuntime(runtime_start);
-        return;
-    }
-    if (!Hal_Motor_BldcBemfSampleReady(s_bldc_sample_upward)) {
-        Motor_DmaInt_RecordRuntime(runtime_start);
-        return;
-    }
-
-    /*
-     * BLDC 六步使用原理图 INHA/B/C 与 SENS1/2/3 的直接对应关系；这里把
-     * FOC 的 ACB 运行量恢复为原理图 ABC 顺序，不改平台无关控制算法。
-     */
-    phase_voltage[0] = motor.va;
-    phase_voltage[1] = motor.vc;
-    phase_voltage[2] = motor.vb;
-    if (!Motor_BldcSensorless_Step(&s_bldc_sensorless, phase_voltage, motor.v_bus, 2.0f * dt)) {
-        /* BLDC 模式保持选中，防止下一拍 FOC SAFE 中点覆盖三相悬空。 */
-        Motor_DmaInt_RecordRuntime(runtime_start);
-        return;
-    }
-    Motor_DmaInt_RecordRuntime(runtime_start);
+    Motor_OutputApplyControlResult(&motor, motor.v_bus, &result);
+    Motor_Timing_RecordRuntime(runtime_start);
 }
 
 /**
@@ -958,7 +653,7 @@ void Motor_DmaInt(void *p, uint32_t flags)
     }
 
     if (s_bldc_selected) {
-        Motor_DmaInt_Bldc();
+        Motor_BldcIsr_Step(&s_bldc_sensorless, &motor, s_bldc_sample_upward);
         return;
     }
 
@@ -971,14 +666,14 @@ void Motor_DmaInt(void *p, uint32_t flags)
     if (motor.ol_enable && motor.ol_mode == MOTOR_OL_MODE_VF) {
         runtime_start = Hal_Motor_TimeUs();
         if (!Motor_DmaInt_ShouldRun()) {
-            Motor_DmaInt_RecordRuntime(runtime_start);
+            Motor_Timing_RecordRuntime(runtime_start);
             return;
         }
         Motor_It_ParamCal();
         if (motor.v_bus >= 1.0f) {
-            Motor_DmaInt_RunFastVf(&motor);
+            Motor_FastVf_Step(&motor, Motor_DmaInt_GetControlFrequencyHz());
         }
-        Motor_DmaInt_RecordRuntime(runtime_start);
+        Motor_Timing_RecordRuntime(runtime_start);
         return;
     }
 

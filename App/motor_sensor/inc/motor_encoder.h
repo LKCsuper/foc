@@ -290,9 +290,10 @@ bool Motor_Encoder_IsSpeedValid(void);
 bool Motor_Encoder_IsZeroValid(void);
 
 /**
- * @description: 无 Z 相时的零点标定：把当前位置记为电角度 0
- * @detail: 使用当前 HAL 计数与 motor.ol_pole_pairs 调用 MarkZeroState
- * @return {*}
+ * @description: 无 Z 相时标定编码器方向和电角零点。
+ * @detail: 阻塞在应用任务里调用。先在电角 0 爬升 Id，再扫过 π/2 判断计数方向；
+ *          随后正反向各走一圈机械角，用角度差的正余弦均值求零点。成功后写入运行时并尝试保存 Flash。
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_Detect(void);

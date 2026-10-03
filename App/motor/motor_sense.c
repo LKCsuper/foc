@@ -70,7 +70,7 @@ void Motor_Sense_ApplyFrame(MOTOR_PARAM_S *m, const hal_motor_sample_t *sample, 
         m->ia = ((float)sample->current_adc[0] - current_offset0) * i_scale;
     }
     /*
-     * 与 Motor_Foc_OutputVoltage 的 ACB PWM（B/C 对调）及相电压 SENS 映射一致：
+     * 与 Motor_OutputVoltage 的 ACB PWM（B/C 对调）及相电压 SENS 映射一致：
      *   ib ← CURR3 / SENS3，ic ← CURR2 / SENS2。
      * 电流仍按 ADC 下标 1=B、2=C 换算时，I/F 的 dq 与电压矢量错相，表现为来回摆并易过流。
      */

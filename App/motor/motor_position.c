@@ -10,6 +10,7 @@ extern "C" {
 #include <stddef.h>
 #include <string.h>
 #include "motor_position.h"
+#include "motor_position_control.h"
 #include "motor_encoder.h"
 #include "motor_mt6701.h"
 #include "motor_param.h"
@@ -26,25 +27,26 @@ extern "C" {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 static motor_position_state_t s_position;
-static float s_vel_integrator_v;
+static motor_position_control_t s_control;
 /* Private function prototypes -----------------------------------------------*/
-static float Motor_Position_Clamp(float value, float limit);
 static float Motor_Position_ReadDeg(void);
 static void Motor_Position_ClearHold(void);
+static void Motor_Position_FillControlConfig(motor_position_control_config_t *config);
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 把数值限制在对称区间内。
- * @param {float} value  输入
- * @param {float} limit  绝对值上限，须为正
- * @return {float} 限幅后的值
- * @author: lkc
+ * @description: 从应用位置状态生成纯控制模块配置。
+ * @param {motor_position_control_config_t *} config 输出配置，不可为空
+ * @return {void} 无
  */
-static float Motor_Position_Clamp(float value, float limit)
+static void Motor_Position_FillControlConfig(motor_position_control_config_t *config)
 {
-    if (value > limit) return limit;
-    if (value < -limit) return -limit;
-    return value;
+    config->position_kp_rpm_per_deg = s_position.kp_rpm_per_deg;
+    config->maximum_rpm = s_position.max_rpm;
+    config->velocity_kp_v_per_rpm = MOTOR_POSITION_VEL_KP_V_PER_RPM;
+    config->velocity_ki_v_per_rpm_s = MOTOR_POSITION_VEL_KI_V_PER_RPM_S;
+    config->voltage_limit_v = MOTOR_POSITION_VEL_V_LIMIT_V;
+    config->maximum_dt_s = 0.05f;
 }
 
 /**
@@ -65,7 +67,7 @@ static float Motor_Position_ReadDeg(void)
  */
 static void Motor_Position_ClearHold(void)
 {
-    s_vel_integrator_v = 0.0f;
+    Motor_PositionControl_Reset(&s_control);
     motor.position_hold = false;
     motor.position_voltage_hold = false;
     motor.position_hold_v = 0.0f;
@@ -79,11 +81,15 @@ static void Motor_Position_ClearHold(void)
 void Motor_Position_Init(void)
 {
     memset(&s_position, 0, sizeof(s_position));
-    s_vel_integrator_v = 0.0f;
     s_position.origin_count = (int32_t)Motor_Encoder_GetAccumulatedCount();
     s_position.kp_rpm_per_deg = MOTOR_POSITION_KP_DEFAULT_RPM_PER_DEG;
     s_position.max_rpm = MOTOR_POSITION_MAX_RPM_DEFAULT;
     s_position.tolerance_deg = MOTOR_POSITION_TOLERANCE_DEG;
+    {
+        motor_position_control_config_t config;
+        Motor_Position_FillControlConfig(&config);
+        (void)Motor_PositionControl_Init(&s_control, &config);
+    }
 }
 
 /**
@@ -96,7 +102,7 @@ void Motor_Position_Zero(void)
     s_position.origin_count = (int32_t)Motor_Encoder_GetAccumulatedCount();
     s_position.position_deg = 0.0f;
     s_position.target_deg = 0.0f;
-    s_vel_integrator_v = 0.0f;
+    Motor_PositionControl_Reset(&s_control);
 }
 
 /**
@@ -181,49 +187,31 @@ bool Motor_Position_SetMaxRpm(float max_rpm)
  */
 void Motor_Position_Run(float dt)
 {
-    float measured_rpm = 0.0f;
-    float error_deg;
-    float vel_des;
-    float vel_err;
-    float proportional;
-    float integral_candidate;
-    float unsaturated;
-    bool winding_up;
+    motor_position_control_config_t config;
+    motor_position_control_input_t input;
+    motor_position_control_output_t output;
 
     s_position.position_deg = Motor_Position_ReadDeg();
-    if (!s_position.enabled || !motor.ol_enable || Motor_Encoder_IsSignalFault()) {
+    Motor_Position_FillControlConfig(&config);
+    memset(&input, 0, sizeof(input));
+    input.enabled = s_position.enabled;
+    input.motor_running = motor.ol_enable;
+    input.feedback_valid = !Motor_Encoder_IsSignalFault();
+    input.speed_valid = Motor_Encoder_IsSpeedValid();
+    input.target_deg = s_position.target_deg;
+    input.position_deg = s_position.position_deg;
+    input.measured_rpm = input.speed_valid ? Motor_Encoder_GetMechRpm() : 0.0f;
+    input.dt = dt;
+    if (!Motor_PositionControl_Step(&s_control, &config, &input, &output)) {
         Motor_Position_ClearHold();
-        if (s_position.enabled) {
-            motor.ol_target_rpm = 0.0f;
-        }
         return;
     }
-    if (!(dt > 0.0f) || dt > 0.05f) {
-        dt = 0.0f;
-    }
-
-    error_deg = s_position.target_deg - s_position.position_deg;
-    vel_des = Motor_Position_Clamp(s_position.kp_rpm_per_deg * error_deg, s_position.max_rpm);
-    if (Motor_Encoder_IsSpeedValid()) {
-        measured_rpm = Motor_Encoder_GetMechRpm();
-    }
-    vel_err = vel_des - measured_rpm;
-    proportional = MOTOR_POSITION_VEL_KP_V_PER_RPM * vel_err;
-    integral_candidate = s_vel_integrator_v;
-    if (dt > 0.0f) {
-        integral_candidate += MOTOR_POSITION_VEL_KI_V_PER_RPM_S * vel_err * dt;
-    }
-    integral_candidate = Motor_Position_Clamp(integral_candidate, MOTOR_POSITION_VEL_V_LIMIT_V);
-    unsaturated = proportional + integral_candidate;
-    winding_up = (unsaturated > MOTOR_POSITION_VEL_V_LIMIT_V && vel_err > 0.0f) ||
-                 (unsaturated < -MOTOR_POSITION_VEL_V_LIMIT_V && vel_err < 0.0f);
-    if (!winding_up) {
-        s_vel_integrator_v = integral_candidate;
-    }
-    motor.position_hold = true;
-    motor.position_voltage_hold = true;
-    motor.position_hold_v = Motor_Position_Clamp(proportional + s_vel_integrator_v, MOTOR_POSITION_VEL_V_LIMIT_V);
-    motor.ol_target_rpm = 0.0f;
+    s_position.error_deg = output.error_deg;
+    s_position.target_rpm = output.target_rpm;
+    motor.position_hold = output.hold_active;
+    motor.position_voltage_hold = output.hold_active;
+    motor.position_hold_v = output.output_v;
+    if (s_position.enabled) motor.ol_target_rpm = 0.0f;
 }
 
 /**
@@ -245,7 +233,8 @@ void Motor_Position_GetState(motor_position_state_t *state)
     state->error_deg = state->target_deg - state->position_deg;
     state->target_rpm = Motor_Encoder_IsSignalFault()
                             ? 0.0f
-                            : Motor_Position_Clamp(state->kp_rpm_per_deg * state->error_deg, state->max_rpm);
+                            : fmaxf(-state->max_rpm,
+                                    fminf(state->kp_rpm_per_deg * state->error_deg, state->max_rpm));
 }
 
 /**
