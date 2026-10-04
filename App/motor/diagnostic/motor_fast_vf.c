@@ -2,15 +2,20 @@
  * @Description: 保留历史实机基线行为的简化 V/F 诊断控制
  * @Author: lkc
  */
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* Includes ------------------------------------------------------------------*/
+#include "motor_fast_vf.h"
 
 #include <math.h>
 #include <stddef.h>
-#include "motor_fast_vf.h"
+
 #include "motor_math.h"
 #include "motor_output.h"
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 推进一次简化 V/F 诊断控制拍并提交电压。
@@ -59,7 +64,3 @@ void Motor_FastVf_Step(MOTOR_PARAM_S *motor, float control_hz)
     motor->ol_theta = motor->theta;
     Motor_OutputVoltage(motor, 0.0f, vq, motor->theta, motor->v_bus);
 }
-
-#ifdef __cplusplus
-}
-#endif

@@ -1,10 +1,4 @@
 /*
- * @Description:
- * @Version: 1.0
- * @Author: lkc
- * @detail:
- */
-/*
  * @Description: 当前电机型号选择入口
  * @Author: lkc
  */
@@ -17,6 +11,7 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_MODEL_ATK_BL57H95D20E (1U)
 #define MOTOR_MODEL_C2208_100T      (2U)
+#define MOTOR_MODEL_2804_220KV      (3U)
 
 /*
  * 在工程设置中定义 MOTOR_SELECTED_MODEL 可覆盖默认选择；也可在此处修改默认型号。
@@ -30,6 +25,8 @@ extern "C" {
 #include "motor_atk_bl57h95d20e.h"
 #elif MOTOR_SELECTED_MODEL == MOTOR_MODEL_C2208_100T
 #include "motor_c2208_100t.h"
+#elif MOTOR_SELECTED_MODEL == MOTOR_MODEL_2804_220KV
+#include "motor_2804_220kv.h"
 #else
 #error "Unsupported MOTOR_SELECTED_MODEL"
 #endif
@@ -76,6 +73,24 @@ extern "C" {
 #endif
 #ifndef MOTOR_SPEED_IQ_LIMIT_DEFAULT
 #define MOTOR_SPEED_IQ_LIMIT_DEFAULT (2.0f)
+#endif
+#ifndef MOTOR_OPEN_LOOP_IQ_DEFAULT
+#define MOTOR_OPEN_LOOP_IQ_DEFAULT (0.6f)
+#endif
+#ifndef MOTOR_ALIGN_CURRENT_DEFAULT
+#define MOTOR_ALIGN_CURRENT_DEFAULT (0.5f)
+#endif
+#ifndef MOTOR_OPEN_LOOP_VBOOST_DEFAULT
+#define MOTOR_OPEN_LOOP_VBOOST_DEFAULT (5.0f)
+#endif
+#ifndef MOTOR_OPEN_LOOP_VQ_LIMIT_DEFAULT
+#define MOTOR_OPEN_LOOP_VQ_LIMIT_DEFAULT (18.0f)
+#endif
+#ifndef MOTOR_CURRENT_KP_DEFAULT
+#define MOTOR_CURRENT_KP_DEFAULT (0.12f)
+#endif
+#ifndef MOTOR_CURRENT_KI_DEFAULT
+#define MOTOR_CURRENT_KI_DEFAULT (18.0f)
 #endif
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/

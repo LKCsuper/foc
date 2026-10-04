@@ -1880,8 +1880,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\motor\motor_output.c</PathWithFileName>
-      <FilenameWithoutPath>motor_output.c</FilenameWithoutPath>
+      <PathWithFileName>..\motor\motor_foc_isr.c</PathWithFileName>
+      <FilenameWithoutPath>motor_foc_isr.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1892,8 +1892,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\motor\motor_fast_vf.c</PathWithFileName>
-      <FilenameWithoutPath>motor_fast_vf.c</FilenameWithoutPath>
+      <PathWithFileName>..\motor\motor_output.c</PathWithFileName>
+      <FilenameWithoutPath>motor_output.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -2036,42 +2036,6 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\motor\motor_joint.c</PathWithFileName>
-      <FilenameWithoutPath>motor_joint.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>17</GroupNumber>
-      <FileNumber>128</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\motor\motor_joint_control.c</PathWithFileName>
-      <FilenameWithoutPath>motor_joint_control.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>17</GroupNumber>
-      <FileNumber>129</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\motor\motor_joint_protocol.c</PathWithFileName>
-      <FilenameWithoutPath>motor_joint_protocol.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>17</GroupNumber>
-      <FileNumber>130</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
       <PathWithFileName>..\motor\motor_foc_divider.c</PathWithFileName>
       <FilenameWithoutPath>motor_foc_divider.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
@@ -2079,7 +2043,7 @@
     </File>
     <File>
       <GroupNumber>17</GroupNumber>
-      <FileNumber>131</FileNumber>
+      <FileNumber>128</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2091,7 +2055,7 @@
     </File>
     <File>
       <GroupNumber>17</GroupNumber>
-      <FileNumber>132</FileNumber>
+      <FileNumber>129</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2103,7 +2067,7 @@
     </File>
     <File>
       <GroupNumber>17</GroupNumber>
-      <FileNumber>133</FileNumber>
+      <FileNumber>130</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2115,7 +2079,7 @@
     </File>
     <File>
       <GroupNumber>17</GroupNumber>
-      <FileNumber>134</FileNumber>
+      <FileNumber>131</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2127,7 +2091,7 @@
     </File>
     <File>
       <GroupNumber>17</GroupNumber>
-      <FileNumber>135</FileNumber>
+      <FileNumber>132</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2139,7 +2103,7 @@
     </File>
     <File>
       <GroupNumber>17</GroupNumber>
-      <FileNumber>136</FileNumber>
+      <FileNumber>133</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2151,7 +2115,7 @@
     </File>
     <File>
       <GroupNumber>17</GroupNumber>
-      <FileNumber>137</FileNumber>
+      <FileNumber>134</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2163,7 +2127,7 @@
     </File>
     <File>
       <GroupNumber>17</GroupNumber>
-      <FileNumber>138</FileNumber>
+      <FileNumber>135</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2176,14 +2140,110 @@
   </Group>
 
   <Group>
-    <GroupName>Motor\Start</GroupName>
+    <GroupName>Motor\Diagnostic</GroupName>
     <tvExp>0</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
     <File>
       <GroupNumber>18</GroupNumber>
+      <FileNumber>136</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\motor\diagnostic\motor_fast_vf.c</PathWithFileName>
+      <FilenameWithoutPath>motor_fast_vf.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>18</GroupNumber>
+      <FileNumber>137</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\motor\diagnostic\motor_fast_vf_isr.c</PathWithFileName>
+      <FilenameWithoutPath>motor_fast_vf_isr.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+  </Group>
+
+  <Group>
+    <GroupName>Motor\Calibration</GroupName>
+    <tvExp>0</tvExp>
+    <tvExpOptDlg>0</tvExpOptDlg>
+    <cbSel>0</cbSel>
+    <RteFlg>0</RteFlg>
+    <File>
+      <GroupNumber>19</GroupNumber>
+      <FileNumber>138</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\motor\calibration\motor_detect_isr.c</PathWithFileName>
+      <FilenameWithoutPath>motor_detect_isr.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+  </Group>
+
+  <Group>
+    <GroupName>Motor\Joint</GroupName>
+    <tvExp>0</tvExp>
+    <tvExpOptDlg>0</tvExpOptDlg>
+    <cbSel>0</cbSel>
+    <RteFlg>0</RteFlg>
+    <File>
+      <GroupNumber>20</GroupNumber>
       <FileNumber>139</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\motor\joint\motor_joint.c</PathWithFileName>
+      <FilenameWithoutPath>motor_joint.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>20</GroupNumber>
+      <FileNumber>140</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\motor\joint\motor_joint_control.c</PathWithFileName>
+      <FilenameWithoutPath>motor_joint_control.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>20</GroupNumber>
+      <FileNumber>141</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\motor\joint\motor_joint_protocol.c</PathWithFileName>
+      <FilenameWithoutPath>motor_joint_protocol.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+  </Group>
+
+  <Group>
+    <GroupName>Motor\Start</GroupName>
+    <tvExp>0</tvExp>
+    <tvExpOptDlg>0</tvExpOptDlg>
+    <cbSel>0</cbSel>
+    <RteFlg>0</RteFlg>
+    <File>
+      <GroupNumber>21</GroupNumber>
+      <FileNumber>142</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2194,8 +2254,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>18</GroupNumber>
-      <FileNumber>140</FileNumber>
+      <GroupNumber>21</GroupNumber>
+      <FileNumber>143</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2206,8 +2266,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>18</GroupNumber>
-      <FileNumber>141</FileNumber>
+      <GroupNumber>21</GroupNumber>
+      <FileNumber>144</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2226,8 +2286,8 @@
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
     <File>
-      <GroupNumber>19</GroupNumber>
-      <FileNumber>142</FileNumber>
+      <GroupNumber>22</GroupNumber>
+      <FileNumber>145</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2238,8 +2298,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>19</GroupNumber>
-      <FileNumber>143</FileNumber>
+      <GroupNumber>22</GroupNumber>
+      <FileNumber>146</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2250,8 +2310,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>19</GroupNumber>
-      <FileNumber>144</FileNumber>
+      <GroupNumber>22</GroupNumber>
+      <FileNumber>147</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2262,8 +2322,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>19</GroupNumber>
-      <FileNumber>145</FileNumber>
+      <GroupNumber>22</GroupNumber>
+      <FileNumber>148</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2274,8 +2334,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>19</GroupNumber>
-      <FileNumber>146</FileNumber>
+      <GroupNumber>22</GroupNumber>
+      <FileNumber>149</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2286,8 +2346,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>19</GroupNumber>
-      <FileNumber>147</FileNumber>
+      <GroupNumber>22</GroupNumber>
+      <FileNumber>150</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2306,8 +2366,20 @@
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
     <File>
-      <GroupNumber>20</GroupNumber>
-      <FileNumber>148</FileNumber>
+      <GroupNumber>23</GroupNumber>
+      <FileNumber>151</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\motor\bldc\motor_bldc.c</PathWithFileName>
+      <FilenameWithoutPath>motor_bldc.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>23</GroupNumber>
+      <FileNumber>152</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2318,8 +2390,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>20</GroupNumber>
-      <FileNumber>149</FileNumber>
+      <GroupNumber>23</GroupNumber>
+      <FileNumber>153</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2330,8 +2402,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>20</GroupNumber>
-      <FileNumber>150</FileNumber>
+      <GroupNumber>23</GroupNumber>
+      <FileNumber>154</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2342,8 +2414,32 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>20</GroupNumber>
-      <FileNumber>151</FileNumber>
+      <GroupNumber>23</GroupNumber>
+      <FileNumber>155</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\motor\bldc\motor_bldc_defaults.c</PathWithFileName>
+      <FilenameWithoutPath>motor_bldc_defaults.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>23</GroupNumber>
+      <FileNumber>156</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\motor\bldc\motor_bldc_status.c</PathWithFileName>
+      <FilenameWithoutPath>motor_bldc_status.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>23</GroupNumber>
+      <FileNumber>157</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2362,8 +2458,8 @@
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
     <File>
-      <GroupNumber>21</GroupNumber>
-      <FileNumber>152</FileNumber>
+      <GroupNumber>24</GroupNumber>
+      <FileNumber>158</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2374,8 +2470,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>21</GroupNumber>
-      <FileNumber>153</FileNumber>
+      <GroupNumber>24</GroupNumber>
+      <FileNumber>159</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2386,8 +2482,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>21</GroupNumber>
-      <FileNumber>154</FileNumber>
+      <GroupNumber>24</GroupNumber>
+      <FileNumber>160</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2406,8 +2502,8 @@
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
     <File>
-      <GroupNumber>22</GroupNumber>
-      <FileNumber>155</FileNumber>
+      <GroupNumber>25</GroupNumber>
+      <FileNumber>161</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2418,8 +2514,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>22</GroupNumber>
-      <FileNumber>156</FileNumber>
+      <GroupNumber>25</GroupNumber>
+      <FileNumber>162</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2430,8 +2526,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>22</GroupNumber>
-      <FileNumber>157</FileNumber>
+      <GroupNumber>25</GroupNumber>
+      <FileNumber>163</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2450,8 +2546,8 @@
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
     <File>
-      <GroupNumber>23</GroupNumber>
-      <FileNumber>158</FileNumber>
+      <GroupNumber>26</GroupNumber>
+      <FileNumber>164</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2462,8 +2558,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>23</GroupNumber>
-      <FileNumber>159</FileNumber>
+      <GroupNumber>26</GroupNumber>
+      <FileNumber>165</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2474,8 +2570,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>23</GroupNumber>
-      <FileNumber>160</FileNumber>
+      <GroupNumber>26</GroupNumber>
+      <FileNumber>166</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2486,8 +2582,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>23</GroupNumber>
-      <FileNumber>161</FileNumber>
+      <GroupNumber>26</GroupNumber>
+      <FileNumber>167</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2498,8 +2594,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>23</GroupNumber>
-      <FileNumber>162</FileNumber>
+      <GroupNumber>26</GroupNumber>
+      <FileNumber>168</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2510,8 +2606,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>23</GroupNumber>
-      <FileNumber>163</FileNumber>
+      <GroupNumber>26</GroupNumber>
+      <FileNumber>169</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2522,8 +2618,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>23</GroupNumber>
-      <FileNumber>164</FileNumber>
+      <GroupNumber>26</GroupNumber>
+      <FileNumber>170</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2534,8 +2630,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>23</GroupNumber>
-      <FileNumber>165</FileNumber>
+      <GroupNumber>26</GroupNumber>
+      <FileNumber>171</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2546,8 +2642,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>23</GroupNumber>
-      <FileNumber>166</FileNumber>
+      <GroupNumber>26</GroupNumber>
+      <FileNumber>172</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>

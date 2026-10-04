@@ -14,7 +14,7 @@ extern "C" {
 #include "motor_settings.h"
 #include "motor_protect.h"
 #include "motor_speed.h"
-#include "motor_it.h"
+#include "motor_bldc.h"
 #include "hal_motor.h"
 #include "motor_feedback.h"
 #include "motor_crit.h"

@@ -62,14 +62,14 @@ void MOTOR_Param_Init(void)
      * 能稳定旋转。1.5 V 实测只能令转子往返摆动，因此先恢复已验证的启动强度；
      * 仍由 ol_vq_limit 与 Vbus/sqrt(3) 统一限幅，后续上板再向下寻找最低可靠值。
      */
-    gpstMotorDefault->ol_v_boost = 5.0f;
+    gpstMotorDefault->ol_v_boost = MOTOR_OPEN_LOOP_VBOOST_DEFAULT;
     gpstMotorDefault->ol_kv_f = 0.057f;                   /* V/Hz */
     gpstMotorDefault->ol_ramp_rpm_s = 10.0f;              /* 软启动速率 — 越慢越稳 */
-    gpstMotorDefault->ol_vq_limit = 18.0f;                /* 配置上限；运行时再受 Vbus/sqrt(3) 限制 */
+    gpstMotorDefault->ol_vq_limit = MOTOR_OPEN_LOOP_VQ_LIMIT_DEFAULT; /* 运行时再受 Vbus/sqrt(3) 限制 */
     gpstMotorDefault->ol_foc_freq = 30000.0f;             /* ADC-DMA 基准频率；实际 FOC 频率还要除以分频系数 */
     gpstMotorDefault->ol_min_rpm = 72.0f;                 /* HD75 实机验证的最低稳定开环拖动转速 */
     /* 开环电流模式参数 */
-    gpstMotorDefault->ol_iq_set = 0.6f;                   /* 首次 I/F 起步目标 Iq 电流 A */
+    gpstMotorDefault->ol_iq_set = MOTOR_OPEN_LOOP_IQ_DEFAULT;
     gpstMotorDefault->ol_id_set = 0.0f;                   /* 目标 Id 电流 A */
     /*
      * 线性 SVPWM 下 Vlim≈Vbus/√3。本电机 3000 RPM 时 ωeλ≈16.2 V，Id=0 会顶满电压。
@@ -84,14 +84,14 @@ void MOTOR_Param_Init(void)
      * Kp/Ki 按 Hall CCR 1.70 时的电流带宽折算（0.2×1.70/3、30×1.70/3），
      * 150 RPM 上 olkp 0.2 会过冲到约 210 RPM。
      */
-    gpstMotorDefault->ol_current_kp = 0.12f;
-    gpstMotorDefault->ol_current_ki = 18.0f;
+    gpstMotorDefault->ol_current_kp = MOTOR_CURRENT_KP_DEFAULT;
+    gpstMotorDefault->ol_current_ki = MOTOR_CURRENT_KI_DEFAULT;
     gpstMotorDefault->ol_start_phase_boost = M_PI / 2.0f; /* 仅 ol_align_enable=false 时兼容旧启动方式 */
     /*
      * 默认关对齐/HFI：开环先拖转；切 I/F 后再按需 olalign / hfistart。
      */
     gpstMotorDefault->ol_align_enable = false;
-    gpstMotorDefault->ol_align_current = 0.5f;
+    gpstMotorDefault->ol_align_current = MOTOR_ALIGN_CURRENT_DEFAULT;
     gpstMotorDefault->ol_align_time = 0.3f;
     gpstMotorDefault->ol_align_angle = 0.0f;
     gpstMotorDefault->hfi_start_enable = false;

@@ -17,6 +17,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Host compilation failed' }
     & .build/host/test_motor_settings.exe
     if ($LASTEXITCODE -ne 0) { throw 'Host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc Tests/host/test_motor_2804_profile.c -o .build/host/test_motor_2804_profile.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor 2804 profile host compilation failed' }
+    & .build/host/test_motor_2804_profile.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor 2804 profile host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -Wno-unused-variable -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Common/inc App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_settings.c -o .build/host/test_motor_settings_2804.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor 2804 settings compilation failed' }
+    & .build/host/test_motor_settings_2804.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor 2804 settings tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -Wno-int-to-void-pointer-cast -ITests/host/stubs -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_anticogging.c App/motor_param/motor_settings.c App/motor_param/flash_storage.c Tests/host/stubs/hal_flash_host.c Tests/host/test_flash_storage.c -o .build/host/test_flash_storage.exe
     if ($LASTEXITCODE -ne 0) { throw 'Flash host compilation failed' }
     & .build/host/test_flash_storage.exe
@@ -37,10 +45,26 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor output host compilation failed' }
     & .build/host/test_motor_output.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor output host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/diagnostic/motor_fast_vf.c Tests/host/test_motor_fast_vf.c -o .build/host/test_motor_fast_vf.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor fast VF host compilation failed' }
+    & .build/host/test_motor_fast_vf.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor fast VF host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/diagnostic/motor_fast_vf_isr.c Tests/host/test_motor_fast_vf_isr.c -o .build/host/test_motor_fast_vf_isr.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor fast VF ISR host compilation failed' }
+    & .build/host/test_motor_fast_vf_isr.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor fast VF ISR host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/bldc/motor_bldc_isr.c Tests/host/test_motor_bldc_isr.c -o .build/host/test_motor_bldc_isr.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC ISR host compilation failed' }
     & .build/host/test_motor_bldc_isr.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC ISR host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/bldc/motor_bldc_defaults.c Tests/host/test_motor_bldc_defaults.c -o .build/host/test_motor_bldc_defaults.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC defaults host compilation failed' }
+    & .build/host/test_motor_bldc_defaults.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC defaults host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/bldc/motor_bldc_status.c Tests/host/test_motor_bldc_status.c -o .build/host/test_motor_bldc_status.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC status host compilation failed' }
+    & .build/host/test_motor_bldc_status.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC status host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor_sensor/motor_sensor_update.c Tests/host/test_motor_sensor_update.c -o .build/host/test_motor_sensor_update.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor sensor update host compilation failed' }
     & .build/host/test_motor_sensor_update.exe
@@ -49,15 +73,15 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor position host compilation failed' }
     & .build/host/test_motor_position.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor position host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_joint_control.c Tests/host/test_motor_joint_control.c -o .build/host/test_motor_joint_control.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/joint/motor_joint_control.c Tests/host/test_motor_joint_control.c -o .build/host/test_motor_joint_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint control host compilation failed' }
     & .build/host/test_motor_joint_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint control host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_joint_protocol.c Tests/host/test_motor_joint_protocol.c -o .build/host/test_motor_joint_protocol.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/joint/motor_joint_protocol.c Tests/host/test_motor_joint_protocol.c -o .build/host/test_motor_joint_protocol.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint protocol host compilation failed' }
     & .build/host/test_motor_joint_protocol.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint protocol host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_joint_control.c App/motor/motor_joint.c Tests/host/test_motor_joint.c -o .build/host/test_motor_joint.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/joint/motor_joint_control.c App/motor/joint/motor_joint.c Tests/host/test_motor_joint.c -o .build/host/test_motor_joint.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint host compilation failed' }
     & .build/host/test_motor_joint.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint host tests failed' }
@@ -117,6 +141,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor detect offset host compilation failed' }
     & .build/host/test_motor_detect_offset.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor detect offset host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/calibration/motor_detect_isr.c Tests/host/test_motor_detect_isr.c -o .build/host/test_motor_detect_isr.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor detect ISR host compilation failed' }
+    & .build/host/test_motor_detect_isr.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor detect ISR host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor_sensor/motor_feedback.c Tests/host/test_motor_feedback.c -o .build/host/test_motor_feedback.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor feedback host compilation failed' }
     & .build/host/test_motor_feedback.exe

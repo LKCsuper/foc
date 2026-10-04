@@ -10,7 +10,7 @@ extern "C" {
 #include "motor.h"
 #include "motor_feedback.h"
 #include "motor_speed.h"
-#include "motor_it.h"
+#include "motor_foc_isr.h"
 #include "motor_crit.h"
 #include "seqlock.h"
 /* Private define ------------------------------------------------------------*/

@@ -9,7 +9,7 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 #include "includes.h"
-#include "motor_it.h"
+#include "motor_bldc.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/

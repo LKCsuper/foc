@@ -2,7 +2,6 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include "motor_it.h"
 #include "motor_timing.h"
 
 MOTOR_PARAM_S motor;
@@ -53,6 +52,18 @@ int main(void)
     Motor_Timing_RecordRuntime(1000U);
     assert(Near(Motor_DmaInt_GetAverageRuntimeUs(), 26.0f, 0.01f));
     assert(Near(Motor_DmaInt_GetMaximumRuntimeUs(), 75.0f, 0.01f));
+
+    {
+        uint32_t up = 0U;
+        uint32_t down = 0U;
+
+        Motor_Timing_RecordSampleDirection(true);
+        Motor_Timing_RecordSampleDirection(false);
+        Motor_Timing_RecordSampleDirection(false);
+        Motor_DmaInt_GetSampleDirectionCounts(&up, &down);
+        assert(up == 1U && down == 2U);
+        Motor_DmaInt_GetSampleDirectionCounts(NULL, NULL);
+    }
 
     puts("test_motor_timing: pass");
     return 0;

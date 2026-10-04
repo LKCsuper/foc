@@ -272,7 +272,7 @@ Motor_DmaInt(NULL, NULL)           ← [App/Motor/motor_it.c:80]
     │     if (++skip == FOC_CONTROL_LOOP_FREQ_DIVIDER) skip = 0;
     │     else return;  // 跳过一次 ADC 完成中断，FOC 运行频率 = PWM频率 / DIVIDER
     │
-    │  2. Motor_It_ParamCal() → 从 ADC_Value[] 读取三相电流、母线电压
+    │  2. Motor_Sense_Update() → 从 ADC_Value[] 读取三相电流、母线电压
     │
     │  3. Clarke 变换：ia, ib, ic → Iα, Iβ
     │

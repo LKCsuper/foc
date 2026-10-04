@@ -78,15 +78,18 @@
 | `App/motor/motor_current.c`（待抽取）                      | d/q 电流反馈、PI、矢量限幅和抗饱和                               |
 | `App/motor/motor_feedback.c`（待抽取）                     | 选择开环/编码器/霍尔/无感角度，发布反馈有效性                    |
 | `App/motor/motor_output.c`                                 | SAFE/DQ 结果转三相 PWM，集中调制选择、板级相序和提交             |
-| `App/motor/motor_fast_vf.c`                                | 历史快速 V/F 实机诊断路径，不与正常控制编排混写                  |
+| `App/motor/diagnostic/motor_fast_vf.c`                     | 历史快速 V/F 实机诊断路径，不与正常控制编排混写                  |
 | `App/motor/motor_timing.c`                                 | ADC/控制周期、实际频率及 ISR 平均/最大耗时                       |
-| `App/motor/motor_it.c`                                     | 平台中断入口：模式分派、采样、保护、控制调用与结果应用            |
+| `App/motor/motor_it.c`                                     | 平台中断入口：仅分派校准、BLDC、快速 V/F 与正常 FOC 路径          |
+| `App/motor/calibration/`                                   | 校准占用期间的采样与 ISR 状态机适配                               |
+| `App/motor/joint/`                                         | 关节控制、命令协议与超时保护集成                                 |
 | `App/motor/motor_foc.c`、`motor_math.c`、`motor_pid.c` | 无平台依赖的算法                                                 |
 | `App/motor/motor_speed.c`、`motor_protect.c`、启动模块   | 独立状态和明确输入输出的控制模块                                 |
 | `App/motor/start/`                                         | 对齐、I/F、HFI 扫角起步                                          |
 | `App/motor/observer/`                                      | FOC 无感观测（sensorless / flux / luenberger / ekf / smo / hfi） |
 | `App/motor/bldc/`                                          | 六步 BLDC 与悬空相 BEMF，与 FOC 无感不是同一条路径               |
 | `App/motor/bldc/motor_bldc_isr.c`                          | BLDC ADC 采样、保护、BEMF 采样窗与换相步进                       |
+| `App/motor/bldc/motor_bldc_defaults.c`                     | BM75/HD75 已验证的 BLDC 启动与 BEMF 默认参数                     |
 | `App/motor_sensor/`                                        | 已有编码器与霍尔模块，不合并成万能传感器文件                     |
 | `App/motor_param/`                                         | 配置默认值/校验、校准状态机、持久化格式                          |
 | `Library/Hal/inc/`                                         | 平台无关的硬件接口与能力描述                                     |

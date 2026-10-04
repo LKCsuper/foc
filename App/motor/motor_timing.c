@@ -2,13 +2,22 @@
  * @Description: ADC/控制周期计算与 ADC-DMA 中断耗时统计
  * @Author: lkc
  */
-#include <stddef.h>
+/* Includes ------------------------------------------------------------------*/
 #include "motor_timing.h"
-#include "motor_it.h"
-#include "hal_motor.h"
 
+#include <stddef.h>
+
+#include "hal_motor.h"
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
 static volatile float s_runtime_average_us;
 static volatile float s_runtime_maximum_us;
+static volatile uint32_t s_sample_up_count;
+static volatile uint32_t s_sample_down_count;
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 更新本拍 ADC-DMA 中断耗时统计（平均与最大值）。
@@ -70,6 +79,36 @@ float Motor_Timing_GetAdcDt(MOTOR_PARAM_S *motor)
 float Motor_Timing_GetControlDt(MOTOR_PARAM_S *motor)
 {
     return Motor_Timing_GetAdcDt(motor) * (float)FOC_CONTROL_LOOP_FREQ_DIVIDER;
+}
+
+/**
+ * @description: 记录一次实际执行的 FOC 控制拍位于 PWM 向上或向下计数侧。
+ * @param {bool} upward true=PWM 向上计数侧
+ * @return {void} 无
+ */
+void Motor_Timing_RecordSampleDirection(bool upward)
+{
+    if (upward) {
+        s_sample_up_count++;
+    } else {
+        s_sample_down_count++;
+    }
+}
+
+/**
+ * @description: 读取 FOC 控制拍落在 PWM 向上/向下计数侧的累计次数。
+ * @param {uint32_t *} up 向上计数侧累计次数，可为 NULL
+ * @param {uint32_t *} down 向下计数侧累计次数，可为 NULL
+ * @return {void} 无
+ */
+void Motor_DmaInt_GetSampleDirectionCounts(uint32_t *up, uint32_t *down)
+{
+    if (up != NULL) {
+        *up = s_sample_up_count;
+    }
+    if (down != NULL) {
+        *down = s_sample_down_count;
+    }
 }
 
 /**

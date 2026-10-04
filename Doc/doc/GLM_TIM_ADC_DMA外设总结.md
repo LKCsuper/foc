@@ -288,7 +288,7 @@ Motor_DmaInt(NULL, NULL)           [motor_it.c:80]
     ├─ 分频判断 (FOC_CONTROL_LOOP_FREQ_DIVIDER)
     │     skip++ == DIVIDER ? 继续 : return
     │
-    ├─ Motor_It_ParamCal()          [motor_it.c:36]
+    ├─ Motor_Sense_Update()          [motor_it.c:36]
     │     ├─ GET_CURRENT1/2/3()     → 读取 ADC_Value[3/4/5]
     │     ├─ ADC_VOLTS(SENS1/2/3)   → 读取相电压
     │     ├─ 电流零偏: ADC - 2045   → × FAC_CURRENT → 安培
@@ -539,7 +539,7 @@ PRINTF("DMA ints: %lu\r\n", dma_int_count);
 | ADC 配置 | [bsp_adc.c](../../Library/Bsp/bsp_adc.c) | `Bsp_Adc_Sample()`, `Bsp_Adc123_Common()`, `Bsp_Adc123_Init()`, `Bsp_Adc_SetChannels()` |
 | DMA 配置 | [bsp_dma.c](../../Library/Bsp/bsp_dma.c) | `Bsp_Dma2_Init()`, `Bsp_Dma2_NVIC()`, `Bsp_Dma_AdcSample()` |
 | 中断处理 | [bsp_it.c](../../Library/Bsp/bsp_it.c) | `Bsp_Dma2Stream4_Handler()`, `Bsp_Usart_Handler()` |
-| FOC 中断 | [motor_it.c](../../App/Motor/motor_it.c) | `Motor_DmaInt()`, `Motor_It_ParamCal()` |
+| FOC 中断 | [motor_it.c](../../App/Motor/motor_it.c) | `Motor_DmaInt()`, `Motor_Sense_Update()` |
 | 硬件定义 | [hw_hd75.h](../../App/Motor/inc/hw_hd75.h) | `ADC_IND_*`, `HW_ADC_CHANNELS`, `GET_CURRENT*()` |
 | BLDC TIM | [bsp_bldc_tim.c](../../Library/Bsp/bsp_bldc_tim.c) | `Bsp_Tim1_Bldc_Init()`, `Bsp_Tim8_Bldc_Init()` |
 | BLDC ADC | [bsp_bldc_adc.c](../../Library/Bsp/bsp_bldc_adc.c) | `Bsp_Adc_Bldc_Init()`, `Bsp_Adc_Bldc_SetChannels()` |

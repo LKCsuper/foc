@@ -19,6 +19,8 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
 #include "motor_control.h"
+#include "motor_foc_isr.h"
+#include "motor_timing.h"
 #include <math.h>
 #include <stdarg.h>
 /* Private typedef -----------------------------------------------------------*/

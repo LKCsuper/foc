@@ -39,6 +39,9 @@ extern "C" {
 #include "motor_sense.h"
 #include "motor_task.h"
 #include "motor_it.h"
+#include "motor_foc_isr.h"
+#include "motor_timing.h"
+#include "motor_bldc.h"
 #include "motor_pid.h"
 #include "motor_fw.h"
 

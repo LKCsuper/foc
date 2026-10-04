@@ -1029,14 +1029,14 @@
               <FilePath>..\motor\motor_it.c</FilePath>
             </File>
             <File>
+              <FileName>motor_foc_isr.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_foc_isr.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_output.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_output.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_fast_vf.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_fast_vf.c</FilePath>
             </File>
             <File>
               <FileName>motor_timing.c</FileName>
@@ -1094,21 +1094,6 @@
               <FilePath>..\motor\motor_position_control.c</FilePath>
             </File>
             <File>
-              <FileName>motor_joint.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_joint.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_joint_control.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_joint_control.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_joint_protocol.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_joint_protocol.c</FilePath>
-            </File>
-            <File>
               <FileName>motor_foc_divider.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_foc_divider.c</FilePath>
@@ -1152,6 +1137,51 @@
               <FileName>ringbuf.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\ThirtyLibrary\common_code\lib\ringbuf\ringbuf.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor\Diagnostic</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_fast_vf.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\diagnostic\motor_fast_vf.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_fast_vf_isr.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\diagnostic\motor_fast_vf_isr.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor\Calibration</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_detect_isr.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\calibration\motor_detect_isr.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor\Joint</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_joint.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\joint\motor_joint.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_joint_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\joint\motor_joint_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_joint_protocol.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\joint\motor_joint_protocol.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1214,6 +1244,11 @@
           <GroupName>Motor\Bldc</GroupName>
           <Files>
             <File>
+              <FileName>motor_bldc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\bldc\motor_bldc.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_bldc_six_step.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\bldc\motor_bldc_six_step.c</FilePath>
@@ -1227,6 +1262,16 @@
               <FileName>motor_bldc_isr.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\bldc\motor_bldc_isr.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_bldc_defaults.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\bldc\motor_bldc_defaults.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_bldc_status.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\bldc\motor_bldc_status.c</FilePath>
             </File>
             <File>
               <FileName>motor_bldc_six_step_hal.c</FileName>
