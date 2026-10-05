@@ -58,6 +58,7 @@ static float s_joint_torque_current_limit_a;
 static float s_joint_torque_to_iq;
 static motor_trajectory_t s_joint_trajectory;
 static bool s_joint_trajectory_enabled;
+static float s_joint_trajectory_rpm;
 /* Private function prototypes -----------------------------------------------*/
 static float Motor_Joint_ReadDeg(void);
 static void Motor_Joint_ClearHold(void);
@@ -207,6 +208,7 @@ void Motor_Joint_Init(void)
     (void)Motor_Joint_ApplyControlCommand();
     (void)Motor_Trajectory_Init(&s_joint_trajectory, 0.0f, 0.0f);
     s_joint_trajectory_enabled = false;
+    s_joint_trajectory_rpm = 0.0f;
     Motor_Joint_ClearHold();
 }
 
@@ -653,6 +655,40 @@ bool Motor_Joint_SetVoltageLimit(float limit_v)
 }
 
 /**
+ * @description: 临时改关节轨迹最高转速，加减速按同样比例缩放。
+ * @detail: rpm 小于等于 0 或非有限时恢复头文件默认。不写 Flash。
+ * @param {float} rpm  最高转速 (RPM)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Joint_SetTrajectoryRpm(float rpm)
+{
+    uint32_t primask;
+
+    if (!isfinite(rpm) || rpm <= 0.0f) {
+        rpm = 0.0f;
+    }
+    primask = Motor_Crit_Enter();
+    s_joint_trajectory_rpm = rpm;
+    Motor_Crit_Exit(primask);
+}
+
+/**
+ * @description: 读取当前关节轨迹最高转速。
+ * @return {float} 最高转速 (RPM)。未临时改过时返回头文件默认
+ * @author: lkc
+ */
+float Motor_Joint_GetTrajectoryRpm(void)
+{
+    float rpm = s_joint_trajectory_rpm;
+
+    if (rpm > 0.0f) {
+        return rpm;
+    }
+    return MOTOR_JOINT_TRAJECTORY_VEL_DEG_S / 6.0f;
+}
+
+/**
  * @description: 推进一拍位置/速度外环，把受限Iq目标交给电流内环。
  * @param {float} dt  调用周期 (s)。慢积分用它累加，大于 0.05 s 时本拍不积分
  * @return {void} 无
@@ -725,14 +761,25 @@ void Motor_Joint_Run(float dt)
     }
     if ((MOTOR_JOINT_TRAJECTORY_ENABLE != 0U) &&
         s_joint.backend == MOTOR_JOINT_BACKEND_POSITION_CURRENT && s_joint_trajectory_enabled) {
-        motor_trajectory_config_t trajectory_config = {
-            MOTOR_JOINT_TRAJECTORY_VEL_DEG_S,
-            MOTOR_JOINT_TRAJECTORY_ACCEL_DEG_S2,
-            MOTOR_JOINT_TRAJECTORY_DECEL_DEG_S2,
-            0.02f,
-            0.05f,
-            MOTOR_JOINT_DT_MAX_S,
-        };
+        float trajectory_vel = MOTOR_JOINT_TRAJECTORY_VEL_DEG_S;
+        float trajectory_accel = MOTOR_JOINT_TRAJECTORY_ACCEL_DEG_S2;
+        float trajectory_decel = MOTOR_JOINT_TRAJECTORY_DECEL_DEG_S2;
+        motor_trajectory_config_t trajectory_config;
+
+        /* 测试转速按与默认最高速度的比例缩放加减速，加速时间仍约 0.5 s。 */
+        if (s_joint_trajectory_rpm > 0.0f && trajectory_vel > 0.0f) {
+            float scale = s_joint_trajectory_rpm * 6.0f / trajectory_vel;
+
+            trajectory_vel *= scale;
+            trajectory_accel *= scale;
+            trajectory_decel *= scale;
+        }
+        trajectory_config.velocity_limit = trajectory_vel;
+        trajectory_config.acceleration_limit = trajectory_accel;
+        trajectory_config.deceleration_limit = trajectory_decel;
+        trajectory_config.position_tolerance = 0.02f;
+        trajectory_config.velocity_tolerance = 0.05f;
+        trajectory_config.maximum_dt_s = MOTOR_JOINT_DT_MAX_S;
 
         if (!Motor_Trajectory_Step(&s_joint_trajectory, &trajectory_config, dt)) {
             Motor_Joint_ClearHold();

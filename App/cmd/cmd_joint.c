@@ -23,7 +23,6 @@ extern "C" {
 #define JOINT_IQ_TEST_REFRESH_MS         20U
 #define JOINT_IQ_TEST_MAX_A            (0.20f)
 #define JOINT_HYBRID_TEST_IQ_LIMIT_A     (0.25f)
-#define JOINT_HYBRID_TEST_TIMEOUT_MS    10000U
 #define JOINT_HYBRID_TEST_DWELL_MS       1000U
 #define JOINT_HYBRID_TEST_TOL_DEG        (0.75f)
 #define JOINT_HYBRID_POLL_SETTLED        0
@@ -33,7 +32,8 @@ extern "C" {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 static const float s_joint_test_deg[] = {0.0f, 30.0f, 90.0f, 180.0f, 90.0f, 0.0f, -90.0f, 0.0f};
-static const float s_joint_hybrid_delta_deg[] = {9.0f, 30.0f, 90.0f, -30.0f, 0.0f};
+/* 相对起点。+9/+30 是小角，+90/+180/+360 是大角。 */
+static const float s_joint_hybrid_delta_deg[] = {9.0f, 30.0f, 90.0f, 180.0f, 360.0f, 0.0f, -180.0f, 0.0f};
 static CMD_QUEUE_ITEM s_joint_key;
 /* Private function prototypes -----------------------------------------------*/
 static void Cmd_JointPrint(void);
@@ -48,11 +48,11 @@ static void joint_slow_run(float speed_deg_s);
 static void joint_iq_test_run(float current_a, uint32_t duration_ms);
 static void joint_hybrid_note_switch(const motor_joint_state_t *state, uint32_t enter0, uint32_t exit0, bool *saw_iq,
                                      bool *saw_vq);
-static int joint_hybrid_poll(float goal_deg, bool require_switch, uint32_t enter0, uint32_t exit0, bool *saw_iq,
-                             bool *saw_vq);
+static int joint_hybrid_poll(float goal_deg, bool require_switch, uint32_t timeout_ms, uint32_t enter0,
+                             uint32_t exit0, bool *saw_iq, bool *saw_vq);
 static void joint_hybrid_hold_here(void);
 static void joint_hybrid_emit_step(unsigned int index, unsigned int count, float target_deg, int rc, bool switch_ok);
-static void joint_hybrid_test_run(void);
+static void joint_hybrid_test_run(float rpm);
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -409,9 +409,36 @@ static void joint_hybrid_note_switch(const motor_joint_state_t *state, uint32_t 
 }
 
 /**
+ * @description: 按这段路程和转速估算等待上限。
+ * @detail: 时间 = 路程 / 转速 + 0.5 s 加速 + 到位停留 + 2 s 余量。单段最长 1 小时，避免极低转速占住串口。
+ * @param {float} distance_deg  本段角度 (deg)
+ * @param {float} rpm  轨迹最高转速 (RPM)
+ * @return {uint32_t} 等待上限 (ms)
+ * @author: lkc
+ */
+static uint32_t joint_hybrid_move_timeout_ms(float distance_deg, float rpm)
+{
+    float vel_deg_s = rpm * 6.0f;
+    float seconds;
+
+    if (!(vel_deg_s > 0.0f) || !isfinite(vel_deg_s) || !isfinite(distance_deg)) {
+        return JOINT_HYBRID_TEST_DWELL_MS + 2000U;
+    }
+    seconds = fabsf(distance_deg) / vel_deg_s + 0.5f + (JOINT_HYBRID_TEST_DWELL_MS / 1000.0f) + 2.0f;
+    if (!isfinite(seconds) || seconds < 1.0f) {
+        seconds = 1.0f;
+    }
+    if (seconds > 3600.0f) {
+        seconds = 3600.0f;
+    }
+    return (uint32_t)(seconds * 1000.0f);
+}
+
+/**
  * @description: 等待到达目标，去程同时等待 IQ 回到 VQ。
  * @param {float} goal_deg  目标角度 (deg)
  * @param {bool} require_switch  true=必须先看到 IQ→VQ 才算到位
+ * @param {uint32_t} timeout_ms  本段等待上限 (ms)
  * @param {uint32_t} enter0  本段开始时的进入次数
  * @param {uint32_t} exit0  本段开始时的退出次数
  * @param {bool *} saw_iq  切换观察，可累计
@@ -419,13 +446,13 @@ static void joint_hybrid_note_switch(const motor_joint_state_t *state, uint32_t 
  * @return {int} 0=到位，1=按键停止，2=超时
  * @author: lkc
  */
-static int joint_hybrid_poll(float goal_deg, bool require_switch, uint32_t enter0, uint32_t exit0, bool *saw_iq,
-                             bool *saw_vq)
+static int joint_hybrid_poll(float goal_deg, bool require_switch, uint32_t timeout_ms, uint32_t enter0, uint32_t exit0,
+                             bool *saw_iq, bool *saw_vq)
 {
     uint32_t waited_ms = 0U;
     uint32_t settled_ms = 0U;
 
-    while (waited_ms < JOINT_HYBRID_TEST_TIMEOUT_MS) {
+    while (waited_ms < timeout_ms) {
         motor_joint_state_t state;
         bool switch_ready;
 
@@ -497,24 +524,28 @@ static void joint_hybrid_emit_step(unsigned int index, unsigned int count, float
     (void)textbuf_append_str(&tb, switch_ok ? "yes" : "no");
     (void)textbuf_append_str(&tb, " pos=");
     joint_append_fixed(&tb, state.position_deg);
+    (void)textbuf_append_str(&tb, " err=");
+    joint_append_fixed(&tb, state.error_deg);
     (void)textbuf_append_str(&tb, "\r\n");
     joint_emit_buf(line, textbuf_length(&tb));
 }
 
 /**
- * @description: 从当前位置依次走到 +9、+30、+90、-30 deg 再回起点。
+ * @description: 从当前位置走小角和大角，可临时改轨迹最高转速。
  * @detail: 每段必须在误差窗内连续稳定；若运动确实进入IQ区，则必须在到位前回到VQ。
  *          轻载轨迹允许全程VQ，不能为覆盖测试而强迫BM75在低计数区使用电流环。
+ *          rpm 大于 0 时只在本次测试内改轨迹转速，结束恢复。
  *          临时把speed_iq_limit提高到0.25A；结束、超时或按键后都恢复并自动停机。
+ * @param {float} rpm  轨迹最高转速 (RPM)。小于等于 0 用头文件默认
  * @return {void} 无
  * @author: lkc
  */
-static void joint_hybrid_test_run(void)
+static void joint_hybrid_test_run(float rpm)
 {
     motor_settings_t settings;
     motor_config_t test_config;
     motor_joint_state_t before;
-    char line[128];
+    char line[192];
     textbuf_t tb;
     float origin_deg;
     unsigned int count = sizeof(s_joint_hybrid_delta_deg) / sizeof(s_joint_hybrid_delta_deg[0]);
@@ -522,6 +553,7 @@ static void joint_hybrid_test_run(void)
     unsigned int passed = 0U;
     bool limit_changed = false;
     bool limit_restored = true;
+    bool rpm_changed = false;
     bool stopped = false;
     bool failed = false;
     const char *result = "pass";
@@ -530,12 +562,19 @@ static void joint_hybrid_test_run(void)
         joint_emit_str("joint hybridtest: cannot capture motor config\r\n");
         return;
     }
+    if (rpm > 0.0f) {
+        Motor_Joint_SetTrajectoryRpm(rpm);
+        rpm_changed = true;
+    }
     test_config = settings.config;
     Motor_Joint_GetState(&before);
     origin_deg = before.position_deg;
     if (test_config.speed_iq_limit < JOINT_HYBRID_TEST_IQ_LIMIT_A) {
         test_config.speed_iq_limit = JOINT_HYBRID_TEST_IQ_LIMIT_A;
         if (Motor_SetConfig(&motor, &test_config) != MOTOR_OK) {
+            if (rpm_changed) {
+                Motor_Joint_SetTrajectoryRpm(0.0f);
+            }
             joint_emit_str("joint hybridtest: cannot set temporary Iq limit\r\n");
             return;
         }
@@ -543,7 +582,9 @@ static void joint_hybrid_test_run(void)
     }
 
     textbuf_init(&tb, line, sizeof(line));
-    (void)textbuf_append_str(&tb, "joint hybridtest: +9/+30/+90/-30/0 from ");
+    (void)textbuf_append_str(&tb, "joint hybridtest ");
+    joint_append_fixed(&tb, Motor_Joint_GetTrajectoryRpm());
+    (void)textbuf_append_str(&tb, " RPM: +9/+30/+90/+180/+360/0/-180/0 from ");
     joint_append_fixed(&tb, origin_deg);
     (void)textbuf_append_str(&tb, " deg, Iq limit ");
     joint_append_fixed(&tb, motor.speed_iq_limit);
@@ -567,7 +608,10 @@ static void joint_hybrid_test_run(void)
             failed = true;
             break;
         }
-        rc = joint_hybrid_poll(goal_deg, true, enter0, exit0, &saw_iq, &saw_vq);
+        rc = joint_hybrid_poll(goal_deg, true,
+                               joint_hybrid_move_timeout_ms(goal_deg - before.position_deg,
+                                                            Motor_Joint_GetTrajectoryRpm()),
+                               enter0, exit0, &saw_iq, &saw_vq);
         joint_hybrid_emit_step(index, count, goal_deg, rc, saw_vq);
         if (rc == JOINT_HYBRID_POLL_STOPPED) {
             stopped = true;
@@ -593,7 +637,10 @@ static void joint_hybrid_test_run(void)
             int rc;
 
             if (Motor_Joint_SetTarget(origin_deg, 0.0f, 0.0f)) {
-                rc = joint_hybrid_poll(origin_deg, false, enter0, exit0, &saw_iq, &saw_vq);
+                rc = joint_hybrid_poll(origin_deg, false,
+                                       joint_hybrid_move_timeout_ms(origin_deg - before.position_deg,
+                                                                    Motor_Joint_GetTrajectoryRpm()),
+                                       enter0, exit0, &saw_iq, &saw_vq);
                 if (rc == JOINT_HYBRID_POLL_STOPPED) {
                     joint_hybrid_hold_here();
                     stopped = true;
@@ -609,6 +656,9 @@ static void joint_hybrid_test_run(void)
     if (limit_changed && Motor_SetConfig(&motor, &settings.config) != MOTOR_OK) {
         limit_restored = false;
     }
+    if (rpm_changed) {
+        Motor_Joint_SetTrajectoryRpm(0.0f);
+    }
     Motor_Joint_GetState(&before);
     textbuf_init(&tb, line, sizeof(line));
     (void)textbuf_append_str(&tb, "joint hybridtest ");
@@ -619,6 +669,8 @@ static void joint_hybrid_test_run(void)
     (void)textbuf_append_u32(&tb, (uint32_t)count);
     (void)textbuf_append_str(&tb, " pos=");
     joint_append_fixed(&tb, before.position_deg);
+    (void)textbuf_append_str(&tb, " err=");
+    joint_append_fixed(&tb, before.error_deg);
     (void)textbuf_append_str(&tb, " mode=");
     (void)textbuf_append_str(&tb, before.hybrid_current_active ? "IQ" : "VQ");
     (void)textbuf_append_str(&tb, " limit=");
@@ -679,7 +731,8 @@ static int Cmd_JointArm(void)
  * @detail: 与 pos、olspeed 互斥。set 的三个数是目标角度 (deg)、目标转速 (RPM)、力矩前馈 (A)。
  *          首次使能前电机须停转。尚未上电时提示 olstart。
  *          test 在已上电后按预设角度切换；slow 按指定deg/s生成慢速位置斜坡；
- *          hybridtest 从当前位置依次到 +9、+30、+90、-30 deg 再回起点，每段确认 IQ 回到 VQ。
+ *          hybridtest [rpm] 从当前位置走 +9、+30、+90、+180、+360、0、-180 deg 再回起点。
+ *          不写 rpm 用头文件默认；写入正数只改本次轨迹最高转速。每段打印误差。
  *          iqtest 仅用于短时验证Iq电流路径，结束后自动保持当前位置。
  * @param {int} argc  参数个数
  * @param {char *[]} argv  参数表
@@ -701,13 +754,14 @@ int Cmd_Joint(int argc, char *argv[])
     bool run_hybrid_test = false;
     float slow_speed_deg_s = JOINT_SLOW_SPEED_DEFAULT_DEG_S;
     float iq_test_a = 0.0f;
+    float hybrid_rpm = 0.0f;
     uint32_t iq_test_ms = JOINT_IQ_TEST_DEFAULT_MS;
     uint32_t timeout_test_ms = 180U;
     uint32_t dwell_ms = JOINT_TEST_DWELL_DEFAULT_MS;
 
     if (argc < 2 || strcmp(argv[1], "status") == 0) {
         Cmd_JointPrint();
-        PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|slow [deg/s]|hybridtest|iqtest <A> [ms]|timeouttest <A> [ms]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
+        PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|slow [deg/s]|hybridtest [rpm]|iqtest <A> [ms]|timeouttest <A> [ms]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
         return 0;
     }
     if (strcmp(argv[1], "zero") == 0) {
@@ -824,6 +878,13 @@ int Cmd_Joint(int argc, char *argv[])
         }
         run_timeout_test = true;
     } else if (strcmp(argv[1], "hybridtest") == 0) {
+        if (argc >= 3) {
+            hybrid_rpm = (float)atof(argv[2]);
+            if (!isfinite(hybrid_rpm) || hybrid_rpm <= 0.0f) {
+                PRINTF("joint hybridtest rpm must be > 0\r\n");
+                return -1;
+            }
+        }
         if (!motor.ol_enable || !Motor_Joint_IsEnabled()) {
             PRINTF("Start joint first: joint on, then olstart\r\n");
             return -1;
@@ -854,7 +915,7 @@ int Cmd_Joint(int argc, char *argv[])
         Cmd_JointPrint();
         return 0;
     } else {
-        PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|slow [deg/s]|hybridtest|iqtest <A> [ms]|timeouttest <A> [ms]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
+        PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|slow [deg/s]|hybridtest [rpm]|iqtest <A> [ms]|timeouttest <A> [ms]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
         return -1;
     }
     if (Cmd_JointArm() != 0) {
@@ -874,7 +935,7 @@ int Cmd_Joint(int argc, char *argv[])
     } else if (run_timeout_test) {
         joint_timeout_test_run(iq_test_a, timeout_test_ms);
     } else if (run_hybrid_test) {
-        joint_hybrid_test_run();
+        joint_hybrid_test_run(hybrid_rpm);
     }
     return 0;
 }

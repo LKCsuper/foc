@@ -37,9 +37,9 @@ int main(void)
     assert(MOTOR_POSITION_HYBRID_SPEED_ENABLE == 0U);
     assert(MOTOR_POSITION_SMALL_TEST_SEQUENCE == 1U);
     assert(MOTOR_JOINT_TRAJECTORY_ENABLE == 1U);
-    assert(Near(MOTOR_JOINT_TRAJECTORY_VEL_DEG_S, 60.0f));
-    assert(Near(MOTOR_JOINT_TRAJECTORY_ACCEL_DEG_S2, 120.0f));
-    assert(Near(MOTOR_JOINT_TRAJECTORY_DECEL_DEG_S2, 180.0f));
+    assert(Near(MOTOR_JOINT_TRAJECTORY_VEL_DEG_S, 1800.0f));
+    assert(Near(MOTOR_JOINT_TRAJECTORY_ACCEL_DEG_S2, 3600.0f));
+    assert(Near(MOTOR_JOINT_TRAJECTORY_DECEL_DEG_S2, 5400.0f));
     puts("test_motor_2804_profile: pass");
     return 0;
 }

@@ -170,6 +170,22 @@ bool Motor_Joint_SetKi(float ki_v_per_deg_s);
 bool Motor_Joint_SetVoltageLimit(float limit_v);
 
 /**
+ * @description: 临时改关节轨迹最高转速，加减速按同样比例缩放。
+ * @detail: rpm 小于等于 0 时恢复头文件默认。不写 Flash。
+ * @param {float} rpm  最高转速 (RPM)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Joint_SetTrajectoryRpm(float rpm);
+
+/**
+ * @description: 读取当前关节轨迹最高转速。
+ * @return {float} 最高转速 (RPM)
+ * @author: lkc
+ */
+float Motor_Joint_GetTrajectoryRpm(void);
+
+/**
  * @description: 推进一拍关节外环，Iq目标写入 joint_hold_iq。
  * @detail: 转速命令 ol_target_rpm 保持 0，避免速度前馈叠进来。慢积分仅在目标转速接近零、
  *          实测转速不超过 1 RPM 且位置误差不超过 2 deg 时推进。

@@ -106,11 +106,18 @@ extern "C" {
 #define MOTOR_POSITION_HOLD_EXIT_DEG          (3.0f)   /* 误差大于此角度退出保持，deg */
 #define MOTOR_POSITION_HYBRID_SPEED_ENABLE    (0U)     /* 0：禁止低速切电流环，盲区里会失稳 */
 #define MOTOR_POSITION_SMALL_TEST_SEQUENCE    (1U)     /* 1：允许 0°→2°→5° 小行程测试 */
-/* 大角度先走加减速轨迹，再交给位置环，不在终点用低分辨率电流硬刹。 */
-#define MOTOR_JOINT_TRAJECTORY_ENABLE         (1U)     /* 1：关节位置命令走轨迹 */
-#define MOTOR_JOINT_TRAJECTORY_VEL_DEG_S      (60.0f)  /* 轨迹最高速度 deg/s，即 10 RPM */
-#define MOTOR_JOINT_TRAJECTORY_ACCEL_DEG_S2   (120.0f) /* 轨迹加速度 deg/s² */
-#define MOTOR_JOINT_TRAJECTORY_DECEL_DEG_S2   (180.0f) /* 轨迹减速度 deg/s²，提前制动 */
+/*
+ * 关节大角度先走梯形轨迹。只改最高转速，下面三个由它算出。
+ * 1 RPM = 6 deg/s。加速时间固定 0.5 s，减速度 = 1.5 × 加速度。
+ * 加速路程 = 速度² / (2 × 加速度)，制动路程 = 速度² / (2 × 减速度)。
+ * 每拍期望速度不超过最高速度，也不超过 sqrt(2 × 减速度 × 剩余角度)。
+ * 300 RPM → 1800 deg/s、3600 deg/s²、5400 deg/s²：加速 0.5 s / 450°，提前 300° 制动。
+ */
+#define MOTOR_JOINT_TRAJECTORY_ENABLE       (1U) /* 1：关节位置命令走轨迹 */
+#define MOTOR_JOINT_TRAJECTORY_VEL_RPM      (300.0f) /* 只改这个，RPM */
+#define MOTOR_JOINT_TRAJECTORY_VEL_DEG_S    (MOTOR_JOINT_TRAJECTORY_VEL_RPM * 6.0f)
+#define MOTOR_JOINT_TRAJECTORY_ACCEL_DEG_S2 (MOTOR_JOINT_TRAJECTORY_VEL_DEG_S / 0.5f)
+#define MOTOR_JOINT_TRAJECTORY_DECEL_DEG_S2 (MOTOR_JOINT_TRAJECTORY_ACCEL_DEG_S2 * 1.5f)
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
