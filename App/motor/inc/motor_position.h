@@ -28,6 +28,7 @@ typedef struct {
     float kp_rpm_per_deg;  /* 位置比例 (RPM/deg) */
     float max_rpm;         /* 速度目标限幅 (RPM) */
     float tolerance_deg;   /* 误差和转速都足够小才把速度命令收成 0 (deg) */
+    bool voltage_hold_mode; /* true=目标附近直接电压保持；false=速度电流环移动 */
 } motor_position_state_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -81,7 +82,7 @@ bool Motor_Position_SetKp(float kp_rpm_per_deg);
 
 /**
  * @description: 设置位置环给出的速度上限。
- * @param {float} max_rpm  限幅 (RPM)，范围 [1, 1800]
+ * @param {float} max_rpm  限幅 (RPM)，范围 [1, 当前电机允许上限]
  * @return {bool} true=已写入
  * @author: lkc
  */

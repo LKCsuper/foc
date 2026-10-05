@@ -1094,6 +1094,11 @@
               <FilePath>..\motor\motor_position_control.c</FilePath>
             </File>
             <File>
+              <FileName>motor_trajectory.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_trajectory.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_foc_divider.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_foc_divider.c</FilePath>

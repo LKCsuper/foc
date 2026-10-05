@@ -11,6 +11,7 @@ extern "C" {
 #include <string.h>
 #include "motor_joint.h"
 #include "motor_joint_control.h"
+#include "motor_trajectory.h"
 #include "motor_encoder.h"
 #include "motor_mt6701.h"
 #include "motor_param.h"
@@ -55,11 +56,14 @@ static uint32_t s_joint_timeout_us;
 static float s_joint_torque_kd_nm_per_rad_s;
 static float s_joint_torque_current_limit_a;
 static float s_joint_torque_to_iq;
+static motor_trajectory_t s_joint_trajectory;
+static bool s_joint_trajectory_enabled;
 /* Private function prototypes -----------------------------------------------*/
 static float Motor_Joint_ReadDeg(void);
 static void Motor_Joint_ClearHold(void);
 static bool Motor_Joint_ApplyControlConfig(void);
 static bool Motor_Joint_ApplyControlCommand(void);
+static bool Motor_Joint_ApplyControlSetpoint(float position_deg, float velocity_rpm);
 static float Motor_Joint_LimitOutput(float value, float limit);
 /* Private functions ---------------------------------------------------------*/
 
@@ -127,10 +131,15 @@ static bool Motor_Joint_ApplyControlConfig(void)
  */
 static bool Motor_Joint_ApplyControlCommand(void)
 {
+    return Motor_Joint_ApplyControlSetpoint(s_joint.target_deg, s_joint.target_rpm);
+}
+
+static bool Motor_Joint_ApplyControlSetpoint(float position_deg, float velocity_rpm)
+{
     motor_joint_control_command_t command;
 
-    command.position_rad = s_joint.target_deg * MOTOR_JOINT_DEG_TO_RAD;
-    command.velocity_rad_s = s_joint.target_rpm * MOTOR_JOINT_RPM_TO_RAD_S;
+    command.position_rad = position_deg * MOTOR_JOINT_DEG_TO_RAD;
+    command.velocity_rad_s = velocity_rpm * MOTOR_JOINT_RPM_TO_RAD_S;
     command.feedforward_output = s_joint.torque_ff_a;
     return Motor_JointControl_SetCommand(&s_control, &command);
 }
@@ -167,6 +176,9 @@ void Motor_Joint_Init(void)
     s_joint.target_deg = 0.0f;
     s_joint.position_deg = 0.0f;
     s_joint.target_rpm = 0.0f;
+    s_joint.planned_position_deg = 0.0f;
+    s_joint.planned_rpm = 0.0f;
+    s_joint.trajectory_active = false;
     s_joint.measured_rpm = 0.0f;
     s_joint.torque_ff_a = 0.0f;
     s_joint.kp_v_per_deg = MOTOR_JOINT_KP_DEFAULT_V_PER_DEG;
@@ -189,8 +201,12 @@ void Motor_Joint_Init(void)
     config.dt_max_s = MOTOR_JOINT_DT_MAX_S;
     (void)Motor_JointControl_Init(&s_control, &config);
     (void)Motor_Joint_ApplyControlConfig();
-    s_joint_torque_current_limit_a = s_joint.v_limit_v / MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
+    s_joint_torque_current_limit_a = (MOTOR_ENCODER_SPEED_VOLT_PER_AMP > 0.0f)
+                                         ? s_joint.v_limit_v / MOTOR_ENCODER_SPEED_VOLT_PER_AMP
+                                         : 0.0f;
     (void)Motor_Joint_ApplyControlCommand();
+    (void)Motor_Trajectory_Init(&s_joint_trajectory, 0.0f, 0.0f);
+    s_joint_trajectory_enabled = false;
     Motor_Joint_ClearHold();
 }
 
@@ -207,6 +223,9 @@ void Motor_Joint_Zero(void)
     s_joint.target_deg = 0.0f;
     s_joint.position_deg = 0.0f;
     s_joint.target_rpm = 0.0f;
+    s_joint.planned_position_deg = 0.0f;
+    s_joint.planned_rpm = 0.0f;
+    s_joint.trajectory_active = false;
     s_joint.torque_ff_a = 0.0f;
     s_joint.output_v = 0.0f;
     s_joint.bias_v = 0.0f;
@@ -217,6 +236,8 @@ void Motor_Joint_Zero(void)
     (void)Motor_Joint_ApplyControlConfig();
     (void)Motor_Joint_ApplyControlCommand();
     Motor_JointControl_Reset(&s_control);
+    (void)Motor_Trajectory_Init(&s_joint_trajectory, 0.0f, 0.0f);
+    s_joint_trajectory_enabled = false;
     s_joint_last_command_us = Hal_Motor_TimeUs();
     s_joint.command_timeout = false;
     Motor_Crit_Exit(primask);
@@ -277,7 +298,22 @@ bool Motor_Joint_SetTarget(float target_deg, float target_rpm, float torque_ff_a
     s_joint.backend = MOTOR_JOINT_BACKEND_POSITION_CURRENT;
     /* 兼容Shell目标是本地保持命令，不应继承通信/Iq测试留下的超时看门狗。 */
     s_joint.timeout_enabled = false;
-    if (!Motor_Joint_ApplyControlConfig() || !Motor_Joint_ApplyControlCommand()) {
+    if ((MOTOR_JOINT_TRAJECTORY_ENABLE != 0U) && target_rpm == 0.0f) {
+        if (!s_joint_trajectory_enabled) {
+            (void)Motor_Trajectory_Init(&s_joint_trajectory, s_joint.position_deg, s_joint.measured_rpm * 6.0f);
+        }
+        s_joint_trajectory_enabled = Motor_Trajectory_SetGoal(&s_joint_trajectory, target_deg);
+        s_joint.planned_position_deg = s_joint_trajectory.position;
+        s_joint.planned_rpm = s_joint_trajectory.velocity / 6.0f;
+        s_joint.trajectory_active = s_joint_trajectory.active;
+    } else {
+        s_joint_trajectory_enabled = false;
+        s_joint.trajectory_active = false;
+        s_joint.planned_position_deg = target_deg;
+        s_joint.planned_rpm = target_rpm;
+    }
+    if (!Motor_Joint_ApplyControlConfig() ||
+        !Motor_Joint_ApplyControlSetpoint(s_joint.planned_position_deg, s_joint.planned_rpm)) {
         s_joint.target_deg = old_target_deg;
         s_joint.target_rpm = old_target_rpm;
         s_joint.torque_ff_a = old_torque_ff_a;
@@ -337,6 +373,7 @@ bool Motor_Joint_SubmitCommand(const motor_joint_command_si_t *command)
     old_timeout_us = s_joint_timeout_us;
     s_joint.enabled = command->enable;
     s_joint.backend = MOTOR_JOINT_BACKEND_POSITION_CURRENT;
+    s_joint_trajectory_enabled = false;
     s_joint.target_deg = command->position_rad * MOTOR_JOINT_RAD_TO_DEG;
     s_joint.target_rpm = command->velocity_rad_s * MOTOR_JOINT_RAD_S_TO_RPM;
     s_joint.torque_ff_a = (MOTOR_ENCODER_SPEED_VOLT_PER_AMP > 0.0f)
@@ -346,7 +383,9 @@ bool Motor_Joint_SubmitCommand(const motor_joint_command_si_t *command)
     s_joint.kd_v_per_rpm = command->kd_v_per_rad_s * MOTOR_JOINT_RPM_TO_RAD_S;
     s_joint.ki_v_per_deg_s = command->ki_v_per_rad_s * MOTOR_JOINT_DEG_TO_RAD;
     s_joint.v_limit_v = command->output_limit_v;
-    s_joint_torque_current_limit_a = command->output_limit_v / MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
+    s_joint_torque_current_limit_a = (MOTOR_ENCODER_SPEED_VOLT_PER_AMP > 0.0f)
+                                         ? command->output_limit_v / MOTOR_ENCODER_SPEED_VOLT_PER_AMP
+                                         : 0.0f;
     s_joint.timeout_enabled = command->timeout_enable;
     s_joint_timeout_us = command->timeout_us == 0U ? MOTOR_JOINT_TIMEOUT_DEFAULT_US : command->timeout_us;
     if (!Motor_Joint_ApplyControlConfig() || !Motor_Joint_ApplyControlCommand()) {
@@ -433,6 +472,7 @@ bool Motor_Joint_SubmitTorqueCommand(const motor_joint_torque_command_t *command
     }
     s_joint.enabled = command->enable;
     s_joint.backend = MOTOR_JOINT_BACKEND_TORQUE_CURRENT;
+    s_joint_trajectory_enabled = false;
     s_joint.hybrid_current_active = true;
     s_joint.target_deg = command->position_rad * MOTOR_JOINT_RAD_TO_DEG;
     s_joint.target_rpm = command->velocity_rad_s * MOTOR_JOINT_RAD_S_TO_RPM;
@@ -497,6 +537,7 @@ bool Motor_Joint_SubmitCurrentCommand(const motor_joint_current_command_t *comma
     }
     s_joint.enabled = command->enable;
     s_joint.backend = MOTOR_JOINT_BACKEND_CURRENT_DIRECT;
+    s_joint_trajectory_enabled = false;
     s_joint.hybrid_current_active = true;
     s_joint.target_deg = s_joint.position_deg;
     s_joint.target_rpm = 0.0f;
@@ -603,7 +644,9 @@ bool Motor_Joint_SetVoltageLimit(float limit_v)
     primask = Motor_Crit_Enter();
     s_joint.backend = MOTOR_JOINT_BACKEND_POSITION_CURRENT;
     s_joint.v_limit_v = limit_v;
-    s_joint_torque_current_limit_a = limit_v / MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
+    s_joint_torque_current_limit_a = (MOTOR_ENCODER_SPEED_VOLT_PER_AMP > 0.0f)
+                                         ? limit_v / MOTOR_ENCODER_SPEED_VOLT_PER_AMP
+                                         : 0.0f;
     result = Motor_Joint_ApplyControlConfig();
     Motor_Crit_Exit(primask);
     return result;
@@ -680,6 +723,29 @@ void Motor_Joint_Run(float dt)
         motor.ol_target_rpm = 0.0f;
         return;
     }
+    if ((MOTOR_JOINT_TRAJECTORY_ENABLE != 0U) &&
+        s_joint.backend == MOTOR_JOINT_BACKEND_POSITION_CURRENT && s_joint_trajectory_enabled) {
+        motor_trajectory_config_t trajectory_config = {
+            MOTOR_JOINT_TRAJECTORY_VEL_DEG_S,
+            MOTOR_JOINT_TRAJECTORY_ACCEL_DEG_S2,
+            MOTOR_JOINT_TRAJECTORY_DECEL_DEG_S2,
+            0.02f,
+            0.05f,
+            MOTOR_JOINT_DT_MAX_S,
+        };
+
+        if (!Motor_Trajectory_Step(&s_joint_trajectory, &trajectory_config, dt)) {
+            Motor_Joint_ClearHold();
+            return;
+        }
+        s_joint.planned_position_deg = s_joint_trajectory.position;
+        s_joint.planned_rpm = s_joint_trajectory.velocity / 6.0f;
+        s_joint.trajectory_active = s_joint_trajectory.active;
+        if (!Motor_Joint_ApplyControlSetpoint(s_joint.planned_position_deg, s_joint.planned_rpm)) {
+            Motor_Joint_ClearHold();
+            return;
+        }
+    }
     feedback.position_rad = s_joint.position_deg * MOTOR_JOINT_DEG_TO_RAD;
     feedback.velocity_rad_s = measured_rpm * MOTOR_JOINT_RPM_TO_RAD_S;
     feedback.velocity_valid = speed_valid;
@@ -709,6 +775,7 @@ void Motor_Joint_Run(float dt)
         float iq_current_limit = s_joint_torque_current_limit_a;
         float iq = outer_output;
         float vq;
+        float motion_rpm = s_joint.trajectory_active ? s_joint.planned_rpm : s_joint.target_rpm;
 
         if (motor.speed_iq_limit > 0.0f && motor.speed_iq_limit < iq_current_limit) {
             iq_current_limit = motor.speed_iq_limit;
@@ -717,9 +784,9 @@ void Motor_Joint_Run(float dt)
          * 极低速位置斜坡中，线性PD输出常小于静摩擦电流，表现为误差积累后突然滑动并往返摆动。
          * 仅在明确的非零速度命令下加入方向摩擦前馈；到点 velocity=0 时立即撤掉，不影响静止保持。
          */
-        if (s_joint.target_rpm > MOTOR_JOINT_MOTION_FF_MIN_RPM) {
+        if (motion_rpm > MOTOR_JOINT_MOTION_FF_MIN_RPM) {
             iq += MOTOR_JOINT_MOTION_FF_A;
-        } else if (s_joint.target_rpm < -MOTOR_JOINT_MOTION_FF_MIN_RPM) {
+        } else if (motion_rpm < -MOTOR_JOINT_MOTION_FF_MIN_RPM) {
             iq -= MOTOR_JOINT_MOTION_FF_A;
         }
         iq = Motor_Joint_LimitOutput(iq, s_joint_torque_current_limit_a);

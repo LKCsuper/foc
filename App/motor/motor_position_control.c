@@ -30,9 +30,12 @@ static bool config_valid(const motor_position_control_config_t *config)
     return config != NULL && isfinite(config->position_kp_rpm_per_deg) &&
            isfinite(config->maximum_rpm) && isfinite(config->velocity_kp_v_per_rpm) &&
            isfinite(config->velocity_ki_v_per_rpm_s) && isfinite(config->voltage_limit_v) &&
-           isfinite(config->maximum_dt_s) && config->position_kp_rpm_per_deg > 0.0f &&
+           isfinite(config->acceleration_limit_rpm_s) && isfinite(config->feedforward_v_per_rpm) &&
+           isfinite(config->maximum_dt_s) &&
+           config->position_kp_rpm_per_deg > 0.0f &&
            config->maximum_rpm > 0.0f && config->velocity_kp_v_per_rpm >= 0.0f &&
            config->velocity_ki_v_per_rpm_s >= 0.0f && config->voltage_limit_v > 0.0f &&
+           config->acceleration_limit_rpm_s > 0.0f && config->feedforward_v_per_rpm >= 0.0f &&
            config->maximum_dt_s > 0.0f;
 }
 
@@ -59,7 +62,10 @@ bool Motor_PositionControl_Init(motor_position_control_t *control,
  */
 void Motor_PositionControl_Reset(motor_position_control_t *control)
 {
-    if (control != NULL) control->velocity_integrator_v = 0.0f;
+    if (control != NULL) {
+        control->velocity_integrator_v = 0.0f;
+        control->commanded_rpm = 0.0f;
+    }
 }
 
 /**
@@ -79,9 +85,12 @@ bool Motor_PositionControl_Step(motor_position_control_t *control,
 {
     float velocity_error;
     float proportional;
+    float feedforward;
     float integral_candidate;
     float unsaturated;
     float dt;
+    float raw_target_rpm;
+    float command_step;
     bool winding_up;
 
     if (control == NULL || !config_valid(config) || input == NULL || output == NULL ||
@@ -91,8 +100,9 @@ bool Motor_PositionControl_Step(motor_position_control_t *control,
     }
     memset(output, 0, sizeof(*output));
     output->error_deg = input->target_deg - input->position_deg;
-    output->target_rpm = clamp_symmetric(config->position_kp_rpm_per_deg * output->error_deg,
-                                         config->maximum_rpm);
+    raw_target_rpm = clamp_symmetric(config->position_kp_rpm_per_deg * output->error_deg,
+                                     config->maximum_rpm);
+    output->target_rpm = raw_target_rpm;
     if (!input->enabled || !input->motor_running || !input->feedback_valid) {
         Motor_PositionControl_Reset(control);
         output->target_rpm = 0.0f;
@@ -100,14 +110,20 @@ bool Motor_PositionControl_Step(motor_position_control_t *control,
     }
 
     dt = (input->dt > 0.0f && input->dt <= config->maximum_dt_s) ? input->dt : 0.0f;
+    if (dt > 0.0f) {
+        command_step = config->acceleration_limit_rpm_s * dt;
+        control->commanded_rpm += clamp_symmetric(raw_target_rpm - control->commanded_rpm, command_step);
+    }
+    output->target_rpm = control->commanded_rpm;
     velocity_error = output->target_rpm - (input->speed_valid ? input->measured_rpm : 0.0f);
     proportional = config->velocity_kp_v_per_rpm * velocity_error;
+    feedforward = config->feedforward_v_per_rpm * output->target_rpm;
     integral_candidate = control->velocity_integrator_v;
     if (dt > 0.0f) {
         integral_candidate += config->velocity_ki_v_per_rpm_s * velocity_error * dt;
     }
     integral_candidate = clamp_symmetric(integral_candidate, config->voltage_limit_v);
-    unsaturated = proportional + integral_candidate;
+    unsaturated = feedforward + proportional + integral_candidate;
     /*
      * 条件积分：比例与积分之和已经顶到电压限，且速度误差仍推向同一侧时，本拍不更新积分。
      * 积分候选值先钳在 ±voltage_limit_v。
@@ -117,7 +133,7 @@ bool Motor_PositionControl_Step(motor_position_control_t *control,
     if (!winding_up) control->velocity_integrator_v = integral_candidate;
 
     output->hold_active = true;
-    output->output_v = clamp_symmetric(proportional + control->velocity_integrator_v,
+    output->output_v = clamp_symmetric(feedforward + proportional + control->velocity_integrator_v,
                                        config->voltage_limit_v);
     return true;
 }

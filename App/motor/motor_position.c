@@ -15,14 +15,7 @@ extern "C" {
 #include "motor_mt6701.h"
 #include "motor_param.h"
 /* Private define ------------------------------------------------------------*/
-/* ODrive 默认 pos_gain=20 (turn/s)/turn，换成 RPM/deg。 */
-#define MOTOR_POSITION_KP_DEFAULT_RPM_PER_DEG (20.0f * 60.0f / 360.0f)
-#define MOTOR_POSITION_MAX_RPM_DEFAULT         (60.0f)
 #define MOTOR_POSITION_TOLERANCE_DEG           (0.30f)
-/* 速度 PI 直接出电压。比例靠近原速度环 0.008 A/RPM × 5 V/A，并略加强阻尼。 */
-#define MOTOR_POSITION_VEL_KP_V_PER_RPM   (0.050f)
-#define MOTOR_POSITION_VEL_KI_V_PER_RPM_S (0.20f)
-#define MOTOR_POSITION_VEL_V_LIMIT_V      (2.0f)
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -43,9 +36,11 @@ static void Motor_Position_FillControlConfig(motor_position_control_config_t *co
 {
     config->position_kp_rpm_per_deg = s_position.kp_rpm_per_deg;
     config->maximum_rpm = s_position.max_rpm;
-    config->velocity_kp_v_per_rpm = MOTOR_POSITION_VEL_KP_V_PER_RPM;
-    config->velocity_ki_v_per_rpm_s = MOTOR_POSITION_VEL_KI_V_PER_RPM_S;
-    config->voltage_limit_v = MOTOR_POSITION_VEL_V_LIMIT_V;
+    config->velocity_kp_v_per_rpm = MOTOR_POSITION_VEL_KP_DEFAULT;
+    config->velocity_ki_v_per_rpm_s = MOTOR_POSITION_VEL_KI_DEFAULT;
+    config->voltage_limit_v = MOTOR_POSITION_VOLTAGE_LIMIT_DEFAULT;
+    config->acceleration_limit_rpm_s = MOTOR_POSITION_ACCEL_RPM_S_DEFAULT;
+    config->feedforward_v_per_rpm = MOTOR_POSITION_FF_V_PER_RPM_DEFAULT;
     config->maximum_dt_s = 0.05f;
 }
 
@@ -68,6 +63,7 @@ static float Motor_Position_ReadDeg(void)
 static void Motor_Position_ClearHold(void)
 {
     Motor_PositionControl_Reset(&s_control);
+    s_position.voltage_hold_mode = true;
     motor.position_hold = false;
     motor.position_voltage_hold = false;
     motor.position_hold_v = 0.0f;
@@ -85,6 +81,7 @@ void Motor_Position_Init(void)
     s_position.kp_rpm_per_deg = MOTOR_POSITION_KP_DEFAULT_RPM_PER_DEG;
     s_position.max_rpm = MOTOR_POSITION_MAX_RPM_DEFAULT;
     s_position.tolerance_deg = MOTOR_POSITION_TOLERANCE_DEG;
+    s_position.voltage_hold_mode = true;
     {
         motor_position_control_config_t config;
         Motor_Position_FillControlConfig(&config);
@@ -102,6 +99,7 @@ void Motor_Position_Zero(void)
     s_position.origin_count = (int32_t)Motor_Encoder_GetAccumulatedCount();
     s_position.position_deg = 0.0f;
     s_position.target_deg = 0.0f;
+    s_position.voltage_hold_mode = true;
     Motor_PositionControl_Reset(&s_control);
 }
 
@@ -133,6 +131,10 @@ bool Motor_Position_Enable(bool enable)
 bool Motor_Position_SetTargetDeg(float target_deg)
 {
     if (!isfinite(target_deg)) return false;
+    if (target_deg != s_position.target_deg) {
+        /* 新目标不继承旧目标为克服齿槽积出的电压，尤其避免大角度反向时先向旧方向冲击。 */
+        Motor_PositionControl_Reset(&s_control);
+    }
     s_position.target_deg = target_deg;
     return true;
 }
@@ -145,9 +147,14 @@ bool Motor_Position_SetTargetDeg(float target_deg)
  */
 bool Motor_Position_MoveDeg(float delta_deg)
 {
+    float target_deg;
+
     if (!isfinite(delta_deg)) return false;
-    s_position.target_deg += delta_deg;
-    return isfinite(s_position.target_deg) != 0;
+    target_deg = s_position.target_deg + delta_deg;
+    if (!isfinite(target_deg)) return false;
+    s_position.target_deg = target_deg;
+    Motor_PositionControl_Reset(&s_control);
+    return true;
 }
 
 /**
@@ -165,19 +172,19 @@ bool Motor_Position_SetKp(float kp_rpm_per_deg)
 
 /**
  * @description: 设置位置环给出的速度上限。
- * @param {float} max_rpm  限幅 (RPM)，范围 [1, 1800]
+ * @param {float} max_rpm  限幅 (RPM)，范围 [1, 当前电机允许上限]
  * @return {bool} true=已写入
  * @author: lkc
  */
 bool Motor_Position_SetMaxRpm(float max_rpm)
 {
-    if (!isfinite(max_rpm) || max_rpm < 1.0f || max_rpm > 1800.0f) return false;
+    if (!isfinite(max_rpm) || max_rpm < 1.0f || max_rpm > MOTOR_POSITION_MAX_RPM_ALLOWED) return false;
     s_position.max_rpm = max_rpm;
     return true;
 }
 
 /**
- * @description: 推进一拍位置环，速度 PI 的电压写入 position_hold_v。
+ * @description: 推进一拍位置环；大误差可用速度电流环移动，目标附近直接电压保持。
  * @detail: 未使能、电机未启动或编码器故障时退出位置保持并清积分。
  *          位置误差始终换成转速命令，再由速度 PI 出电压。转速写进 ol_target_rpm 的值保持 0，
  *          避免电压速度模式的起动前馈在终点被踢出来。到达目标后积分保留，用来抵消齿槽。
@@ -192,6 +199,11 @@ void Motor_Position_Run(float dt)
     motor_position_control_output_t output;
 
     s_position.position_deg = Motor_Position_ReadDeg();
+    /* 未使能时位置模块不拥有速度命令，不能把 olspeed 写入的目标反复清成 0。 */
+    if (!s_position.enabled) {
+        Motor_Position_ClearHold();
+        return;
+    }
     Motor_Position_FillControlConfig(&config);
     memset(&input, 0, sizeof(input));
     input.enabled = s_position.enabled;
@@ -209,9 +221,30 @@ void Motor_Position_Run(float dt)
     s_position.error_deg = output.error_deg;
     s_position.target_rpm = output.target_rpm;
     motor.position_hold = output.hold_active;
-    motor.position_voltage_hold = output.hold_active;
-    motor.position_hold_v = output.output_v;
-    if (s_position.enabled) motor.ol_target_rpm = 0.0f;
+    if ((MOTOR_POSITION_HYBRID_SPEED_ENABLE != 0U) && output.hold_active) {
+        float error_abs = fabsf(output.error_deg);
+
+        if (s_position.voltage_hold_mode) {
+            if (error_abs > MOTOR_POSITION_HOLD_EXIT_DEG) s_position.voltage_hold_mode = false;
+        } else if (error_abs <= MOTOR_POSITION_HOLD_ENTER_DEG) {
+            s_position.voltage_hold_mode = true;
+        }
+    } else {
+        s_position.voltage_hold_mode = true;
+    }
+    motor.position_voltage_hold = output.hold_active && s_position.voltage_hold_mode;
+    if (motor.position_voltage_hold) {
+        motor.position_hold_v = output.output_v;
+        motor.ol_target_rpm = 0.0f;
+    } else if (output.hold_active) {
+        /* 移动阶段复用编码器速度电流环；直接电压 PI 不在后台积累。 */
+        Motor_PositionControl_Reset(&s_control);
+        motor.position_hold_v = 0.0f;
+        motor.ol_target_rpm = output.target_rpm;
+    } else {
+        motor.position_hold_v = 0.0f;
+        motor.ol_target_rpm = 0.0f;
+    }
 }
 
 /**

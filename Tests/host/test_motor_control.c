@@ -301,6 +301,32 @@ int main(void)
     Motor_Control_Init(&a);
     Motor_Control_Init(&b);
 
+#ifdef MOTOR_CONTROL_HOLD_ONLY
+    /* 2804 关闭编码器速度电压模式，但位置保持的直接 Vq 仍必须生效。 */
+    a.startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+    a.startup.soft_current_scale = 1.0f;
+    a.startup.drag_current_scale = 1.0f;
+    motor.ol_enable = true;
+    motor.ol_mode = MOTOR_OL_MODE_IF;
+    motor.ol_pole_pairs = 7.0f;
+    motor.ol_vq_limit = 6.0f;
+    motor.speed_enable = true;
+    motor.position_voltage_hold = true;
+    motor.position_hold_v = 1.25f;
+    s_enc_zero = true;
+    s_enc_speed_ok = true;
+    s_enc_elec = 0.75f;
+    s_current_step_calls = 0;
+    Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_ENCODER);
+    result = Motor_Control_Step(&a, &motor, 16.0f, 0.001f, false);
+    assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
+    assert(fabsf(result.theta - s_enc_elec) < 1e-5f);
+    assert(fabsf(result.vq - 1.25f) < 1e-5f);
+    assert(s_current_step_calls == 0);
+    puts("test_motor_control_hold_2804: pass");
+    return 0;
+#endif
+
     motor.ol_vq_limit = 20.0f;
     limit = Motor_Control_GetVoltageLimit(&motor, 24.0f);
     assert(fabsf(limit - 24.0f / sqrtf(3.0f)) < 1e-4f);

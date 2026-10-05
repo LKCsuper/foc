@@ -20,6 +20,7 @@ extern "C" {
 #include "hal_motor.h"
 #include "hal_sensor.h"
 #include "motor_mt6701.h"
+#include "motor_anticogging.h"
 #include "flash_storage.h"
 /* Private variables ---------------------------------------------------------*/
 static struct {
@@ -230,6 +231,9 @@ void Motor_Encoder_Detect(void)
     motor.encoder_offset_rad = offset_rad;
     motor.encoder_inverted = inverted;
     motor.encoder_calibrated = true;
+    /* 电角零点或方向变化后，旧机械角齿槽表不再对应当前安装关系。 */
+    Motor_Anticogging_Clear();
+    printf("Encoder detect: stale cogging table cleared; run encoder cog learn again\r\n");
     if (FlashStorage_Save(&motor)) {
         printf("Encoder calibration saved to flash\r\n");
     } else {

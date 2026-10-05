@@ -723,12 +723,25 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
     float v_limit = Motor_Control_GetVoltageLimit(motor, v_bus);
     motor_current_target_ctx_t ctx;
     motor_dq_voltage_t voltage = {0.0f, 0.0f};
-    bool encoder_voltage_mode;
+    bool encoder_speed_voltage_mode;
+    bool encoder_direct_voltage_hold;
+    bool encoder_voltage_output;
 
     if (motor->joint_current_hold &&
         (feedback == NULL || !feedback->angle_valid ||
          Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER)) {
         /* Iq扭矩后端必须使用有效编码器转子角；禁止退回开环角继续施加转矩。 */
+        motor->id_target = 0.0f;
+        motor->iq_target = 0.0f;
+        motor->ol_vd_int = 0.0f;
+        motor->ol_vq_int = 0.0f;
+        return Motor_Control_ResultSafe();
+    }
+    encoder_direct_voltage_hold = motor->joint_voltage_hold || motor->position_voltage_hold;
+    if (encoder_direct_voltage_hold &&
+        (feedback == NULL || !feedback->angle_valid ||
+         Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER)) {
+        /* 位置/关节直接电压只能沿已标定的编码器电角输出，失效时禁止退回开环角。 */
         motor->id_target = 0.0f;
         motor->iq_target = 0.0f;
         motor->ol_vd_int = 0.0f;
@@ -747,10 +760,11 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
      * 会在下面被整段覆盖，积分也会改成实际 Vq。这条路径不再做那段计算。
      * Id/Iq 仍从三相电流更新，供状态显示。
      */
-    encoder_voltage_mode = !motor->joint_current_hold && (MOTOR_ENCODER_SPEED_VOLTAGE_MODE != 0U) &&
-                           ctx.speed_loop_active &&
-                           (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER);
-    if (encoder_voltage_mode) {
+    encoder_speed_voltage_mode = (MOTOR_ENCODER_SPEED_VOLTAGE_MODE != 0U) && ctx.speed_loop_active;
+    encoder_voltage_output = !motor->joint_current_hold &&
+                             (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER) &&
+                             (encoder_direct_voltage_hold || encoder_speed_voltage_mode);
+    if (encoder_voltage_output) {
         Motor_Fw_Reset(&ctrl->fw);
         Motor_Current_FeedbackUpdateDq(motor, theta);
     } else if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
@@ -776,8 +790,12 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
         Motor_Fw_Reset(&ctrl->fw);
         voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, &motor->id_target, &motor->iq_target);
     }
-    if (encoder_voltage_mode) {
-        float voltage_mode_limit = MOTOR_ENCODER_SPEED_VOLT_LIMIT_V;
+    if (encoder_voltage_output) {
+        /*
+         * 位置/关节保持本身已经对输出限幅，不依赖某个电机是否启用速度电压模式。
+         * 例如 2804 关闭速度前馈后，位置环的 2 V 保持仍必须真正送到 FOC。
+         */
+        float voltage_mode_limit = encoder_direct_voltage_hold ? v_limit : MOTOR_ENCODER_SPEED_VOLT_LIMIT_V;
         float vq_feedforward = 0.0f;
         float vq_pi;
         float vq_anticogging;
@@ -789,7 +807,7 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
         if (voltage_mode_limit < 0.0f) {
             voltage_mode_limit = 0.0f;
         }
-        if (motor->joint_voltage_hold || motor->position_voltage_hold) {
+        if (encoder_direct_voltage_hold) {
             /*
              * 关节或位置环自己合成 Vq。转速命令保持 0，速度前馈不叠进来。
              * 两者同时置位时用关节电压。

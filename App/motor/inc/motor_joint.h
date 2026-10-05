@@ -32,6 +32,9 @@ typedef struct {
     float position_deg;   /* 当前位置 (deg) */
     float error_deg;      /* 目标减当前位置 (deg) */
     float target_rpm;     /* 目标转速 (RPM) */
+    float planned_position_deg; /* ODrive式轨迹当前规划位置 (deg) */
+    float planned_rpm;          /* 轨迹当前规划速度 (RPM) */
+    bool trajectory_active;     /* true=尚未到达最终位置 */
     float measured_rpm;   /* 实测转速 (RPM) */
     float torque_ff_a;    /* 力矩前馈，用 Iq 表示 (A) */
     float kp_v_per_deg;   /* 刚度 (V/deg) */

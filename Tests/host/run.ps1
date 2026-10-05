@@ -37,6 +37,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor speed host compilation failed' }
     & .build/host/test_motor_speed.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor speed host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_trajectory.c Tests/host/test_motor_trajectory.c -o .build/host/test_motor_trajectory.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor trajectory host compilation failed' }
+    & .build/host/test_motor_trajectory.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor trajectory host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/motor_timing.c Tests/host/test_motor_timing.c -o .build/host/test_motor_timing.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor timing host compilation failed' }
     & .build/host/test_motor_timing.exe
@@ -69,7 +73,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor sensor update host compilation failed' }
     & .build/host/test_motor_sensor_update.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor sensor update host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_position_control.c App/motor/motor_position.c Tests/host/test_motor_position.c -o .build/host/test_motor_position.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_position_control.c App/motor/motor_position.c Tests/host/test_motor_position.c -o .build/host/test_motor_position.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor position host compilation failed' }
     & .build/host/test_motor_position.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor position host tests failed' }
@@ -81,10 +85,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint protocol host compilation failed' }
     & .build/host/test_motor_joint_protocol.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint protocol host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/joint/motor_joint_control.c App/motor/joint/motor_joint.c Tests/host/test_motor_joint.c -o .build/host/test_motor_joint.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_trajectory.c App/motor/joint/motor_joint_control.c App/motor/joint/motor_joint.c Tests/host/test_motor_joint.c -o .build/host/test_motor_joint.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint host compilation failed' }
     & .build/host/test_motor_joint.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_trajectory.c App/motor/joint/motor_joint_control.c App/motor/joint/motor_joint.c Tests/host/test_motor_joint_trajectory.c -o .build/host/test_motor_joint_trajectory.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor joint trajectory host compilation failed' }
+    & .build/host/test_motor_joint_trajectory.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor joint trajectory host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_protect.c Tests/host/stubs/protect_deps.c Tests/host/test_motor_protect.c -o .build/host/test_motor_protect.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor protect host compilation failed' }
     & .build/host/test_motor_protect.exe
@@ -125,10 +133,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor SMO host compilation failed' }
     & .build/host/test_motor_smo.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor SMO host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control host compilation failed' }
     & .build/host/test_motor_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -DMOTOR_CONTROL_HOLD_ONLY -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control_hold_2804.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor control 2804 hold compilation failed' }
+    & .build/host/test_motor_control_hold_2804.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor control 2804 hold tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_anticogging.c Tests/host/test_motor_anticogging.c -o .build/host/test_motor_anticogging.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor anticogging host compilation failed' }
     & .build/host/test_motor_anticogging.exe

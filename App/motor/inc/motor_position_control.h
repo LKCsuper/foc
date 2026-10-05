@@ -21,6 +21,8 @@ typedef struct {
     float velocity_kp_v_per_rpm;     /* 速度比例 (V/RPM)，须为非负有限值 */
     float velocity_ki_v_per_rpm_s;   /* 速度积分 (V/(RPM·s))，须为非负有限值 */
     float voltage_limit_v;           /* 输出与积分限幅 (V)，须为正有限值 */
+    float acceleration_limit_rpm_s;  /* 速度命令变化率 (RPM/s)，须为正有限值 */
+    float feedforward_v_per_rpm;     /* 运动电压前馈 (V/RPM)，须为非负有限值 */
     float maximum_dt_s;              /* 允许积分的最大步长 (s)，须为正有限值 */
 } motor_position_control_config_t;
 
@@ -29,6 +31,7 @@ typedef struct {
  */
 typedef struct {
     float velocity_integrator_v; /* 速度积分项 (V) */
+    float commanded_rpm;         /* 加速度限制后的速度命令 (RPM) */
 } motor_position_control_t;
 
 /**

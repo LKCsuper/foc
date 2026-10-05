@@ -36,6 +36,7 @@ extern "C" {
 /* cmd_openloop.c     */ extern int Cmd_OlStatus(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlSnap(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlCurrentDiag(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_CurrentTest(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlBoost(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlKvf(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlRamp(int argc, char *argv[]);
@@ -81,6 +82,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olstatus",   Cmd_OlStatus,           "show openloop current and fault status" },
     { "olsnap",     Cmd_OlSnap,             "short Id/Iq/RPM/fault snapshot while running" },
     { "olcurdiag",  Cmd_OlCurrentDiag,      "Hall current errors by sector since last start" },
+    { "curtest",    Cmd_CurrentTest,        "static D-axis current-loop test [A] [ms]" },
     { "olboost",    Cmd_OlBoost,            "openloop V/F boost voltage <V>" },
     { "olkvf",      Cmd_OlKvf,              "openloop V/F slope <V/Hz>" },
     { "olramp",     Cmd_OlRamp,             "openloop V/F ramp rate <rpm/s>" },

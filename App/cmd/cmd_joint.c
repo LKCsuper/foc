@@ -23,9 +23,9 @@ extern "C" {
 #define JOINT_IQ_TEST_REFRESH_MS         20U
 #define JOINT_IQ_TEST_MAX_A            (0.20f)
 #define JOINT_HYBRID_TEST_IQ_LIMIT_A     (0.25f)
-#define JOINT_HYBRID_TEST_TIMEOUT_MS     5000U
-#define JOINT_HYBRID_TEST_DWELL_MS       2000U
-#define JOINT_HYBRID_TEST_TOL_DEG        (2.0f)
+#define JOINT_HYBRID_TEST_TIMEOUT_MS    10000U
+#define JOINT_HYBRID_TEST_DWELL_MS       1000U
+#define JOINT_HYBRID_TEST_TOL_DEG        (0.75f)
 #define JOINT_HYBRID_POLL_SETTLED        0
 #define JOINT_HYBRID_POLL_STOPPED        1
 #define JOINT_HYBRID_POLL_TIMEOUT        2
@@ -423,9 +423,11 @@ static int joint_hybrid_poll(float goal_deg, bool require_switch, uint32_t enter
                              bool *saw_vq)
 {
     uint32_t waited_ms = 0U;
+    uint32_t settled_ms = 0U;
 
     while (waited_ms < JOINT_HYBRID_TEST_TIMEOUT_MS) {
         motor_joint_state_t state;
+        bool switch_ready;
 
         if (joint_wait_or_key(JOINT_TEST_POLL_MS)) {
             return JOINT_HYBRID_POLL_STOPPED;
@@ -433,8 +435,15 @@ static int joint_hybrid_poll(float goal_deg, bool require_switch, uint32_t enter
         waited_ms += JOINT_TEST_POLL_MS;
         Motor_Joint_GetState(&state);
         joint_hybrid_note_switch(&state, enter0, exit0, saw_iq, saw_vq);
-        if (fabsf(state.position_deg - goal_deg) <= JOINT_HYBRID_TEST_TOL_DEG && (!require_switch || *saw_vq)) {
-            return JOINT_HYBRID_POLL_SETTLED;
+        switch_ready = !require_switch || !*saw_iq || *saw_vq;
+
+        if (fabsf(state.position_deg - goal_deg) <= JOINT_HYBRID_TEST_TOL_DEG && switch_ready) {
+            settled_ms += JOINT_TEST_POLL_MS;
+            if (settled_ms >= JOINT_HYBRID_TEST_DWELL_MS) {
+                return JOINT_HYBRID_POLL_SETTLED;
+            }
+        } else {
+            settled_ms = 0U;
         }
     }
     return JOINT_HYBRID_POLL_TIMEOUT;
@@ -494,8 +503,9 @@ static void joint_hybrid_emit_step(unsigned int index, unsigned int count, float
 
 /**
  * @description: 从当前位置依次走到 +9、+30、+90、-30 deg 再回起点。
- * @detail: 每段到位后停 2 s，并要看到 IQ 回到 VQ。临时把 speed_iq_limit 提高到 0.25A。
- *          结束、超时或按键后都恢复原限流。按键时保持当前位置。
+ * @detail: 每段必须在误差窗内连续稳定；若运动确实进入IQ区，则必须在到位前回到VQ。
+ *          轻载轨迹允许全程VQ，不能为覆盖测试而强迫BM75在低计数区使用电流环。
+ *          临时把speed_iq_limit提高到0.25A；结束、超时或按键后都恢复并自动停机。
  * @return {void} 无
  * @author: lkc
  */
@@ -537,7 +547,7 @@ static void joint_hybrid_test_run(void)
     joint_append_fixed(&tb, origin_deg);
     (void)textbuf_append_str(&tb, " deg, Iq limit ");
     joint_append_fixed(&tb, motor.speed_iq_limit);
-    (void)textbuf_append_str(&tb, "A, dwell 2000 ms, any key stops\r\n");
+    (void)textbuf_append_str(&tb, "A, settle 1000 ms within 0.75 deg, any key stops\r\n");
     joint_emit_buf(line, textbuf_length(&tb));
 
     for (index = 0U; index < count; index++) {
@@ -558,9 +568,6 @@ static void joint_hybrid_test_run(void)
             break;
         }
         rc = joint_hybrid_poll(goal_deg, true, enter0, exit0, &saw_iq, &saw_vq);
-        if (rc == JOINT_HYBRID_POLL_SETTLED && joint_wait_or_key(JOINT_HYBRID_TEST_DWELL_MS)) {
-            rc = JOINT_HYBRID_POLL_STOPPED;
-        }
         joint_hybrid_emit_step(index, count, goal_deg, rc, saw_vq);
         if (rc == JOINT_HYBRID_POLL_STOPPED) {
             stopped = true;
@@ -618,6 +625,9 @@ static void joint_hybrid_test_run(void)
     joint_append_fixed(&tb, motor.speed_iq_limit);
     (void)textbuf_append_str(&tb, limit_restored ? "A restored\r\n" : "A restore failed\r\n");
     joint_emit_buf(line, textbuf_length(&tb));
+    (void)Motor_Joint_Enable(false);
+    (void)Motor_RequestStop(&motor);
+    joint_emit_str("joint hybridtest motor auto-stopped\r\n");
 }
 
 /**
@@ -630,9 +640,10 @@ static void Cmd_JointPrint(void)
     motor_joint_state_t state;
 
     Motor_Joint_GetState(&state);
-    PRINTF("Joint: en=%d pos=%.2f target=%.2f err=%.2f vel=%.1f vdes=%.1f "
+    PRINTF("Joint: en=%d pos=%.2f target=%.2f err=%.2f plan=%.2f/%.1fRPM traj=%d vel=%.1f vdes=%.1f "
            "tff=%.3fA iq_cmd=%.3fA out=%.3fV mode=%s sw=%lu/%lu peak=%.3fA kp=%.3f kd=%.3f ki=%.3f bias=%.3fA lim=%.2fV backend=%d age=%luus watchdog=%d timeout=%d\r\n",
-           state.enabled ? 1 : 0, state.position_deg, state.target_deg, state.error_deg, state.measured_rpm,
+           state.enabled ? 1 : 0, state.position_deg, state.target_deg, state.error_deg,
+           state.planned_position_deg, state.planned_rpm, state.trajectory_active ? 1 : 0, state.measured_rpm,
            state.target_rpm, state.torque_ff_a, state.iq_command_a, state.output_v,
            state.hybrid_current_active ? "IQ" : "VQ", (unsigned long)state.hybrid_enter_count,
            (unsigned long)state.hybrid_exit_count, state.hybrid_peak_iq_a,

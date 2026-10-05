@@ -879,6 +879,150 @@ int Cmd_OlSnap(int argc, char *argv[])
 }
 
 /**
+ * @description: 静态 D 轴电流环测试。
+ * @detail: 固定电角度并保持 Id，跳过 olstart 的零速替代逻辑；预热后统计电流，最后自动停机并恢复配置。
+ *          默认 0.30 A，避开 BM75 的 0.10~0.20 A 低电流采样盲区。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表：[Id_A] [duration_ms]
+ * @return {int} 0=完成测试，-1=前置条件或运行故障
+ */
+int Cmd_CurrentTest(int argc, char *argv[])
+{
+    const uint32_t warmup_ms = 1000U;
+    const uint32_t sample_period_ms = 50U;
+    motor_config_t saved_cfg;
+    motor_config_t test_cfg;
+    motor_command_t saved_cmd;
+    motor_command_t test_cmd;
+    motor_status_t status;
+    motor_feedback_source_t saved_feedback;
+    float current_a = 0.30f;
+    uint32_t duration_ms = 2500U;
+    uint32_t elapsed_ms;
+    uint32_t samples = 0U;
+    float id_sum = 0.0f;
+    float iq_sum = 0.0f;
+    float id_abs_error_sum = 0.0f;
+    float iq_abs_sum = 0.0f;
+    float adc_delta_abs_sum[3] = {0.0f, 0.0f, 0.0f};
+    mc_fault_code fault = FAULT_CODE_NONE;
+    bool restored = false;
+
+    if (argc > 3) {
+        PRINTF("Usage: curtest [Id_A] [duration_ms]\n");
+        return -1;
+    }
+    if (argc >= 2) {
+        current_a = fabsf(atof(argv[1]));
+    }
+    if (argc >= 3) {
+        duration_ms = (uint32_t)atoi(argv[2]);
+    }
+    if (current_a < 0.25f || current_a > 0.50f || duration_ms < 1800U || duration_ms > 5000U) {
+        PRINTF("Invalid curtest: Id 0.25..0.50 A, duration 1800..5000 ms\n");
+        PRINTF("Recommended: curtest 0.30 2500\n");
+        return -1;
+    }
+    if (Motor_GetCommand(&motor, &saved_cmd) != MOTOR_OK || saved_cmd.enable) {
+        PRINTF("Stop motor first: olstop\n");
+        return -1;
+    }
+    if (Motor_Position_IsEnabled() || Motor_Joint_IsEnabled()) {
+        PRINTF("Disable position/joint first: pos off, joint off\n");
+        return -1;
+    }
+    if (Motor_GetStatus(&motor, &status) != MOTOR_OK || status.fault_latched) {
+        PRINTF("Clear motor fault first: olfault clear\n");
+        return -1;
+    }
+    if (!ol_capture_config(&saved_cfg)) {
+        PRINTF("Cannot capture motor config\n");
+        return -1;
+    }
+
+    saved_feedback = Motor_GetFeedbackSource();
+    test_cfg = saved_cfg;
+    test_cfg.ol_align_enable = true;
+    test_cfg.ol_align_current = current_a;
+    test_cfg.ol_align_time = (float)duration_ms * 0.001f + 1.0f;
+    test_cfg.ol_align_angle = 0.0f;
+    test_cfg.hfi_start_enable = false;
+    if (Motor_SetConfig(&motor, &test_cfg) != MOTOR_OK ||
+        Motor_SetFeedbackSource(MOTOR_FEEDBACK_SRC_OPENLOOP) != MOTOR_OK) {
+        PRINTF("Cannot prepare current test\n");
+        goto cleanup;
+    }
+
+    test_cmd = saved_cmd;
+    test_cmd.enable = true;
+    test_cmd.mode = MOTOR_OL_MODE_IF;
+    test_cmd.target_rpm = 0.0f;
+    test_cmd.iq_set = 0.0f;
+    test_cmd.id_set = 0.0f;
+    /* 零速 speed_enable 仅用于满足运行门槛；整个测试在对齐阶段结束前自动停机。 */
+    test_cmd.speed_enable = true;
+
+    PRINTF("Current test: fixed theta=0, Id=%.2f A, Iq=0, %lu ms\n", current_a,
+           (unsigned long)duration_ms);
+    PRINTF("Keep shaft free; it may move once into electrical alignment. Auto-stop enabled.\n");
+    Bsp_Usart_Flush();
+    if (Motor_SetCommand(&motor, &test_cmd) != MOTOR_OK) {
+        PRINTF("Cannot start current test\n");
+        goto cleanup;
+    }
+
+    for (elapsed_ms = 0U; elapsed_ms < duration_ms; elapsed_ms += sample_period_ms) {
+        osDelay(pdMS_TO_TICKS(sample_period_ms));
+        if (Motor_GetStatus(&motor, &status) != MOTOR_OK) {
+            continue;
+        }
+        if (status.fault_latched) {
+            fault = status.fault;
+            break;
+        }
+        if (elapsed_ms + sample_period_ms < warmup_ms || !status.aligning) {
+            continue;
+        }
+        id_sum += status.id;
+        iq_sum += status.iq;
+        id_abs_error_sum += fabsf(current_a - status.id);
+        iq_abs_sum += fabsf(status.iq);
+        adc_delta_abs_sum[0] += fabsf(status.current_adc[0] - status.current_offset[0]);
+        adc_delta_abs_sum[1] += fabsf(status.current_adc[1] - status.current_offset[1]);
+        adc_delta_abs_sum[2] += fabsf(status.current_adc[2] - status.current_offset[2]);
+        samples++;
+    }
+
+cleanup:
+    (void)Motor_RequestStop(&motor);
+    if (Motor_SetConfig(&motor, &saved_cfg) == MOTOR_OK &&
+        Motor_SetFeedbackSource(saved_feedback) == MOTOR_OK &&
+        Motor_SetCommand(&motor, &saved_cmd) == MOTOR_OK) {
+        restored = true;
+    }
+
+    if (fault != FAULT_CODE_NONE) {
+        PRINTF("Current test: ABORT fault=%d %s\n", fault, Motor_Protect_GetFaultName(fault));
+        return -1;
+    }
+    if (samples == 0U) {
+        PRINTF("Current test: INVALID, no aligned samples; motor stopped, config restored=%s\n",
+               restored ? "yes" : "no");
+        return -1;
+    }
+
+    PRINTF("Current test result: n=%lu Id_avg=%.3f A Iq_avg=%.3f A\n", (unsigned long)samples,
+           id_sum / (float)samples, iq_sum / (float)samples);
+    PRINTF("  mean |Id error|=%.3f A, mean |Iq|=%.3f A\n", id_abs_error_sum / (float)samples,
+           iq_abs_sum / (float)samples);
+    PRINTF("  mean |ADC-zero|=%.2f %.2f %.2f counts\n", adc_delta_abs_sum[0] / (float)samples,
+           adc_delta_abs_sum[1] / (float)samples, adc_delta_abs_sum[2] / (float)samples);
+    PRINTF("  fault=NONE, auto-stopped=yes, config restored=%s\n", restored ? "yes" : "no");
+    PRINTF("Note: BM75 0.10..0.20 A is only about 1..2.5 ADC counts; do not validate PI there.\n");
+    return restored ? 0 : -1;
+}
+
+/**
  * @description: 打印霍尔扇区电流诊断。
  * @detail: 停机后读上一轮统计；运行中也可只读查询。不修改控制状态。
  * @param {int} argc       参数个数，未使用
