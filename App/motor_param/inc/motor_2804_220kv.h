@@ -81,7 +81,13 @@ extern "C" {
 #define MOTOR_ENCODER_SPEED_VOLT_PER_AMP  (2.55f)       /* 电流换成电压，V/A，约等于相电阻 */
 #define MOTOR_ENCODER_SPEED_VOLT_LIMIT_V  (9.0f)        /* 速度环电压上限 V */
 #define MOTOR_ENCODER_SPEED_FF_BOOST_V    (0.0f)        /* 低速固定前馈 V，先不加 */
-#define MOTOR_ENCODER_SPEED_FF_V_PER_RPM  (0.00454545f) /* 空载反电势前馈，约 1/220 V/RPM */
+/*
+ * 空载 Vq 前馈，V/RPM。Vq ≈ 前馈 × 目标转速，PI 最多再修 ±0.20 A × 2.55 V/A ≈ ±0.51 V。
+ * 不要用 1/KV。220 RPM/V 是相对母线；1/220 和 1/(220×√3) 都对不上这次空轴。
+ * 固定命令转速，等转速稳定后：新前馈 = 当前前馈 × 命令转速 / 实测转速。
+ * 16 V、命令 1800 RPM、实测约 1940 RPM：0.00308 = 0.00332 × 1800 / 1940。
+ */
+#define MOTOR_ENCODER_SPEED_FF_V_PER_RPM  (0.00308f)
 #define MOTOR_ENCODER_PLL_BW_RAD_S        (30.0f)       /* 速度 PLL 带宽 rad/s，压低齿槽纹波 */
 
 /*
