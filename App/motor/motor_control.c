@@ -611,6 +611,22 @@ static bool Motor_Control_SpeedLoopReady(motor_control_t *ctrl, const MOTOR_PARA
  * @return {*}
  * @author: lkc
  */
+/**
+ * @description: 按电机 profile 和目标转速选择编码器速度环后端。
+ * @param {float} command_rpm 目标机械转速 (RPM)
+ * @return {bool} true=直接 Vq，false=Id/Iq 电流环
+ */
+static bool Motor_Control_EncoderSpeedUsesVoltage(float command_rpm)
+{
+    if (MOTOR_ENCODER_SPEED_VOLTAGE_MODE == 1U) {
+        return true;
+    }
+    if (MOTOR_ENCODER_SPEED_VOLTAGE_MODE == 2U) {
+        return fabsf(command_rpm) <= MOTOR_ENCODER_SPEED_VOLTAGE_MAX_RPM;
+    }
+    return false;
+}
+
 static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *motor, motor_current_target_ctx_t *ctx)
 {
     bool dragging;
@@ -634,7 +650,7 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
      * 电流模式没有前馈可抵消，Iq 就是最终转矩。禁止制动时在这里挡住反向电流。
      * 电压模式要留着负 PI，去抵消起动前馈，反向限制放在电压相加之后。
      */
-    if (MOTOR_ENCODER_SPEED_VOLTAGE_MODE == 0U) {
+    if (!Motor_Control_EncoderSpeedUsesVoltage(motor->ol_target_rpm)) {
         ctx->speed_iq_target = Motor_Speed_LimitNoBrakeOutput(motor->ol_current_rpm, ctx->speed_iq_target,
                                                               motor->speed_allow_braking);
     }
@@ -760,7 +776,7 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
      * 会在下面被整段覆盖，积分也会改成实际 Vq。这条路径不再做那段计算。
      * Id/Iq 仍从三相电流更新，供状态显示。
      */
-    encoder_speed_voltage_mode = (MOTOR_ENCODER_SPEED_VOLTAGE_MODE != 0U) && ctx.speed_loop_active;
+    encoder_speed_voltage_mode = Motor_Control_EncoderSpeedUsesVoltage(motor->ol_target_rpm) && ctx.speed_loop_active;
     encoder_voltage_output = !motor->joint_current_hold &&
                              (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER) &&
                              (encoder_direct_voltage_hold || encoder_speed_voltage_mode);
@@ -987,6 +1003,134 @@ static bool Motor_Control_RunHfi(motor_control_t *ctrl, MOTOR_PARAM_S *motor, fl
 }
 
 /**
+ * @description: 推进 I/F 的启动阶段，不执行角度积分和电流闭环。
+ * @detail: 阶段固定为电流爬升 → 可选定角保持 → 拖转交接；未开启对齐时直接进入拖转。
+ * @param {motor_control_t *} ctrl 控制实例
+ * @param {MOTOR_PARAM_S *} motor 电机运行时
+ * @param {float} dt 控制周期 (s)
+ * @return {void} 无
+ */
+static void Motor_Control_AdvanceIfStartup(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float dt)
+{
+    if (!motor->ol_align_enable && ctrl->startup.phase == MOTOR_STARTUP_CURRENT_RAMP) {
+        /* 默认 olalign 0：跳过会把转子吸进齿槽的定角 Id。 */
+        ctrl->startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+        ctrl->startup.drag_current_scale = 0.0f;
+        return;
+    }
+
+    if (ctrl->startup.phase == MOTOR_STARTUP_CURRENT_RAMP) {
+        Motor_Control_UpdateSoftCurrent(ctrl, motor, dt);
+        motor->ol_current_rpm = 0.0f;
+        MotorIfStart_SetNeutral(&ctrl->startup.if_start);
+        if (ctrl->startup.soft_current_scale < 1.0f) {
+            return;
+        }
+        if (motor->ol_align_enable && !ctrl->startup.alignment.complete) {
+            ctrl->startup.phase = MOTOR_STARTUP_ANGLE_HOLD;
+        } else {
+            MotorAlignment_MarkComplete(&ctrl->startup.alignment);
+            ctrl->startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+        }
+        return;
+    }
+
+    if (ctrl->startup.phase == MOTOR_STARTUP_ANGLE_HOLD && !Motor_Control_RunAlignment(ctrl, motor, dt)) {
+        ctrl->startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+        ctrl->startup.drag_current_scale = 0.0f;
+    }
+}
+
+/**
+ * @description: 速度 PI 首次接管时，按反馈源计算无突跳的 Iq 积分初值。
+ * @param {const MOTOR_PARAM_S *} motor 电机命令、限流及速度参数
+ * @return {float} 应预置的 Iq (A)
+ */
+static float Motor_Control_GetSpeedPrimeIq(const MOTOR_PARAM_S *motor)
+{
+    float ref_rpm = motor->ol_current_rpm;
+
+    if (fabsf(ref_rpm) < 1.0f) {
+        ref_rpm = motor->ol_target_rpm;
+    }
+    if (Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER) {
+        return SIGN(ref_rpm) * fminf(fabsf(motor->ol_iq_set), fabsf(motor->speed_iq_limit));
+    }
+
+    {
+        float command_rpm = motor->ol_target_rpm;
+        float direction = command_rpm > 0.0f ? 1.0f : (command_rpm < 0.0f ? -1.0f : 0.0f);
+        float measured_rpm = Motor_SpeedLoop_GetMeasuredRpm();
+        float iq_limit = fabsf(motor->speed_iq_limit);
+        float desired_iq = direction * fminf(MOTOR_ENCODER_START_IQ_A, iq_limit);
+        float proportional = motor->speed_kp * (command_rpm - measured_rpm);
+        float prime_iq;
+
+        /* 电压速度模式已有前馈；沿命令方向转起来后也不再注入静摩擦启动电流。 */
+        if (Motor_Control_EncoderSpeedUsesVoltage(command_rpm) || direction == 0.0f ||
+            direction * measured_rpm > 5.0f) {
+            return 0.0f;
+        }
+
+        prime_iq = desired_iq - proportional;
+        if ((direction > 0.0f && prime_iq < 0.0f) || (direction < 0.0f && prime_iq > 0.0f)) {
+            prime_iq = 0.0f;
+        }
+        if (prime_iq > iq_limit) {
+            prime_iq = iq_limit;
+        } else if (prime_iq < -iq_limit) {
+            prime_iq = -iq_limit;
+        }
+        return prime_iq;
+    }
+}
+
+/**
+ * @description: 推进 I/F 拖转阶段，统一完成角度、反馈和速度环接管准备。
+ * @param {motor_control_t *} ctrl 控制实例
+ * @param {MOTOR_PARAM_S *} motor 电机运行时
+ * @param {float} dt 控制周期 (s)
+ * @param {motor_feedback_sample_t *} feedback_out 有感反馈快照输出
+ * @return {const motor_feedback_sample_t *} 有感时返回 feedback_out；无感时返回 NULL
+ */
+static const motor_feedback_sample_t *Motor_Control_RunIfDrag(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float dt,
+                                                               motor_feedback_sample_t *feedback_out)
+{
+    bool sensored = Motor_Feedback_IsSensoredSource(Motor_Feedback_GetSourceDefault());
+    bool was_latched;
+
+    Motor_Control_UpdateDragCurrent(ctrl, dt);
+    Motor_Control_UpdateSpeed(motor, dt, sensored || Motor_Sensorless_IsTakeoverComplete());
+    Motor_Control_StartupIf(ctrl, motor);
+    Motor_Control_UpdateTheta(ctrl, motor, dt);
+
+    if (sensored) {
+        float open = motor->ol_theta + ctrl->startup.if_start.phase_boost;
+
+        utils_norm_angle_rad(&open);
+        /* 同一 FOC 拍内的角度和速度来自同一份快照。 */
+        Motor_Feedback_SampleDefault(motor, open, feedback_out);
+        Motor_Control_PublishSensoredSpeed(feedback_out);
+    } else {
+        Motor_Sensorless_Update(motor, dt);
+    }
+
+    was_latched = ctrl->speed_loop_latched;
+    if (Motor_Control_SpeedLoopReady(ctrl, motor)) {
+        if (!was_latched) {
+            Motor_SpeedLoop_PrimeIq(Motor_Control_GetSpeedPrimeIq(motor));
+        }
+        /* 速度 PI 在 foc pid 任务中积分；本拍电流环读取预置值或上一拍结果。 */
+        Motor_SpeedLoop_SetRunAllowed(true);
+    } else {
+        /* 启动 Iq 接管时禁止未使用的速度 PI 在后台积分饱和。 */
+        Motor_SpeedLoop_Reset();
+    }
+
+    return sensored ? feedback_out : NULL;
+}
+
+/**
  * @description: 推进一拍控制编排并返回输出仲裁。
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   电机
@@ -1042,108 +1186,9 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
         if (Motor_Control_RunHfi(ctrl, motor, v_bus, &hfi_result)) {
             return Motor_Control_PublishTheta(motor, hfi_result);
         }
-        if (!motor->ol_align_enable && ctrl->startup.phase == MOTOR_STARTUP_CURRENT_RAMP) {
-            /* 验证默认 olalign 0：定角灌 Id 会把转子吸进齿槽，随后 10 RPM/s 的 Iq 拖不动。 */
-            ctrl->startup.phase = MOTOR_STARTUP_DRAG_RAMP;
-            ctrl->startup.drag_current_scale = 0.0f;
-        } else if (ctrl->startup.phase == MOTOR_STARTUP_CURRENT_RAMP) {
-            Motor_Control_UpdateSoftCurrent(ctrl, motor, dt);
-            motor->ol_current_rpm = 0.0f;
-            MotorIfStart_SetNeutral(&ctrl->startup.if_start);
-            if (ctrl->startup.soft_current_scale >= 1.0f) {
-                if (motor->ol_align_enable && !ctrl->startup.alignment.complete) {
-                    ctrl->startup.phase = MOTOR_STARTUP_ANGLE_HOLD;
-                } else {
-                    MotorAlignment_MarkComplete(&ctrl->startup.alignment);
-                    ctrl->startup.phase = MOTOR_STARTUP_DRAG_RAMP;
-                }
-            }
-        } else if (ctrl->startup.phase == MOTOR_STARTUP_ANGLE_HOLD) {
-            if (!Motor_Control_RunAlignment(ctrl, motor, dt)) {
-                ctrl->startup.phase = MOTOR_STARTUP_DRAG_RAMP;
-                ctrl->startup.drag_current_scale = 0.0f;
-            }
-        }
-
+        Motor_Control_AdvanceIfStartup(ctrl, motor, dt);
         if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
-            bool sensored = Motor_Feedback_IsSensoredSource(Motor_Feedback_GetSourceDefault());
-            Motor_Control_UpdateDragCurrent(ctrl, dt);
-            Motor_Control_UpdateSpeed(motor, dt, sensored || Motor_Sensorless_IsTakeoverComplete());
-            Motor_Control_StartupIf(ctrl, motor);
-            Motor_Control_UpdateTheta(ctrl, motor, dt);
-            if (sensored) {
-                float open = motor->ol_theta + ctrl->startup.if_start.phase_boost;
-
-                utils_norm_angle_rad(&open);
-                /* 同一 FOC 拍内的角度和速度必须来自同一份有感快照。 */
-                Motor_Feedback_SampleDefault(motor, open, &sensored_feedback);
-                current_feedback = &sensored_feedback;
-                Motor_Control_PublishSensoredSpeed(current_feedback);
-            } else {
-                Motor_Sensorless_Update(motor, dt);
-            }
-            {
-                bool was_latched = ctrl->speed_loop_latched;
-
-                if (Motor_Control_SpeedLoopReady(ctrl, motor)) {
-                    if (!was_latched) {
-                        /*
-                         * 速度 PI 首次接管时预置起动转矩，避免从 0 A 慢积分。
-                         * 编码器使用当前电机的小电流预置；后续由 PI 自由增减，
-                         * 不再按转速强制一个电流下限，因此不会在退出阈值反复起停。
-                         */
-                        float ref_rpm = motor->ol_current_rpm;
-                        float prime_iq;
-
-                        if (fabsf(ref_rpm) < 1.0f) {
-                            ref_rpm = motor->ol_target_rpm;
-                        }
-                        if (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER) {
-                            float command_rpm = motor->ol_target_rpm;
-                            float direction = command_rpm > 0.0f ? 1.0f : (command_rpm < 0.0f ? -1.0f : 0.0f);
-                            float measured_rpm = Motor_SpeedLoop_GetMeasuredRpm();
-                            float iq_limit = fabsf(motor->speed_iq_limit);
-                            float desired_iq = direction * fminf(MOTOR_ENCODER_START_IQ_A, iq_limit);
-                            float proportional = motor->speed_kp * (command_rpm - measured_rpm);
-
-                            /*
-                             * MOTOR_ENCODER_START_IQ_A 是启动总电流，不是额外叠加的积分。
-                             * 例如 30 RPM、Kp=0.001 时 P=0.03 A，只预置剩余 0.02 A。
-                             * 已沿命令方向转起来时不再注入静摩擦启动电流。
-                             */
-                            if (MOTOR_ENCODER_SPEED_VOLTAGE_MODE != 0U) {
-                                /*
-                                 * 电压速度模式已有基础电压前馈和低速助推。若再把启动 Iq 写入
-                                 * PI 积分，Ki=0 时该推力会永久残留，造成实际转速长期高于目标。
-                                 */
-                                prime_iq = 0.0f;
-                            } else if (direction == 0.0f || direction * measured_rpm > 5.0f) {
-                                prime_iq = 0.0f;
-                            } else {
-                                prime_iq = desired_iq - proportional;
-                                if ((direction > 0.0f && prime_iq < 0.0f) ||
-                                    (direction < 0.0f && prime_iq > 0.0f)) {
-                                    prime_iq = 0.0f;
-                                }
-                                if (prime_iq > iq_limit) {
-                                    prime_iq = iq_limit;
-                                } else if (prime_iq < -iq_limit) {
-                                    prime_iq = -iq_limit;
-                                }
-                            }
-                        } else {
-                            prime_iq = fminf(fabsf(motor->ol_iq_set), fabsf(motor->speed_iq_limit));
-                            prime_iq = SIGN(ref_rpm) * prime_iq;
-                        }
-                        Motor_SpeedLoop_PrimeIq(prime_iq);
-                    }
-                    /* 速度 PI 在 foc pid 任务中积分；本拍电流环先用预置/上一拍 Iq。 */
-                    Motor_SpeedLoop_SetRunAllowed(true);
-                } else {
-                    /* 启动 Iq 正在接管时不得让未使用的 PI 输出在后台积分饱和。 */
-                    Motor_SpeedLoop_Reset();
-                }
-            }
+            current_feedback = Motor_Control_RunIfDrag(ctrl, motor, dt, &sensored_feedback);
         }
         return Motor_Control_PublishTheta(motor, Motor_Control_RunIf(ctrl, motor, v_bus, dt, current_feedback));
     }

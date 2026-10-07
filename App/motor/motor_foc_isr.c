@@ -43,8 +43,106 @@ static float s_recon_diag_target_rpm;
 static bool s_recon_diag_enable;
 static uint8_t s_status_publish_divider;
 /* Private function prototypes -----------------------------------------------*/
+static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t feedback_source);
+static bool Motor_FocIsr_SampleAndProtect(MOTOR_PARAM_S *motor, motor_feedback_source_t feedback_source,
+                                          float *control_dt);
+static void Motor_FocIsr_PrepareCurrentFeedback(MOTOR_PARAM_S *motor);
+static motor_control_result_t Motor_FocIsr_RunControl(MOTOR_PARAM_S *motor, float control_dt);
+static void Motor_FocIsr_ArbitrateAndApply(MOTOR_PARAM_S *motor, motor_control_result_t result);
 static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor_param);
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: 判断本次 ADC 回调是否承担一拍完整 FOC。
+ * @detail: 有感路径固定使用 PWM 向下计数侧；其他路径保持原 FOC 分频语义。
+ * @param {motor_feedback_source_t} feedback_source 当前反馈源
+ * @return {bool} true=继续执行采样、保护和控制
+ */
+static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t feedback_source)
+{
+    if (feedback_source == MOTOR_FEEDBACK_SRC_HALL || feedback_source == MOTOR_FEEDBACK_SRC_ENCODER) {
+        return (TIM1->CR1 & TIM_CR1_DIR) != 0U;
+    }
+    return Motor_FocIsr_ShouldRun();
+}
+
+/**
+ * @description: 捕获本拍样本、更新传感器并执行快速保护。
+ * @detail: 保护使用原始换算电流；高占空比电流重构必须在保护之后单独执行。
+ * @param {MOTOR_PARAM_S *} motor 电机运行时
+ * @param {motor_feedback_source_t} feedback_source 当前反馈源
+ * @param {float *} control_dt 输出本拍控制周期 (s)
+ * @return {bool} true=允许继续控制；false=已应用安全输出
+ */
+static bool Motor_FocIsr_SampleAndProtect(MOTOR_PARAM_S *motor, motor_feedback_source_t feedback_source,
+                                          float *control_dt)
+{
+    Motor_Timing_RecordSampleDirection((TIM1->CR1 & TIM_CR1_DIR) == 0U);
+    Motor_Hall_DiagNoteTimer((uint16_t)TIM1->CNT, (uint16_t)TIM1->ARR);
+    Motor_Sense_Update(motor);
+    *control_dt = Motor_Timing_GetControlDt(motor);
+    Motor_SensorUpdate_Step(motor, feedback_source, *control_dt);
+
+    if (!Motor_Protect_Run(motor, *control_dt)) {
+        return true;
+    }
+
+    Motor_Control_ResetRuntime(&s_control, motor);
+    Motor_OutputSafe(motor);
+    return false;
+}
+
+/**
+ * @description: 在 Clarke/Park 前准备可信的三相电流。
+ * @detail: 保留 VESC LONGEST_ZERO 语义，只在唯一最大占空相采样窗不足时重构该相。
+ * @param {MOTOR_PARAM_S *} motor 电机运行时
+ * @return {void} 无
+ */
+static void Motor_FocIsr_PrepareCurrentFeedback(MOTOR_PARAM_S *motor)
+{
+    if (motor->ol_enable && (!s_recon_diag_enable || s_recon_diag_target_rpm != motor->ol_target_rpm)) {
+        Motor_Current_ResetReconstructDiag();
+        s_recon_diag_target_rpm = motor->ol_target_rpm;
+    }
+    s_recon_diag_enable = motor->ol_enable;
+    (void)Motor_Current_ReconstructLongestZero(&motor->ia, &motor->ib, &motor->ic, motor->duty1, motor->duty2,
+                                               motor->duty3, Hal_Motor_PwmPeriodCounts());
+}
+
+/**
+ * @description: 执行不接触 PWM 寄存器的控制核心。
+ * @detail: 内部按模式完成启动/角度选择，电流闭环路径再执行 Clarke/Park、PI 和电压限幅。
+ * @param {MOTOR_PARAM_S *} motor 电机运行时
+ * @param {float} control_dt 本拍控制周期 (s)
+ * @return {motor_control_result_t} SAFE 或 DQ 电压请求
+ */
+static motor_control_result_t Motor_FocIsr_RunControl(MOTOR_PARAM_S *motor, float control_dt)
+{
+    motor_control_result_t result;
+
+    result = Motor_Control_Step(&s_control, motor, motor->v_bus, control_dt,
+                                Motor_Hall_DetectIsActive() || Motor_Encoder_DetectIsActive() ||
+                                    Motor_Anticogging_IsLearning());
+    Motor_Hall_DiagUpdate();
+    return result;
+}
+
+/**
+ * @description: 执行最终故障仲裁，并把 DQ 请求经反 Park/SVPWM 提交到硬件。
+ * @param {MOTOR_PARAM_S *} motor 电机运行时
+ * @param {motor_control_result_t} result 控制核心给出的候选输出
+ * @return {void} 无
+ */
+static void Motor_FocIsr_ArbitrateAndApply(MOTOR_PARAM_S *motor, motor_control_result_t result)
+{
+    bool fault_latched = Motor_Protect_IsFaultLatched();
+
+    if (fault_latched) {
+        Motor_Control_ResetRuntime(&s_control, motor);
+    }
+    result = Motor_Control_ArbitrateOutput(fault_latched, &result);
+    Motor_OutputApplyControlResult(motor, motor->v_bus, &result);
+}
 
 /**
  * @description: 查询开环对齐是否仍在进行。
@@ -119,55 +217,24 @@ bool Motor_FocIsr_ShouldRun(void)
 static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor_param)
 {
     uint32_t runtime_start = Hal_Motor_TimeUs();
-    float protection_dt;
+    float control_dt;
     motor_feedback_source_t feedback_source;
     motor_control_result_t result;
 
     feedback_source = Motor_Feedback_GetSourceDefault();
-    if (feedback_source == MOTOR_FEEDBACK_SRC_HALL || feedback_source == MOTOR_FEEDBACK_SRC_ENCODER) {
-        if ((TIM1->CR1 & TIM_CR1_DIR) == 0U) {
-            Motor_Timing_RecordRuntime(runtime_start);
-            return;
-        }
-    } else if (!Motor_FocIsr_ShouldRun()) {
+    if (!Motor_FocIsr_ShouldExecuteControl(feedback_source)) {
         Motor_Timing_RecordRuntime(runtime_start);
         return;
     }
 
-    Motor_Timing_RecordSampleDirection((TIM1->CR1 & TIM_CR1_DIR) == 0U);
-    Motor_Hall_DiagNoteTimer((uint16_t)TIM1->CNT, (uint16_t)TIM1->ARR);
-    Motor_Sense_Update(motor_param);
-    protection_dt = Motor_Timing_GetControlDt(motor_param);
-    Motor_SensorUpdate_Step(motor_param, feedback_source, protection_dt);
-
-    if (Motor_Protect_Run(motor_param, protection_dt)) {
-        Motor_Control_ResetRuntime(&s_control, motor_param);
-        Motor_OutputSafe(motor_param);
+    if (!Motor_FocIsr_SampleAndProtect(motor_param, feedback_source, &control_dt)) {
         Motor_Timing_RecordRuntime(runtime_start);
         return;
     }
 
-    if (motor_param->ol_enable &&
-        (!s_recon_diag_enable || s_recon_diag_target_rpm != motor_param->ol_target_rpm)) {
-        Motor_Current_ResetReconstructDiag();
-        s_recon_diag_target_rpm = motor_param->ol_target_rpm;
-    }
-    s_recon_diag_enable = motor_param->ol_enable;
-    (void)Motor_Current_ReconstructLongestZero(
-        &motor_param->ia, &motor_param->ib, &motor_param->ic, motor_param->duty1,
-        motor_param->duty2, motor_param->duty3, Hal_Motor_PwmPeriodCounts());
-
-    result = Motor_Control_Step(&s_control, motor_param, motor_param->v_bus, protection_dt,
-                                Motor_Hall_DetectIsActive() || Motor_Encoder_DetectIsActive() ||
-                                    Motor_Anticogging_IsLearning());
-    Motor_Hall_DiagUpdate();
-    if (Motor_Protect_IsFaultLatched()) {
-        Motor_Control_ResetRuntime(&s_control, motor_param);
-        result = Motor_Control_ArbitrateOutput(true, &result);
-    } else {
-        result = Motor_Control_ArbitrateOutput(false, &result);
-    }
-    Motor_OutputApplyControlResult(motor_param, motor_param->v_bus, &result);
+    Motor_FocIsr_PrepareCurrentFeedback(motor_param);
+    result = Motor_FocIsr_RunControl(motor_param, control_dt);
+    Motor_FocIsr_ArbitrateAndApply(motor_param, result);
     Motor_Timing_RecordRuntime(runtime_start);
 }
 
