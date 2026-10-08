@@ -21,6 +21,7 @@ extern "C" {
 #include "motor_control.h"
 #include "motor_foc_isr.h"
 #include "motor_timing.h"
+#include "motor_speed_ff_detect.h"
 #include <math.h>
 #include <stdarg.h>
 /* Private typedef -----------------------------------------------------------*/
@@ -1697,10 +1698,114 @@ int Cmd_HfiStart(int argc, char *argv[])
 #define SPEED_TEST_DWELL_MIN_MS     500U
 #define SPEED_TEST_DWELL_MAX_MS     10000U
 #define SPEED_TEST_POLL_MS          50U
+#define SPEED_FF_SETTLE_MS          2500U
+#define SPEED_FF_SAMPLE_COUNT       20U
+#define SPEED_FF_SAMPLE_MS          50U
 
 static const float s_speed_test_rpm[] = {
     150.0f, 300.0f, 600.0f, 300.0f, 150.0f, 0.0f, -150.0f, -300.0f, -150.0f, 0.0f,
 };
+
+static bool speed_wait_or_key(uint32_t period_ms);
+static bool speed_test_set_rpm(float rpm);
+
+static bool speed_ff_set_enable(bool enable)
+{
+    motor_command_t cmd;
+    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) return false;
+    cmd.enable = enable;
+    return Motor_SetCommand(&motor, &cmd) == MOTOR_OK;
+}
+
+static bool speed_ff_measure_point(float target_rpm, motor_speed_ff_fit_t *fit)
+{
+    float rpm_sum = 0.0f;
+    float vq_sum = 0.0f;
+    float measured;
+    float allowed_error;
+    unsigned i;
+
+    if (!speed_test_set_rpm(target_rpm)) return false;
+    if (speed_wait_or_key(SPEED_FF_SETTLE_MS)) return false;
+    for (i = 0U; i < SPEED_FF_SAMPLE_COUNT; i++) {
+        if (Motor_Protect_IsFaultLatched() || !Motor_SpeedLoop_IsFeedbackValid()) return false;
+        rpm_sum += Motor_SpeedLoop_GetMeasuredRpm();
+        vq_sum += motor.ol_vq_int;
+        if (speed_wait_or_key(SPEED_FF_SAMPLE_MS)) return false;
+    }
+    measured = rpm_sum / (float)SPEED_FF_SAMPLE_COUNT;
+    vq_sum /= (float)SPEED_FF_SAMPLE_COUNT;
+    allowed_error = fmaxf(20.0f, fabsf(target_rpm) * 0.05f);
+    if (fabsf(target_rpm - measured) > allowed_error || fabsf(vq_sum) > MOTOR_ENCODER_SPEED_VOLT_LIMIT_V * 0.90f ||
+        !Motor_SpeedFfFit_Add(fit, measured, vq_sum)) {
+        PRINTF("  reject target=%.0f meas=%.1f vq=%.3f\n", target_rpm, measured, vq_sum);
+        return false;
+    }
+    PRINTF("  target=%+.0f meas=%+.1f vq=%+.3f V\n", target_rpm, measured, vq_sum);
+    return true;
+}
+
+static bool speed_ff_run_direction(float sign, float max_rpm, motor_speed_ff_fit_t *fit)
+{
+    unsigned i;
+    for (i = 1U; i <= 4U; i++) {
+        if (!speed_ff_measure_point(sign * max_rpm * (float)i / 4.0f, fit)) return false;
+    }
+    return true;
+}
+
+static int speed_ff_detect(float max_rpm)
+{
+    motor_speed_ff_fit_t fit;
+    motor_speed_ff_result_t result;
+    motor_command_t initial_cmd;
+    bool initial_braking;
+    bool ok = false;
+
+    if (Motor_GetCommand(&motor, &initial_cmd) != MOTOR_OK) return -1;
+    initial_braking = motor.speed_allow_braking;
+    if (initial_cmd.enable) {
+        PRINTF("speed ff detect requires stopped motor: olstop\n");
+        return -1;
+    }
+    if (Motor_Protect_IsFaultLatched() || Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER ||
+        !Motor_Encoder_IsZeroValid()) {
+        PRINTF("speed ff detect needs clear fault and calibrated encoder feedback\n");
+        return -1;
+    }
+    if (max_rpm < 600.0f || max_rpm > motor.ol_max_rpm) {
+        PRINTF("speed ff max RPM must be 600..%.0f\n", motor.ol_max_rpm);
+        return -1;
+    }
+    Motor_SpeedFfFit_Init(&fit);
+    (void)Motor_Position_Enable(false);
+    (void)Motor_Joint_Enable(false);
+    motor.speed_allow_braking = true;
+    PRINTF("speed ff detect: REMOVE LOAD, %+.0f RPM, any key aborts\n", max_rpm);
+    if (!speed_test_set_rpm(max_rpm / 4.0f) || !speed_ff_set_enable(true)) goto done;
+    if (!speed_ff_run_direction(1.0f, max_rpm, &fit)) goto done;
+    (void)Motor_RequestStop(&motor);
+    osDelay(pdMS_TO_TICKS(500U));
+    if (!speed_test_set_rpm(-max_rpm / 4.0f) || !speed_ff_set_enable(true)) goto done;
+    if (!speed_ff_run_direction(-1.0f, max_rpm, &fit)) goto done;
+    if (!Motor_SpeedFfFit_Solve(&fit, &result) || result.rms_error_v > 0.20f) {
+        PRINTF("speed ff detect: fit rejected\n");
+        goto done;
+    }
+    PRINTF("speed ff detect: PASS points=%u\n", result.points);
+    PRINTF("  MOTOR_ENCODER_SPEED_FF_V_PER_RPM = %.7f V/RPM\n", result.slope_v_per_rpm);
+    PRINTF("  MOTOR_ENCODER_SPEED_FF_BOOST_V   = %.4f V\n", result.boost_v);
+    PRINTF("  fit RMS error                    = %.4f V\n", result.rms_error_v);
+    PRINTF("Result is not saved; review it before changing the motor profile.\n");
+    ok = true;
+done:
+    (void)Motor_RequestStop(&motor);
+    initial_cmd.enable = false;
+    (void)Motor_SetCommand(&motor, &initial_cmd);
+    motor.speed_allow_braking = initial_braking;
+    if (!ok) PRINTF("speed ff detect: FAIL, motor auto-stopped\n");
+    return ok ? 0 : -1;
+}
 static CMD_QUEUE_ITEM s_speed_key;
 
 /**
@@ -1889,9 +1994,13 @@ int Cmd_SpeedStatus(int argc, char *argv[])
 {
     uint32_t dwell_ms = SPEED_TEST_DWELL_DEFAULT_MS;
 
+    if (argc >= 3 && strcmp(argv[1], "ff") == 0 && strcmp(argv[2], "detect") == 0) {
+        float max_rpm = argc >= 4 ? atof(argv[3]) : 1200.0f;
+        return speed_ff_detect(max_rpm);
+    }
     if ((argc < 2) || (strcmp(argv[1], "test") != 0)) {
         if (argc >= 2) {
-            PRINTF("Usage: speed [test [ms]]\n");
+            PRINTF("Usage: speed [test [ms] | ff detect [max_rpm]]\n");
             return -1;
         }
         ol_print_status();

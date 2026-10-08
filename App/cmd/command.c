@@ -103,7 +103,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olalign",    Cmd_OlAlign,            "startup rotor alignment config" },
     { "hfistart",   Cmd_HfiStart,           "HFI startup: <0|1> <V> <cycles> [confidence]" },
     /* 速度环 */
-    { "speed",      Cmd_SpeedStatus,        "speed status, or speed test [ms]" },
+    { "speed",      Cmd_SpeedStatus,        "speed status/test, or ff detect [max_rpm]" },
     { "spenable",   Cmd_SpeedEnable,        "enable speed PI loop <0/1>" },
     { "spkp",       Cmd_SpeedKp,            "set speed PI Kp" },
     { "spki",       Cmd_SpeedKi,            "set speed PI Ki" },

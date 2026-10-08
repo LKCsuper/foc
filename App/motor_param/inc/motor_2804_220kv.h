@@ -71,23 +71,25 @@ extern "C" {
 #define MOTOR_CURRENT_KI_DEFAULT (18.0f) /* 电流环积分，V/(A·s) */
 
 /*
- * 速度环：只负责把转速跟上命令。
- * 低电流数不过来，默认把 PI 的电流结果乘 V/A 直接出 Vq。空载电压主要靠反电势前馈。
+ * 速度环：低速小转矩落在 BM75 低电流采样盲区，使用直接 Vq；中高速改用真正 Id/Iq 电流环。
+ * 模式 2 按目标转速选择后端，避免瞬时测速在边界附近反复切换。150 RPM 电流环已实测稳定，
+ * 5/10 RPM 电流环会走走停停并窜到约 20~34 RPM，因此把切换点保守放在 120 RPM。
  */
-#define MOTOR_SPEED_KP_DEFAULT            (0.008f)      /* 速度比例，A/RPM */
-#define MOTOR_SPEED_KI_DEFAULT            (0.002f)      /* 速度积分，A/(RPM·s) */
+#define MOTOR_SPEED_KP_DEFAULT            (0.003f)      /* 速度比例，A/RPM；电流后端实测不振荡 */
+#define MOTOR_SPEED_KI_DEFAULT            (0.01f)       /* 速度积分，A/(RPM·s) */
 #define MOTOR_SPEED_IQ_LIMIT_DEFAULT      (0.20f)       /* 速度环电流上限 A */
-#define MOTOR_ENCODER_SPEED_VOLTAGE_MODE  (1U)          /* 1：速度环出电压；0：出电流 */
+#define MOTOR_ENCODER_SPEED_VOLTAGE_MODE  (2U)          /* 0：电流；1：电压；2：低速电压/高速电流 */
+#define MOTOR_ENCODER_SPEED_VOLTAGE_MAX_RPM (120.0f)    /* 混合模式直接 Vq 的目标转速上限 */
 #define MOTOR_ENCODER_SPEED_VOLT_PER_AMP  (2.55f)       /* 电流换成电压，V/A，约等于相电阻 */
 #define MOTOR_ENCODER_SPEED_VOLT_LIMIT_V  (9.0f)        /* 速度环电压上限 V */
-#define MOTOR_ENCODER_SPEED_FF_BOOST_V    (0.0f)        /* 低速固定前馈 V，先不加 */
+#define MOTOR_ENCODER_SPEED_FF_BOOST_V    (0.0741f)     /* 空载摩擦/死区电压，正反转八点拟合 */
 /*
  * 空载 Vq 前馈，V/RPM。Vq ≈ 前馈 × 目标转速，PI 最多再修 ±0.20 A × 2.55 V/A ≈ ±0.51 V。
  * 不要用 1/KV。220 RPM/V 是相对母线；1/220 和 1/(220×√3) 都对不上这次空轴。
- * 固定命令转速，等转速稳定后：新前馈 = 当前前馈 × 命令转速 / 实测转速。
- * 16 V、命令 1800 RPM、实测约 1940 RPM：0.00308 = 0.00332 × 1800 / 1940。
+ * 2026-10-05 混合后端空载正反转各 300/600/900/1200 RPM 自动拟合：
+ * 斜率 0.0023871 V/RPM、截距 0.0741 V、RMS 残差 0.0043 V；正反转对称且未饱和。
  */
-#define MOTOR_ENCODER_SPEED_FF_V_PER_RPM  (0.00308f)
+#define MOTOR_ENCODER_SPEED_FF_V_PER_RPM  (0.0023871f)
 #define MOTOR_ENCODER_PLL_BW_RAD_S        (30.0f)       /* 速度 PLL 带宽 rad/s，压低齿槽纹波 */
 
 /*
@@ -96,7 +98,7 @@ extern "C" {
  */
 #define MOTOR_POSITION_KP_DEFAULT_RPM_PER_DEG (1.0f)   /* 角度误差换成转速，RPM/deg */
 #define MOTOR_POSITION_MAX_RPM_DEFAULT        (2.0f)   /* 位置运动速度上限 RPM */
-#define MOTOR_POSITION_MAX_RPM_ALLOWED        (2.0f)   /* 允许提到的最高速度 RPM */
+#define MOTOR_POSITION_MAX_RPM_ALLOWED        (20.0f)  /* 极限测试可逐级提高；默认仍保持 2 RPM */
 #define MOTOR_POSITION_VEL_KP_DEFAULT         (0.020f) /* 位置环内的速度比例，V/RPM */
 #define MOTOR_POSITION_VEL_KI_DEFAULT         (0.02f)  /* 位置环内的速度积分，V/(RPM·s) */
 #define MOTOR_POSITION_VOLTAGE_LIMIT_DEFAULT  (0.35f)  /* 位置环电压上限 V */

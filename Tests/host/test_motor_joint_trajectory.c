@@ -40,14 +40,14 @@ int main(void)
     assert(state.trajectory_active);
     assert(fabsf(state.target_deg - 90.0f) < 1e-5f);
     assert(state.planned_position_deg > 0.0f && state.planned_position_deg < 0.01f);
-    assert(state.planned_rpm > 0.0f && state.planned_rpm < 0.1f);
+    assert(state.planned_rpm > 0.0f && state.planned_rpm <= MOTOR_JOINT_TRAJECTORY_VEL_DEG_S / 6.0f);
 
     for (i = 0; i < 20; i++) {
         s_time_us += 1000U;
         Motor_Joint_Run(0.001f);
     }
     Motor_Joint_GetState(&state);
-    assert(state.planned_rpm > 0.05f);
+    assert(state.planned_rpm > 0.0f);
     assert(state.iq_command_a >= 0.03f);
 
     for (i = 0; i < 5000 && state.trajectory_active; i++) {

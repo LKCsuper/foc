@@ -37,6 +37,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor speed host compilation failed' }
     & .build/host/test_motor_speed.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor speed host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_speed_ff_detect.c Tests/host/test_motor_speed_ff_detect.c -lm -o .build/host/test_motor_speed_ff_detect.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor speed FF detect host compilation failed' }
+    & .build/host/test_motor_speed_ff_detect.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor speed FF detect host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_trajectory.c Tests/host/test_motor_trajectory.c -o .build/host/test_motor_trajectory.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor trajectory host compilation failed' }
     & .build/host/test_motor_trajectory.exe

@@ -21,7 +21,7 @@ extern "C" {
 #define JOINT_IQ_TEST_MIN_MS            100U
 #define JOINT_IQ_TEST_MAX_MS           5000U
 #define JOINT_IQ_TEST_REFRESH_MS         20U
-#define JOINT_IQ_TEST_MAX_A            (0.20f)
+#define JOINT_IQ_TEST_MAX_A            (0.30f) /* 覆盖 0.25 A 混合后端进入阈值；仅限受限测试命令 */
 #define JOINT_HYBRID_TEST_IQ_LIMIT_A     (0.25f)
 #define JOINT_HYBRID_TEST_DWELL_MS       1000U
 #define JOINT_HYBRID_TEST_TOL_DEG        (0.75f)
@@ -290,8 +290,9 @@ static void joint_slow_run(float speed_deg_s)
 }
 
 /**
- * @description: 短时刷新直接Iq命令，结束后切回Vq并保持当前位置。
+ * @description: 短时刷新直接Iq命令，结束后立即关闭关节并停机。
  * @detail: 每20 ms刷新100 ms超时保护；按键、提交失败或到时都会退出直接电流模式。
+ *          空载转子可能已被加速，不能在结束瞬间切到位置保持，否则会追赶高速转子并反向回摆。
  * @param {float} current_a  目标 Iq (A)
  * @param {uint32_t} duration_ms  持续时间 (ms)
  * @return {void} 无
@@ -335,22 +336,18 @@ static void joint_iq_test_run(float current_a, uint32_t duration_ms)
 
     Motor_Current_TakePiDiag(&pi_diag);
     Motor_Joint_GetState(&state);
-    if (!Motor_Joint_SetTarget(state.position_deg, 0.0f, 0.0f) || !Motor_Joint_Enable(true)) {
-        (void)Motor_Joint_Enable(false);
-        PRINTF("joint iqtest stopped; encoder invalid, joint disabled\r\n");
-        return;
-    }
-    Motor_Joint_GetState(&state);
     PRINTF("joint iqtest %s: pos=%.2fdeg vel=%.2fRPM iq_cmd=%.3fA iq_avg=%.3fA "
-           "err_avg=%.3fA err_abs=%.3fA vq_int=%.3fV samples=%lu; holding position\r\n",
+           "err_avg=%.3fA err_abs=%.3fA vq_int=%.3fV samples=%lu; auto-stopped\r\n",
            stopped ? "stopped" : "done", state.position_deg, state.measured_rpm, current_a,
            current_a - pi_diag.iq_err_avg, pi_diag.iq_err_avg, pi_diag.iq_err_abs_avg,
            motor.ol_vq_int, (unsigned long)pi_diag.samples);
+    (void)Motor_Joint_Enable(false);
+    (void)Motor_RequestStop(&motor);
 }
 
 /**
  * @description: 单次提交直接 Iq 命令，等待看门狗超时并打印超时后的安全输出。
- * @detail: 用于上板验证通信停止刷新后的 100 ms 保护；测试结束自动切回当前位置保持。
+ * @detail: 用于上板验证通信停止刷新后的 100 ms 保护；测试结束关闭关节并停机。
  * @param {float} current_a  超时前的目标 Iq (A)
  * @param {uint32_t} wait_ms 等待时间 (ms)，必须大于看门狗时间
  * @return {void} 无
@@ -379,12 +376,9 @@ static void joint_timeout_test_run(float current_a, uint32_t wait_ms)
     PRINTF("joint timeouttest result: timeout=%d age=%luus backend=%d iq_cmd=%.3fA vel=%.2fRPM\r\n",
            state.command_timeout ? 1 : 0, (unsigned long)state.command_age_us, (int)state.backend,
            state.iq_command_a, state.measured_rpm);
-    if (!Motor_Joint_SetTarget(state.position_deg, 0.0f, 0.0f) || !Motor_Joint_Enable(true)) {
-        (void)Motor_Joint_Enable(false);
-        PRINTF("joint timeouttest cleanup: encoder invalid, joint disabled\r\n");
-        return;
-    }
-    PRINTF("joint timeouttest cleanup: holding current position\r\n");
+    (void)Motor_Joint_Enable(false);
+    (void)Motor_RequestStop(&motor);
+    PRINTF("joint timeouttest cleanup: motor auto-stopped\r\n");
 }
 
 /**
@@ -733,7 +727,7 @@ static int Cmd_JointArm(void)
  *          test 在已上电后按预设角度切换；slow 按指定deg/s生成慢速位置斜坡；
  *          hybridtest [rpm] 从当前位置走 +9、+30、+90、+180、+360、0、-180 deg 再回起点。
  *          不写 rpm 用头文件默认；写入正数只改本次轨迹最高转速。每段打印误差。
- *          iqtest 仅用于短时验证Iq电流路径，结束后自动保持当前位置。
+ *          iqtest 仅用于短时验证Iq电流路径，结束后自动停机。
  * @param {int} argc  参数个数
  * @param {char *[]} argv  参数表
  * @return {int} 0=已执行，-1=参数或前置条件不满足
