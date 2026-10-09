@@ -55,6 +55,13 @@ typedef struct {
     float lock_timer;         /* 四项条件连续成立的时间，单位 s */
     float blend;              /* 角度接管比例，0=I/F，1=观测角 */
     float applied_voltage;    /* 实际下发的 α/β 电压矢量模长，单位 V */
+    float mechanical_rpm;     /* 同拍低通机械 RPM */
+    float flux_magnitude;     /* 同拍转子磁链 Wb */
+    float phase_error;        /* 与 phase_ok 同拍的最短角差 rad */
+    float reference_angle;    /* 本拍判定相位时的 I/F 角，CLOSED 回写前，rad */
+    float observer_angle;     /* 含固定补偿的 atan2 观测角 rad */
+    float pll_angle;          /* 同拍 PLL 电角 rad */
+    motor_sensorless_state_t state;
 } motor_sensorless_diagnostics_t;
 
 /**
@@ -73,6 +80,7 @@ typedef struct {
     float filtered_rpm;         /* 低通后机械 RPM */
     float flux_magnitude;       /* 转子磁链模长 Wb */
     float phase_error;          /* PLL 角相对 I/F 角差 rad */
+    float reference_angle;      /* 本拍相位判定用 I/F 电角 rad */
     float lock_timer;           /* 锁定候选累计 s */
     float loss_timer;           /* 失锁累计 s */
     float blend;                /* 0=开环角 … 1=观测角 */
@@ -291,6 +299,7 @@ float Motor_Sensorless_GetPhaseError(void);
 
 /**
  * @description: 拷贝默认实例观测器的接管诊断数据。
+ * @detail: 短临界区复制运行时后计算诊断，返回同一拍角度、相位和判定；不打印。
  * @param {motor_sensorless_diagnostics_t *} diagnostics  输出指针
  * @return {*}
  * @author: lkc

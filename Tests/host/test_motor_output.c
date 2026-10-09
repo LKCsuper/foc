@@ -14,6 +14,8 @@ static uint32_t s_pwm_b;
 static uint32_t s_pwm_c;
 static float s_applied_alpha;
 static float s_applied_beta;
+static float s_vesc_alpha;
+static float s_vesc_beta;
 
 uint32_t Hal_Motor_PwmPeriodCounts(void) { return 1000U; }
 void Hal_Motor_PwmSetDuty(uint32_t a, uint32_t b, uint32_t c)
@@ -38,11 +40,11 @@ void inverse_park(float vd, float vq, float theta, float *alpha, float *beta)
 void foc_svm_from_voltage(float alpha, float beta, float v_bus, float max_duty, uint32_t period,
                           uint32_t *a, uint32_t *b, uint32_t *c, uint32_t *sector)
 {
-    (void)alpha;
-    (void)beta;
     (void)v_bus;
     (void)max_duty;
     (void)period;
+    s_vesc_alpha = alpha;
+    s_vesc_beta = beta;
     s_vesc_calls++;
     *a = 11U;
     *b = 22U;
@@ -81,6 +83,19 @@ int main(void)
     assert(motor.duty1 == 11U && motor.duty2 == 22U && motor.duty3 == 33U);
     assert(s_pwm_a == 11U && s_pwm_b == 33U && s_pwm_c == 22U);
     assert(s_applied_alpha == 2.0f && s_applied_beta == -3.0f);
+    assert(s_vesc_alpha == -2.0f && s_vesc_beta == 3.0f);
+
+    s_source = MOTOR_FEEDBACK_SRC_SENSORLESS;
+    motor.ol_mode = MOTOR_OL_MODE_IF;
+    Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+    assert(s_vesc_calls == 2U && s_hqd_calls == 0U);
+    assert(s_applied_alpha == -2.0f && s_applied_beta == 3.0f);
+    assert(s_vesc_alpha == -2.0f && s_vesc_beta == 3.0f);
+
+    s_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
+    Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+    assert(s_vesc_calls == 3U && s_hqd_calls == 0U);
+    assert(s_applied_alpha == -2.0f && s_applied_beta == 3.0f);
 
     motor.ol_mode = MOTOR_OL_MODE_VF;
     s_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
@@ -89,12 +104,13 @@ int main(void)
     result.vq = 4.0f;
     result.theta = 0.5f;
     Motor_OutputApplyControlResult(&motor, 24.0f, &result);
-    assert(s_vesc_calls == 1U && s_hqd_calls == 1U);
+    assert(s_vesc_calls == 3U && s_hqd_calls == 1U);
+    assert(s_applied_alpha == 1.0f && s_applied_beta == 4.0f);
     assert(s_pwm_a == 101U && s_pwm_b == 303U && s_pwm_c == 202U);
 
     result.action = MOTOR_CONTROL_ACTION_NONE;
     Motor_OutputApplyControlResult(&motor, 24.0f, &result);
-    assert(s_commit_calls == 3U);
+    assert(s_commit_calls == 5U);
     puts("test_motor_output: pass");
     return 0;
 }

@@ -1,5 +1,5 @@
 /*
- * @Description: 电流/电压偏移校准。R/L/磁链等电机参数检测后期再做。
+ * @Description: 电流/电压偏移校准与仅返回 RAM 结果的 R/L/磁链检测。
  * @Author: lkc
  *
  * 偏移累加/结算在 motor_detect_offset（无 RTOS）；本文件包装 PWM、延时与日志。
@@ -25,9 +25,69 @@ extern "C" {
 #include "motor_protect.h"
 #include "printf_color.h"
 #include "motor.h"
+#include "motor_current.h"
+#include "motor_crit.h"
+#include "motor_output.h"
+#include "motor_timing.h"
+#include "motor_foc.h"
+#include "motor_bldc.h"
+#include "motor_math.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define DETECT_OFFSET_ISR_TIMEOUT_MS (2000U)
+#define MOTOR_DETECT_CURRENT_LIMIT_A (4.0f)
+#define MOTOR_DETECT_CURRENT_HARD_LIMIT_A (8.0f)
+#define MOTOR_DETECT_CURRENT_TRIP_S (0.001f)
+#define MOTOR_DETECT_MIN_BUS_VOLTAGE_V (8.0f)
+#define MOTOR_DETECT_MIN_CURRENT_A (0.3f)
+#define MOTOR_DETECT_MAX_CURRENT_A (2.0f)
+#define MOTOR_DETECT_RESISTANCE_VOLTAGE_V (5.0f)
+#define MOTOR_DETECT_RESISTANCE_RAMP_S (0.8f)
+#define MOTOR_DETECT_RESISTANCE_SETTLE_S (0.2f)
+#define MOTOR_DETECT_RESISTANCE_SAMPLE_S (0.5f)
+#define MOTOR_DETECT_RESISTANCE_MIN_SAMPLES (100U)
+#define MOTOR_DETECT_RESISTANCE_MIN_OHM (0.005f)
+#define MOTOR_DETECT_RESISTANCE_MAX_OHM (10.0f)
+#define MOTOR_DETECT_RESISTANCE_FIT_POINTS (3U)
+#define MOTOR_DETECT_RESISTANCE_FIT_MIN_R2 (0.95f)
+#define MOTOR_DETECT_RESISTANCE_MIN_TRACK_RATIO (0.90f)
+#define MOTOR_DETECT_RESISTANCE_MIN_SPAN_RATIO (0.50f)
+/* 2804 已知参数对照：当前检测调制的实际平均注入电压约为命令值的 3/4。 */
+#define MOTOR_DETECT_APPLIED_VOLTAGE_SCALE (0.75f)
+#define MOTOR_DETECT_INDUCTANCE_ALIGN_V (3.0f)
+#define MOTOR_DETECT_INDUCTANCE_ZERO_V (2.0f)
+#define MOTOR_DETECT_INDUCTANCE_ALIGN_S (0.8f)
+#define MOTOR_DETECT_INDUCTANCE_ZERO_S (0.2f)
+#define MOTOR_DETECT_INDUCTANCE_PULSE_V (0.5f)
+#define MOTOR_DETECT_INDUCTANCE_HALF_CYCLES (8U)
+#define MOTOR_DETECT_INDUCTANCE_TARGET_PULSES_PER_DIRECTION (24U)
+#define MOTOR_DETECT_INDUCTANCE_MAX_PULSES_PER_DIRECTION (72U)
+#define MOTOR_DETECT_INDUCTANCE_MIN_SLOPE (1.0f)
+#define MOTOR_DETECT_INDUCTANCE_MIN_H (5.0e-6f)
+#define MOTOR_DETECT_INDUCTANCE_MAX_H (0.05f)
+#define MOTOR_DETECT_INDUCTANCE_STABILITY_SCALE (0.9f)
+#define MOTOR_DETECT_PI (3.14159265358f)
+#define MOTOR_DETECT_TIMEOUT_RESISTANCE_MS (4000U)
+#define MOTOR_DETECT_TIMEOUT_INDUCTANCE_MS (5000U)
+#define MOTOR_DETECT_FLUX_ALIGN_S (1.0f)
+#define MOTOR_DETECT_FLUX_RAMP_S (8.0f)
+#define MOTOR_DETECT_FLUX_TRANSITION_S (1.0f)
+#define MOTOR_DETECT_FLUX_VOLTAGE_LIMIT_V (8.0f)
+#define MOTOR_DETECT_FLUX_MIN_RUN_DUTY (0.03f)
+#define MOTOR_DETECT_FLUX_DUTY_COLLAPSE_RATIO (0.70f)
+#define MOTOR_DETECT_FLUX_COAST_SETTLE_S (0.01f)
+#define MOTOR_DETECT_FLUX_COAST_SAMPLE_S (0.50f)
+#define MOTOR_DETECT_FLUX_COAST_MIN_ERPM (100.0f)
+#define MOTOR_DETECT_FLUX_MIN_TARGET_SPEED_RATIO (0.35f)
+#define MOTOR_DETECT_FLUX_MIN_BEMF_V (0.08f)
+#define MOTOR_DETECT_FLUX_MIN_SAMPLES (300U)
+#define MOTOR_DETECT_FLUX_MIN_WB (1.0e-4f)
+#define MOTOR_DETECT_FLUX_MAX_WB (0.2f)
+#define MOTOR_DETECT_MIN_ELECTRICAL_RPM (200.0f)
+#define MOTOR_DETECT_MAX_ELECTRICAL_RPM (3000.0f)
+#define MOTOR_DETECT_VESC_CURRENT_TC_S (0.0015f)
+#define MOTOR_DETECT_TIMEOUT_FLUX_MS (18000U)
+#define MOTOR_DETECT_PWM_COOLDOWN_MS (50U)
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /*
@@ -42,6 +102,56 @@ static volatile uint32_t s_offset_down_n = 0U;
 static volatile uint32_t s_offset_up_n = 0U;
 static motor_detect_offset_t s_offset_down;
 static motor_detect_offset_t s_offset_up;
+typedef enum {
+    MOTOR_DETECT_STAGE_IDLE = 0,
+    MOTOR_DETECT_STAGE_RESISTANCE,
+    MOTOR_DETECT_STAGE_INDUCTANCE,
+    MOTOR_DETECT_STAGE_FLUX,
+} motor_detect_stage_t;
+
+typedef struct {
+    volatile motor_detect_stage_t stage;
+    volatile bool done;
+    volatile bool success;
+    volatile motor_detect_error_t error;
+    volatile int fault;
+    float elapsed;
+    float current_a;
+    float vd;
+    float vq;
+    float accum_a;
+    float accum_b;
+    float resistance_voltage_avg;
+    float resistance_current_avg;
+    float measured_resistance;
+    float max_phase_current;
+    float overcurrent_elapsed;
+    uint32_t samples;
+    uint32_t pulse_position;
+    uint32_t pulse_count;
+    uint32_t valid_pulses;
+    float pulse_start_current;
+    float injection_theta;
+    float theta;
+    float electrical_rpm_target;
+    float electrical_rpm_now;
+    float flux_duty_still;
+    float flux_duty_now;
+    float flux_duty_max;
+    float flux_coast_elapsed;
+    float flux_bemf_angle_last;
+    float flux_angle_sum;
+    float inductance_sum[MOTOR_DETECT_INDUCTANCE_DIRECTIONS];
+    uint32_t inductance_valid[MOTOR_DETECT_INDUCTANCE_DIRECTIONS];
+    bool pulse_started;
+    bool rotation_started;
+    bool flux_coast_started;
+    bool flux_bemf_angle_valid;
+} motor_detect_control_t;
+
+static motor_detect_control_t s_detect_control;
+static motor_detect_result_t s_detect_result = {.version = MOTOR_DETECT_RESULT_VERSION};
+static volatile bool s_detect_abort_requested;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -91,6 +201,401 @@ static void Detect_PrintEdgeMeans(const char *tag, const motor_detect_offset_t *
            (double)(st->i_max[0] - st->i_min[0]), (double)(st->i_max[1] - st->i_min[1]),
            (double)(st->i_max[2] - st->i_min[2]), (double)(st->sum_max - st->sum_min),
            (double)((st->sum_max - st->sum_min) * Hal_Motor_CurrentScale()));
+}
+
+static float Detect_Clamp(float value, float minimum, float maximum)
+{
+    if (value < minimum) {
+        return minimum;
+    }
+    if (value > maximum) {
+        return maximum;
+    }
+    return value;
+}
+
+static bool Detect_FitResistance(const float *current, const float *voltage, uint32_t count, float *resistance,
+                                 float *voltage_offset, float *r_squared)
+{
+    float sum_i = 0.0f;
+    float sum_v = 0.0f;
+    float sum_ii = 0.0f;
+    float sum_iv = 0.0f;
+    float ss_tot = 0.0f;
+    float ss_res = 0.0f;
+    float denominator;
+    float mean_v;
+    uint32_t i;
+
+    if (current == NULL || voltage == NULL || resistance == NULL || voltage_offset == NULL || r_squared == NULL ||
+        count < 2U) {
+        return false;
+    }
+    for (i = 0U; i < count; i++) {
+        sum_i += current[i];
+        sum_v += voltage[i];
+        sum_ii += current[i] * current[i];
+        sum_iv += current[i] * voltage[i];
+    }
+    denominator = (float)count * sum_ii - sum_i * sum_i;
+    if (fabsf(denominator) < 1.0e-6f) {
+        return false;
+    }
+    *resistance = ((float)count * sum_iv - sum_i * sum_v) / denominator;
+    *voltage_offset = (sum_v - *resistance * sum_i) / (float)count;
+    mean_v = sum_v / (float)count;
+    for (i = 0U; i < count; i++) {
+        float error = voltage[i] - (*resistance * current[i] + *voltage_offset);
+        float deviation = voltage[i] - mean_v;
+        ss_res += error * error;
+        ss_tot += deviation * deviation;
+    }
+    *r_squared = ss_tot > 1.0e-9f ? 1.0f - ss_res / ss_tot : 0.0f;
+    return true;
+}
+
+static float Detect_PhaseCurrentPeak(const MOTOR_PARAM_S *motor_param)
+{
+    float peak = fabsf(motor_param->ia);
+    if (fabsf(motor_param->ib) > peak) {
+        peak = fabsf(motor_param->ib);
+    }
+    if (fabsf(motor_param->ic) > peak) {
+        peak = fabsf(motor_param->ic);
+    }
+    return peak;
+}
+
+static bool Detect_CurrentTooHigh(const MOTOR_PARAM_S *motor_param, float dt)
+{
+    float peak = Detect_PhaseCurrentPeak(motor_param);
+    if (peak > s_detect_control.max_phase_current) {
+        s_detect_control.max_phase_current = peak;
+    }
+    if (peak >= MOTOR_DETECT_CURRENT_HARD_LIMIT_A) {
+        return true;
+    }
+    if (peak > MOTOR_DETECT_CURRENT_LIMIT_A) {
+        s_detect_control.overcurrent_elapsed += dt;
+    } else {
+        s_detect_control.overcurrent_elapsed = 0.0f;
+    }
+    return s_detect_control.overcurrent_elapsed >= MOTOR_DETECT_CURRENT_TRIP_S;
+}
+
+static void Detect_ControlReset(MOTOR_PARAM_S *motor_param)
+{
+    motor_param->ol_vd_int = 0.0f;
+    motor_param->ol_vq_int = 0.0f;
+    motor_param->Id = 0.0f;
+    motor_param->Iq = 0.0f;
+}
+
+static void Detect_RunCurrentDq(MOTOR_PARAM_S *motor_param, float theta, float id_target, float iq_target,
+                                float voltage_limit, float dt, float *vd, float *vq)
+{
+    motor_dq_voltage_t voltage;
+    float safe_limit = motor_param->v_bus * 0.5f;
+
+    if (voltage_limit < safe_limit) {
+        safe_limit = voltage_limit;
+    }
+    Motor_Current_FeedbackUpdateDq(motor_param, theta);
+    voltage = Motor_Current_RunPi(motor_param, id_target, iq_target, dt, safe_limit);
+    Motor_OutputVoltageLinear(motor_param, voltage.vd, voltage.vq, theta, motor_param->v_bus);
+    if (vd != NULL) {
+        *vd = voltage.vd;
+    }
+    if (vq != NULL) {
+        *vq = voltage.vq;
+    }
+}
+
+static void Detect_RunCurrent(MOTOR_PARAM_S *motor_param, float id_target, float voltage_limit, float dt, float *vd,
+                              float *vq)
+{
+    Detect_RunCurrentDq(motor_param, 0.0f, id_target, 0.0f, voltage_limit, dt, vd, vq);
+}
+
+static void Detect_RunVoltage(MOTOR_PARAM_S *motor_param, float vd, float theta)
+{
+    Motor_Current_FeedbackUpdateDq(motor_param, theta);
+    Motor_OutputVoltageLinear(motor_param, vd, 0.0f, theta, motor_param->v_bus);
+}
+
+static void Detect_FinishFromIsr(bool success, motor_detect_error_t error)
+{
+    Motor_OutputSafe(&motor);
+    Hal_Motor_PwmStop();
+    s_detect_control.success = success;
+    s_detect_control.error = error;
+    s_detect_control.done = true;
+    s_detect_control.stage = MOTOR_DETECT_STAGE_IDLE;
+}
+
+static void Detect_RunResistanceStep(MOTOR_PARAM_S *motor_param, float dt)
+{
+    float total_time = MOTOR_DETECT_RESISTANCE_RAMP_S + MOTOR_DETECT_RESISTANCE_SETTLE_S +
+                       MOTOR_DETECT_RESISTANCE_SAMPLE_S;
+    float ramp;
+    float id_target;
+
+    s_detect_control.elapsed += dt;
+    ramp = Detect_Clamp(s_detect_control.elapsed / MOTOR_DETECT_RESISTANCE_RAMP_S, 0.0f, 1.0f);
+    id_target = s_detect_control.current_a * ramp;
+    Detect_RunCurrent(motor_param, id_target, MOTOR_DETECT_RESISTANCE_VOLTAGE_V, dt, &s_detect_control.vd,
+                      &s_detect_control.vq);
+
+    if (Detect_CurrentTooHigh(motor_param, dt)) {
+        Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_CURRENT);
+        return;
+    }
+    if (s_detect_control.elapsed > MOTOR_DETECT_RESISTANCE_RAMP_S + MOTOR_DETECT_RESISTANCE_SETTLE_S) {
+        float current_mag = sqrtf(motor_param->Id * motor_param->Id + motor_param->Iq * motor_param->Iq);
+        float voltage_mag = sqrtf(s_detect_control.vd * s_detect_control.vd + s_detect_control.vq * s_detect_control.vq);
+        if (current_mag > s_detect_control.current_a * 0.25f) {
+            s_detect_control.accum_a += voltage_mag * MOTOR_DETECT_APPLIED_VOLTAGE_SCALE;
+            s_detect_control.accum_b += current_mag;
+            s_detect_control.samples++;
+        }
+    }
+    if (s_detect_control.elapsed >= total_time) {
+        if (s_detect_control.samples < MOTOR_DETECT_RESISTANCE_MIN_SAMPLES || s_detect_control.accum_b <= 0.0f) {
+            Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_RESISTANCE);
+            return;
+        }
+        s_detect_control.resistance_voltage_avg = s_detect_control.accum_a / (float)s_detect_control.samples;
+        s_detect_control.resistance_current_avg = s_detect_control.accum_b / (float)s_detect_control.samples;
+        Detect_FinishFromIsr(true, MOTOR_DETECT_ERROR_NONE);
+    }
+}
+
+static void Detect_RunInductanceStep(MOTOR_PARAM_S *motor_param, float dt)
+{
+    float pulse_time_start = MOTOR_DETECT_INDUCTANCE_ALIGN_S + MOTOR_DETECT_INDUCTANCE_ZERO_S;
+    uint32_t direction;
+
+    s_detect_control.elapsed += dt;
+    if (s_detect_control.elapsed < MOTOR_DETECT_INDUCTANCE_ALIGN_S) {
+        float ramp = Detect_Clamp(s_detect_control.elapsed / MOTOR_DETECT_INDUCTANCE_ALIGN_S, 0.0f, 1.0f);
+        Detect_RunCurrent(motor_param, s_detect_control.current_a * ramp, MOTOR_DETECT_INDUCTANCE_ALIGN_V, dt, NULL,
+                          NULL);
+        if (Detect_CurrentTooHigh(motor_param, dt)) {
+            Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_CURRENT);
+        }
+        return;
+    }
+    if (s_detect_control.elapsed < pulse_time_start) {
+        Detect_RunCurrent(motor_param, 0.0f, MOTOR_DETECT_INDUCTANCE_ZERO_V, dt, NULL, NULL);
+        if (Detect_CurrentTooHigh(motor_param, dt)) {
+            Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_CURRENT);
+        }
+        return;
+    }
+    if (!s_detect_control.pulse_started) {
+        Detect_ControlReset(motor_param);
+        s_detect_control.pulse_started = true;
+    }
+    {
+        float sign = (s_detect_control.pulse_count & 1U) ? -1.0f : 1.0f;
+        float voltage = sign * MOTOR_DETECT_INDUCTANCE_PULSE_V;
+        direction = s_detect_control.pulse_count / MOTOR_DETECT_INDUCTANCE_MAX_PULSES_PER_DIRECTION;
+        if (direction >= MOTOR_DETECT_INDUCTANCE_DIRECTIONS) {
+            direction = MOTOR_DETECT_INDUCTANCE_DIRECTIONS - 1U;
+        }
+        s_detect_control.injection_theta =
+            (float)direction * (MOTOR_DETECT_PI / (float)MOTOR_DETECT_INDUCTANCE_DIRECTIONS);
+        Detect_RunVoltage(motor_param, voltage, s_detect_control.injection_theta);
+        if (s_detect_control.pulse_position == 0U) {
+            s_detect_control.pulse_start_current = motor_param->Id;
+        }
+        if (s_detect_control.pulse_position >= MOTOR_DETECT_INDUCTANCE_HALF_CYCLES - 1U) {
+            float current_end = motor_param->Id;
+            float current_mid = 0.5f * (s_detect_control.pulse_start_current + current_end);
+            float slope_dt = (float)(MOTOR_DETECT_INDUCTANCE_HALF_CYCLES - 1U) * dt;
+            float slope = (current_end - s_detect_control.pulse_start_current) / slope_dt;
+            float effective_voltage = voltage * MOTOR_DETECT_APPLIED_VOLTAGE_SCALE -
+                                      s_detect_control.measured_resistance * current_mid;
+            if (fabsf(slope) > MOTOR_DETECT_INDUCTANCE_MIN_SLOPE) {
+                float inductance = effective_voltage / slope;
+                if (inductance > MOTOR_DETECT_INDUCTANCE_MIN_H && inductance < MOTOR_DETECT_INDUCTANCE_MAX_H) {
+                    s_detect_control.inductance_sum[direction] += inductance;
+                    s_detect_control.inductance_valid[direction]++;
+                    s_detect_control.valid_pulses++;
+                }
+            }
+            s_detect_control.pulse_count++;
+            s_detect_control.pulse_position = 0U;
+        } else {
+            s_detect_control.pulse_position++;
+        }
+    }
+    if (Detect_CurrentTooHigh(motor_param, dt)) {
+        Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_CURRENT);
+        return;
+    }
+    if (s_detect_control.pulse_count >=
+        MOTOR_DETECT_INDUCTANCE_DIRECTIONS * MOTOR_DETECT_INDUCTANCE_MAX_PULSES_PER_DIRECTION) {
+        float minimum = MOTOR_DETECT_INDUCTANCE_MAX_H;
+        float maximum = 0.0f;
+        uint32_t i;
+
+        for (i = 0U; i < MOTOR_DETECT_INDUCTANCE_DIRECTIONS; i++) {
+            float value;
+            if (s_detect_control.inductance_valid[i] < MOTOR_DETECT_INDUCTANCE_TARGET_PULSES_PER_DIRECTION) {
+                Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_INDUCTANCE);
+                return;
+            }
+            value = MOTOR_DETECT_INDUCTANCE_STABILITY_SCALE * s_detect_control.inductance_sum[i] /
+                    (float)s_detect_control.inductance_valid[i];
+            s_detect_result.inductance_direction_h[i] = value;
+            if (value < minimum) {
+                minimum = value;
+            }
+            if (value > maximum) {
+                maximum = value;
+            }
+        }
+        s_detect_result.inductance_d_h = minimum;
+        s_detect_result.inductance_q_h = maximum;
+        s_detect_result.inductance_h = 0.5f * (minimum + maximum);
+        s_detect_result.inductance_valid = true;
+        Detect_FinishFromIsr(true, MOTOR_DETECT_ERROR_NONE);
+    }
+}
+
+static void Detect_RunFluxStep(MOTOR_PARAM_S *motor_param, float dt)
+{
+    float rotation_time;
+
+    s_detect_control.elapsed += dt;
+    if (s_detect_control.elapsed < MOTOR_DETECT_FLUX_ALIGN_S) {
+        float ramp = Detect_Clamp(s_detect_control.elapsed / MOTOR_DETECT_FLUX_ALIGN_S, 0.0f, 1.0f);
+        Detect_RunCurrentDq(motor_param, 0.0f, s_detect_control.current_a * ramp, 0.0f,
+                            MOTOR_DETECT_FLUX_VOLTAGE_LIMIT_V, dt, &s_detect_control.vd, &s_detect_control.vq);
+        if (motor_param->v_bus > 1.0f && ramp > 0.9f) {
+            s_detect_control.flux_duty_still =
+                sqrtf(s_detect_control.vd * s_detect_control.vd + s_detect_control.vq * s_detect_control.vq) /
+                motor_param->v_bus;
+        }
+        if (Detect_CurrentTooHigh(motor_param, dt)) {
+            Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_CURRENT);
+        }
+        return;
+    }
+
+    if (!s_detect_control.rotation_started) {
+        Detect_ControlReset(motor_param);
+        s_detect_control.rotation_started = true;
+        s_detect_control.theta = 0.0f;
+        s_detect_control.electrical_rpm_now = 0.0f;
+    }
+    rotation_time = s_detect_control.elapsed - MOTOR_DETECT_FLUX_ALIGN_S;
+
+    if (s_detect_control.flux_coast_started) {
+        float v_alpha;
+        float v_beta;
+        float voltage_mag;
+        float angle;
+        float delta;
+
+        s_detect_control.flux_coast_elapsed += dt;
+        clarke_transform(motor_param->va, motor_param->vb, motor_param->vc, &v_alpha, &v_beta);
+        voltage_mag = sqrtf(v_alpha * v_alpha + v_beta * v_beta);
+        angle = atan2f(v_beta, v_alpha);
+        if (!s_detect_control.flux_bemf_angle_valid) {
+            s_detect_control.flux_bemf_angle_last = angle;
+            s_detect_control.flux_bemf_angle_valid = true;
+            return;
+        }
+        delta = angle - s_detect_control.flux_bemf_angle_last;
+        while (delta > MOTOR_DETECT_PI) {
+            delta -= 2.0f * MOTOR_DETECT_PI;
+        }
+        while (delta < -MOTOR_DETECT_PI) {
+            delta += 2.0f * MOTOR_DETECT_PI;
+        }
+        s_detect_control.flux_bemf_angle_last = angle;
+        if (s_detect_control.flux_coast_elapsed > MOTOR_DETECT_FLUX_COAST_SETTLE_S &&
+            voltage_mag >= MOTOR_DETECT_FLUX_MIN_BEMF_V) {
+            s_detect_control.flux_angle_sum += delta;
+            s_detect_control.accum_a += voltage_mag;
+            s_detect_control.accum_b += dt;
+            s_detect_control.samples++;
+        }
+        if (s_detect_control.flux_coast_elapsed >= MOTOR_DETECT_FLUX_COAST_SAMPLE_S) {
+            float omega = 0.0f;
+            float voltage_average = 0.0f;
+            float linkage = 0.0f;
+            if (s_detect_control.samples > 0U && s_detect_control.accum_b > 0.0f) {
+                omega = s_detect_control.flux_angle_sum / s_detect_control.accum_b;
+                voltage_average = s_detect_control.accum_a / (float)s_detect_control.samples;
+            }
+            s_detect_control.electrical_rpm_now = fabsf(omega) * (60.0f / (2.0f * MOTOR_DETECT_PI));
+            s_detect_control.resistance_voltage_avg = voltage_average;
+            if (fabsf(omega) > 1.0e-6f) {
+                linkage = voltage_average / fabsf(omega);
+            }
+            s_detect_result.flux_linkage_wb = linkage;
+            if (s_detect_control.samples < MOTOR_DETECT_FLUX_MIN_SAMPLES ||
+                s_detect_control.electrical_rpm_now < MOTOR_DETECT_FLUX_COAST_MIN_ERPM ||
+                s_detect_control.electrical_rpm_now <
+                    s_detect_control.electrical_rpm_target * MOTOR_DETECT_FLUX_MIN_TARGET_SPEED_RATIO ||
+                voltage_average < MOTOR_DETECT_FLUX_MIN_BEMF_V || linkage < MOTOR_DETECT_FLUX_MIN_WB ||
+                linkage > MOTOR_DETECT_FLUX_MAX_WB) {
+                Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FLUX);
+                return;
+            }
+            s_detect_result.flux_valid = true;
+            Detect_FinishFromIsr(true, MOTOR_DETECT_ERROR_NONE);
+        }
+        return;
+    }
+
+    {
+        float transition = Detect_Clamp(rotation_time / MOTOR_DETECT_FLUX_TRANSITION_S, 0.0f, 1.0f);
+        float speed_ramp = Detect_Clamp(rotation_time / MOTOR_DETECT_FLUX_RAMP_S, 0.0f, 1.0f);
+        float id_target = s_detect_control.current_a * (1.0f - transition);
+        float iq_target = s_detect_control.current_a * transition;
+
+        s_detect_control.electrical_rpm_now = s_detect_control.electrical_rpm_target * speed_ramp;
+        s_detect_control.theta += s_detect_control.electrical_rpm_now * (2.0f * MOTOR_DETECT_PI / 60.0f) * dt;
+        while (s_detect_control.theta >= 2.0f * MOTOR_DETECT_PI) {
+            s_detect_control.theta -= 2.0f * MOTOR_DETECT_PI;
+        }
+        Detect_RunCurrentDq(motor_param, s_detect_control.theta, id_target, iq_target,
+                            MOTOR_DETECT_FLUX_VOLTAGE_LIMIT_V, dt, &s_detect_control.vd, &s_detect_control.vq);
+        if (motor_param->v_bus > 1.0f) {
+            s_detect_control.flux_duty_now =
+                sqrtf(s_detect_control.vd * s_detect_control.vd + s_detect_control.vq * s_detect_control.vq) /
+                motor_param->v_bus;
+            if (s_detect_control.flux_duty_now > s_detect_control.flux_duty_max) {
+                s_detect_control.flux_duty_max = s_detect_control.flux_duty_now;
+            }
+        }
+    }
+    if (Detect_CurrentTooHigh(motor_param, dt)) {
+        Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_CURRENT);
+        return;
+    }
+    if (rotation_time >= MOTOR_DETECT_FLUX_RAMP_S) {
+        float minimum_run_duty = MOTOR_DETECT_FLUX_MIN_RUN_DUTY;
+        if (s_detect_control.flux_duty_now < minimum_run_duty ||
+            (s_detect_control.flux_duty_max > minimum_run_duty &&
+             s_detect_control.flux_duty_now <
+                 s_detect_control.flux_duty_max * MOTOR_DETECT_FLUX_DUTY_COLLAPSE_RATIO)) {
+            Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FLUX);
+            return;
+        }
+        Hal_Motor_PwmStop();
+        s_detect_control.flux_coast_started = true;
+        s_detect_control.flux_coast_elapsed = 0.0f;
+        s_detect_control.flux_bemf_angle_valid = false;
+        s_detect_control.flux_angle_sum = 0.0f;
+        s_detect_control.accum_a = 0.0f;
+        s_detect_control.accum_b = 0.0f;
+        s_detect_control.samples = 0U;
+    }
 }
 
 /**
@@ -260,6 +765,37 @@ void Motor_Detect_IsrFeed(bool pwm_down)
     motor_detect_offset_t *st;
     volatile uint32_t *count_vis;
 
+    if (s_detect_control.stage != MOTOR_DETECT_STAGE_IDLE) {
+        float dt;
+
+        /* R/L 检测与正常有感 FOC 一样只使用 PWM 向下计数侧。 */
+        if (!pwm_down) {
+            return;
+        }
+        dt = Motor_Timing_GetControlDt(&motor);
+        if (s_detect_abort_requested) {
+            Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_USER_ABORT);
+            return;
+        }
+        if (motor.v_bus < MOTOR_DETECT_MIN_BUS_VOLTAGE_V) {
+            Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FAULT);
+            return;
+        }
+        if (Motor_Protect_IsFaultLatched()) {
+            s_detect_control.fault = (int)Motor_Protect_GetFault();
+            Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FAULT);
+            return;
+        }
+        if (s_detect_control.stage == MOTOR_DETECT_STAGE_RESISTANCE) {
+            Detect_RunResistanceStep(&motor, dt);
+        } else if (s_detect_control.stage == MOTOR_DETECT_STAGE_INDUCTANCE) {
+            Detect_RunInductanceStep(&motor, dt);
+        } else if (s_detect_control.stage == MOTOR_DETECT_STAGE_FLUX) {
+            Detect_RunFluxStep(&motor, dt);
+        }
+        return;
+    }
+
     if (!s_offset_isr_enable) {
         return;
     }
@@ -277,6 +813,296 @@ void Motor_Detect_IsrFeed(bool pwm_down)
                                               (float)Hal_Motor_CurrentAdc(2U), Hal_Motor_SenseVolts(0U),
                                               Hal_Motor_SenseVolts(1U), Hal_Motor_SenseVolts(2U));
     *count_vis = st->count;
+}
+
+static bool Detect_RunStage(motor_detect_stage_t stage, float current_a, uint32_t timeout_ms)
+{
+    uint32_t waited_ms = 0U;
+    uint32_t primask;
+
+    s_detect_control.done = false;
+    s_detect_control.success = false;
+    s_detect_control.error = MOTOR_DETECT_ERROR_NONE;
+    s_detect_control.fault = 0;
+    s_detect_control.elapsed = 0.0f;
+    s_detect_control.current_a = current_a;
+    s_detect_control.vd = 0.0f;
+    s_detect_control.vq = 0.0f;
+    s_detect_control.accum_a = 0.0f;
+    s_detect_control.accum_b = 0.0f;
+    s_detect_control.resistance_voltage_avg = 0.0f;
+    s_detect_control.resistance_current_avg = 0.0f;
+    s_detect_control.max_phase_current = 0.0f;
+    s_detect_control.overcurrent_elapsed = 0.0f;
+    s_detect_control.samples = 0U;
+    s_detect_control.pulse_position = 0U;
+    s_detect_control.pulse_count = 0U;
+    s_detect_control.valid_pulses = 0U;
+    s_detect_control.pulse_start_current = 0.0f;
+    s_detect_control.injection_theta = 0.0f;
+    s_detect_control.theta = 0.0f;
+    s_detect_control.electrical_rpm_now = 0.0f;
+    s_detect_control.flux_duty_still = 0.0f;
+    s_detect_control.flux_duty_now = 0.0f;
+    s_detect_control.flux_duty_max = 0.0f;
+    s_detect_control.flux_coast_elapsed = 0.0f;
+    s_detect_control.flux_bemf_angle_last = 0.0f;
+    s_detect_control.flux_angle_sum = 0.0f;
+    memset(s_detect_control.inductance_sum, 0, sizeof(s_detect_control.inductance_sum));
+    memset(s_detect_control.inductance_valid, 0, sizeof(s_detect_control.inductance_valid));
+    s_detect_control.pulse_started = false;
+    s_detect_control.rotation_started = false;
+    s_detect_control.flux_coast_started = false;
+    s_detect_control.flux_bemf_angle_valid = false;
+    Detect_ControlReset(&motor);
+
+    primask = Motor_Crit_Enter();
+    s_detect_control.stage = stage;
+    s_detect_active = true;
+    Motor_Crit_Exit(primask);
+    Motor_OutputSafe(&motor);
+    Hal_Motor_PwmStart();
+
+    while (!s_detect_control.done && waited_ms < timeout_ms) {
+        osDelay(pdMS_TO_TICKS(1));
+        waited_ms++;
+    }
+    if (!s_detect_control.done) {
+        primask = Motor_Crit_Enter();
+        s_detect_control.stage = MOTOR_DETECT_STAGE_IDLE;
+        Motor_Crit_Exit(primask);
+        Hal_Motor_PwmStop();
+        s_detect_control.error = MOTOR_DETECT_ERROR_TIMEOUT;
+        s_detect_control.success = false;
+    }
+    Hal_Motor_PwmStop();
+    osDelay(pdMS_TO_TICKS(MOTOR_DETECT_PWM_COOLDOWN_MS));
+    if (!s_detect_control.success) {
+        s_detect_result.error = s_detect_control.error;
+        s_detect_result.fault = s_detect_control.fault;
+    }
+    return s_detect_control.success;
+}
+
+static bool Detect_MotorRlInternal(float current_a, motor_detect_result_t *result, bool retain_active)
+{
+    float fit_current[MOTOR_DETECT_RESISTANCE_FIT_POINTS];
+    float fit_voltage[MOTOR_DETECT_RESISTANCE_FIT_POINTS];
+    float resistance = 0.0f;
+    float voltage_offset = 0.0f;
+    float r_squared = 0.0f;
+    float fit_current_min = MOTOR_DETECT_MAX_CURRENT_A;
+    float fit_current_max = 0.0f;
+    float fit_target_min;
+    float fit_target_max;
+    bool fit_tracking_valid = true;
+    uint32_t point;
+
+    if (s_detect_active || Motor_Bldc_IsSelected()) {
+        s_detect_result.error = MOTOR_DETECT_ERROR_BUSY;
+        goto detect_done;
+    }
+    if (!isfinite(current_a)) {
+        s_detect_result.error = MOTOR_DETECT_ERROR_INVALID_INPUT;
+        goto detect_done;
+    }
+    if (motor.ol_enable) {
+        s_detect_result.error = MOTOR_DETECT_ERROR_MOTOR_RUNNING;
+        goto detect_done;
+    }
+    if (Motor_Protect_IsFaultLatched()) {
+        s_detect_result.error = MOTOR_DETECT_ERROR_FAULT;
+        s_detect_result.fault = (int)Motor_Protect_GetFault();
+        goto detect_done;
+    }
+
+    memset(&s_detect_result, 0, sizeof(s_detect_result));
+    s_detect_result.version = MOTOR_DETECT_RESULT_VERSION;
+    current_a = Detect_Clamp(fabsf(current_a), MOTOR_DETECT_MIN_CURRENT_A, MOTOR_DETECT_MAX_CURRENT_A);
+    fit_target_min = Detect_Clamp(current_a, MOTOR_DETECT_MIN_CURRENT_A, 1.0f);
+    fit_target_max = 2.0f * fit_target_min;
+    s_detect_result.test_current_a = current_a;
+    (void)Motor_RequestStop(&motor);
+    Motor_Sensorless_Reset();
+    Hal_Motor_PwmStop();
+    s_detect_active = true;
+
+    PRINTF("Detect motor: fitting phase resistance at %.1f..%.1f A\r\n", (double)fit_target_min,
+           (double)fit_target_max);
+    for (point = 0U; point < MOTOR_DETECT_RESISTANCE_FIT_POINTS; point++) {
+        float ratio = (float)point / (float)(MOTOR_DETECT_RESISTANCE_FIT_POINTS - 1U);
+        float fit_target = fit_target_min + ratio * (fit_target_max - fit_target_min);
+        if (!Detect_RunStage(MOTOR_DETECT_STAGE_RESISTANCE, fit_target, MOTOR_DETECT_TIMEOUT_RESISTANCE_MS)) {
+            PRINTF("  R fit aborted: peak=%.3f A\r\n", (double)s_detect_control.max_phase_current);
+            goto detect_finish;
+        }
+        fit_current[point] = s_detect_control.resistance_current_avg;
+        fit_voltage[point] = s_detect_control.resistance_voltage_avg;
+        if (fit_current[point] < fit_current_min) {
+            fit_current_min = fit_current[point];
+        }
+        if (fit_current[point] > fit_current_max) {
+            fit_current_max = fit_current[point];
+        }
+        if (fit_current[point] < fit_target * MOTOR_DETECT_RESISTANCE_MIN_TRACK_RATIO) {
+            fit_tracking_valid = false;
+        }
+        PRINTF("  R fit %lu/%lu: target=%.3f A I=%.4f A V=%.4f V V/I=%.4f ohm\r\n",
+               (unsigned long)(point + 1U), (unsigned long)MOTOR_DETECT_RESISTANCE_FIT_POINTS, (double)fit_target,
+               (double)fit_current[point], (double)fit_voltage[point],
+               (double)(fit_voltage[point] / fit_current[point]));
+    }
+    if (!fit_tracking_valid ||
+        fit_current_max - fit_current_min <
+            (fit_target_max - fit_target_min) * MOTOR_DETECT_RESISTANCE_MIN_SPAN_RATIO) {
+        s_detect_result.error = MOTOR_DETECT_ERROR_RESISTANCE;
+        PRINTF("Detect motor: resistance fit invalid current tracking span=%.4f A\r\n",
+               (double)(fit_current_max - fit_current_min));
+        goto detect_finish;
+    }
+    if (!Detect_FitResistance(fit_current, fit_voltage, MOTOR_DETECT_RESISTANCE_FIT_POINTS, &resistance,
+                              &voltage_offset, &r_squared) ||
+        resistance < MOTOR_DETECT_RESISTANCE_MIN_OHM || resistance > MOTOR_DETECT_RESISTANCE_MAX_OHM ||
+        r_squared < MOTOR_DETECT_RESISTANCE_FIT_MIN_R2) {
+        s_detect_result.error = MOTOR_DETECT_ERROR_RESISTANCE;
+        PRINTF("Detect motor: resistance fit invalid R=%.6f R2=%.4f\r\n", (double)resistance,
+               (double)r_squared);
+        goto detect_finish;
+    }
+    s_detect_result.resistance_ohm = resistance;
+    s_detect_result.inverter_voltage_offset_v = voltage_offset;
+    s_detect_result.resistance_fit_r2 = r_squared;
+    s_detect_result.resistance_valid = true;
+    s_detect_control.measured_resistance = resistance;
+    PRINTF("Detect motor: R=%.6f ohm offset=%.4f V R2=%.4f\r\n", (double)resistance,
+           (double)voltage_offset, (double)r_squared);
+
+    PRINTF("Detect motor: measuring dq phase inductance\r\n");
+    if (!Detect_RunStage(MOTOR_DETECT_STAGE_INDUCTANCE, current_a, MOTOR_DETECT_TIMEOUT_INDUCTANCE_MS)) {
+        goto detect_finish;
+    }
+    PRINTF("Detect motor: L=%.3f uH\r\n", (double)(s_detect_result.inductance_h * 1000000.0f));
+    s_detect_result.error = MOTOR_DETECT_ERROR_NONE;
+
+detect_finish:
+    Hal_Motor_PwmStop();
+    Detect_ControlReset(&motor);
+    s_detect_control.stage = MOTOR_DETECT_STAGE_IDLE;
+    s_detect_active = retain_active && s_detect_result.error == MOTOR_DETECT_ERROR_NONE;
+detect_done:
+    if (result != NULL) {
+        *result = s_detect_result;
+    }
+    return s_detect_result.resistance_valid && s_detect_result.inductance_valid &&
+           s_detect_result.error == MOTOR_DETECT_ERROR_NONE;
+}
+
+bool DETECT_MotorRl(float current_a, motor_detect_result_t *result)
+{
+    return Detect_MotorRlInternal(current_a, result, false);
+}
+
+bool DETECT_MotorParameters(float current_a, float electrical_rpm, float flux_current_a,
+                            motor_detect_result_t *result)
+{
+    float kp_old;
+    float ki_old;
+    float voltage_limit_old;
+    float flux_current;
+    bool success;
+
+    if (!isfinite(current_a) || !isfinite(electrical_rpm) || !isfinite(flux_current_a)) {
+        if (result != NULL) {
+            memset(result, 0, sizeof(*result));
+            result->version = MOTOR_DETECT_RESULT_VERSION;
+            result->error = MOTOR_DETECT_ERROR_INVALID_INPUT;
+        }
+        return false;
+    }
+    /* R/L 到磁链之间继续占用功率桥，失败不能解除其他检测的占用。 */
+    success = Detect_MotorRlInternal(current_a, result, true);
+    if (!success) {
+        return false;
+    }
+    electrical_rpm = Detect_Clamp(fabsf(electrical_rpm), MOTOR_DETECT_MIN_ELECTRICAL_RPM,
+                                  MOTOR_DETECT_MAX_ELECTRICAL_RPM);
+    flux_current = Detect_Clamp(fabsf(flux_current_a), MOTOR_DETECT_MIN_CURRENT_A, MOTOR_DETECT_MAX_CURRENT_A);
+    s_detect_result.test_electrical_rpm = electrical_rpm;
+    s_detect_result.test_flux_current_a = flux_current;
+    s_detect_control.electrical_rpm_target = electrical_rpm;
+    s_detect_control.measured_resistance = s_detect_result.resistance_ohm;
+
+    kp_old = motor.ol_current_kp;
+    ki_old = motor.ol_current_ki;
+    voltage_limit_old = motor.ol_vq_limit;
+    motor.ol_current_kp = s_detect_result.inductance_h / MOTOR_DETECT_VESC_CURRENT_TC_S;
+    motor.ol_current_ki = s_detect_result.resistance_ohm / MOTOR_DETECT_VESC_CURRENT_TC_S;
+    motor.ol_vq_limit = MOTOR_DETECT_FLUX_VOLTAGE_LIMIT_V;
+
+    PRINTF("Detect motor: accelerating to %.0f eRPM for coast BEMF (%.2f A)\r\n", (double)electrical_rpm,
+           (double)flux_current);
+    success = Detect_RunStage(MOTOR_DETECT_STAGE_FLUX, flux_current, MOTOR_DETECT_TIMEOUT_FLUX_MS);
+    motor.ol_current_kp = kp_old;
+    motor.ol_current_ki = ki_old;
+    motor.ol_vq_limit = voltage_limit_old;
+    if (!success) {
+        PRINTF("Detect motor: flux invalid duty still=%.4f now=%.4f max=%.4f coast=%.1f eRPM Bemf=%.4f V n=%lu\r\n",
+               (double)s_detect_control.flux_duty_still, (double)s_detect_control.flux_duty_now,
+               (double)s_detect_control.flux_duty_max, (double)s_detect_control.electrical_rpm_now,
+               (double)s_detect_control.resistance_voltage_avg, (unsigned long)s_detect_control.samples);
+        goto parameters_done;
+    }
+    PRINTF("Detect motor: flux=%.4f mWb, coast Bemf=%.4f V at %.1f eRPM\r\n",
+           (double)(s_detect_result.flux_linkage_wb * 1000.0f),
+           (double)s_detect_control.resistance_voltage_avg, (double)s_detect_control.electrical_rpm_now);
+    s_detect_result.error = MOTOR_DETECT_ERROR_NONE;
+
+parameters_done:
+    s_detect_active = false;
+    if (result != NULL) {
+        *result = s_detect_result;
+    }
+    return s_detect_result.resistance_valid && s_detect_result.inductance_valid && s_detect_result.flux_valid &&
+           s_detect_result.error == MOTOR_DETECT_ERROR_NONE;
+}
+
+void DETECT_GetResult(motor_detect_result_t *result)
+{
+    if (result != NULL) {
+        uint32_t primask = Motor_Crit_Enter();
+        *result = s_detect_result;
+        Motor_Crit_Exit(primask);
+    }
+}
+
+void DETECT_Abort(void)
+{
+    s_detect_abort_requested = true;
+}
+
+void DETECT_ClearAbortRequest(void)
+{
+    if (!s_detect_active) {
+        s_detect_abort_requested = false;
+    }
+}
+
+const char *DETECT_GetErrorName(motor_detect_error_t error)
+{
+    switch (error) {
+    case MOTOR_DETECT_ERROR_NONE: return "NONE";
+    case MOTOR_DETECT_ERROR_BUSY: return "BUSY";
+    case MOTOR_DETECT_ERROR_MOTOR_RUNNING: return "MOTOR_RUNNING";
+    case MOTOR_DETECT_ERROR_FAULT: return "FAULT";
+    case MOTOR_DETECT_ERROR_TIMEOUT: return "TIMEOUT";
+    case MOTOR_DETECT_ERROR_CURRENT: return "CURRENT_TOO_HIGH";
+    case MOTOR_DETECT_ERROR_RESISTANCE: return "RESISTANCE_INVALID";
+    case MOTOR_DETECT_ERROR_INDUCTANCE: return "INDUCTANCE_INVALID";
+    case MOTOR_DETECT_ERROR_FLUX: return "FLUX_INVALID";
+    case MOTOR_DETECT_ERROR_USER_ABORT: return "USER_ABORT";
+    case MOTOR_DETECT_ERROR_INVALID_INPUT: return "INVALID_INPUT";
+    default: return "UNKNOWN";
+    }
 }
 
 /**

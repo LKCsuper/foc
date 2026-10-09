@@ -19,6 +19,7 @@ extern "C" {
 #include "motor_math.h"
 #include "motor_speed.h"
 #include "motor_protect.h"
+#include "motor_crit.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -433,7 +434,8 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
      * phase_error 比较“PLL 观测角”和“I/F 强制角”。使用最短角度差函数，
      * 可以正确处理 +π/-π 交界，避免 179° 与 -179° 被误判为相差 358°。
      */
-    rt->phase_error = utils_angle_difference_rad(rt->pll_angle, motor->ol_theta);
+    rt->reference_angle = motor->ol_theta;
+    rt->phase_error = utils_angle_difference_rad(rt->pll_angle, rt->reference_angle);
 
     /* 条件 1：磁链模长应在额定值的 50%~150%，过小或过大都不可信。 */
     flux_ok = rt->flux_magnitude > flux * 0.5f && rt->flux_magnitude < flux * 1.5f;
@@ -465,6 +467,19 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
 
     /* 四项同时成立才是一次有效锁定候选，但仍需连续保持 lock_time。 */
     lock_candidate = flux_ok && speed_ok && direction_ok && phase_ok;
+
+    /* 撤销授权必须退出 CLOSED，保留磁链/PLL，低速从已同步的控制角继续 I/F。
+     * 超过安全开环上限则请求停机，不允许以关闭接管绕过高速失锁保护。 */
+    if (!motor->sensorless_takeover && rt->state == MOTOR_SENSORLESS_CLOSED) {
+        if (motor->sensorless_openloop_max_rpm > 0.0f &&
+            fabsf(motor->ol_current_rpm) > motor->sensorless_openloop_max_rpm && effects != NULL) {
+            effects->request_speed_loss_fault = true;
+        }
+        rt->state = MOTOR_SENSORLESS_OPEN_LOOP;
+        rt->blend = 0.0f;
+        rt->lock_timer = 0.0f;
+        rt->loss_timer = 0.0f;
+    }
 
     /*
      * 尚未闭环时有两个可见状态：
@@ -671,6 +686,13 @@ void Motor_Sensorless_GetDiagnosticsState(const motor_sensorless_runtime_t *rt,
     diagnostics->lock_timer = rt->lock_timer;
     diagnostics->blend = rt->blend;
     diagnostics->applied_voltage = NORM2_f(rt->applied_v_alpha, rt->applied_v_beta);
+    diagnostics->mechanical_rpm = rt->filtered_rpm;
+    diagnostics->flux_magnitude = rt->flux_magnitude;
+    diagnostics->phase_error = rt->phase_error;
+    diagnostics->reference_angle = rt->reference_angle;
+    diagnostics->observer_angle = rt->observer_angle;
+    diagnostics->pll_angle = rt->pll_angle;
+    diagnostics->state = rt->state;
 }
 
 /**
@@ -813,7 +835,16 @@ float Motor_Sensorless_GetPhaseError(void)
  */
 void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_t *diagnostics)
 {
-    Motor_Sensorless_GetDiagnosticsState(&s_sensorless, diagnostics);
+    motor_sensorless_runtime_t snapshot;
+    uint32_t primask;
+
+    if (diagnostics == NULL) {
+        return;
+    }
+    primask = Motor_Crit_Enter();
+    snapshot = s_sensorless;
+    Motor_Crit_Exit(primask);
+    Motor_Sensorless_GetDiagnosticsState(&snapshot, diagnostics);
 }
 
 /**

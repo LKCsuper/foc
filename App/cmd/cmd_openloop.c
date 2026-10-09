@@ -22,6 +22,7 @@ extern "C" {
 #include "motor_foc_isr.h"
 #include "motor_timing.h"
 #include "motor_speed_ff_detect.h"
+#include "motor_crit.h"
 #include <math.h>
 #include <stdarg.h>
 /* Private typedef -----------------------------------------------------------*/
@@ -723,6 +724,7 @@ int Cmd_OlStop(int argc, char *argv[])
     (void)argc;
     (void)argv;
 
+    DETECT_Abort();
     Motor_Hall_DetectAbort();
     (void)Motor_Position_Enable(false);
     if (Motor_RequestStop(&motor) != MOTOR_OK) {
@@ -745,6 +747,48 @@ int Cmd_OlStatus(int argc, char *argv[])
     (void)argv;
 
     ol_print_status();
+    return 0;
+}
+
+/**
+ * @description: olrpm 命令 — 打印一行转速、电流和观测器状态。
+ * @detail: 先捕获同拍无感数据，再打印短诊断，避免串口发送期间 ISR 更新导致字段混拍。
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 无额外参数
+ * @return {int} 0 成功
+ */
+int Cmd_OlRpm(int argc, char *argv[])
+{
+    motor_sensorless_diagnostics_t diag;
+    uint32_t primask;
+    float measured_rpm;
+    float target_rpm;
+    float iq;
+    bool takeover;
+    bool feedback_valid;
+    mc_fault_code fault;
+
+    (void)argc;
+    (void)argv;
+
+    /* 所有字段先捕获，串口格式化/发送期间不再读取运行状态。 */
+    primask = Motor_Crit_Enter();
+    Motor_Sensorless_GetDiagnostics(&diag);
+    measured_rpm = Motor_SpeedLoop_GetMeasuredRpm();
+    target_rpm = motor.ol_target_rpm;
+    iq = motor.Iq;
+    takeover = motor.sensorless_takeover;
+    feedback_valid = Motor_SpeedLoop_IsFeedbackValid();
+    fault = Motor_Protect_GetFault();
+    Motor_Crit_Exit(primask);
+    PRINTF("rpm obs=%.1f meas=%.1f tgt=%.0f iq=%.3f %s tk=%d fb=%s fault=%d\n",
+           diag.mechanical_rpm, measured_rpm, target_rpm, iq, ol_sensorless_state_name(diag.state), takeover ? 1 : 0,
+           feedback_valid ? "valid" : "invalid", (int)fault);
+    PRINTF("chk F=%d S=%d D=%d P=%d lock=%.3f flux=%.5f ph=%.3f\n", diag.flux_ok ? 1 : 0, diag.speed_ok ? 1 : 0,
+           diag.direction_ok ? 1 : 0, diag.phase_ok ? 1 : 0, diag.lock_timer, diag.flux_magnitude, diag.phase_error);
+    PRINTF("ang if=%.3f raw=%.3f pll=%.3f blend=%.2f\n", diag.reference_angle, diag.observer_angle,
+           diag.pll_angle, diag.blend);
+    Bsp_Usart_Flush();
     return 0;
 }
 
@@ -1188,6 +1232,8 @@ int Cmd_OlCurrentDiag(int argc, char *argv[])
 
 /**
  * @description: sltakeover 命令 — 授权或禁止无感观测器接管电角度。
+ * @detail: 停机时复位观测器和速度环。运行中保留 PLL；下一控制拍撤销 CLOSED，
+ *          超过开环安全上限时请求失速故障，不退回高速 I/F。
  * @param {int} argc 参数个数
  * @param {char *} argv[] 参数列表，argv[1] 为 0 或 1
  * @return {int} 0 成功，-1 参数错误或前置条件不满足
@@ -1224,8 +1270,10 @@ int Cmd_SensorlessTakeover(int argc, char *argv[])
         ol_print_config_result(result);
         return -1;
     }
-    Motor_Sensorless_Reset();
-    Motor_SpeedLoop_Reset();
+    if (!motor.ol_enable) {
+        Motor_Sensorless_Reset();
+        Motor_SpeedLoop_Reset();
+    }
     PRINTF("Sensorless takeover %s\n", motor.sensorless_takeover ? "armed" : "blocked");
     return 0;
 }

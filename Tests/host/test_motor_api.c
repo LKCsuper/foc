@@ -12,6 +12,18 @@
 static int speed_reset_calls;
 static int save_calls;
 static bool bldc_selected;
+static bool detect_active;
+static int detect_abort_calls;
+
+void DETECT_Abort(void)
+{
+    ++detect_abort_calls;
+}
+
+bool Motor_Detect_IsActive(void)
+{
+    return detect_active;
+}
 
 bool Motor_Bldc_IsSelected(void)
 {
@@ -161,6 +173,17 @@ int main(void)
     assert(Motor_SetCommand(&motor, &cmd) == MOTOR_ERR_BUSY);
     assert(!motor.ol_enable && pwm_start_calls == 0);
     bldc_selected = false;
+    detect_active = true;
+    assert(Motor_SetCommand(&motor, &cmd) == MOTOR_ERR_BUSY);
+    assert(!motor.ol_enable && pwm_start_calls == 0);
+    cfg = settings.config;
+    cfg.ol_v_boost = 1.25f;
+    assert(Motor_SetConfig(&motor, &cfg) == MOTOR_ERR_BUSY);
+    assert(motor.ol_v_boost == settings.config.ol_v_boost);
+    assert(Motor_RequestStop(&motor) == MOTOR_OK);
+    assert(detect_abort_calls == 1);
+    detect_active = false;
+    speed_reset_calls = 0;
     assert(Motor_SetCommand(&motor, &cmd) == MOTOR_OK);
     assert(motor.ol_enable && motor.ol_target_rpm == 500.0f && motor.ol_iq_set == 0.5f);
     assert(speed_reset_calls == 0);

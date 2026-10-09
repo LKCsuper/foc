@@ -11,7 +11,42 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 /* Private define ------------------------------------------------------------*/
+#define MOTOR_DETECT_RESULT_VERSION (5U)
+#define MOTOR_DETECT_INDUCTANCE_DIRECTIONS (6U)
 /* Private typedef -----------------------------------------------------------*/
+typedef enum {
+    MOTOR_DETECT_ERROR_NONE = 0,
+    MOTOR_DETECT_ERROR_BUSY,
+    MOTOR_DETECT_ERROR_MOTOR_RUNNING,
+    MOTOR_DETECT_ERROR_FAULT,
+    MOTOR_DETECT_ERROR_TIMEOUT,
+    MOTOR_DETECT_ERROR_CURRENT,
+    MOTOR_DETECT_ERROR_RESISTANCE,
+    MOTOR_DETECT_ERROR_INDUCTANCE,
+    MOTOR_DETECT_ERROR_FLUX,
+    MOTOR_DETECT_ERROR_USER_ABORT,
+    MOTOR_DETECT_ERROR_INVALID_INPUT,
+} motor_detect_error_t;
+
+typedef struct {
+    uint32_t version;
+    bool resistance_valid;
+    bool inductance_valid;
+    bool flux_valid;
+    float resistance_ohm;
+    float inductance_h;
+    float inductance_d_h;
+    float inductance_q_h;
+    float inductance_direction_h[MOTOR_DETECT_INDUCTANCE_DIRECTIONS];
+    float flux_linkage_wb;
+    float test_electrical_rpm;
+    float test_flux_current_a;
+    float inverter_voltage_offset_v;
+    float resistance_fit_r2;
+    float test_current_a;
+    motor_detect_error_t error;
+    int fault;
+} motor_detect_result_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
@@ -46,6 +81,31 @@ bool DETECT_Hall(void);
  * @author: lkc
  */
 bool Motor_Detect_IsActive(void);
+
+/**
+ * @description: 检测相电阻和 dq 相电感；只更新 RAM 结果，不应用、不保存。
+ * @detail: 调用方应在后台任务中调用。过程会固定转子并注入短脉冲。
+ * @param {float} current_a 对齐电流 A，限制在 0.3..2.0 A
+ * @param {motor_detect_result_t *} result 结果输出，可为 NULL
+ * @return {bool} R/L 均有效返回 true
+ */
+bool DETECT_MotorRl(float current_a, motor_detect_result_t *result);
+
+/** 完整检测 R/L/磁链；磁链阶段会开环旋转电机。 */
+bool DETECT_MotorParameters(float current_a, float electrical_rpm, float flux_current_a,
+                            motor_detect_result_t *result);
+
+/** 读取最近一次 R/L 检测结果。 */
+void DETECT_GetResult(motor_detect_result_t *result);
+
+/** 请求中止当前 R/L 检测。 */
+void DETECT_Abort(void);
+
+/** 清除空闲状态下的中止请求。 */
+void DETECT_ClearAbortRequest(void);
+
+/** 检测错误码转可读名称。 */
+const char *DETECT_GetErrorName(motor_detect_error_t error);
 
 /**
  * @description: DMA 完成中断喂入一拍电流/电压，仅零偏 ISR 采集窗口内有效。

@@ -34,6 +34,7 @@ extern "C" {
 /* cmd_openloop.c     */ extern int Cmd_Motor_OpenLoop(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlSpeed(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlStatus(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_OlRpm(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlSnap(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlCurrentDiag(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_CurrentTest(int argc, char *argv[]);
@@ -73,13 +74,14 @@ extern "C" {
 /* -- 命令表 ----------------------------------------------------------------*/
 static const cmd_entry_t s_cmd_table[] = {
     /* 偏移校准 / 霍尔检测 */
-    { "detect",     Cmd_Detect,             "detect offset/hall/phase" },
+    { "detect",     Cmd_Detect,             "detect offset/hall/phase or motor R/L" },
     { "bldc",       Cmd_Bldc,               "BLDC: start/open | stop | exit | status" },
     /* Flash 存储 */
     { "saveparam",  Cmd_Saveparam,          "save motor params to Flash" },
     /* 开环 V/F 控制 */
     { "olspeed",    Cmd_OlSpeed,            "openloop V/F speed set <rpm>" },
     { "olstatus",   Cmd_OlStatus,           "show openloop current and fault status" },
+    { "olrpm",      Cmd_OlRpm,              "one-line rpm/current while running" },
     { "olsnap",     Cmd_OlSnap,             "short Id/Iq/RPM/fault snapshot while running" },
     { "olcurdiag",  Cmd_OlCurrentDiag,      "Hall current errors by sector since last start" },
     { "curtest",    Cmd_CurrentTest,        "static D-axis current-loop test [A] [ms]" },

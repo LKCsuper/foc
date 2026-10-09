@@ -105,9 +105,10 @@ void MOTOR_Param_Init(void)
     gpstMotorDefault->speed_ki = MOTOR_SPEED_KI_DEFAULT;
     gpstMotorDefault->speed_iq_limit = MOTOR_SPEED_IQ_LIMIT_DEFAULT;
     gpstMotorDefault->speed_loop_hz = 1000.0f;
-    /* 无感参数必须使用 Ω、H、Wb，不能直接填 mΩ、uH、mWb 数字。 */
-    gpstMotorDefault->sensorless_enable = false;
+    /* 无感电机上电就积分观测器。接管仍默认关闭，电角先用 I/F。 */
+    gpstMotorDefault->sensorless_enable = (MOTOR_SENSOR_TYPE == MOTOR_SENSOR_SENSORLESS);
     gpstMotorDefault->sensorless_takeover = false;
+    /* 电阻、电感、磁链单位是 Ω、H、Wb。 */
     gpstMotorDefault->sensorless_motor_r = MOTOR_FIXED_LINE_RESISTANCE;
     gpstMotorDefault->sensorless_motor_l = MOTOR_FIXED_LINE_INDUCTANCE;
     gpstMotorDefault->sensorless_flux_linkage = MOTOR_FIXED_FLUX_LINKAGE;

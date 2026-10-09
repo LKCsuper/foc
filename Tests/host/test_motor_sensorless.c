@@ -67,6 +67,7 @@ int main(void)
     a.pll_angle = 0.0f;
     a.observer_angle = 0.0f;
     motor.sensorless_enable = true;
+    motor.sensorless_takeover = true;
     motor.ol_enable = true;
     motor.ol_mode = MOTOR_OL_MODE_IF;
     motor.ol_current_rpm = 2000.0f;
@@ -93,6 +94,42 @@ int main(void)
     assert(effects.request_speed_loss_fault);
     assert(!effects.feedback_valid);
     assert(Motor_Sensorless_GetStateState(&a) == MOTOR_SENSORLESS_OPEN_LOOP);
+
+    /* 撤销授权后低速退出观测角，保留 PLL/磁链，不把反馈继续报为有效。 */
+    Motor_Sensorless_InitState(&a);
+    a.state = MOTOR_SENSORLESS_CLOSED;
+    a.initialized = true;
+    a.x_alpha = 0.02f;
+    a.pll_angle = 0.0f;
+    a.pll_speed_electrical = 300.0f;
+    a.blend = 1.0f;
+    motor.ol_current_rpm = 600.0f;
+    motor.ol_theta = 0.02f;
+    motor.sensorless_takeover = false;
+    motor.sensorless_phase_tolerance = 1.4f;
+    Motor_Sensorless_UpdateState(&a, &motor, 0.00001f, &effects);
+    assert(!Motor_Sensorless_IsClosedLoopState(&a));
+    assert(!Motor_Sensorless_IsTakeoverCompleteState(&a));
+    assert(!effects.feedback_valid && !effects.prime_speed_iq);
+    assert(!effects.request_speed_loss_fault);
+    assert(a.initialized && a.x_alpha > 0.0f && a.pll_speed_electrical > 200.0f);
+    assert(fabsf(Motor_Sensorless_GetControlAngleState(&a, motor.ol_theta) - motor.ol_theta) < 1e-6f);
+    Motor_Sensorless_GetDiagnosticsState(&a, &diag_a);
+    assert(fabsf(diag_a.phase_error - (diag_a.pll_angle - diag_a.reference_angle)) < 1e-5f);
+    assert(diag_a.phase_ok == (fabsf(diag_a.phase_error) <= motor.sensorless_phase_tolerance));
+    /* 快照值不会随后续状态写入变化。 */
+    angle_a = diag_a.pll_angle;
+    a.pll_angle = 2.0f;
+    assert(diag_a.pll_angle == angle_a);
+
+    /* 高速撤销授权必须请求故障，不能退回超上限 I/F。 */
+    a.state = MOTOR_SENSORLESS_CLOSED;
+    a.blend = 0.5f;
+    motor.ol_current_rpm = 1200.0f;
+    Motor_Sensorless_UpdateState(&a, &motor, 0.00001f, &effects);
+    assert(effects.request_speed_loss_fault && !effects.feedback_valid);
+    assert(!Motor_Sensorless_IsClosedLoopState(&a));
+    assert(a.blend == 0.0f);
 
     printf("test_motor_sensorless: pass\n");
     return 0;

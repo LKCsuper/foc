@@ -46,6 +46,7 @@ void Task_Init(void *argument)
     Motor_Encoder_Init();
     MOTOR_Param_Init();   // 初始化Flash参数（直接结构体读写，无需EasyFlash）
     Motor_Encoder_ApplyCalibration(motor.encoder_offset_rad, motor.encoder_inverted, motor.encoder_calibrated);
+    (void)Motor_ApplyProfileSensor();
 
     /*
      * 开机偏移：Flash 已有有效电流零点则直接使用；否则校准约 5 秒并自动存 Flash。

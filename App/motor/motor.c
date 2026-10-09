@@ -15,6 +15,7 @@ extern "C" {
 #include "motor_protect.h"
 #include "motor_speed.h"
 #include "motor_bldc.h"
+#include "motor_detect.h"
 #include "hal_motor.h"
 #include "motor_feedback.h"
 #include "motor_crit.h"
@@ -127,7 +128,7 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
     if (!motor_command_valid(motor, cmd, &normalized)) {
         return MOTOR_ERR_INVALID;
     }
-    if (normalized.enable && Motor_Bldc_IsSelected()) {
+    if (normalized.enable && (Motor_Bldc_IsSelected() || Motor_Detect_IsActive())) {
         return MOTOR_ERR_BUSY;
     }
 
@@ -178,6 +179,9 @@ motor_result_t Motor_RequestStop(MOTOR_PARAM_S *motor)
         return result;
     }
     cmd.enable = false;
+    if (Motor_Detect_IsActive()) {
+        DETECT_Abort();
+    }
     Motor_Anticogging_Stop();
     return Motor_SetCommand(motor, &cmd);
 }
@@ -273,6 +277,9 @@ motor_result_t Motor_SetConfig(MOTOR_PARAM_S *motor, const motor_config_t *confi
     if (motor == NULL || config == NULL) {
         return MOTOR_ERR_NULL;
     }
+    if (Motor_Detect_IsActive()) {
+        return MOTOR_ERR_BUSY;
+    }
     if (!Motor_Settings_Capture(motor, &current)) {
         return MOTOR_ERR_INVALID;
     }
@@ -305,6 +312,31 @@ motor_result_t Motor_SetFeedbackSource(motor_feedback_source_t source)
     }
     Motor_Feedback_SetSourceDefault(source);
     return MOTOR_OK;
+}
+
+/**
+ * @description: 按当前电机头文件的传感器类型设置上电反馈源。
+ * @detail: 无感、编码器、霍尔三选一。开环不在型号里，调试时用 olfb 临时切换。
+ * @return {motor_result_t} MOTOR_OK
+ * @author: lkc
+ */
+motor_result_t Motor_ApplyProfileSensor(void)
+{
+    motor_feedback_source_t source;
+
+    switch (MOTOR_SENSOR_TYPE) {
+    case MOTOR_SENSOR_ENCODER:
+        source = MOTOR_FEEDBACK_SRC_ENCODER;
+        break;
+    case MOTOR_SENSOR_HALL:
+        source = MOTOR_FEEDBACK_SRC_HALL;
+        break;
+    case MOTOR_SENSOR_SENSORLESS:
+    default:
+        source = MOTOR_FEEDBACK_SRC_SENSORLESS;
+        break;
+    }
+    return Motor_SetFeedbackSource(source);
 }
 
 /**

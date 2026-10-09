@@ -14,6 +14,7 @@
 #include "motor_bldc_sensorless.h"
 #include "motor_bldc_six_step.h"
 #include "motor_protect.h"
+#include "motor_detect.h"
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_BLDC_AUTO_DUTY_MIN 0.08f
 #define MOTOR_BLDC_AUTO_DUTY_MAX 0.10f
@@ -70,7 +71,7 @@ static bool Motor_Bldc_StartInternal(motor_bldc_direction_t direction, float dut
 {
     bool started;
 
-    if (motor.ol_enable || Motor_Protect_IsFaultLatched() || duty <= 0.0f || duty > 0.25f ||
+    if (motor.ol_enable || Motor_Detect_IsActive() || Motor_Protect_IsFaultLatched() || duty <= 0.0f || duty > 0.25f ||
         (!fixed_open_loop && !s_sample_upward) ||
         (!fixed_open_loop && (duty < MOTOR_BLDC_AUTO_DUTY_MIN || duty > MOTOR_BLDC_AUTO_DUTY_MAX)) ||
         (direction != MOTOR_BLDC_DIRECTION_CW && direction != MOTOR_BLDC_DIRECTION_CCW)) {

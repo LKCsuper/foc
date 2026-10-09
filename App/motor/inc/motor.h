@@ -132,6 +132,15 @@ motor_result_t Motor_SetConfig(MOTOR_PARAM_S *motor, const motor_config_t *confi
 motor_result_t Motor_SetFeedbackSource(motor_feedback_source_t source);
 
 /**
+ * @description: 按当前电机头文件的传感器类型设置上电反馈源。
+ * @detail: 无感只打开观测器默认值，不授权接管。编码器、霍尔在标定无效时仍回退开环角。
+ *          不写 Flash。olfb 可在本次上电期间改掉这个默认值。
+ * @return {motor_result_t} MOTOR_OK
+ * @author: lkc
+ */
+motor_result_t Motor_ApplyProfileSensor(void);
+
+/**
  * @description: 读取当前请求的反馈来源。
  * @return {motor_feedback_source_t} 当前源
  * @author: lkc

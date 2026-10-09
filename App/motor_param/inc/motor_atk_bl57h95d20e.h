@@ -10,9 +10,11 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#include "motor_sensor_type.h"
 /* Private define ------------------------------------------------------------*/
 
 /* 铭牌。本电机没有单独的图纸宏，固件直接读下面这组名字。电阻、电感、磁链单位是 Ω、H、Wb。 */
+#define MOTOR_SENSOR_TYPE              MOTOR_SENSOR_HALL /* 空载 Hall 路径已在这台电机上用过 */
 #define MOTOR_FIXED_MODEL              "ATK-BL57H95D20E" /* 型号 */
 #define MOTOR_FIXED_POLE_COUNT         (4U)              /* 磁极数 */
 #define MOTOR_FIXED_POLE_PAIRS         (2.0f)            /* 极对数 = 磁极数 / 2 */

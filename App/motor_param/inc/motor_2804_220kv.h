@@ -11,10 +11,12 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#include "motor_sensor_type.h"
 /* Private define ------------------------------------------------------------*/
 
 /* 图纸铭牌。观测器只用相电阻、相电感，不要拿绕线电阻 5.1 Ω 去顶相电阻。 */
 #define MOTOR_2804_220KV_MODEL                  "2804-220KV" /* 型号 */
+#define MOTOR_SENSOR_TYPE                       MOTOR_SENSOR_ENCODER /* MT6701 SSI */
 #define MOTOR_2804_220KV_POLE_COUNT             (14U)        /* 磁极数 */
 #define MOTOR_2804_220KV_POLE_PAIRS             (7.0f)       /* 极对数 = 磁极数 / 2 */
 #define MOTOR_2804_220KV_SLOT_COUNT             (12U)        /* 定子槽数，12 槽 14 极 */

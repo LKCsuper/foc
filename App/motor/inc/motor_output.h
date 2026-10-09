@@ -22,7 +22,7 @@ void Motor_OutputSafe(MOTOR_PARAM_S *motor);
 
 /**
  * @description: 反 Park 加调制，将 vd/vq 落到三相 PWM。
- * @detail: 编码器与 Hall 的有感 I/F 使用已验证的 VESC SVM，其余模式保留 svm_hqd。
+ * @detail: 有感 I/F 保持已验证的 VESC SVM。无感 I/F 使用同一套电压换算。V/F 仍用 svm_hqd。
  *          比较值按当前板 A-C-B 相序提交。为空则直接返回。
  * @param {MOTOR_PARAM_S *} motor     电机对象，写入 duty1/2/3
  * @param {float} vd                  D 轴电压 (V)
@@ -33,6 +33,18 @@ void Motor_OutputSafe(MOTOR_PARAM_S *motor);
  * @author: lkc
  */
 void Motor_OutputVoltage(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus);
+
+/**
+ * @description: 使用 VESC 线性 SVM 电压归一化输出 dq 电压。
+ * @detail: 供需要已知实际注入电压的诊断路径使用；不依赖当前控制模式或反馈源。
+ * @param {MOTOR_PARAM_S *} motor     电机对象，写入 duty1/2/3
+ * @param {float} vd                  D 轴电压 (V)
+ * @param {float} vq                  Q 轴电压 (V)
+ * @param {float} theta_rad           电角度 (rad)
+ * @param {float} v_bus               母线电压 (V)
+ * @return {void} 无
+ */
+void Motor_OutputVoltageLinear(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus);
 
 /**
  * @description: 将已经仲裁的控制结果应用到 PWM。

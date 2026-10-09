@@ -8,17 +8,19 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#include "motor_sensor_type.h"
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_MODEL_ATK_BL57H95D20E (1U)
 #define MOTOR_MODEL_C2208_100T      (2U)
 #define MOTOR_MODEL_2804_220KV      (3U)
+#define MOTOR_MODEL_3508            (4U)
 
 /*
  * 在工程设置中定义 MOTOR_SELECTED_MODEL 可覆盖默认选择；也可在此处修改默认型号。
- * 当前默认 2804-220KV。换成 C2208 或 ATK 时只改这个宏，重新编译烧录后再做编码器标定。
+ * 当前默认 3508。换成 C2208、ATK 或 2804-220KV 时只改这个宏，重新编译烧录后再做编码器标定。
  */
 #ifndef MOTOR_SELECTED_MODEL
-#define MOTOR_SELECTED_MODEL MOTOR_MODEL_2804_220KV
+#define MOTOR_SELECTED_MODEL MOTOR_MODEL_3508
 #endif
 
 #if MOTOR_SELECTED_MODEL == MOTOR_MODEL_ATK_BL57H95D20E
@@ -27,14 +29,20 @@ extern "C" {
 #include "motor_c2208_100t.h"
 #elif MOTOR_SELECTED_MODEL == MOTOR_MODEL_2804_220KV
 #include "motor_2804_220kv.h"
+#elif MOTOR_SELECTED_MODEL == MOTOR_MODEL_3508
+#include "motor_3508.h"
 #else
 #error "Unsupported MOTOR_SELECTED_MODEL"
 #endif
 
 #if !defined(MOTOR_FIXED_MODEL) || !defined(MOTOR_FIXED_POLE_PAIRS) || !defined(MOTOR_FIXED_RATED_RPM) ||       \
     !defined(MOTOR_FIXED_LINE_RESISTANCE) || !defined(MOTOR_FIXED_LINE_INDUCTANCE) ||                          \
-    !defined(MOTOR_FIXED_FLUX_LINKAGE)
-#error "Selected motor header does not provide the required MOTOR_FIXED_* parameters"
+    !defined(MOTOR_FIXED_FLUX_LINKAGE) || !defined(MOTOR_SENSOR_TYPE)
+#error "Selected motor header does not provide MOTOR_FIXED_* or MOTOR_SENSOR_TYPE"
+#endif
+#if (MOTOR_SENSOR_TYPE != MOTOR_SENSOR_SENSORLESS) && (MOTOR_SENSOR_TYPE != MOTOR_SENSOR_ENCODER) &&           \
+    (MOTOR_SENSOR_TYPE != MOTOR_SENSOR_HALL)
+#error "MOTOR_SENSOR_TYPE must be sensorless, encoder, or hall"
 #endif
 
 /* 旧的自定义电机头未提供补偿参数时保持关闭，避免改变原行为。 */

@@ -10,10 +10,12 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
+#include "motor_sensor_type.h"
 /* Private define ------------------------------------------------------------*/
 
 /* 图纸铭牌。电阻只标了 21.2 Ω，没写清单相还是线间，观测器口径未确认。 */
 #define MOTOR_C2208_100T_MODEL              "C2208-100T" /* 型号 */
+#define MOTOR_SENSOR_TYPE                   MOTOR_SENSOR_ENCODER /* MT6701 SSI */
 #define MOTOR_C2208_100T_TYPE               "BLDC"       /* 直流无刷电机 */
 #define MOTOR_C2208_100T_POLE_COUNT         (14U)        /* 磁极数 */
 #define MOTOR_C2208_100T_POLE_PAIRS         (7.0f)       /* 极对数 = 磁极数 / 2 */

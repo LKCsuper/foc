@@ -42,8 +42,8 @@ void Motor_OutputSafe(MOTOR_PARAM_S *motor)
 
 /**
  * @description: 反 Park 加调制，将 vd/vq 落到三相 PWM。
- * @detail: 编码器与 Hall 的有感 I/F 使用已验证的 VESC SVM，其余模式保留 svm_hqd。
- *          比较值按当前板 A-C-B 相序提交。
+ * @detail: 有感 I/F 保持已验证的 VESC SVM。无感 I/F 也用同一套电压换算，观测器记录实际调制电压。
+ *          V/F 仍用 svm_hqd。比较值按当前板 A-C-B 相序提交。
  * @param {MOTOR_PARAM_S *} motor 电机对象，写入 duty1/2/3
  * @param {float} vd            D 轴电压 (V)
  * @param {float} vq            Q 轴电压 (V)
@@ -52,7 +52,8 @@ void Motor_OutputSafe(MOTOR_PARAM_S *motor)
  * @return {void} 无
  * @author: lkc
  */
-void Motor_OutputVoltage(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus)
+static void Motor_OutputVoltageInternal(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus,
+                                        bool force_linear_svm)
 {
     float v_alpha;
     float v_beta;
@@ -60,19 +61,28 @@ void Motor_OutputVoltage(MOTOR_PARAM_S *motor, float vd, float vq, float theta_r
     uint32_t period;
     motor_feedback_source_t feedback_source;
     bool sensored_if;
+    bool sensorless_if;
 
     if (motor == NULL) {
         return;
     }
     period = Hal_Motor_PwmPeriodCounts();
     inverse_park(vd, vq, theta_rad, &v_alpha, &v_beta);
-    Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
     feedback_source = Motor_Feedback_GetSourceDefault();
+    /* 编码器与 Hall 的条件保持原样。 */
     sensored_if = (motor->ol_mode == MOTOR_OL_MODE_IF) &&
                   (((feedback_source == MOTOR_FEEDBACK_SRC_HALL) && MOTOR_HALL_USE_VESC_SVM) ||
                    (feedback_source == MOTOR_FEEDBACK_SRC_ENCODER));
-    /* 编码器与 Hall 共用同一 VESC 电压归一化，避免 svm_hqd 约 1/3 的实际调制增益。 */
-    if (sensored_if) {
+    /* 无感拖转和观测器接管都走 I/F。电压必须和 VESC SVM 一致，否则磁链积分会放大。 */
+    sensorless_if = (motor->ol_mode == MOTOR_OL_MODE_IF) &&
+                    (feedback_source == MOTOR_FEEDBACK_SRC_SENSORLESS ||
+                     feedback_source == MOTOR_FEEDBACK_SRC_OPENLOOP);
+    if (sensorless_if) {
+        Motor_Sensorless_SetAppliedVoltage(-v_alpha, -v_beta);
+    } else {
+        Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
+    }
+    if (force_linear_svm || sensored_if || sensorless_if) {
         foc_svm_from_voltage(-v_alpha, -v_beta, v_bus, MOTOR_FOC_SVM_MAX_DUTY, period, &motor->duty1,
                              &motor->duty2, &motor->duty3, &sector);
     } else {
@@ -81,6 +91,16 @@ void Motor_OutputVoltage(MOTOR_PARAM_S *motor, float vd, float vq, float theta_r
     /* BM75/HD75 当前实机验证相序为 A-C-B。 */
     Hal_Motor_PwmSetDuty(motor->duty1, motor->duty3, motor->duty2);
     Hal_Motor_PwmCommit();
+}
+
+void Motor_OutputVoltage(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus)
+{
+    Motor_OutputVoltageInternal(motor, vd, vq, theta_rad, v_bus, false);
+}
+
+void Motor_OutputVoltageLinear(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus)
+{
+    Motor_OutputVoltageInternal(motor, vd, vq, theta_rad, v_bus, true);
 }
 
 /**
