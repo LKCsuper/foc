@@ -8,6 +8,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
 #include "motor_mt6701.h"
+#include "motor_mt6701_protocol.h"
 #include "hal_sensor.h"
 #include "hal_motor.h"
 /* Private define ------------------------------------------------------------*/
@@ -22,9 +23,6 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 static volatile motor_mt6701_status_t s_mt6701;
 /* Private function prototypes -----------------------------------------------*/
-#if MOTOR_MT6701_INTERFACE == MOTOR_MT6701_INTERFACE_SSI
-static uint8_t Motor_MT6701_Crc6(uint32_t data, uint8_t bit_count);
-#endif
 typedef enum {
     MOTOR_MT6701_FAILURE_TRANSFER = 0,
     MOTOR_MT6701_FAILURE_CRC,
@@ -32,32 +30,6 @@ typedef enum {
 } motor_mt6701_failure_t;
 static void Motor_MT6701_RecordFailure(motor_mt6701_failure_t reason);
 /* Private functions ---------------------------------------------------------*/
-
-#if MOTOR_MT6701_INTERFACE == MOTOR_MT6701_INTERFACE_SSI
-/**
- * @description: 计算 MT6701 SSI 帧的 CRC-6。
- * @detail: 多项式 x^6 + x + 1，对角度与磁场状态共 bit_count 位。
- * @param {uint32_t} data      待校验位，低 bit_count 位有效
- * @param {uint8_t} bit_count  参与校验的位数
- * @return {uint8_t} 6 位 CRC
- * @author: lkc
- */
-static uint8_t Motor_MT6701_Crc6(uint32_t data, uint8_t bit_count)
-{
-    uint8_t crc = 0U;
-    int bit;
-
-    for (bit = (int)bit_count - 1; bit >= 0; bit--) {
-        uint8_t feedback = (uint8_t)(((crc >> 5U) & 1U) ^ ((data >> (uint32_t)bit) & 1U));
-
-        crc = (uint8_t)((crc << 1U) & 0x3FU);
-        if (feedback != 0U) {
-            crc ^= 0x03U; /* x^6 + x + 1 */
-        }
-    }
-    return crc;
-}
-#endif
 
 /**
  * @description: 记录一次坏帧；连续失败达到约2ms后作废角度。
@@ -145,35 +117,31 @@ bool Motor_MT6701_Poll(void)
         return false;
     }
 
-    angle = (uint16_t)(((uint16_t)msb << 6U) | ((uint16_t)lsb >> 2U));
-    angle &= (MOTOR_MT6701_COUNTS_PER_REV - 1U);
+    angle = Motor_MT6701_DecodeI2c(msb, lsb);
     s_mt6701.magnetic_status = 0U;
 #else
     uint32_t frame;
-    uint32_t payload;
     uint16_t angle;
-    uint8_t received_crc;
+    motor_mt6701_frame_t decoded;
+    motor_mt6701_frame_result_t result;
 
     if (!Hal_Encoder_SsiReadFrame(&frame)) {
         Motor_MT6701_RecordFailure(MOTOR_MT6701_FAILURE_TRANSFER);
         return false;
     }
 
-    payload = (frame >> 6U) & 0x3FFFFU; /* D[13:0] + Mg[3:0] */
-    received_crc = (uint8_t)(frame & 0x3FU);
-    if (Motor_MT6701_Crc6(payload, 18U) != received_crc) {
+    result = Motor_MT6701_DecodeSsi(frame, &decoded);
+    if (result == MOTOR_MT6701_FRAME_CRC_ERROR) {
         Motor_MT6701_RecordFailure(MOTOR_MT6701_FAILURE_CRC);
         return false;
     }
-
-    angle = (uint16_t)((frame >> 10U) & 0x3FFFU);
-    s_mt6701.magnetic_status = (uint8_t)((frame >> 6U) & 0x0FU);
-    /* Mg[1:0] 磁场异常会使角度失效；Mg[2] PUSH 和 Mg[3] 超速不单独阻断角度。 */
-    if ((s_mt6701.magnetic_status & 0x03U) != 0U) {
+    angle = decoded.angle;
+    s_mt6701.magnetic_status = decoded.magnetic_status;
+    if (result == MOTOR_MT6701_FRAME_MAGNETIC_ERROR) {
         Motor_MT6701_RecordFailure(MOTOR_MT6701_FAILURE_STATUS);
         return false;
     }
-    if ((s_mt6701.magnetic_status & 0x08U) != 0U) {
+    if (decoded.overspeed_warning) {
         Motor_MT6701_RecordStatusWarning();
     }
 #endif

@@ -226,15 +226,20 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor feedback host compilation failed' }
     & .build/host/test_motor_feedback.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor feedback host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -DMOTOR_MT6701_INTERFACE=1 -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_sensor/motor_mt6701.c Tests/host/test_motor_mt6701.c -o .build/host/test_motor_mt6701.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -DMOTOR_MT6701_INTERFACE=1 -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_sensor/motor_mt6701_protocol.c App/motor_sensor/motor_mt6701.c Tests/host/test_motor_mt6701.c -o .build/host/test_motor_mt6701.exe
     if ($LASTEXITCODE -ne 0) { throw 'MT6701 host compilation failed' }
     & .build/host/test_motor_mt6701.exe
     if ($LASTEXITCODE -ne 0) { throw 'MT6701 host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -DMOTOR_MT6701_INTERFACE=2 -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_sensor/motor_mt6701.c Tests/host/test_motor_mt6701_ssi.c -o .build/host/test_motor_mt6701_ssi.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -DMOTOR_MT6701_INTERFACE=2 -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_sensor/motor_mt6701_protocol.c App/motor_sensor/motor_mt6701.c Tests/host/test_motor_mt6701_ssi.c -o .build/host/test_motor_mt6701_ssi.exe
     if ($LASTEXITCODE -ne 0) { throw 'MT6701 SSI host compilation failed' }
     & .build/host/test_motor_mt6701_ssi.exe
     if ($LASTEXITCODE -ne 0) { throw 'MT6701 SSI host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_ENCODER_HOST_TEST -IApp/motor_sensor/inc -IApp/motor/inc -IApp/motor_param/inc -ILibrary/Hal/inc App/motor_sensor/motor_encoder.c Tests/host/stubs/motor_mt6701_stub.c Tests/host/test_motor_encoder.c -o .build/host/test_motor_encoder.exe
+    # 仅核心+标准C，无HAL、motor参数或MT6701替身，证明可独立链接。
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/motor_sensor/inc App/motor_sensor/motor_encoder_core.c Tests/host/test_motor_encoder_core.c -o .build/host/test_motor_encoder_core.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Encoder standalone compilation failed' }
+    & .build/host/test_motor_encoder_core.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Encoder standalone tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_ENCODER_HOST_TEST -IApp/motor_sensor/inc -IApp/motor/inc -IApp/motor_param/inc -ILibrary/Hal/inc App/motor_sensor/motor_encoder_core.c App/motor_sensor/motor_encoder.c Tests/host/stubs/motor_mt6701_stub.c Tests/host/test_motor_encoder.c -o .build/host/test_motor_encoder.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor encoder host compilation failed' }
     & .build/host/test_motor_encoder.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor encoder host tests failed' }
@@ -258,4 +263,16 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Example 01 transform compilation failed' }
     & .build/host/example_01_transform.exe
     if ($LASTEXITCODE -ne 0) { throw 'Example 01 transform failed' }
+    & ./Scripts/export_reusable_modules.ps1
+    $portableSources = @(Get-Content .build/reusable_modules/source_manifest.json -Raw | ConvertFrom-Json | ForEach-Object {
+        Join-Path '.build/reusable_modules/src' (Split-Path $_ -Leaf)
+    })
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/reusable_modules/include @portableSources Tests/host/test_motor_encoder_core.c -o .build/host/test_reusable_modules.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Portable bundle compilation failed' }
+    & .build/host/test_reusable_modules.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Portable bundle tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/reusable_modules/include .build/reusable_modules/src/motor_mt6701_protocol.c Tests/host/test_motor_mt6701_protocol.c -o .build/host/test_motor_mt6701_protocol.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Standalone protocol compilation failed' }
+    & .build/host/test_motor_mt6701_protocol.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Standalone protocol tests failed' }
 } finally { Pop-Location }

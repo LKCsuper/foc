@@ -1339,6 +1339,11 @@
               <FilePath>..\motor_sensor\motor_hall.c</FilePath>
             </File>
             <File>
+              <FileName>motor_encoder_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_sensor\motor_encoder_core.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_encoder.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor_sensor\motor_encoder.c</FilePath>
@@ -1347,6 +1352,11 @@
               <FileName>motor_encoder_detect.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor_sensor\motor_encoder_detect.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_mt6701_protocol.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_sensor\motor_mt6701_protocol.c</FilePath>
             </File>
             <File>
               <FileName>motor_mt6701.c</FileName>
