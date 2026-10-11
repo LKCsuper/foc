@@ -60,6 +60,14 @@ typedef struct {
  * @author: lkc
  */
 uint32_t DETECT_Offset(bool cal_undriven);
+/**
+ * @description: 校准三相电流零点，只更新 RAM，不写 Flash。
+ * @detail: 采样、关桥和中止条件与 DETECT_Offset 相同。供停机诊断调用，阻塞在应用任务中。
+ * @param {bool} cal_undriven true 时额外校准未驱动相电压偏移
+ * @return {uint32_t} 1 成功，0 被中止
+ * @author: lkc
+ */
+uint32_t DETECT_OffsetRam(bool cal_undriven);
 
 /**
  * @description: 上电偏移校准：Flash 已有有效电流零点则跳过，否则检测并写入 Flash

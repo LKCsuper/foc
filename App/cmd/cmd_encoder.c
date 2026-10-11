@@ -47,8 +47,13 @@ static encoder_watch_sample_t s_encoder_watch_samples[ENCODER_WATCH_MAX_SAMPLES]
 static void Encoder_PrintStatus(void)
 {
     motor_mt6701_status_t mt;
+    motor_encoder_sampling_diagnostics_t sampling;
 
     Motor_MT6701_GetStatus(&mt);
+    Motor_Encoder_GetSamplingDiagnostics(&sampling);
+    PRINTF("Encoder sampling fresh=%lu gap_max=%luus stale_reseed=%lu age_max=%luus\r\n",
+           (unsigned long)sampling.fresh_frames, (unsigned long)sampling.max_sample_gap_us,
+           (unsigned long)sampling.stale_reseeds, (unsigned long)sampling.max_sample_age_us);
     PRINTF("Encoder count=%u / %u\r\n",
            (unsigned)Motor_Encoder_GetCount(),
            (unsigned)Hal_Encoder_CountsPerRev());
@@ -353,7 +358,7 @@ static int Encoder_CoggingCommand(int argc, char *argv[])
 }
 
 /**
- * @description: MT6701 编码器命令：show / reset / detect / watch / cog。
+ * @description: MT6701 编码器命令：show / reset / detect / compare / watch / cog。
  * @param {int} argc       参数个数，含命令名
  * @param {char *[]} argv  参数表；子命令在 argv[1]
  * @return {int} 0=已执行，-1=无法识别的子命令；cog 失败时透传其子命令返回值
@@ -361,6 +366,16 @@ static int Encoder_CoggingCommand(int argc, char *argv[])
  */
 int Cmd_Motor_Encoder(int argc, char *argv[])
 {
+    if (argc >= 2 && strcmp(argv[1], "compare") == 0) {
+        if (argc != 3 || (strcmp(argv[2], "0") != 0 && strcmp(argv[2], "1") != 0) || motor.ol_enable) {
+            PRINTF("Usage: encoder compare <0|1> (stopped only)\r\n");
+            return -1;
+        }
+        Motor_Encoder_SetCompareEnabled(strcmp(argv[2], "1") == 0);
+        PRINTF("Encoder comparison %s; control feedback unchanged\r\n",
+               Motor_Encoder_IsCompareEnabled() ? "ON" : "OFF");
+        return 0;
+    }
     if (argc < 2 || strcmp(argv[1], "show") == 0) {
         Encoder_PrintStatus();
         return 0;
@@ -372,7 +387,11 @@ int Cmd_Motor_Encoder(int argc, char *argv[])
         return 0;
     }
     if (strcmp(argv[1], "detect") == 0) {
-        Motor_Encoder_Detect();
+        if (argc > 3 || (argc == 3 && strcmp(argv[2], "ram") != 0)) {
+            PRINTF("Usage: encoder detect [ram]\r\n");
+            return -1;
+        }
+        Motor_Encoder_DetectWithSave(argc != 3);
         return 0;
     }
     if (strcmp(argv[1], "watch") == 0) {

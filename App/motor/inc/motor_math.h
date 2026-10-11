@@ -296,8 +296,15 @@ static inline int utils_map_int(int x, int in_min, int in_max, int out_min, int 
  */
 static inline bool utils_saturate_vector_2d(float *x, float *y, float max) {
 	bool retval = false;
-	float mag = NORM2_f(*x, *y);
+	float mag;
+	float mag_sq = SQ(*x) + SQ(*y);
 	max = fabsf(max);
+	/* 明确在限幅圆内时无需sqrt；保留舍入边界、极小值与异常值的原路径。 */
+	if (max >= 1e-10f && isfinite(mag_sq) &&
+	    mag_sq < SQ(max) * 0.99999976f) {
+		return false;
+	}
+	mag = sqrtf(mag_sq);
 
 	if (mag < 1e-10f) {
 		mag = 1e-10f;

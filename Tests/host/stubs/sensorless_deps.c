@@ -4,6 +4,15 @@
 #include <stdbool.h>
 #include "motor_param.h"
 #include "motor_types.h"
+#include "motor_timing.h"
+
+bool Motor_Timing_ProfileIsActive(void) { return false; }
+uint32_t Motor_Timing_ProfileTimeUs(void) { return 0U; }
+void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start)
+{
+    (void)stage;
+    (void)start;
+}
 
 void Motor_SpeedFeedback_Set(float rpm, bool valid)
 {

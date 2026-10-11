@@ -19,6 +19,17 @@ static bool s_last_alignment_running;
 static float s_last_soft_current_scale;
 static float s_last_if_iq_scale;
 static float s_speed_prime_iq;
+static float s_sensorless_correction;
+static bool s_takeover_complete;
+static float s_last_frame_correction;
+
+float utils_angle_difference_rad(float a, float b)
+{
+    float delta = a - b;
+    while (delta > 3.14159265f) delta -= 6.2831853f;
+    while (delta < -3.14159265f) delta += 6.2831853f;
+    return delta;
+}
 
 void Motor_SpeedLoop_Reset(void)
 {
@@ -31,7 +42,7 @@ void Motor_Sensorless_Reset(void)
 
 bool Motor_Sensorless_IsTakeoverComplete(void)
 {
-    return false;
+    return s_takeover_complete;
 }
 
 void Motor_SpeedLoop_PrimeIq(float iq)
@@ -41,7 +52,7 @@ void Motor_SpeedLoop_PrimeIq(float iq)
 
 void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
 {
-    (void)motor;
+    motor->ol_theta += s_sensorless_correction;
     (void)dt;
     s_sensorless_updates++;
 }
@@ -261,6 +272,7 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
     (void)v_limit;
     s_current_step_calls++;
     s_last_current_theta = theta;
+    s_last_frame_correction = ctx != NULL ? ctx->frame_correction : 0.0f;
     s_last_alignment_running = ctx != NULL && ctx->alignment_running;
     s_last_soft_current_scale = ctx != NULL ? ctx->soft_current_scale : 0.0f;
     s_last_if_iq_scale = ctx != NULL ? ctx->if_iq_scale : 0.0f;
@@ -741,6 +753,32 @@ int main(void)
         Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_SENSORLESS);
     }
 
+    {
+        MOTOR_PARAM_S m = {0};
+        motor_control_t ctrl;
+        Motor_Control_Init(&ctrl);
+        ctrl.startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+        ctrl.startup.soft_current_scale = ctrl.startup.drag_current_scale = 1.0f;
+        m.ol_enable = true; m.ol_mode = MOTOR_OL_MODE_IF;
+        m.ol_target_rpm = m.ol_current_rpm = 600.0f; m.ol_max_rpm = 800.0f;
+        m.ol_pole_pairs = 7.0f; m.ol_vq_limit = 4.0f;
+        m.sensorless_enable = true; m.ol_iq_set = 0.30f;
+        Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_SENSORLESS);
+        s_sensorless_correction = 0.05f; s_takeover_complete = false;
+        Motor_Control_Step(&ctrl, &m, 16.0f, 0.001f, false);
+        assert(fabsf(s_last_frame_correction - 0.05f) < 1e-5f);
+        /* 完成接管后，即使观测角继续旋转，也不能再迁移积分。 */
+        s_takeover_complete = true;
+        Motor_Control_Step(&ctrl, &m, 16.0f, 0.001f, false);
+        assert(s_last_frame_correction == 0.0f);
+        s_takeover_complete = false;
+        Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_OPENLOOP);
+        Motor_Control_Step(&ctrl, &m, 16.0f, 0.001f, false);
+        assert(s_last_frame_correction == 0.0f);
+        Motor_Control_ResetRuntime(&ctrl, &m);
+        assert(ctrl.current_frame_correction == 0.0f);
+        s_sensorless_correction = 0.0f;
+    }
     printf("test_motor_control: pass\n");
     return 0;
 }

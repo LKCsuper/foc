@@ -5,6 +5,62 @@
 #include "motor_sensorless.h"
 #include "motor_param.h"
 
+/* 静止角差隔离角度过渡：半程应消除一半角差，不能几毫秒就贴到PLL。 */
+static void check_blend_duration(float start, float target, float omega)
+{
+    MOTOR_PARAM_S m;
+    motor_sensorless_runtime_t rt;
+    motor_sensorless_effects_t effects;
+    const float dt = 1.0f / 15000.0f;
+    float initial_error = remainderf(target - start, 6.283185307f);
+    float previous_flux_a, previous_flux_b;
+    unsigned n;
+    memset(&m, 0, sizeof(m));
+    Motor_Sensorless_InitState(&rt);
+    m.ol_enable = true;
+    m.ol_mode = MOTOR_OL_MODE_IF;
+    m.sensorless_enable = m.sensorless_takeover = true;
+    m.sensorless_flux_linkage = 0.00239f;
+    m.sensorless_observer_gain = 12000000.0f;
+    m.sensorless_blend_time = 0.2f;
+    m.sensorless_loss_time = 100.0f;
+    m.ol_theta = start;
+    m.ol_pole_pairs = 7.0f;
+    m.ol_max_rpm = 1000.0f;
+    rt.initialized = true;
+    rt.state = MOTOR_SENSORLESS_CLOSED;
+    rt.x_alpha = m.sensorless_flux_linkage * cosf(target);
+    rt.x_beta = m.sensorless_flux_linkage * sinf(target);
+    previous_flux_a = rt.x_alpha;
+    previous_flux_b = rt.x_beta;
+    rt.pll_angle = target;
+    rt.pll_speed_electrical = omega;
+    for (n = 1; n <= 4500; ++n) {
+        float moving_target = remainderf(target + n * dt * omega, 6.283185307f);
+        float fa = m.sensorless_flux_linkage * cosf(moving_target);
+        float fb = m.sensorless_flux_linkage * sinf(moving_target);
+        /* 独立等速转子轨迹；调用者每拍推进强制角，再由控制器回写。 */
+        m.ol_theta = remainderf(m.ol_theta + omega * dt, 6.283185307f);
+        Motor_Sensorless_SetAppliedVoltageState(&rt, (fa - previous_flux_a) / dt, (fb - previous_flux_b) / dt);
+        previous_flux_a = fa;
+        previous_flux_b = fb;
+        Motor_Sensorless_UpdateState(&rt, &m, dt, &effects);
+        if (n > 3010) {
+            assert(rt.control_angle == rt.pll_angle);
+            assert(m.ol_theta == rt.pll_angle);
+            assert(effects.feedback_valid);
+        }
+        if (n == 1500 || n == 2700) {
+            float expected = initial_error * (1.0f - n / 3000.0f);
+            float remaining = remainderf(moving_target - rt.control_angle, 6.283185307f);
+            printf("blend n=%u remaining=%.6f expected=%.6f\n", n, remaining, expected);
+            assert(fabsf(remaining - expected) < 0.003f);
+        }
+    }
+    assert(Motor_Sensorless_IsTakeoverCompleteState(&rt));
+    assert(fabsf(remainderf(target + 4500 * dt * omega - rt.control_angle, 6.283185307f)) < 0.001f);
+}
+
 int main(void)
 {
     motor_sensorless_runtime_t a;
@@ -116,7 +172,7 @@ int main(void)
     assert(fabsf(Motor_Sensorless_GetControlAngleState(&a, motor.ol_theta) - motor.ol_theta) < 1e-6f);
     Motor_Sensorless_GetDiagnosticsState(&a, &diag_a);
     assert(fabsf(diag_a.phase_error - (diag_a.pll_angle - diag_a.reference_angle)) < 1e-5f);
-    assert(diag_a.phase_ok == (fabsf(diag_a.phase_error) <= motor.sensorless_phase_tolerance));
+    assert(diag_a.phase_ok == (fabsf(diag_a.lock_phase_error) <= motor.sensorless_phase_tolerance));
     /* 快照值不会随后续状态写入变化。 */
     angle_a = diag_a.pll_angle;
     a.pll_angle = 2.0f;
@@ -131,6 +187,47 @@ int main(void)
     assert(!Motor_Sensorless_IsClosedLoopState(&a));
     assert(a.blend == 0.0f);
 
+    /* 排除升速段、记录每拍失败；停机保留，下次起步重置。 */
+    Motor_Sensorless_InitState(&a);
+    motor.ol_current_rpm = 600.0f;
+    motor.ol_target_rpm = 700.0f;
+    motor.sensorless_transition_rpm = 500.0f;
+    Motor_Sensorless_UpdateState(&a, &motor, 0.00001f, &effects);
+    assert(a.stats.samples == 0U);
+    motor.ol_target_rpm = 600.0f;
+    Motor_Sensorless_UpdateState(&a, &motor, 0.00001f, &effects);
+    assert(a.stats.samples == 1U);
+    assert(a.stats.flux_fail == (unsigned)!a.flux_ok);
+    assert(a.stats.phase_fail == (unsigned)!a.phase_ok);
+    {
+        unsigned bin, count = 0, failures = 0;
+        for (bin = 0; bin < MOTOR_SENSORLESS_STATS_BINS; ++bin) {
+            count += a.stats.bins[bin].samples;
+            failures += a.stats.bins[bin].phase_fail;
+        }
+        assert(count == a.stats.samples / 8U && failures <= a.stats.phase_fail);
+    }
+    assert(a.stats.flux_min == a.flux_magnitude && a.stats.flux_max == a.flux_magnitude);
+    a.stats.longest_candidate = 0.02f;
+    Motor_Sensorless_ResetState(&a);
+    assert(!a.initialized && a.stats.samples == 1U && a.stats.longest_candidate == 0.02f);
+    motor.ol_enable = false;
+    Motor_Sensorless_UpdateState(&a, &motor, 0.00001f, &effects);
+    assert(a.stats.samples == 1U);
+    motor.ol_enable = true;
+    motor.ol_current_rpm = 0.0f;
+    Motor_Sensorless_UpdateState(&a, &motor, 0.00001f, &effects);
+    assert(a.stats.samples == 0U && a.stats.longest_candidate == 0.0f);
+    a.stats.elapsed = 10.0f;
+    motor.ol_current_rpm = 600.0f;
+    Motor_Sensorless_UpdateState(&a, &motor, 0.00001f, &effects);
+    assert(a.stats.samples == 0U);
+
+    check_blend_duration(0.0f, 1.2f, 0.0f);
+    check_blend_duration(2.8f, -2.3f, 0.0f);
+    check_blend_duration(-2.8f, 2.3f, 0.0f);
+    check_blend_duration(2.8f, -2.3f, 439.82297f);
+    check_blend_duration(-2.8f, 2.3f, -439.82297f);
     printf("test_motor_sensorless: pass\n");
     return 0;
 }

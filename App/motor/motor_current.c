@@ -16,6 +16,7 @@ extern "C" {
 #include "motor_math.h"
 #include "motor_pid.h"
 #include "motor_crit.h"
+#include "motor_timing.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -335,15 +336,44 @@ void Motor_Current_TakePiDiag(motor_current_pi_diag_t *diag)
 }
 
 /**
- * @description: 电流环一步：反馈 + 目标 + PI（不含 PWM）。
- * @param {MOTOR_PARAM_S} * motor  电机对象
- * @param {float} theta  电角度 (rad)
- * @param {const motor_current_target_ctx_t} * ctx  目标上下文
- * @param {float} dt  控制周期 (s)
- * @param {float} v_limit  电压限幅 (V)
- * @param {float} * id_target_out  可选输出 Id 目标
- * @param {float} * iq_target_out  可选输出 Iq 目标
- * @return {motor_dq_voltage_t} vd/vq (V)
+ * @description: 坐标交接时旋转电流 PI 积分，并补偿目标变化的 P 项。
+ * @detail: 只用于无感渐变等坐标交接。delta 为新电角减旧电角 (rad)，不得传入正常转速积分角。
+ *          由电流环在矢量限幅前调用，不改 PWM。motor 为空或 delta 非有限值时直接返回。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，读写 ol_vd_int/ol_vq_int (V)
+ * @param {float} delta           交接附加角 (rad)
+ * @param {float} old_id          旧坐标 Id 目标 (A)
+ * @param {float} old_iq          旧坐标 Iq 目标 (A)
+ * @param {float} new_id          新坐标 Id 目标 (A)
+ * @param {float} new_iq          新坐标 Iq 目标 (A)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Current_TransportPi(MOTOR_PARAM_S *motor, float delta, float old_id, float old_iq,
+                               float new_id, float new_iq)
+{
+    float c, s, vd, vq;
+    if (motor == NULL || !isfinite(delta)) return;
+    c = cos_f32(delta);
+    s = sin_f32(delta);
+    vd = motor->ol_vd_int;
+    vq = motor->ol_vq_int;
+    /* R(-delta): 同一静止电压矢量在新dq轴上的坐标。反馈也按同一旋转变化，
+     * 因此只需补偿旧/新目标P项，不能清零积分或重新注入启动电流。 */
+    motor->ol_vd_int = c * vd + s * vq + motor->ol_current_kp * (c * old_id + s * old_iq - new_id);
+    motor->ol_vq_int = -s * vd + c * vq + motor->ol_current_kp * (-s * old_id + c * old_iq - new_iq);
+}
+
+/**
+ * @description: 电流环一步：反馈变换、取目标、可选坐标交接、PI 及矢量限幅。
+ * @detail: 不含 PWM。ctx->frame_correction 非 0 时先旋转积分，再跑 PI 并限幅。
+ * @param {MOTOR_PARAM_S *} motor                   电机采样与积分
+ * @param {float} theta                             Park 用电角度 (rad)
+ * @param {const motor_current_target_ctx_t *} ctx  目标上下文
+ * @param {float} dt                                控制周期 (s)
+ * @param {float} v_limit                           电压限幅 (V)
+ * @param {float *} id_target_out                   可选，回写本拍 Id 目标 (A)；可为 NULL
+ * @param {float *} iq_target_out                   可选，回写本拍 Iq 目标 (A)；可为 NULL
+ * @return {motor_dq_voltage_t} 限幅后的 vd/vq (V)
  * @author: lkc
  */
 motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const motor_current_target_ctx_t *ctx,
@@ -359,6 +389,13 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
 
     Motor_Current_FeedbackUpdateDq(motor, theta);
     Motor_Current_GetTargets(motor, ctx, &id_target, &iq_target);
+    if (ctx != NULL && ctx->frame_correction != 0.0f) {
+        bool profile = Motor_Timing_ProfileIsActive();
+        uint32_t start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+        Motor_Current_TransportPi(motor, ctx->frame_correction, motor->id_target, motor->iq_target,
+                                  id_target, iq_target);
+        if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_TRANSPORT, start);
+    }
     if (id_target_out != NULL) {
         *id_target_out = id_target;
     }

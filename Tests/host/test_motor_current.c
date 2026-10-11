@@ -172,6 +172,36 @@ int main(void)
         assert(!Motor_Current_ReconstructLongestZero(&ia, &ib, &ic, 5000U, 1000U, 1000U, 400U));
     }
 
+    /* 切换坐标+目标时，P+积分合成的静止电压必须连续，涵盖正反转和跨圈。 */
+    {
+        const float deltas[] = {1.5707963f, -1.5707963f, 0.07f, -0.07f, 6.23f};
+        for (i = 0; i < sizeof(deltas) / sizeof(deltas[0]); ++i) {
+            float delta = deltas[i], c = cosf(delta), s = sinf(delta);
+            float old_d = 0.23f, old_q = -0.11f, kp = 0.12f;
+            float before_d = -1.55f + kp * (0.0f - old_d);
+            float before_q = 1.06f + kp * (0.30f - old_q);
+            float after_d, after_q;
+            memset(&a, 0, sizeof(a));
+            a.ol_current_kp = kp;
+            a.ol_vd_int = -1.55f; a.ol_vq_int = 1.06f;
+            Motor_Current_TransportPi(&a, delta, 0.0f, 0.30f, 0.0f, 0.15f);
+            after_d = a.ol_vd_int + kp * (0.0f - (c * old_d + s * old_q));
+            after_q = a.ol_vq_int + kp * (0.15f - (-s * old_d + c * old_q));
+            assert(fabsf(c * after_d - s * after_q - before_d) < 1e-5f);
+            assert(fabsf(s * after_d + c * after_q - before_q) < 1e-5f);
+        }
+        /* 实际Step必须在目标输出指针覆盖旧目标之前迁移积分。 */
+        memset(&a, 0, sizeof(a)); memset(&ctx, 0, sizeof(ctx));
+        a.ol_current_kp = 0.12f; a.ol_vd_int = -1.55f; a.ol_vq_int = 1.06f;
+        a.iq_target = 0.30f;
+        ctx.soft_current_scale = 1.0f; ctx.speed_loop_active = true;
+        ctx.speed_iq_target = 0.15f; ctx.frame_correction = 1.5707963f;
+        va = Motor_Current_Step(&a, ctx.frame_correction, &ctx, 0.0f, 4.0f,
+                                &a.id_target, &a.iq_target);
+        assert(fabsf(-va.vq + 1.55f) < 1e-5f);
+        assert(fabsf(va.vd - (1.06f + 0.12f * 0.30f)) < 1e-5f);
+        assert(a.iq_target == 0.15f);
+    }
     printf("test_motor_current: pass\n");
     return 0;
 }

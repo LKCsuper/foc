@@ -225,12 +225,34 @@ static const unsigned int crc32_table[256] =
 };
 
 /**
- * @description: 查表 + 线性插值计算 sin(x)
- * @detail: 输入 x 为弧度，先按 2π 归一化到 [0,1] 周期，再取 512+1 点正弦表相邻两值线性插值
- * @param {float} x    输入角度（弧度）
- * @return {*}
+ * @description: 同一角度共用正弦表索引与插值比例，计算 sin 与 cos。
+ * @detail: 余弦使用正弦表的四分之一周期偏移。不缓存跨拍状态，不访问硬件。输出指针不可为空。
+ * @param {float} x        输入角度 (rad)
+ * @param {float *} sine   输出正弦值，不可为空
+ * @param {float *} cosine 输出余弦值，不可为空
+ * @return {void} 无
  * @author: lkc
  */
+void sincos_f32(float x, float *sine, float *cosine)
+{
+    float in = x * 0.159154943092f;
+    int32_t n = (int32_t)in;
+    float findex, fract;
+    uint16_t index, cos_index;
+    if (x < 0.0f) n--;
+    in -= (float)n;
+    findex = (float)SIN_TABLE_SIZE * in;
+    index = (uint16_t)findex;
+    if (index >= SIN_TABLE_SIZE) {
+        index = 0U;
+        findex -= (float)SIN_TABLE_SIZE;
+    }
+    fract = findex - (float)index;
+    cos_index = (uint16_t)((index + SIN_TABLE_SIZE / 4U) % SIN_TABLE_SIZE);
+    *sine = (1.0f - fract) * sinTable_f32[index] + fract * sinTable_f32[index + 1U];
+    *cosine = (1.0f - fract) * sinTable_f32[cos_index] + fract * sinTable_f32[cos_index + 1U];
+}
+
 float sin_f32(float x)
 {
 	float sinVal, fract, in;                           /* Temporary variables for input, output */

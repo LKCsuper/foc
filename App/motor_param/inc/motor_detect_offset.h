@@ -136,6 +136,16 @@ void Motor_Detect_OffsetApply(const motor_detect_offset_t *st, MOTOR_PARAM_S *mo
  * @author: lkc
  */
 bool Motor_Detect_OffsetIsStored(const MOTOR_PARAM_S *motor);
+/**
+ * @description: 停机时仅在 RAM 中重放三相电流零偏。
+ * @detail: 各相相对当前值最多 1 个 ADC count，且须落在已存偏移范围内。电机运行中拒绝。
+ *          不写 Flash、不启动采样。调用方负责与校准流程串行。
+ * @param {MOTOR_PARAM_S *} motor    电机对象，写入 currentOffset
+ * @param {const float *} values     三相零偏 (ADC count)，长度 3
+ * @return {bool} true=已写入
+ * @author: lkc
+ */
+bool Motor_Detect_OffsetSetCurrentRam(MOTOR_PARAM_S *motor, const float values[3]);
 /* Private functions ---------------------------------------------------------*/
 #ifdef __cplusplus
 }

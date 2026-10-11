@@ -16,6 +16,9 @@ static float s_applied_alpha;
 static float s_applied_beta;
 static float s_vesc_alpha;
 static float s_vesc_beta;
+static float s_reconstructed_alpha;
+static float s_reconstructed_beta;
+static unsigned s_reconstruction_calls;
 
 uint32_t Hal_Motor_PwmPeriodCounts(void) { return 1000U; }
 void Hal_Motor_PwmSetDuty(uint32_t a, uint32_t b, uint32_t c)
@@ -30,6 +33,12 @@ void Motor_Sensorless_SetAppliedVoltage(float alpha, float beta)
 {
     s_applied_alpha = alpha;
     s_applied_beta = beta;
+}
+void Motor_Sensorless_SetModulatedVoltage(float alpha, float beta)
+{
+    s_reconstructed_alpha = alpha;
+    s_reconstructed_beta = beta;
+    s_reconstruction_calls++;
 }
 void inverse_park(float vd, float vq, float theta, float *alpha, float *beta)
 {
@@ -71,6 +80,46 @@ int main(void)
     motor_control_result_t result;
 
     memset(&motor, 0, sizeof(motor));
+    /* 独立构造三相平均端电压：验证相序、公共模抵消及补偿方向。 */
+    {
+        float alpha;
+        float beta;
+        motor.duty1 = 600U;
+        motor.duty2 = 450U;
+        motor.duty3 = 300U;
+        assert(Motor_OutputEstimateVoltage(&motor, 1000U, 24.0f, 0.0f, &alpha, &beta));
+        assert(fabsf(alpha - 3.6f) < 1e-5f);
+        assert(fabsf(beta - 2.07846097f) < 1e-5f);
+        motor.duty1 += 100U;
+        motor.duty2 += 100U;
+        motor.duty3 += 100U;
+        assert(Motor_OutputEstimateVoltage(&motor, 1000U, 24.0f, 0.0f, &alpha, &beta));
+        assert(fabsf(alpha - 3.6f) < 1e-5f && fabsf(beta - 2.07846097f) < 1e-5f);
+        motor.duty1 = motor.duty2 = motor.duty3 = 500U;
+        motor.ia = 1.0f;
+        motor.ib = motor.ic = -0.5f;
+        assert(Motor_OutputEstimateVoltage(&motor, 1000U, 24.0f, 0.01f, &alpha, &beta));
+        assert(fabsf(alpha + 0.21333333f) < 1e-5f && beta == 0.0f);
+        motor.ia = -1.0f;
+        motor.ib = motor.ic = 0.5f;
+        assert(Motor_OutputEstimateVoltage(&motor, 1000U, 24.0f, 0.01f, &alpha, &beta));
+        assert(fabsf(alpha - 0.21333333f) < 1e-5f && beta == 0.0f);
+        motor.ia = 0.0f;
+        motor.ib = 1.0f;
+        motor.ic = -1.0f;
+        assert(Motor_OutputEstimateVoltage(&motor, 1000U, 24.0f, 0.01f, &alpha, &beta));
+        assert(alpha == 0.0f && fabsf(beta + 0.18475209f) < 1e-5f);
+        motor.ib = motor.ic = 0.0f;
+        assert(Motor_OutputEstimateVoltage(&motor, 1000U, 24.0f, 0.01f, &alpha, &beta));
+        assert(alpha == 0.0f && beta == 0.0f);
+        assert(!Motor_OutputEstimateVoltage(&motor, 0U, 24.0f, 0.0f, &alpha, &beta));
+        assert(!Motor_OutputEstimateVoltage(&motor, 1000U, NAN, 0.0f, &alpha, &beta));
+        assert(!Motor_OutputEstimateVoltage(&motor, 1000U, 24.0f, -0.01f, &alpha, &beta));
+        motor.duty1 = 1001U;
+        assert(!Motor_OutputEstimateVoltage(&motor, 1000U, 24.0f, 0.0f, &alpha, &beta));
+        assert(alpha == 0.0f && beta == 0.0f);
+        memset(&motor, 0, sizeof(motor));
+    }
     Motor_OutputSafe(&motor);
     assert(motor.duty1 == 500U && motor.duty2 == 500U && motor.duty3 == 500U);
     assert(s_pwm_a == 500U && s_pwm_b == 500U && s_pwm_c == 500U);
@@ -89,13 +138,19 @@ int main(void)
     motor.ol_mode = MOTOR_OL_MODE_IF;
     Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
     assert(s_vesc_calls == 2U && s_hqd_calls == 0U);
-    assert(s_applied_alpha == -2.0f && s_applied_beta == 3.0f);
+    assert(fabsf(s_applied_alpha + 0.264f) < 1e-5f);
+    assert(fabsf(s_applied_beta + 0.15242047f) < 1e-5f);
     assert(s_vesc_alpha == -2.0f && s_vesc_beta == 3.0f);
+    assert(s_reconstruction_calls == 1U);
+    /* 逻辑ABC=11/22/33，保持β为负，不因物理ACB映射而反号。 */
+    assert(fabsf(s_reconstructed_alpha + 0.264f) < 1e-5f);
+    assert(fabsf(s_reconstructed_beta + 0.15242047f) < 1e-5f);
 
     s_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
     Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
     assert(s_vesc_calls == 3U && s_hqd_calls == 0U);
-    assert(s_applied_alpha == -2.0f && s_applied_beta == 3.0f);
+    assert(fabsf(s_applied_alpha + 0.264f) < 1e-5f);
+    assert(fabsf(s_applied_beta + 0.15242047f) < 1e-5f);
 
     motor.ol_mode = MOTOR_OL_MODE_VF;
     s_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
@@ -107,10 +162,39 @@ int main(void)
     assert(s_vesc_calls == 3U && s_hqd_calls == 1U);
     assert(s_applied_alpha == 1.0f && s_applied_beta == 4.0f);
     assert(s_pwm_a == 101U && s_pwm_b == 303U && s_pwm_c == 202U);
+    assert(s_reconstruction_calls == 2U);
 
     result.action = MOTOR_CONTROL_ACTION_NONE;
     Motor_OutputApplyControlResult(&motor, 24.0f, &result);
     assert(s_commit_calls == 5U);
+    /* 观测补偿只改变估计电压，不能改变比较值；无效设置不能覆盖已选参数。 */
+    assert(Motor_OutputGetObserverDeadtime() == 0.0f);
+    assert(Motor_OutputSetObserverDeadtime(0.0054f));
+    assert(!Motor_OutputSetObserverDeadtime(NAN));
+    assert(!Motor_OutputSetObserverDeadtime(-0.001f));
+    assert(!Motor_OutputSetObserverDeadtime(0.021f));
+    assert(Motor_OutputGetObserverDeadtime() == 0.0054f);
+    motor.ol_mode = MOTOR_OL_MODE_IF;
+    s_source = MOTOR_FEEDBACK_SRC_SENSORLESS;
+    motor.ia = 1.0f;
+    motor.ib = motor.ic = -0.5f;
+    Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+    assert(s_pwm_a == 11U && s_pwm_b == 33U && s_pwm_c == 22U);
+    assert(fabsf(s_applied_alpha - (s_reconstructed_alpha - 0.1152f)) < 1e-5f);
+    assert(fabsf(s_applied_beta - s_reconstructed_beta) < 1e-5f);
+    /* 单次电流噪声反向不应立即翻转补偿方向。 */
+    motor.ia = -0.01f;
+    motor.ib = motor.ic = 0.005f;
+    Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+    assert(fabsf(s_applied_alpha - (s_reconstructed_alpha - 0.1152f)) < 1e-5f);
+    Motor_OutputSafe(&motor);
+    motor.ia = -1.0f;
+    motor.ib = motor.ic = 0.5f;
+    Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+    assert(fabsf(s_applied_alpha - (s_reconstructed_alpha + 0.1152f)) < 1e-5f);
+    assert(Motor_OutputSetObserverDeadtime(0.0f));
+    Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+    assert(s_applied_alpha == s_reconstructed_alpha && s_applied_beta == s_reconstructed_beta);
     puts("test_motor_output: pass");
     return 0;
 }

@@ -9,6 +9,25 @@ try {
         $Compiler = Join-Path $root '.build/tools/ziglang/zig.exe'
         if (!(Test-Path $Compiler)) { throw 'Specify -Compiler path to zig.exe, or install ziglang into .build/tools.' }
     }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/motor_timing.c Tests/host/test_motor_timing_profile.c -o .build/host/test_motor_timing_profile.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Timing profile host compilation failed' }
+    & .build/host/test_motor_timing_profile.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor timing profile host tests failed' }
+    # 编译当前真实命令片段，用主机替身验证任务等待、异常停机和配置恢复。
+    $sltestSource = Get-Content App/cmd/cmd_openloop.c -Raw -Encoding utf8
+    $sltestStart = $sltestSource.IndexOf('/* sltest:')
+    $sltestEnd = $sltestSource.IndexOf('/* end sltest */', $sltestStart)
+    if ($sltestStart -lt 0 -or $sltestEnd -le $sltestStart) { throw 'sltest command boundaries missing' }
+    [IO.File]::WriteAllText((Join-Path (Get-Location) '.build/host/sltest_under_test.inc'),
+        $sltestSource.Substring($sltestStart, $sltestEnd - $sltestStart), [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -I.build/host -IApp/motor/inc -IApp/motor_param/inc -IApp/motor_sensor/inc Tests/host/test_sensorless_speed_command.c -o .build/host/test_sensorless_speed_command.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Sensorless speed command host compilation failed' }
+    & .build/host/test_sensorless_speed_command.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Sensorless speed command host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE "-Dassert_param(x)=((void)0)" -IApp/motor/inc App/motor/motor_foc.c App/motor/motor_utils.c Tests/host/test_motor_fast_math.c -o .build/host/test_motor_fast_math.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Fast math host compilation failed' }
+    & .build/host/test_motor_fast_math.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Fast math host tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -IThirtyLibrary/common_code/lib/seqlock -IThirtyLibrary/common_code/lib/ringbuf -IThirtyLibrary/common_code/lib/textbuf ThirtyLibrary/common_code/lib/seqlock/seqlock.c ThirtyLibrary/common_code/lib/seqlock/seqlock_test.c ThirtyLibrary/common_code/lib/ringbuf/ringbuf.c ThirtyLibrary/common_code/lib/ringbuf/ringbuf_test.c ThirtyLibrary/common_code/lib/textbuf/textbuf.c ThirtyLibrary/common_code/lib/textbuf/textbuf_test.c Tests/host/test_common_code.c -o .build/host/test_common_code.exe
     if ($LASTEXITCODE -ne 0) { throw 'Common-code host compilation failed' }
     & .build/host/test_common_code.exe
@@ -53,6 +72,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor output host compilation failed' }
     & .build/host/test_motor_output.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor output host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE "-Dassert_param(x)=((void)0)" -IApp/motor/inc App/motor/motor_foc.c App/motor/motor_utils.c Tests/host/test_linear_svm_voltage.c -o .build/host/test_linear_svm_voltage.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Linear SVM voltage compilation failed' }
+    & .build/host/test_linear_svm_voltage.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Linear SVM voltage tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/diagnostic/motor_fast_vf.c Tests/host/test_motor_fast_vf.c -o .build/host/test_motor_fast_vf.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor fast VF host compilation failed' }
     & .build/host/test_motor_fast_vf.exe
@@ -109,6 +132,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor sensorless host compilation failed' }
     & .build/host/test_motor_sensorless.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor sensorless host tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/observer/motor_sensorless.c Tests/host/stubs/sensorless_math.c Tests/host/stubs/sensorless_deps.c Tests/host/test_sensorless_known_angle.c -o .build/host/test_sensorless_known_angle.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Known-angle sensorless compilation failed' }
+    & .build/host/test_sensorless_known_angle.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Known-angle sensorless tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DSENSORLESS_REAL_MATH -IApp/motor_param/inc -IApp/motor/inc App/motor/observer/motor_sensorless.c App/motor/motor_math.c Tests/host/stubs/sensorless_math.c Tests/host/stubs/sensorless_deps.c Tests/host/test_sensorless_known_angle.c -o .build/host/test_sensorless_real_math.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Real-math sensorless compilation failed' }
+    & .build/host/test_sensorless_real_math.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Real-math sensorless tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_current.c App/motor/motor_pid.c Tests/host/stubs/current_math.c Tests/host/test_motor_current.c -o .build/host/test_motor_current.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor current host compilation failed' }
     & .build/host/test_motor_current.exe

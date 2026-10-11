@@ -35,6 +35,47 @@ extern "C" {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 static motor_encoder_runtime_t s_encoder;
+static volatile bool s_encoder_compare_enabled;
+static motor_encoder_sampling_diagnostics_t s_sampling_diagnostics;
+
+/**
+ * @description: 拷贝编码器采样累计诊断。
+ * @detail: 只读，不改变校准或测速。diagnostics 为空则直接返回。
+ * @param {motor_encoder_sampling_diagnostics_t *} diagnostics 输出，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Encoder_GetSamplingDiagnostics(motor_encoder_sampling_diagnostics_t *diagnostics)
+{
+    if (diagnostics != NULL) {
+        diagnostics->fresh_frames = s_sampling_diagnostics.fresh_frames;
+        diagnostics->max_sample_gap_us = s_sampling_diagnostics.max_sample_gap_us;
+        diagnostics->stale_reseeds = s_sampling_diagnostics.stale_reseeds;
+        diagnostics->max_sample_age_us = s_sampling_diagnostics.max_sample_age_us;
+    }
+}
+
+/**
+ * @description: 开关编码器对照采集。
+ * @detail: 只改诊断开关。本函数不检查电机是否在转，也不改变控制反馈源；encoder compare 命令才在运行中拒绝。
+ * @param {bool} enabled true=允许对照采集
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Encoder_SetCompareEnabled(bool enabled)
+{
+    s_encoder_compare_enabled = enabled;
+}
+
+/**
+ * @description: 查询编码器对照采集是否打开。
+ * @return {bool} true=对照采集已打开
+ * @author: lkc
+ */
+bool Motor_Encoder_IsCompareEnabled(void)
+{
+    return s_encoder_compare_enabled;
+}
 static uint32_t s_encoder_sample_sequence;
 static uint32_t s_encoder_sample_time_us;
 static bool s_encoder_have_sequence;
@@ -360,7 +401,7 @@ static void Motor_Encoder_CorrectFreshSample(motor_encoder_runtime_t *rt, uint16
  * @return {*}
  * @author: lkc
  */
-void Motor_Encoder_PredictState(motor_encoder_runtime_t *rt, float dt_s)
+static void Motor_Encoder_PredictWithTimeout(motor_encoder_runtime_t *rt, float dt_s, float timeout_s)
 {
     float cpr;
 
@@ -376,10 +417,15 @@ void Motor_Encoder_PredictState(motor_encoder_runtime_t *rt, float dt_s)
     cpr = (float)((rt->counts_per_rev == 0U) ? 1U : rt->counts_per_rev);
     rt->mech_rpm_raw = rt->pll_vel / cpr * 60.0f;
     rt->mech_rpm = rt->mech_rpm_raw;
-    if (rt->sample_age_s > MOTOR_ENCODER_SAMPLE_TIMEOUT_S) {
+    if (rt->sample_age_s > timeout_s) {
         rt->sample_stale = true;
         rt->speed_valid = false;
     }
+}
+
+void Motor_Encoder_PredictState(motor_encoder_runtime_t *rt, float dt_s)
+{
+    Motor_Encoder_PredictWithTimeout(rt, dt_s, MOTOR_ENCODER_SAMPLE_TIMEOUT_S);
 }
 
 /**
@@ -611,7 +657,7 @@ void Motor_Encoder_Reset(void)
  * @return {*}
  * @author: lkc
  */
-void Motor_Encoder_Update(float dt_s)
+static void Motor_Encoder_UpdateWithTimeout(float dt_s, float timeout_s)
 {
     motor_mt6701_status_t mt;
     uint32_t sequence;
@@ -620,8 +666,19 @@ void Motor_Encoder_Update(float dt_s)
 
     Motor_MT6701_GetStatus(&mt);
     sequence = mt.sample_sequence;
-    Motor_Encoder_PredictState(&s_encoder, dt_s);
+    Motor_Encoder_PredictWithTimeout(&s_encoder, dt_s, timeout_s);
+    if (s_encoder.sample_age_s * 1.0e6f > (float)s_sampling_diagnostics.max_sample_age_us) {
+        s_sampling_diagnostics.max_sample_age_us = (uint32_t)(s_encoder.sample_age_s * 1.0e6f);
+    }
     if (mt.valid && (!s_encoder_have_sequence || sequence != s_encoder_sample_sequence)) {
+        uint32_t gap_us = (uint32_t)(mt.sample_time_us - s_encoder_sample_time_us);
+        s_sampling_diagnostics.fresh_frames++;
+        if (s_encoder_have_sequence && gap_us > s_sampling_diagnostics.max_sample_gap_us) {
+            s_sampling_diagnostics.max_sample_gap_us = gap_us;
+        }
+        if (s_encoder.sample_stale) {
+            s_sampling_diagnostics.stale_reseeds++;
+        }
         sample_dt_s = (float)(uint32_t)(mt.sample_time_us - s_encoder_sample_time_us) * 1.0e-6f;
         s_encoder_sample_sequence = sequence;
         s_encoder_sample_time_us = mt.sample_time_us;
@@ -644,6 +701,24 @@ void Motor_Encoder_Update(float dt_s)
  * @return {float} 机械角度 (rad)，[0, 2π)
  * @author: lkc
  */
+void Motor_Encoder_Update(float dt_s)
+{
+    Motor_Encoder_UpdateWithTimeout(dt_s, MOTOR_ENCODER_SAMPLE_TIMEOUT_S);
+}
+
+/**
+ * @description: 按参考诊断周期更新编码器，不作为控制反馈。
+ * @detail: 供 1 kHz 对照采集使用，采样超时按 5 ms。不得替代 Motor_Encoder_Update 的控制反馈。
+ * @param {float} dt_s 本拍累计时间 (s)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Encoder_UpdateReference(float dt_s)
+{
+    /* 1kHz诊断采集允许数个周期调度余量；不用于控制反馈，仍声明过期。 */
+    Motor_Encoder_UpdateWithTimeout(dt_s, 0.005f);
+}
+
 float Motor_Encoder_GetMechAngle(void)
 {
     uint16_t count = s_encoder.have_last ? s_encoder.last_count : Hal_Encoder_GetCount();
@@ -703,6 +778,17 @@ float Motor_Encoder_GetEdgeAge(void)
 float Motor_Encoder_GetSampleAge(void)
 {
     return s_encoder.sample_age_s;
+}
+
+/**
+ * @description: 读取最近一次控制侧消费帧的时间戳。
+ * @detail: 与 GetElecAngle/GetMechAngle 缓存角对应。零点或速度无效时不得当作有效参考。
+ * @return {uint32_t} 时间戳 (us)
+ * @author: lkc
+ */
+uint32_t Motor_Encoder_GetSampleTimeUs(void)
+{
+    return s_encoder_sample_time_us;
 }
 
 /**

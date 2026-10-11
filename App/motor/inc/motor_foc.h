@@ -171,6 +171,16 @@ float sin_f32(float x);
  * @author: lkc
  */
 float cos_f32(float x);
+/**
+ * @description: 同一角度共用正弦表索引与插值比例，计算 sin 与 cos。
+ * @detail: 不缓存跨拍状态，不访问硬件。输出指针不可为空。
+ * @param {float} x        输入角度 (rad)
+ * @param {float *} sine   输出正弦值，不可为空
+ * @param {float *} cosine 输出余弦值，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
+void sincos_f32(float x, float *sine, float *cosine);
 
 /**
  * @description: 计算数据的 CRC-8 校验值。

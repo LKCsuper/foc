@@ -14,6 +14,7 @@ void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
     *Ibeta = (Ib - Ic) * ONE_BY_SQRT3;
 }
 
+#ifndef SENSORLESS_REAL_MATH
 float utils_angle_difference_rad(float angle1, float angle2)
 {
     float difference = angle1 - angle2;
@@ -31,3 +32,4 @@ float utils_fast_atan2(float y, float x)
 {
     return atan2f(y, x);
 }
+#endif

@@ -9,6 +9,7 @@
 #include "motor_param.h"
 
 MOTOR_PARAM_S motor;
+extern void Test_MT6701_SetSample(uint32_t sequence, uint32_t timestamp);
 
 void Hal_Encoder_Init(void)
 {
@@ -136,6 +137,40 @@ int main(void)
     assert(!Motor_Encoder_IsZeroValidState(&a));
     assert(!Motor_Encoder_IsSpeedValidState(&a));
 
+    /* 默认包装：缺帧超时只重建测速，不能丢失已应用的零点。 */
+    {
+        motor_encoder_sampling_diagnostics_t diag;
+        Motor_Encoder_Init();
+        Motor_Encoder_ApplyCalibration(1.0f, false, true);
+        Test_MT6701_SetSample(1U, 1000U);
+        Motor_Encoder_Update(0.0001f);
+        assert(Motor_Encoder_GetSampleTimeUs() == 1000U);
+        Test_MT6701_SetSample(1U, 2000U);
+        /* 未消费新序号时，不能把角度对应的时间戳换成新时间戳。 */
+        assert(Motor_Encoder_GetSampleTimeUs() == 1000U);
+        for (unsigned i = 0; i < 30; i++) Motor_Encoder_Update(0.0001f);
+        Test_MT6701_SetSample(2U, 4000U);
+        Motor_Encoder_Update(0.0001f);
+        Motor_Encoder_GetSamplingDiagnostics(&diag);
+        assert(diag.fresh_frames == 2U && diag.max_sample_gap_us == 3000U);
+        assert(diag.stale_reseeds == 1U && diag.max_sample_age_us >= 3000U);
+        assert(Motor_Encoder_IsZeroValid() && !Motor_Encoder_IsSpeedValid());
+        /* 参考模式容忍3ms缺帧，但超过5ms仍必须失效并重建。 */
+        Test_MT6701_SetSample(3U, 5000U);
+        Motor_Encoder_UpdateReference(0.0001f);
+        assert(Motor_Encoder_IsSpeedValid());
+        for (unsigned i = 0; i < 30; i++) Motor_Encoder_UpdateReference(0.0001f);
+        Test_MT6701_SetSample(4U, 8000U);
+        Motor_Encoder_UpdateReference(0.0001f);
+        Motor_Encoder_GetSamplingDiagnostics(&diag);
+        assert(diag.stale_reseeds == 1U && Motor_Encoder_IsSpeedValid());
+        for (unsigned i = 0; i < 60; i++) Motor_Encoder_UpdateReference(0.0001f);
+        assert(!Motor_Encoder_IsSpeedValid());
+        Test_MT6701_SetSample(5U, 14000U);
+        Motor_Encoder_UpdateReference(0.0001f);
+        Motor_Encoder_GetSamplingDiagnostics(&diag);
+        assert(diag.stale_reseeds == 2U && Motor_Encoder_IsZeroValid());
+    }
     puts("test_motor_encoder: pass");
     return 0;
 }

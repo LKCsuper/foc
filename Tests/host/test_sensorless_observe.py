@@ -17,6 +17,8 @@ def check(reboot):
 
         def run(self, line, **kwargs):
             commands.append(line)
+            if line == "olstatus":
+                return "Enable : OFF\nTarget RPM : 0\n $ "
             if line == "olrpm":
                 target = 72 if reboot else 300
                 return f"rpm obs=0.1 meas=0 tgt={target} iq=0.5 OPEN_LOOP tk=0 fb=invalid fault=0\n $ "
@@ -49,6 +51,46 @@ def check(reboot):
     assert "olfault" in commands and commands[-1] == "olstatus"
 
 
+def check_cruise():
+    commands = []
+    target = [300]
+
+    class Shell:
+        def __init__(self, *args):
+            pass
+
+        def run(self, line, **kwargs):
+            commands.append(line)
+            if line == "olstatus":
+                return "Enable : OFF\nTarget RPM : 0\n $ "
+            if line.startswith("olspeed "):
+                target[0] = int(line.split()[1])
+            if line == "olrpm":
+                return f"rpm obs={target[0]} meas=0 tgt={target[0]} iq=0.6 OPEN_LOOP tk=0 fb=invalid fault=0\n $ "
+            return "OK\n $ "
+
+        def _got_prompt(self, raw):
+            return True
+
+        def drain(self, seconds):
+            pass
+
+        def close(self):
+            pass
+
+    with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as output:
+        with patch.object(test, "Shell", Shell), patch.object(test, "REPO_ROOT", Path(output)), \
+             patch.object(sys, "argv", ["test", "--iq", "1", "--cruise-iq", "0.6",
+                                      "--rpms", "300", "600", "--samples", "4"]):
+            test.main()
+    start = commands.index("olstart")
+    decrease = commands.index("oliq 0.6")
+    assert commands.index("oliq 1.0") < start < decrease < commands.index("olspeed 600")
+    assert commands[start:decrease].count("olrpm") == 4
+    assert commands[-5:] == ["olstop", "olspeed 0", "olfault", "slstats", "olstatus"]
+
+
+check_cruise()
 check(False)
 check(True)
 print("PASS: failed-start/reboot abort before speed escalation and execute stop cleanup")

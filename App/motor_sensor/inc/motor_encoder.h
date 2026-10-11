@@ -211,6 +211,15 @@ void Motor_Encoder_Reset(void);
 void Motor_Encoder_Update(float dt_s);
 
 /**
+ * @description: 按参考诊断周期更新编码器，不作为控制反馈。
+ * @detail: 供 1 kHz 对照采集使用，采样超时按 5 ms。不得替代 Motor_Encoder_Update 的控制反馈。
+ * @param {float} dt_s 本拍累计时间 (s)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Encoder_UpdateReference(float dt_s);
+
+/**
  * @description: 读取默认实例最新已验收的机械角（不使用 PLL 预测位置）
  * @return {float} 机械角度 (rad)，[0, 2π)
  * @author: lkc
@@ -252,6 +261,15 @@ float Motor_Encoder_GetEdgeAge(void);
  * @author: lkc
  */
 float Motor_Encoder_GetSampleAge(void);
+
+/**
+ * @description: 读取最近一次控制侧消费帧的时间戳。
+ * @detail: 与 GetElecAngle/GetMechAngle 缓存角对应。调用方应在短临界区里与角度一起捕获。
+ *          零点或速度无效时不得当作有效参考。
+ * @return {uint32_t} 时间戳 (us)
+ * @author: lkc
+ */
+uint32_t Motor_Encoder_GetSampleTimeUs(void);
 
 /**
  * @description: 查询默认实例是否处于信号故障。
@@ -297,6 +315,52 @@ bool Motor_Encoder_IsZeroValid(void);
  * @author: lkc
  */
 void Motor_Encoder_Detect(void);
+
+/**
+ * @description: 标定编码器方向和电角零点。
+ * @detail: 阻塞在应用任务里调用，不在控制中断里跑。成功后写入运行时；
+ *          save_to_flash 为 false 时不写 Flash。电机已运行、故障锁存或标定电流超出 (0, 0.5] A 时直接拒绝。
+ * @param {bool} save_to_flash true=尝试保存，false=仅应用到 RAM
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Encoder_DetectWithSave(bool save_to_flash);
+
+/**
+ * @description: 开关编码器对照采集。
+ * @detail: 只改诊断开关。本函数不检查电机是否在转，也不改变控制反馈源；encoder compare 命令才在运行中拒绝。
+ * @param {bool} enabled true=允许对照采集
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Encoder_SetCompareEnabled(bool enabled);
+
+/**
+ * @description: 查询编码器对照采集是否打开。
+ * @return {bool} true=对照采集已打开
+ * @author: lkc
+ */
+bool Motor_Encoder_IsCompareEnabled(void);
+
+/**
+ * @description: 编码器采样只读累计诊断。
+ * @detail: 不改变校准或测速。字段为异步近似快照，不是同一临界区的一致样本。
+ */
+typedef struct {
+    uint32_t fresh_frames;      /* 已验收新帧数 */
+    uint32_t max_sample_gap_us; /* 相邻新帧最大间隔 (us) */
+    uint32_t stale_reseeds;     /* 采样过期后重新播种次数 */
+    uint32_t max_sample_age_us; /* 观测到的最大采样年龄 (us) */
+} motor_encoder_sampling_diagnostics_t;
+
+/**
+ * @description: 拷贝编码器采样累计诊断。
+ * @detail: 只读，不改变校准或测速。diagnostics 为空则直接返回。
+ * @param {motor_encoder_sampling_diagnostics_t *} diagnostics 输出，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Encoder_GetSamplingDiagnostics(motor_encoder_sampling_diagnostics_t *diagnostics);
 
 /**
  * @description: 查询编码器电角零点对齐是否正在占用控制输出。

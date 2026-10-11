@@ -21,6 +21,10 @@ extern "C" {
 #include "motor_hall.h"
 #include "motor_encoder.h"
 #include "motor_anticogging.h"
+#if defined(__CC_ARM)
+/* 仅优化控制编排的调用开销，保持浮点规则及外设配置。 */
+#pragma O2
+#endif
 /* Private define ------------------------------------------------------------*/
 /* 机械 RPM → rad/s，再乘极对数得到电角速度。 */
 /* Private typedef -----------------------------------------------------------*/
@@ -181,6 +185,7 @@ void Motor_Control_ResetRuntime(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
         ctrl->startup.drag_current_scale = 0.0f;
         ctrl->speed_loop_latched = false;
         Motor_Fw_Reset(&ctrl->fw);
+        ctrl->current_frame_correction = 0.0f;
     }
 }
 
@@ -360,7 +365,7 @@ void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor)
     if (motor->sensorless_phase_tolerance < 0.0f) {
         motor->sensorless_phase_tolerance = 0.0f;
     }
-    /* 接管相位差必须小于 90°，否则电流坐标可能跨过最大转矩点。 */
+    /* 锁定时磁链与命令电流矢量的夹角小于90度；实际Park切角由渐变处理。 */
     if (motor->sensorless_phase_tolerance > 1.50f) {
         motor->sensorless_phase_tolerance = 1.50f;
     }
@@ -636,13 +641,16 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
     }
     dragging = ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP;
     memset(ctx, 0, sizeof(*ctx));
+    ctx->frame_correction = ctrl->current_frame_correction;
     ctx->alignment_running = !dragging;
     ctx->if_iq_scale = ctrl->startup.if_start.iq_scale;
     /*
      * “反馈有效的零速”不等于“已经起转”。低于启动门槛时保留 oliq 启动转矩；
      * 达到门槛后才让速度 PI 接管，运行中失速跌回门槛以下也自动恢复。
      */
-    ctx->speed_loop_active = Motor_Control_SpeedLoopReady(ctrl, motor);
+    /* 拖转路径已在RunIfDrag更新并预置PI，同一控制拍复用判定。
+     * 对齐路径仍独立判断，避免复用上一拍的启动状态。 */
+    ctx->speed_loop_active = dragging ? ctrl->speed_loop_latched : Motor_Control_SpeedLoopReady(ctrl, motor);
     ctx->speed_iq_target = ctx->speed_loop_active
                                ? Motor_Control_EncoderCoggingAssist(motor, Motor_SpeedLoop_GetIqTarget())
                                : 0.0f;
@@ -1103,6 +1111,7 @@ static const motor_feedback_sample_t *Motor_Control_RunIfDrag(motor_control_t *c
     Motor_Control_UpdateSpeed(motor, dt, sensored || Motor_Sensorless_IsTakeoverComplete());
     Motor_Control_StartupIf(ctrl, motor);
     Motor_Control_UpdateTheta(ctrl, motor, dt);
+    ctrl->current_frame_correction = 0.0f;
 
     if (sensored) {
         float open = motor->ol_theta + ctrl->startup.if_start.phase_boost;
@@ -1112,7 +1121,14 @@ static const motor_feedback_sample_t *Motor_Control_RunIfDrag(motor_control_t *c
         Motor_Feedback_SampleDefault(motor, open, feedback_out);
         Motor_Control_PublishSensoredSpeed(feedback_out);
     } else {
+        float before_theta = motor->ol_theta;
+        bool transitioning = motor->sensorless_enable &&
+                             Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_SENSORLESS &&
+                             !Motor_Sensorless_IsTakeoverComplete();
         Motor_Sensorless_Update(motor, dt);
+        if (transitioning && motor->ol_theta != before_theta) {
+            ctrl->current_frame_correction = utils_angle_difference_rad(motor->ol_theta, before_theta);
+        }
     }
 
     was_latched = ctrl->speed_loop_latched;

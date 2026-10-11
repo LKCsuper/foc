@@ -53,11 +53,13 @@ typedef struct {
     bool direction_ok;        /* 观测方向是否与目标方向一致 */
     bool phase_ok;            /* 观测角与 I/F 角的误差是否在容差内 */
     float lock_timer;         /* 四项条件连续成立的时间，单位 s */
+    float loss_timer, v_alpha, v_beta; /* 只读事件诊断：失锁累计与电压估计 */
     float blend;              /* 角度接管比例，0=I/F，1=观测角 */
     float applied_voltage;    /* 实际下发的 α/β 电压矢量模长，单位 V */
     float mechanical_rpm;     /* 同拍低通机械 RPM */
     float flux_magnitude;     /* 同拍转子磁链 Wb */
-    float phase_error;        /* 与 phase_ok 同拍的最短角差 rad */
+    float phase_error;        /* PLL相对I/F的实际切角差 rad */
+    float lock_phase_error;   /* PLL相对I/F命令电流矢量的角差 rad，phase_ok判据 */
     float reference_angle;    /* 本拍判定相位时的 I/F 角，CLOSED 回写前，rad */
     float observer_angle;     /* 含固定补偿的 atan2 观测角 rad */
     float pll_angle;          /* 同拍 PLL 电角 rad */
@@ -68,11 +70,57 @@ typedef struct {
  * @description: 无感观测器运行时状态（不持久化）。
  * @detail: 角度均为电角度 (rad)；时间单位 s；转速为机械 RPM。
  */
+#define MOTOR_SENSORLESS_STATS_BINS 8U
+
+/**
+ * @description: 按 I/F 参考角分箱的只读观测统计。
+ * @detail: 不参与控制。8 箱覆盖约一个电周期，每 8 拍记一箱。求和字段供调用方自行求平均。
+ */
+typedef struct {
+    uint32_t samples;       /* 本箱样本数 */
+    uint32_t phase_fail;    /* 本箱相位条件失败次数 */
+    float phase_sum;        /* 切角差累计 (rad) */
+    float phase_square_sum; /* 切角差平方累计 (rad^2) */
+    float flux_sum;         /* 转子磁链模长累计 (Wb) */
+    float flux_alpha_sum;   /* 转子磁链 α 累计 (Wb) */
+    float flux_beta_sum;    /* 转子磁链 β 累计 (Wb) */
+    float i_alpha_sum;      /* Iα 累计 (A) */
+    float i_beta_sum;       /* Iβ 累计 (A) */
+    float v_alpha_sum;      /* 应用电压 α 累计 (V) */
+    float v_beta_sum;       /* 应用电压 β 累计 (V) */
+} motor_sensorless_angle_bin_t;
+
+/**
+ * @description: 到达目标且达到接管速度后的观测统计。
+ * @detail: 仅在转速已到接管门槛且与目标相差不超过 1 RPM、并且 elapsed 仍小于 10 s 时累加。
+ *          Reset 保留统计，只把 candidate_time 清零；下次 initialized 仍为 false 时，在 Seed 之前整表清零。
+ *          失败计数是窗口内逐拍次数。分箱在 samples 为 8 的倍数时记一拍，不改变接管判定。
+ */
+typedef struct {
+    uint32_t samples;                   /* 窗口内控制拍数 */
+    uint32_t flux_fail;                 /* 磁链条件失败次数 */
+    uint32_t speed_fail;                /* 转速条件失败次数 */
+    uint32_t direction_fail;            /* 方向条件失败次数 */
+    uint32_t phase_fail;                /* 相位条件失败次数 */
+    float elapsed;                      /* 已统计时间 (s) */
+    float flux_min;                     /* 转子磁链最小值 (Wb) */
+    float flux_max;                     /* 转子磁链最大值 (Wb) */
+    float phase_min;                    /* 切角差最小值 (rad) */
+    float phase_max;                    /* 切角差最大值 (rad) */
+    float candidate_time;               /* 当前连续锁定候选时间 (s) */
+    float longest_candidate;            /* 最长连续锁定候选时间 (s) */
+    float flux_alpha_sum;               /* 转子磁链 α 累计 (Wb) */
+    float flux_beta_sum;                /* 转子磁链 β 累计 (Wb) */
+    float modulation_error_square_max;  /* 指令与最终 CCR 电压差平方最大值 (V^2)，仅诊断 */
+    motor_sensorless_angle_bin_t bins[MOTOR_SENSORLESS_STATS_BINS];
+} motor_sensorless_stats_t;
+
 typedef struct {
     float x_alpha;              /* α 轴估算定子磁链 Wb */
     float x_beta;               /* β 轴估算定子磁链 Wb */
-    float applied_v_alpha;      /* 上一周期命令 α 电压 V */
-    float applied_v_beta;       /* 上一周期命令 β 电压 V */
+    float applied_v_alpha;      /* 上一周期应用 α 电压估计 V；I/F 为PWM重构，不含死区/管压降 */
+    float applied_v_beta;       /* 上一周期应用 β 电压估计 V */
+    float modulation_error_square; /* 指令与最终CCR电压差平方 V²，仅诊断 */
     float observer_angle;       /* atan2 原始观测电角 rad */
     float pll_angle;            /* PLL 平滑电角 rad */
     float pll_speed_electrical; /* PLL 电角速度 electrical rad/s */
@@ -80,6 +128,7 @@ typedef struct {
     float filtered_rpm;         /* 低通后机械 RPM */
     float flux_magnitude;       /* 转子磁链模长 Wb */
     float phase_error;          /* PLL 角相对 I/F 角差 rad */
+    float lock_phase_error;     /* PLL角相对I/F命令电流矢量的角差 rad */
     float reference_angle;      /* 本拍相位判定用 I/F 电角 rad */
     float lock_timer;           /* 锁定候选累计 s */
     float loss_timer;           /* 失锁累计 s */
@@ -91,7 +140,28 @@ typedef struct {
     bool phase_ok;
     bool initialized;           /* 磁链积分器是否已 Seed */
     motor_sensorless_state_t state;
+    motor_sensorless_stats_t stats; /* 到达目标且达到接管速度后最多采集10秒，停机保留 */
 } motor_sensorless_runtime_t;
+
+/**
+ * @description: 拷贝默认实例最近一次启动的观测统计。
+ * @detail: 临界区内拷贝默认实例。stats 为空则直接返回。Reset 后统计仍在；
+ *          下次从未初始化进入 Update 时，会在 Seed 之前被清掉。本函数不改变控制状态。
+ * @param {motor_sensorless_stats_t *} stats 输出统计，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Sensorless_GetStats(motor_sensorless_stats_t *stats);
+
+/**
+ * @description: 记录最终 PWM 平均电压，仅用于和磁链积分电压比较。
+ * @detail: 输出路径调用。写入 modulation_error_square (V^2)，不参与磁链积分，不改 PWM。
+ * @param {float} v_alpha 最终 α 电压估计 (V)
+ * @param {float} v_beta  最终 β 电压估计 (V)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Sensorless_SetModulatedVoltage(float v_alpha, float v_beta);
 
 /**
  * @description: UpdateState 产生的副作用请求（由包装落地到速度环/保护）。

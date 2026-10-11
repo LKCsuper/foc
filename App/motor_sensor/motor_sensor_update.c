@@ -17,6 +17,7 @@ extern "C" {
 
 static uint8_t s_hall_adc_div;
 static float s_hall_dt_acc_s;
+static float s_reference_dt_acc_s;
 
 /**
  * @description: 按当前反馈源更新编码器或霍尔运行状态。
@@ -34,13 +35,26 @@ void Motor_SensorUpdate_Step(MOTOR_PARAM_S *motor, motor_feedback_source_t sourc
         return;
     }
 
-    if (source == MOTOR_FEEDBACK_SRC_ENCODER) {
-        Motor_Encoder_Update(dt_s);
+    if (source == MOTOR_FEEDBACK_SRC_ENCODER || Motor_Encoder_IsCompareEnabled()) {
+        if (source == MOTOR_FEEDBACK_SRC_ENCODER) {
+            s_reference_dt_acc_s = 0.0f;
+            Motor_Encoder_Update(dt_s);
+        } else {
+            /* 仅对照的原始帧为1kHz，不把参考PLL与状态复制放到每个15kHz控制拍。
+             * 传递完整累计时间，正式编码器控制仍逐拍更新。 */
+            s_reference_dt_acc_s += dt_s;
+            if (s_reference_dt_acc_s >= 0.001f) {
+                Motor_Encoder_UpdateReference(s_reference_dt_acc_s);
+                s_reference_dt_acc_s = 0.0f;
+            }
+        }
         /* 标定和抗齿槽学习自行管理输出，期间不由正常运行保护抢占。 */
-        if (motor->ol_enable && Motor_Encoder_IsSignalFault() && !Motor_Encoder_DetectIsActive() &&
+        if (source == MOTOR_FEEDBACK_SRC_ENCODER && motor->ol_enable && Motor_Encoder_IsSignalFault() && !Motor_Encoder_DetectIsActive() &&
             !Motor_Anticogging_IsLearning() && !Motor_Protect_IsFaultLatched()) {
             Motor_Protect_TriggerFault(FAULT_CODE_ENCODER_SPI, motor);
         }
+    } else {
+        s_reference_dt_acc_s = 0.0f;
     }
 
     if (source == MOTOR_FEEDBACK_SRC_HALL) {

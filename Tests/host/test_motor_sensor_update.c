@@ -6,8 +6,10 @@
 #include "motor_protect.h"
 
 static unsigned s_encoder_updates;
+static unsigned s_reference_updates;
 static float s_encoder_dt;
 static bool s_encoder_fault;
+static bool s_compare;
 static bool s_detect_active;
 static bool s_learning;
 static bool s_fault_latched;
@@ -26,6 +28,12 @@ void Motor_Encoder_Update(float dt_s)
     s_encoder_dt = dt_s;
 }
 bool Motor_Encoder_IsSignalFault(void) { return s_encoder_fault; }
+void Motor_Encoder_UpdateReference(float dt_s)
+{
+    s_reference_updates++;
+    Motor_Encoder_Update(dt_s);
+}
+bool Motor_Encoder_IsCompareEnabled(void) { return s_compare; }
 bool Motor_Encoder_DetectIsActive(void) { return s_detect_active; }
 bool Motor_Anticogging_IsLearning(void) { return s_learning; }
 bool Motor_Protect_IsFaultLatched(void) { return s_fault_latched; }
@@ -65,6 +73,7 @@ int main(void)
     Motor_SensorUpdate_Step(&motor, MOTOR_FEEDBACK_SRC_ENCODER, 0.002f);
     assert(s_encoder_updates == 1U && fabsf(s_encoder_dt - 0.002f) < 1.0e-9f);
     assert(s_fault_triggers == 1U && s_fault_code == FAULT_CODE_ENCODER_SPI);
+    assert(s_reference_updates == 0U);
 
     s_detect_active = true;
     Motor_SensorUpdate_Step(&motor, MOTOR_FEEDBACK_SRC_ENCODER, 0.002f);
@@ -89,6 +98,30 @@ int main(void)
     Motor_SensorUpdate_Step(&motor, MOTOR_FEEDBACK_SRC_HALL, 0.001f);
     assert(s_hall_updates == 1U);
 
+    {
+        unsigned before = s_encoder_updates;
+        unsigned faults = s_fault_triggers;
+        s_encoder_fault = true;
+        Motor_SensorUpdate_Step(&motor, MOTOR_FEEDBACK_SRC_SENSORLESS, 0.001f);
+        assert(s_encoder_updates == before);
+        s_compare = true;
+        Motor_SensorUpdate_Step(&motor, MOTOR_FEEDBACK_SRC_SENSORLESS, 0.001f);
+        assert(s_encoder_updates == before + 1U);
+        s_encoder_fault = false;
+        for (i = 0U; i < 9U; i++) {
+            Motor_SensorUpdate_Step(&motor, MOTOR_FEEDBACK_SRC_SENSORLESS, 0.0001f);
+        }
+        assert(s_reference_updates == 1U);
+        Motor_SensorUpdate_Step(&motor, MOTOR_FEEDBACK_SRC_SENSORLESS, 0.00011f);
+        assert(s_reference_updates == 2U);
+        assert(fabsf(s_encoder_dt - 0.00101f) < 1.0e-8f);
+        before = s_encoder_updates - 1U;
+        assert(s_reference_updates == 2U);
+        assert(s_fault_triggers == faults); /* 参考传感器失联不能接管或触发控制故障。 */
+        s_compare = false;
+        Motor_SensorUpdate_Step(&motor, MOTOR_FEEDBACK_SRC_OPENLOOP, 0.001f);
+        assert(s_encoder_updates == before + 1U);
+    }
     puts("test_motor_sensor_update: pass");
     return 0;
 }

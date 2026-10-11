@@ -23,6 +23,8 @@
 #include "motor_sensor_update.h"
 #include "motor_sense.h"
 #include "motor_timing.h"
+#include "motor_sensorless.h"
+#include "motor_speed.h"
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_STATUS_PUBLISH_DIVIDER 300U /* 30 kHz ADC callback -> 100 Hz status */
 /* Private typedef -----------------------------------------------------------*/
@@ -217,6 +219,8 @@ bool Motor_FocIsr_ShouldRun(void)
 static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor_param)
 {
     uint32_t runtime_start = Hal_Motor_TimeUs();
+    uint32_t stage_start;
+    bool profile;
     float control_dt;
     motor_feedback_source_t feedback_source;
     motor_control_result_t result;
@@ -227,14 +231,51 @@ static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor_param)
         return;
     }
 
+    profile = Motor_Timing_ProfileBegin();
+    Motor_Timing_CadenceNote(runtime_start, (TIM1->CR1 & TIM_CR1_DIR) == 0U);
+    stage_start = profile ? Hal_Motor_TimeUs() : 0U;
     if (!Motor_FocIsr_SampleAndProtect(motor_param, feedback_source, &control_dt)) {
+        Motor_Timing_ProfileEnd();
         Motor_Timing_RecordRuntime(runtime_start);
         return;
     }
-
+    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_SAMPLE, stage_start);
+    stage_start = profile ? Hal_Motor_TimeUs() : 0U;
     Motor_FocIsr_PrepareCurrentFeedback(motor_param);
+    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CURRENT, stage_start);
+    stage_start = profile ? Hal_Motor_TimeUs() : 0U;
     result = Motor_FocIsr_RunControl(motor_param, control_dt);
+    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CONTROL, stage_start);
+    stage_start = profile ? Hal_Motor_TimeUs() : 0U;
     Motor_FocIsr_ArbitrateAndApply(motor_param, result);
+    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_OUTPUT, stage_start);
+    Motor_Timing_ProfileEnd();
+    /* Due 在未触发时每 30 次调用放行一次；离开 CLOSED 或首次进入 CLOSED 的当拍也会放行。
+     * 这里只写 RAM，不输出串口，也不改本拍控制结果。 */
+    if (motor_param->ol_enable && feedback_source == MOTOR_FEEDBACK_SRC_SENSORLESS &&
+        Motor_Timing_TraceDue(Motor_Sensorless_GetState())) {
+        motor_sensorless_diagnostics_t d;
+        motor_trace_sample_t t;
+        Motor_Sensorless_GetDiagnostics(&d);
+        t.time_us = Hal_Motor_TimeUs();
+        t.flags = (unsigned)d.state | (d.flux_ok ? 4U : 0U) | (d.direction_ok ? 8U : 0U) |
+                  (Motor_Encoder_IsSpeedValid() && Motor_Encoder_IsZeroValid() &&
+                   !Motor_Encoder_IsSignalFault() ? 16U : 0U);
+        t.theta = motor_param->ol_theta; t.pll = d.pll_angle; t.flux = d.flux_magnitude;
+        t.rpm = d.mechanical_rpm; t.id = motor_param->Id; t.iq = motor_param->Iq;
+        t.iq_target = Motor_SpeedLoop_GetIqTarget();
+        t.v_alpha = d.v_alpha; t.v_beta = d.v_beta;
+        t.enc_angle = Motor_Encoder_GetElecAngle(); t.enc_rpm = Motor_Encoder_GetMechRpm();
+        t.enc_age = Hal_Motor_TimeElapsedSec(Motor_Encoder_GetSampleTimeUs());
+        t.blend = d.blend; t.loss_time = d.loss_timer;
+        t.id_cmd = motor_param->id_target; t.iq_cmd = motor_param->iq_target;
+        t.i_alpha = motor_param->Ialpha; t.i_beta = motor_param->Ibeta;
+        t.vd = result.vd; t.vq = result.vq;
+        t.v_bus = motor_param->v_bus;
+        t.v_limit = Motor_Control_GetVoltageLimit(motor_param, motor_param->v_bus);
+        t.gap_max_us = t.full_max_us = t.pending_count = t.up_count = 0U;
+        Motor_Timing_TracePush(&t);
+    }
     Motor_Timing_RecordRuntime(runtime_start);
 }
 

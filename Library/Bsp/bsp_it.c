@@ -12,6 +12,8 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#include "motor_timing.h"
+#include "hal_motor.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -112,13 +114,19 @@ VOID Bsp_Dma2Stream4_Handler(VOID)
     if (RESET != DMA_GetITStatus(DMA2_Stream4, DMA_IT_HTIF4))
     {
         DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_HTIF4);
+        /* 只统计回调耗时，不改变清标志和 Motor_DmaInt 的顺序。 */
+        Motor_Timing_CallbackBegin(Hal_Motor_TimeUs());
         Motor_DmaInt(NULL, NULL);
+        Motor_Timing_CallbackEnd(Hal_Motor_TimeUs(), RESET != DMA_GetITStatus(DMA2_Stream4, DMA_IT_HTIF4));
     }
 #else
     if (RESET != DMA_GetITStatus(DMA2_Stream4, DMA_IT_TCIF4))
     {
         DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_TCIF4);
+        /* 只统计回调耗时，不改变清标志和 Motor_DmaInt 的顺序。 */
+        Motor_Timing_CallbackBegin(Hal_Motor_TimeUs());
         Motor_DmaInt(NULL, NULL);
+        Motor_Timing_CallbackEnd(Hal_Motor_TimeUs(), RESET != DMA_GetITStatus(DMA2_Stream4, DMA_IT_TCIF4));
     }
 #endif
     return;

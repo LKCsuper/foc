@@ -16,6 +16,27 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 停机时仅在 RAM 中重放三相电流零偏。
+ * @detail: 各相相对当前值最多 1 个 ADC count，且须落在已存偏移范围内。电机运行中拒绝。
+ *          不写 Flash、不启动采样。调用方负责与校准流程串行。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，写入 currentOffset
+ * @param {const float *} values  三相零偏 (ADC count)，长度 3
+ * @return {bool} true=已写入
+ * @author: lkc
+ */
+bool Motor_Detect_OffsetSetCurrentRam(MOTOR_PARAM_S *motor, const float values[3])
+{
+    unsigned i;
+    if (motor == NULL || values == NULL || motor->ol_enable) return false;
+    for (i = 0U; i < 3U; i++) {
+        if (!isfinite(values[i]) || !isfinite(motor->currentOffset[i]) ||
+            values[i] < MOTOR_DETECT_OFFSET_STORED_MIN || values[i] > MOTOR_DETECT_OFFSET_STORED_MAX ||
+            fabsf(values[i] - motor->currentOffset[i]) > 1.0f) return false;
+    }
+    for (i = 0U; i < 3U; i++) motor->currentOffset[i] = values[i];
+    return true;
+}
 
 /**
  * @description: 复位偏移校准状态，准备接收样本

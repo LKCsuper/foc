@@ -158,6 +158,8 @@ static void Motor_Task_Encoder(void *argument)
 {
     uint32_t tick;
     const uint32_t period = Motor_Task_EncoderPeriodTicks();
+    const uint32_t compare_period = (osKernelGetTickFreq() / 1000U) > 0U ?
+                                    osKernelGetTickFreq() / 1000U : 1U;
 
     (void)argument;
     tick = osKernelGetTickCount();
@@ -165,7 +167,18 @@ static void Motor_Task_Encoder(void *argument)
         motor_mt6701_status_t before;
         motor_mt6701_status_t after;
 
-        Motor_Task_DelayNextTick(&tick, period);
+        /* 对照用途1 kHz采集，避免10 kHz SSI轮询挤占Shell；编码器控制仍保持原周期。 */
+        Motor_Task_DelayNextTick(&tick, Motor_Encoder_IsCompareEnabled() &&
+                                Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER ?
+                                compare_period : period);
+        /* 无感/开环运行不消费编码器，避免10kHz SPI轮询挤占Shell。
+         * 停机仍可encoder show，编码器控制与标定继续保持原采样周期。 */
+        if (motor.ol_enable && Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER &&
+            !Motor_Encoder_DetectIsActive() && !Motor_Encoder_IsCompareEnabled()) {
+            (void)osDelay(pdMS_TO_TICKS(5));
+            tick = osKernelGetTickCount();
+            continue;
+        }
         Motor_MT6701_GetStatus(&before);
         if (!Motor_MT6701_Poll()) {
             Motor_MT6701_GetStatus(&after);

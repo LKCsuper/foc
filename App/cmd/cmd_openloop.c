@@ -23,6 +23,9 @@ extern "C" {
 #include "motor_timing.h"
 #include "motor_speed_ff_detect.h"
 #include "motor_crit.h"
+#include "motor_output.h"
+#include "motor_mt6701.h"
+#include "hal_motor.h"
 #include <math.h>
 #include <stdarg.h>
 /* Private typedef -----------------------------------------------------------*/
@@ -751,14 +754,108 @@ int Cmd_OlStatus(int argc, char *argv[])
 }
 
 /**
- * @description: olrpm 命令 — 打印一行转速、电流和观测器状态。
- * @detail: 先捕获同拍无感数据，再打印短诊断，避免串口发送期间 ISR 更新导致字段混拍。
+ * @description: slcadence — 统计实际完整控制入口间隔；不改变控制 dt。
  * @param {int} argc 参数个数
  * @param {char *} argv[] 无额外参数
  * @return {int} 0 成功
  */
+int Cmd_SensorlessCadence(int argc, char *argv[])
+{
+    motor_cadence_t c;
+    motor_callback_t cb;
+    if (argc > 1 && strcmp(argv[1], "reset") == 0) Motor_Timing_CadenceReset();
+    if (argc > 1 && strcmp(argv[1], "stop") == 0) Motor_Timing_CadenceStop();
+    Motor_Timing_CadenceGet(&c);
+    Motor_Timing_CallbackGet(&cb);
+    {
+        float avg[MOTOR_TIMING_STAGE_COUNT];
+        unsigned i;
+        uint32_t count, maximum;
+        Motor_Timing_ProfileGet(avg, NULL);
+        for (i = MOTOR_TIMING_OBSERVER_BLEND; i < MOTOR_TIMING_STAGE_COUNT; ++i) {
+            Motor_Timing_ProfileDetail((motor_timing_stage_t)i, &count, &maximum);
+            PRINTF("stage %u n=%lu avg=%.2f max=%lu us\n", i, (unsigned long)count, avg[i], (unsigned long)maximum);
+        }
+    }
+    PRINTF("cadence n=%lu sum=%lu min=%lu max=%lu up=%lu down=%lu gaps=%lu\n",
+           (unsigned long)c.count, (unsigned long)c.sum_us, (unsigned long)c.min_us,
+           (unsigned long)c.max_us, (unsigned long)c.up, (unsigned long)c.down, (unsigned long)c.gaps);
+    PRINTF("cadence Hz=%.1f mean=%.3fus nominal_dt=%.3fus bins=%lu/%lu/%lu/%lu/%lu/%lu/%lu/%lu\n",
+           c.sum_us ? 1000000.0f * (float)c.count / (float)c.sum_us : 0.0f,
+           c.count ? (float)c.sum_us / (float)c.count : 0.0f, Motor_Timing_GetControlDt(&motor) * 1000000.0f,
+           (unsigned long)c.bins[0], (unsigned long)c.bins[1], (unsigned long)c.bins[2],
+           (unsigned long)c.bins[3], (unsigned long)c.bins[4], (unsigned long)c.bins[5],
+           (unsigned long)c.bins[6], (unsigned long)c.bins[7]);
+    PRINTF("callback n=%lu Hz=%.1f max_gap=%lu gaps=%lu bins=%lu/%lu/%lu/%lu/%lu/%lu\n",
+           (unsigned long)cb.count, cb.interval_sum ? 1000000.0f * (float)cb.interval_count / (float)cb.interval_sum : 0.0f,
+           (unsigned long)cb.interval_max, (unsigned long)cb.gaps,
+           (unsigned long)cb.bins[0], (unsigned long)cb.bins[1], (unsigned long)cb.bins[2],
+           (unsigned long)cb.bins[3], (unsigned long)cb.bins[4], (unsigned long)cb.bins[5]);
+    PRINTF("callback full=%lu avg=%.2f max=%lu skip_avg=%.2f skip_max=%lu over33=%lu over66=%lu pending=%lu\n",
+           (unsigned long)cb.full, cb.full ? (float)cb.full_sum / (float)cb.full : 0.0f, (unsigned long)cb.full_max,
+           cb.count > cb.full ? (float)cb.skip_sum / (float)(cb.count - cb.full) : 0.0f, (unsigned long)cb.skip_max,
+           (unsigned long)cb.over33, (unsigned long)cb.over66, (unsigned long)cb.pending);
+    return 0;
+}
+
+/**
+ * @description: sltrace 命令 — 武装或导出无感 RAM 环形诊断。
+ * @detail: ol_enable 为真时直接拒绝。arm 使用失锁触发，离开 CLOSED 后再收 16 条；
+ *          entry 在首次 CLOSED 当拍触发后再收 384 条，不停止电机。
+ *          参数不是 arm 或 entry 时先停止写入，再按时间顺序打印。打印发生在命令里，不在控制中断里。
+ * @param {int} argc       参数个数
+ * @param {char *} argv[]  arm、entry，或无额外参数表示导出
+ * @return {int} 0 成功，-1 电机仍在运行
+ * @author: lkc
+ */
+int Cmd_SensorlessTrace(int argc, char *argv[])
+{
+    unsigned i, count;
+    motor_trace_sample_t t;
+    if (motor.ol_enable) {
+        PRINTF("sltrace requires stopped motor\n");
+        return -1;
+    }
+    if (argc > 1 && strcmp(argv[1], "arm") == 0) {
+        Motor_Timing_TraceArm();
+        PRINTF("RAM trace armed; 2ms samples, freeze after CLOSED exit\n");
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "entry") == 0) {
+        Motor_Timing_TraceArmEntry();
+        PRINTF("RAM trace armed; freeze 384 samples after first CLOSED; motor keeps running\n");
+        return 0;
+    }
+    Motor_Timing_TraceStop();
+    count = Motor_Timing_TraceCount();
+    PRINTF("trace samples=%u\n", count);
+    PRINTF("time_us,flags,theta,pll,flux,rpm,id,iq,iq_PI,va,vb,enc,enc_rpm,age,blend,loss,id_cmd,iq_cmd,ia,ib,vd,vq,vbus,vlimit,gap_max_us,full_max_us,pending,up\n");
+    for (i = 0U; i < count; ++i) {
+        if (!Motor_Timing_TraceGet(i, &t)) break;
+        PRINTF("%lu,%lu,%.5f,%.5f,%.6f,%.1f,%.4f,%.4f,%.4f,%.4f,%.4f,%.5f,%.1f,%.6f,%.4f,%.6f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.3f,%.3f,%u,%u,%u,%u\n",
+               (unsigned long)t.time_us, (unsigned long)t.flags, t.theta, t.pll, t.flux, t.rpm,
+               t.id, t.iq, t.iq_target, t.v_alpha, t.v_beta, t.enc_angle, t.enc_rpm, t.enc_age,
+               t.blend, t.loss_time, t.id_cmd, t.iq_cmd, t.i_alpha, t.i_beta, t.vd, t.vq,
+               t.v_bus, t.v_limit, (unsigned)t.gap_max_us, (unsigned)t.full_max_us,
+               (unsigned)t.pending_count, (unsigned)t.up_count);
+        Bsp_Usart_Flush();
+    }
+    return 0;
+}
+
+/**
+ * @description: olrpm 命令 — 打印无感转速、接管条件和分段耗时。
+ * @detail: 先在临界区捕获状态，再格式化串口，避免发送期间读取变化中的运行量。
+ * @param {int} argc       参数个数
+ * @param {char *} argv[]  无额外参数
+ * @return {int} 0 成功
+ * @author: lkc
+ */
 int Cmd_OlRpm(int argc, char *argv[])
 {
+    char reply[640];
+    float profile_us[MOTOR_TIMING_STAGE_COUNT];
+    uint32_t profile_samples;
     motor_sensorless_diagnostics_t diag;
     uint32_t primask;
     float measured_rpm;
@@ -767,6 +864,8 @@ int Cmd_OlRpm(int argc, char *argv[])
     bool takeover;
     bool feedback_valid;
     mc_fault_code fault;
+    float encoder_angle, encoder_mech, encoder_rpm, encoder_age;
+    bool encoder_valid, encoder_zero;
 
     (void)argc;
     (void)argv;
@@ -780,15 +879,74 @@ int Cmd_OlRpm(int argc, char *argv[])
     takeover = motor.sensorless_takeover;
     feedback_valid = Motor_SpeedLoop_IsFeedbackValid();
     fault = Motor_Protect_GetFault();
+    encoder_angle = Motor_Encoder_GetElecAngle();
+    encoder_mech = Motor_Encoder_GetMechAngle();
+    encoder_rpm = Motor_Encoder_GetMechRpm();
+    /* 角度来自控制侧消费的帧，不能配采集任务更新后的另一帧时间戳。 */
+    encoder_age = Hal_Motor_TimeElapsedSec(Motor_Encoder_GetSampleTimeUs());
+    encoder_valid = Motor_Encoder_IsSpeedValid() && !Motor_Encoder_IsSignalFault();
+    encoder_zero = Motor_Encoder_IsZeroValid();
+    Motor_Timing_ProfileGet(profile_us, &profile_samples);
     Motor_Crit_Exit(primask);
-    PRINTF("rpm obs=%.1f meas=%.1f tgt=%.0f iq=%.3f %s tk=%d fb=%s fault=%d\n",
+    snprintf(reply, sizeof(reply),
+           "rpm obs=%.1f meas=%.1f tgt=%.0f iq=%.3f %s tk=%d fb=%s fault=%d\n"
+           "chk F=%d S=%d D=%d P=%d lock=%.3f flux=%.5f ph=%.3f lockph=%.3f\n"
+           "ang if=%.3f raw=%.3f pll=%.3f blend=%.2f\n"
+           "enc mech=%.4f elec=%.4f rpm=%.1f valid=%d zero=%d age=%.6fs\n"
+           "prof n=%lu sample=%.1f current=%.1f control=%.1f observer=%.1f output=%.1f us\n",
            diag.mechanical_rpm, measured_rpm, target_rpm, iq, ol_sensorless_state_name(diag.state), takeover ? 1 : 0,
-           feedback_valid ? "valid" : "invalid", (int)fault);
-    PRINTF("chk F=%d S=%d D=%d P=%d lock=%.3f flux=%.5f ph=%.3f\n", diag.flux_ok ? 1 : 0, diag.speed_ok ? 1 : 0,
-           diag.direction_ok ? 1 : 0, diag.phase_ok ? 1 : 0, diag.lock_timer, diag.flux_magnitude, diag.phase_error);
-    PRINTF("ang if=%.3f raw=%.3f pll=%.3f blend=%.2f\n", diag.reference_angle, diag.observer_angle,
-           diag.pll_angle, diag.blend);
+           feedback_valid ? "valid" : "invalid", (int)fault, diag.flux_ok ? 1 : 0, diag.speed_ok ? 1 : 0,
+           diag.direction_ok ? 1 : 0, diag.phase_ok ? 1 : 0, diag.lock_timer, diag.flux_magnitude, diag.phase_error,
+           diag.lock_phase_error,
+           diag.reference_angle, diag.observer_angle,
+           diag.pll_angle, diag.blend,
+           encoder_mech, encoder_angle, encoder_rpm, encoder_valid ? 1 : 0, encoder_zero ? 1 : 0, encoder_age,
+           (unsigned long)profile_samples, profile_us[MOTOR_TIMING_SAMPLE], profile_us[MOTOR_TIMING_CURRENT],
+           profile_us[MOTOR_TIMING_CONTROL], profile_us[MOTOR_TIMING_OBSERVER], profile_us[MOTOR_TIMING_OUTPUT]);
+    PRINTF("%s", reply);
     Bsp_Usart_Flush();
+    return 0;
+}
+
+/**
+ * @description: slstats 命令 — 打印到达目标转速后的观测统计。
+ * @detail: 停机后仍保留上次窗口。分箱和均值只用于诊断，不改变接管判定。
+ * @param {int} argc       参数个数
+ * @param {char *} argv[]  无额外参数
+ * @return {int} 0 成功
+ * @author: lkc
+ */
+int Cmd_SensorlessStats(int argc, char *argv[])
+{
+    motor_sensorless_stats_t st;
+    (void)argc;
+    (void)argv;
+    Motor_Sensorless_GetStats(&st);
+    PRINTF("slstats n=%lu time=%.3fs fail F=%lu S=%lu D=%lu P=%lu\n", (unsigned long)st.samples,
+           st.elapsed, (unsigned long)st.flux_fail, (unsigned long)st.speed_fail,
+           (unsigned long)st.direction_fail, (unsigned long)st.phase_fail);
+    PRINTF("range flux=%.6f..%.6fWb phase=%.4f..%.4frad longest=%.6fs\n",
+           st.flux_min, st.flux_max, st.phase_min, st.phase_max, st.longest_candidate);
+    if (st.samples != 0U) {
+        PRINTF("mean rotor flux alpha=%.6f beta=%.6f Wb\n", st.flux_alpha_sum / st.samples,
+               st.flux_beta_sum / st.samples);
+    }
+    PRINTF("PWM reconstruction error max=%.6f V (excludes deadtime/device drop)\n",
+           sqrtf(st.modulation_error_square_max));
+    {
+        unsigned index;
+        for (index = 0; index < MOTOR_SENSORLESS_STATS_BINS; ++index) {
+            const motor_sensorless_angle_bin_t *b = &st.bins[index];
+            float scale;
+            if (b->samples == 0U) continue;
+            scale = 1.0f / b->samples;
+            PRINTF("bin%u n=%lu P=%lu ph=%.5f ph2=%.5f flux=%.6f ia=%.5f ib=%.5f va=%.5f vb=%.5f fa=%.6f fb=%.6f\n",
+                   index, (unsigned long)b->samples, (unsigned long)b->phase_fail,
+                   b->phase_sum * scale, b->phase_square_sum * scale, b->flux_sum * scale,
+                   b->i_alpha_sum * scale, b->i_beta_sum * scale, b->v_alpha_sum * scale, b->v_beta_sum * scale,
+                   b->flux_alpha_sum * scale, b->flux_beta_sum * scale);
+        }
+    }
     return 0;
 }
 
@@ -1925,10 +2083,169 @@ static bool speed_wait_or_key(uint32_t period_ms)
     return false;
 }
 
+/* sltest: bounded sensorless sequence, task context only. */
+/* phase: 0=拖转，1=等待接管，2=闭环稳定等待，3=统计并检查跟踪。 */
+static bool sltest_monitor(uint32_t duration_ms, float target, unsigned phase, float *average)
+{
+    uint32_t start = Hal_Motor_TimeUs();
+    unsigned n = 0U, tracking_bad = 0U;
+    float sum = 0.0f;
+    do {
+        motor_status_t status = {0};
+        motor_sensorless_state_t state;
+        motor_result_t read_result;
+        unsigned reason;
+        bool protect;
+        if (speed_stop_key()) { PRINTF("sltest: stopped by input\n"); return false; }
+        read_result = Motor_GetStatus(&motor, &status);
+        protect = Motor_Protect_IsFaultLatched();
+        /* 位图允许同时保留多个原因；API失败时不解释未取得的状态。 */
+        reason = read_result != MOTOR_OK ? 1U :
+                 (!status.enable ? 2U : 0U) | (status.fault_latched ? 4U : 0U) |
+                 (!isfinite(status.iq) || !isfinite(status.id) ? 16U : 0U) |
+                 (fabsf(status.iq) > 1.0f || fabsf(status.id) > 1.0f ? 32U : 0U);
+        if (protect) reason |= 8U;
+        if (reason != 0U) {
+            uint32_t observed_us = Hal_Motor_TimeUs();
+            float rpm = Motor_Sensorless_GetMechanicalRpm();
+            state = Motor_Sensorless_GetState();
+            /* 先关输出再打印；这是50ms任务监测快照，非ADC硬件故障瞬间。 */
+            (void)Motor_RequestStop(&motor);
+            PRINTF("sltest: fault/current/state check failed\n");
+            PRINTF("abort time=%lu phase=%u reason=0x%02x api=%d enable=%u fault=%u protect=%u "
+                   "id=%.4f iq=%.4f target=%.1f rpm=%.1f sl=%u\n",
+                   (unsigned long)observed_us, phase, reason, (int)read_result,
+                   status.enable ? 1U : 0U, status.fault_latched ? 1U : 0U, protect ? 1U : 0U,
+                   status.id, status.iq, status.target_rpm, rpm, (unsigned)state);
+            return false;
+        }
+        state = Motor_Sensorless_GetState();
+        {
+            float rpm = Motor_Sensorless_GetMechanicalRpm();
+            float speed_limit = phase < 2U ? 900.0f : fminf(3000.0f, fmaxf(900.0f, 1.25f * target));
+            if (!isfinite(rpm) || fabsf(rpm) > speed_limit || fabsf(status.target_rpm - target) > 1.0f) {
+                PRINTF("sltest: speed/target check failed\n"); return false;
+            }
+            if (phase == 1U && state == MOTOR_SENSORLESS_CLOSED && Motor_SpeedLoop_IsFeedbackValid()) return true;
+            if (phase >= 2U && (state != MOTOR_SENSORLESS_CLOSED || !Motor_SpeedLoop_IsFeedbackValid())) {
+                PRINTF("sltest: lost sensorless takeover\n"); return false;
+            }
+            if (phase == 3U) {
+                tracking_bad = fabsf(rpm - target) > fmaxf(60.0f, 0.20f * target) ? tracking_bad + 1U : 0U;
+                if (tracking_bad >= 5U) { PRINTF("sltest: speed not tracking\n"); return false; }
+                sum += rpm; n++;
+            }
+        }
+        osDelay(pdMS_TO_TICKS(50U));
+    } while ((uint32_t)(Hal_Motor_TimeUs() - start) / 1000U < duration_ms);
+    if (phase == 1U) { PRINTF("sltest: takeover timeout\n"); return false; }
+    if (average != NULL) *average = n ? sum / (float)n : 0.0f;
+    return true;
+}
+
+/**
+ * @description: 无感多速度空载测试，结束/异常/新输入均停机并恢复配置。
+ * @detail: sltest [hold_s [rpm1 rpm2 ...]]；默认5s、500/600/700RPM。
+ *          沿用当前模型、零偏；600RPM拖转接管后开始分档。PASS仅指固件状态与观测跟踪。
+ */
+int Cmd_SensorlessTest(int argc, char *argv[])
+{
+    float rpms[6] = {500.0f, 600.0f, 700.0f};
+    unsigned count = 3U, i;
+    float max_target = 600.0f;
+    uint32_t hold_s = 5U;
+    motor_config_t saved, cfg;
+    motor_command_t initial, cmd;
+    motor_feedback_source_t feedback;
+    bool ok = false, restored;
+    char *end;
+    if (argc > 8) { PRINTF("Usage: sltest [hold_s [rpm1 ... rpm6]]\n"); return -1; }
+    if (argc >= 2) {
+        long value = strtol(argv[1], &end, 10);
+        if (*end || value < 2 || value > 20) { PRINTF("sltest hold: 2..20 seconds\n"); return -1; }
+        hold_s = (uint32_t)value;
+    }
+    if (argc >= 3) {
+        count = (unsigned)argc - 2U;
+        for (i = 0U; i < count; i++) {
+            rpms[i] = strtof(argv[i + 2U], &end);
+            if (end == argv[i + 2U] || *end || !isfinite(rpms[i]) || rpms[i] < 500.0f || rpms[i] > 2600.0f) {
+                PRINTF("sltest RPM: 500..2600, positive only\n"); return -1;
+            }
+        }
+    }
+    if (Motor_GetCommand(&motor, &initial) != MOTOR_OK || initial.enable || Motor_Bldc_IsSelected() ||
+        Motor_Detect_IsActive() || Motor_Protect_IsFaultLatched()) {
+        PRINTF("sltest requires stopped FOC, no detection, clear fault\n"); return -1;
+    }
+    if (!ol_capture_config(&saved)) { PRINTF("sltest: config unavailable\n"); return -1; }
+    for (i = 0U; i < count; i++) max_target = fmaxf(max_target, rpms[i]);
+    if (saved.ol_max_rpm < max_target || saved.sensorless_transition_rpm > 600.0f ||
+        saved.sensorless_fallback_rpm >= 500.0f || !isfinite(motor.v_bus) || motor.v_bus < 15.0f || motor.v_bus > 17.0f ||
+        motor.ol_pole_pairs != 7.0f || !isfinite(saved.sensorless_motor_r) || saved.sensorless_motor_r <= 0.0f ||
+        !isfinite(saved.sensorless_motor_l) || saved.sensorless_motor_l <= 0.0f ||
+        !isfinite(saved.sensorless_flux_linkage) || saved.sensorless_flux_linkage <= 0.0f) {
+        PRINTF("sltest: current test range is 7 pole-pairs, 16V, transition<=600, fallback<500\n"); return -1;
+    }
+    feedback = Motor_GetFeedbackSource();
+    cfg = saved;
+    cfg.sensorless_enable = true; cfg.sensorless_takeover = false;
+    cfg.ol_align_enable = false; cfg.hfi_start_enable = false; cfg.ol_ramp_rpm_s = 100.0f;
+    cfg.speed_kp = 0.0003f; cfg.speed_ki = 0.0005f; cfg.speed_iq_limit = 0.15f;
+    cfg.sensorless_openloop_max_rpm = 800.0f; cfg.sensorless_phase_tolerance = 1.4f;
+    cfg.sensorless_blend_time = 0.05f;
+    /* 高速需覆盖反电势电压，仍保持800RPM开环上限及原电流限幅。
+     * 16V母线下8V低于线性调制范围；测试结束恢复原电压上限。 */
+    if (max_target > 1200.0f) cfg.ol_vq_limit = 8.0f;
+    (void)Motor_Position_Enable(false); (void)Motor_Joint_Enable(false);
+    PRINTF("sltest: 600RPM startup -> %u tiers, %lus each; new input stops\n", count, (unsigned long)hold_s);
+    PRINTF("model R=%.3f ohm L=%.3f mH flux=%.3f mWb; existing offsets, RAM only\n",
+           cfg.sensorless_motor_r, cfg.sensorless_motor_l * 1000.0f, cfg.sensorless_flux_linkage * 1000.0f);
+    PRINTF("sltest voltage limit=%.1f V; high speeds require CLOSED\n", cfg.ol_vq_limit);
+    if (Motor_SetConfig(&motor, &cfg) != MOTOR_OK || Motor_SetFeedbackSource(MOTOR_FEEDBACK_SRC_SENSORLESS) != MOTOR_OK)
+        goto done;
+    cmd = initial; cmd.enable = true; cmd.mode = MOTOR_OL_MODE_IF;
+    cmd.target_rpm = 600.0f; cmd.iq_set = 0.30f; cmd.id_set = 0.0f; cmd.speed_enable = false;
+    Motor_Timing_TraceArmEntry();
+    if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK || !sltest_monitor(8000U, 600.0f, 0U, NULL)) goto done;
+    if (fabsf(Motor_Sensorless_GetMechanicalRpm() - 600.0f) > 120.0f) {
+        PRINTF("sltest: startup not tracking\n"); goto done;
+    }
+    cmd.speed_enable = true;
+    if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) goto done;
+    cfg.speed_enable = true;
+    cfg.sensorless_takeover = true;
+    if (Motor_SetConfig(&motor, &cfg) != MOTOR_OK || !sltest_monitor(5000U, 600.0f, 1U, NULL) ||
+        !sltest_monitor(2000U, 600.0f, 2U, NULL)) goto done;
+    for (i = 0U; i < count; i++) {
+        float average;
+        cmd.target_rpm = rpms[i];
+        PRINTF("sltest %u/%u target=%.0f RPM\n", i + 1U, count, rpms[i]);
+        if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK || !sltest_monitor(2000U, rpms[i], 2U, NULL) ||
+            !sltest_monitor(hold_s * 1000U, rpms[i], 3U, &average)) goto done;
+        PRINTF("  CLOSED avg=%.1f RPM", average);
+        if (Motor_Encoder_IsCompareEnabled() && Motor_Encoder_IsSpeedValid() && Motor_Encoder_GetSampleAge() < 0.005f)
+            PRINTF(" encoder=%.1f RPM(reference)", Motor_Encoder_GetMechRpm());
+        PRINTF("\n");
+    }
+    ok = true;
+done:
+    (void)Motor_RequestStop(&motor);
+    Motor_Timing_TraceStop();
+    restored = Motor_SetConfig(&motor, &saved) == MOTOR_OK;
+    restored = (Motor_SetFeedbackSource(feedback) == MOTOR_OK) && restored;
+    initial.enable = false; initial.target_rpm = 0.0f; initial.speed_enable = false;
+    restored = (Motor_SetCommand(&motor, &initial) == MOTOR_OK) && restored;
+    PRINTF("sltest: %s; motor stopped; config %s; observer tracking only\n",
+           ok && restored ? "PASS" : "FAIL/ABORT", restored ? "restored" : "restore failed");
+    return ok && restored ? 0 : -1;
+}
+/* end sltest */
+
 /**
  * @description: 按固定两位小数追加转速。
- * @param {textbuf_t *} tb  输出缓冲
- * @param {float} rpm  转速，单位 RPM
+ * @param {textbuf_t *} tb 输出缓冲
+ * @param {float} rpm 转速，单位 RPM
  * @return {*} 无
  */
 static void speed_append_rpm(textbuf_t *tb, float rpm)
@@ -2267,7 +2584,7 @@ int Cmd_SensorlessGuard(int argc, char *argv[])
         open_loop_max_rpm = cfg.ol_max_rpm;
     }
 
-    /* 小于 0.10rad 很难在有负载时锁定；大于 1.50rad 已接近危险的 90°。 */
+    /* 此门限作用于磁链和命令电流矢量夹角，不是PLL与I/F的实际切角。 */
     if (phase_tolerance < 0.10f) {
         phase_tolerance = 0.10f;
     }
@@ -2340,12 +2657,35 @@ int Cmd_SensorlessMotor(int argc, char *argv[])
 }
 
 /**
- * @description: slobs 命令 — 设置无感观测器增益与 PLL 参数。
+ * @description: sldt 命令 — 停机设置仅RAM的观测电压死区补偿比例。
  * @param {int} argc 参数个数
- * @param {char *} argv[] 参数列表：<observer_gain> <pll_kp> <pll_ki>
+ * @param {char *} argv[] 参数列表：<effective_seconds_times_PWM_Hz>
  * @return {int} 0 成功
  * @author: lkc
  */
+int Cmd_SensorlessDeadtime(int argc, char *argv[])
+{
+    char *end;
+    float fraction;
+    if (argc == 1) {
+        PRINTF("Observer deadtime fraction=%.6f (RAM only; effective seconds * PWM Hz)\n",
+               Motor_OutputGetObserverDeadtime());
+        return 0;
+    }
+    if (argc != 2 || motor.ol_enable) {
+        PRINTF("Invalid: sldt <fraction 0..0.02>, stopped only\n");
+        return -1;
+    }
+    fraction = strtof(argv[1], &end);
+    if (end == argv[1] || *end != '\0' || !Motor_OutputSetObserverDeadtime(fraction)) {
+        PRINTF("Invalid observer deadtime fraction\n");
+        return -1;
+    }
+    PRINTF("Observer deadtime fraction=%.6f (RAM only; PWM unchanged)\n", fraction);
+    return 0;
+}
+
+/** slobs：设置观测器和PLL增益，沿用原配置更新流程。 */
 int Cmd_SensorlessObserver(int argc, char *argv[])
 {
     motor_config_t cfg;

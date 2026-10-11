@@ -43,7 +43,8 @@ extern "C" {
 #define MOTOR_DETECT_MAX_CURRENT_A (2.0f)
 #define MOTOR_DETECT_RESISTANCE_VOLTAGE_V (5.0f)
 #define MOTOR_DETECT_RESISTANCE_RAMP_S (0.8f)
-#define MOTOR_DETECT_RESISTANCE_SETTLE_S (0.2f)
+/* 2804高电阻、保守Ki下0.2s等待仍有建流误差；延长等待后再取同长度均值。 */
+#define MOTOR_DETECT_RESISTANCE_SETTLE_S (0.8f)
 #define MOTOR_DETECT_RESISTANCE_SAMPLE_S (0.5f)
 #define MOTOR_DETECT_RESISTANCE_MIN_SAMPLES (100U)
 #define MOTOR_DETECT_RESISTANCE_MIN_OHM (0.005f)
@@ -52,8 +53,11 @@ extern "C" {
 #define MOTOR_DETECT_RESISTANCE_FIT_MIN_R2 (0.95f)
 #define MOTOR_DETECT_RESISTANCE_MIN_TRACK_RATIO (0.90f)
 #define MOTOR_DETECT_RESISTANCE_MIN_SPAN_RATIO (0.50f)
-/* 2804 已知参数对照：当前检测调制的实际平均注入电压约为命令值的 3/4。 */
-#define MOTOR_DETECT_APPLIED_VOLTAGE_SCALE (0.75f)
+/* 诊断门槛，不代表测量精度：窗口漂移3%，相邻斜率差10%。 */
+#define MOTOR_DETECT_RESISTANCE_MAX_DRIFT_RATIO (0.03f)
+#define MOTOR_DETECT_RESISTANCE_MAX_SLOPE_RATIO (0.10f)
+/* L脉冲路径仍使用线性SVM指令电压，不包含死区/管压降；R已改用PWM重构。 */
+#define MOTOR_DETECT_APPLIED_VOLTAGE_SCALE (1.0f)
 #define MOTOR_DETECT_INDUCTANCE_ALIGN_V (3.0f)
 #define MOTOR_DETECT_INDUCTANCE_ZERO_V (2.0f)
 #define MOTOR_DETECT_INDUCTANCE_ALIGN_S (0.8f)
@@ -123,6 +127,17 @@ typedef struct {
     float accum_b;
     float resistance_voltage_avg;
     float resistance_current_avg;
+    /* R诊断：均值/波动与模长统计并列，不改变控制和拟合输入。 */
+    float r_id_sum;
+    float r_iq_sum;
+    float r_id_square_sum;
+    float r_iq_square_sum;
+    float r_v_alpha_sum;
+    float r_v_beta_sum;
+    float r_current_sum;
+    float r_window_i[2];
+    float r_window_v[2];
+    uint32_t r_window_n[2];
     float measured_resistance;
     float max_phase_current;
     float overcurrent_elapsed;
@@ -232,6 +247,9 @@ static bool Detect_FitResistance(const float *current, const float *voltage, uin
         return false;
     }
     for (i = 0U; i < count; i++) {
+        if (!isfinite(current[i]) || !isfinite(voltage[i])) {
+            return false;
+        }
         sum_i += current[i];
         sum_v += voltage[i];
         sum_ii += current[i] * current[i];
@@ -251,7 +269,7 @@ static bool Detect_FitResistance(const float *current, const float *voltage, uin
         ss_tot += deviation * deviation;
     }
     *r_squared = ss_tot > 1.0e-9f ? 1.0f - ss_res / ss_tot : 0.0f;
-    return true;
+    return isfinite(*resistance) && isfinite(*voltage_offset) && isfinite(*r_squared);
 }
 
 static float Detect_PhaseCurrentPeak(const MOTOR_PARAM_S *motor_param)
@@ -352,10 +370,35 @@ static void Detect_RunResistanceStep(MOTOR_PARAM_S *motor_param, float dt)
     }
     if (s_detect_control.elapsed > MOTOR_DETECT_RESISTANCE_RAMP_S + MOTOR_DETECT_RESISTANCE_SETTLE_S) {
         float current_mag = sqrtf(motor_param->Id * motor_param->Id + motor_param->Iq * motor_param->Iq);
-        float voltage_mag = sqrtf(s_detect_control.vd * s_detect_control.vd + s_detect_control.vq * s_detect_control.vq);
+        float v_alpha;
+        float v_beta;
+        float voltage_mag;
+        /* 与无感共用PWM电压估计；有效死区未标定，暂禁用补偿。 */
+        if (!Motor_OutputEstimateVoltage(motor_param, Hal_Motor_PwmPeriodCounts(), motor_param->v_bus,
+                                         0.0f, &v_alpha, &v_beta)) {
+            Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_RESISTANCE);
+            return;
+        }
+        voltage_mag = sqrtf(v_alpha * v_alpha + v_beta * v_beta);
+        if (!isfinite(current_mag) || !isfinite(voltage_mag)) {
+            Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_RESISTANCE);
+            return;
+        }
         if (current_mag > s_detect_control.current_a * 0.25f) {
-            s_detect_control.accum_a += voltage_mag * MOTOR_DETECT_APPLIED_VOLTAGE_SCALE;
+            uint32_t half = s_detect_control.elapsed < total_time -
+                            MOTOR_DETECT_RESISTANCE_SAMPLE_S * 0.5f ? 0U : 1U;
+            s_detect_control.r_window_i[half] += motor_param->Id;
+            s_detect_control.r_window_v[half] += v_alpha;
+            s_detect_control.r_window_n[half]++;
+            s_detect_control.accum_a += voltage_mag;
             s_detect_control.accum_b += current_mag;
+            s_detect_control.r_id_sum += motor_param->Id;
+            s_detect_control.r_iq_sum += motor_param->Iq;
+            s_detect_control.r_id_square_sum += motor_param->Id * motor_param->Id;
+            s_detect_control.r_iq_square_sum += motor_param->Iq * motor_param->Iq;
+            s_detect_control.r_v_alpha_sum += v_alpha;
+            s_detect_control.r_v_beta_sum += v_beta;
+            s_detect_control.r_current_sum += motor_param->ia + motor_param->ib + motor_param->ic;
             s_detect_control.samples++;
         }
     }
@@ -634,12 +677,12 @@ static bool Detect_SampleIsrBlocking(void)
  * @detail: 三相 50% 中心对齐；电流零点由 ISR 按 TIM1 沿分别累加，写入下降沿均值
  *          （与 Hall FOC 顶部零矢量采样窗一致）。cal_undriven=true 时再采未驱动相电压。
  *          累加/结算走 Motor_Detect_Offset*；本函数负责停机、PWM、osDelay 与打印。
- *          成功后自动写入 Flash；中止路径不保存。
+ *          persist=true 时成功后写入 Flash；中止路径不保存。
  * @param {bool} cal_undriven true 时额外校准未驱动相电压偏移
  * @return {uint32_t} 1 成功
  * @author: lkc
  */
-uint32_t DETECT_Offset(bool cal_undriven)
+static uint32_t Detect_OffsetRun(bool cal_undriven, bool persist)
 {
     /*
      * 先占住互斥，再停机关通道。之后 DMA 中断只采样换算（不跑软件过流），不跑 FOC。
@@ -723,7 +766,9 @@ uint32_t DETECT_Offset(bool cal_undriven)
     s_offset_isr_enable = false;
     s_detect_active = false;
     PRINTF("Detect offset: done\r\n");
-    (void)Detect_SaveOffsetToFlash();
+    if (persist) {
+        (void)Detect_SaveOffsetToFlash();
+    }
     return 1U;
 
 abort_detect:
@@ -743,6 +788,23 @@ abort_detect:
                Motor_Protect_GetFaultName(Motor_Protect_GetFault()), (double)ipeak);
     }
     return 0U;
+}
+
+uint32_t DETECT_Offset(bool cal_undriven)
+{
+    return Detect_OffsetRun(cal_undriven, true);
+}
+
+/**
+ * @description: 校准三相电流零点，只更新 RAM，不写 Flash。
+ * @detail: 采样、关桥和中止条件与 DETECT_Offset 相同。供停机诊断调用，阻塞在应用任务中。
+ * @param {bool} cal_undriven true 时额外校准未驱动相电压偏移
+ * @return {uint32_t} 1 成功，0 被中止
+ * @author: lkc
+ */
+uint32_t DETECT_OffsetRam(bool cal_undriven)
+{
+    return Detect_OffsetRun(cal_undriven, false);
 }
 
 /**
@@ -832,6 +894,16 @@ static bool Detect_RunStage(motor_detect_stage_t stage, float current_a, uint32_
     s_detect_control.accum_b = 0.0f;
     s_detect_control.resistance_voltage_avg = 0.0f;
     s_detect_control.resistance_current_avg = 0.0f;
+    s_detect_control.r_id_sum = 0.0f;
+    s_detect_control.r_iq_sum = 0.0f;
+    s_detect_control.r_id_square_sum = 0.0f;
+    s_detect_control.r_iq_square_sum = 0.0f;
+    s_detect_control.r_v_alpha_sum = 0.0f;
+    s_detect_control.r_v_beta_sum = 0.0f;
+    s_detect_control.r_current_sum = 0.0f;
+    memset(s_detect_control.r_window_i, 0, sizeof(s_detect_control.r_window_i));
+    memset(s_detect_control.r_window_v, 0, sizeof(s_detect_control.r_window_v));
+    memset(s_detect_control.r_window_n, 0, sizeof(s_detect_control.r_window_n));
     s_detect_control.max_phase_current = 0.0f;
     s_detect_control.overcurrent_elapsed = 0.0f;
     s_detect_control.samples = 0U;
@@ -888,6 +960,8 @@ static bool Detect_MotorRlInternal(float current_a, motor_detect_result_t *resul
 {
     float fit_current[MOTOR_DETECT_RESISTANCE_FIT_POINTS];
     float fit_voltage[MOTOR_DETECT_RESISTANCE_FIT_POINTS];
+    float signed_current[MOTOR_DETECT_RESISTANCE_FIT_POINTS];
+    float signed_voltage[MOTOR_DETECT_RESISTANCE_FIT_POINTS];
     float resistance = 0.0f;
     float voltage_offset = 0.0f;
     float r_squared = 0.0f;
@@ -938,6 +1012,31 @@ static bool Detect_MotorRlInternal(float current_a, motor_detect_result_t *resul
         }
         fit_current[point] = s_detect_control.resistance_current_avg;
         fit_voltage[point] = s_detect_control.resistance_voltage_avg;
+        signed_current[point] = s_detect_control.r_id_sum / (float)s_detect_control.samples;
+        signed_voltage[point] = s_detect_control.r_v_alpha_sum / (float)s_detect_control.samples;
+        {
+            float i0, i1, v0, v1, i_drift, v_drift;
+            if (s_detect_control.r_window_n[0] < MOTOR_DETECT_RESISTANCE_MIN_SAMPLES ||
+                s_detect_control.r_window_n[1] < MOTOR_DETECT_RESISTANCE_MIN_SAMPLES) {
+                s_detect_result.error = MOTOR_DETECT_ERROR_RESISTANCE;
+                goto detect_finish;
+            }
+            i0 = s_detect_control.r_window_i[0] / (float)s_detect_control.r_window_n[0];
+            i1 = s_detect_control.r_window_i[1] / (float)s_detect_control.r_window_n[1];
+            v0 = s_detect_control.r_window_v[0] / (float)s_detect_control.r_window_n[0];
+            v1 = s_detect_control.r_window_v[1] / (float)s_detect_control.r_window_n[1];
+            i_drift = fabsf(i1 - i0) / fmaxf(fabsf(signed_current[point]), 0.01f);
+            v_drift = fabsf(v1 - v0) / fmaxf(fabsf(signed_voltage[point]), 0.01f);
+            PRINTF("  R stability: Id drift=%.2f%% Vd drift=%.2f%%\r\n",
+                   (double)(i_drift * 100.0f), (double)(v_drift * 100.0f));
+            if (!isfinite(i_drift) || !isfinite(v_drift) ||
+                i_drift > MOTOR_DETECT_RESISTANCE_MAX_DRIFT_RATIO ||
+                v_drift > MOTOR_DETECT_RESISTANCE_MAX_DRIFT_RATIO) {
+                PRINTF("  R rejected: sample window is not steady\r\n");
+                s_detect_result.error = MOTOR_DETECT_ERROR_RESISTANCE;
+                goto detect_finish;
+            }
+        }
         if (fit_current[point] < fit_current_min) {
             fit_current_min = fit_current[point];
         }
@@ -951,6 +1050,19 @@ static bool Detect_MotorRlInternal(float current_a, motor_detect_result_t *resul
                (unsigned long)(point + 1U), (unsigned long)MOTOR_DETECT_RESISTANCE_FIT_POINTS, (double)fit_target,
                (double)fit_current[point], (double)fit_voltage[point],
                (double)(fit_voltage[point] / fit_current[point]));
+        {
+            float count = (float)s_detect_control.samples;
+            float id_mean = s_detect_control.r_id_sum / count;
+            float iq_mean = s_detect_control.r_iq_sum / count;
+            float id_var = s_detect_control.r_id_square_sum / count - id_mean * id_mean;
+            float iq_var = s_detect_control.r_iq_square_sum / count - iq_mean * iq_mean;
+            /* 成功阶段保证样本数非零。打印在任务侧，ISR仅累加。 */
+            PRINTF("  R diag: Id=%.4f Iq=%.4f std=%.4f/%.4f A Vab=%.4f/%.4f V Isum=%.4f A n=%lu\r\n",
+                   (double)id_mean, (double)iq_mean, (double)sqrtf(fmaxf(id_var, 0.0f)),
+                   (double)sqrtf(fmaxf(iq_var, 0.0f)), (double)(s_detect_control.r_v_alpha_sum / count),
+                   (double)(s_detect_control.r_v_beta_sum / count),
+                   (double)(s_detect_control.r_current_sum / count), (unsigned long)s_detect_control.samples);
+        }
     }
     if (!fit_tracking_valid ||
         fit_current_max - fit_current_min <
@@ -968,6 +1080,34 @@ static bool Detect_MotorRlInternal(float current_a, motor_detect_result_t *resul
         PRINTF("Detect motor: resistance fit invalid R=%.6f R2=%.4f\r\n", (double)resistance,
                (double)r_squared);
         goto detect_finish;
+    }
+    {
+        float signed_r, signed_offset, signed_r2;
+        float di0 = fit_current[1] - fit_current[0];
+        float di1 = fit_current[2] - fit_current[1];
+        float slope0, slope1, mismatch;
+        if (Detect_FitResistance(signed_current, signed_voltage, MOTOR_DETECT_RESISTANCE_FIT_POINTS,
+                                 &signed_r, &signed_offset, &signed_r2)) {
+            PRINTF("  R signed Vd/Id: R=%.6f ohm offset=%.4f V R2=%.4f\r\n",
+                   (double)signed_r, (double)signed_offset, (double)signed_r2);
+        }
+        if (di0 <= 0.0f || di1 <= 0.0f) {
+            s_detect_result.error = MOTOR_DETECT_ERROR_RESISTANCE;
+            goto detect_finish;
+        }
+        slope0 = (fit_voltage[1] - fit_voltage[0]) / di0;
+        slope1 = (fit_voltage[2] - fit_voltage[1]) / di1;
+        mismatch = fabsf(slope1 - slope0) / fmaxf(fabsf(resistance), MOTOR_DETECT_RESISTANCE_MIN_OHM);
+        PRINTF("  R slopes: %.6f / %.6f ohm mismatch=%.2f%% (limit %.1f%%)\r\n",
+               (double)slope0, (double)slope1, (double)(mismatch * 100.0f),
+               (double)(MOTOR_DETECT_RESISTANCE_MAX_SLOPE_RATIO * 100.0f));
+        if (!isfinite(mismatch) || slope0 <= 0.0f || slope1 <= 0.0f ||
+            mismatch > MOTOR_DETECT_RESISTANCE_MAX_SLOPE_RATIO) {
+            PRINTF("  R rejected: inconsistent slopes; fitted R=%.6f is diagnostic only\r\n",
+                   (double)resistance);
+            s_detect_result.error = MOTOR_DETECT_ERROR_RESISTANCE;
+            goto detect_finish;
+        }
     }
     s_detect_result.resistance_ohm = resistance;
     s_detect_result.inverter_voltage_offset_v = voltage_offset;

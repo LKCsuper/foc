@@ -4,6 +4,9 @@
 #include <math.h>
 #include "motor_foc.h"
 
+float sin_f32(float angle) { return sinf(angle); }
+float cos_f32(float angle) { return cosf(angle); }
+
 #ifndef ONE_BY_SQRT3
 #define ONE_BY_SQRT3 (0.57735026919f)
 #endif
@@ -22,3 +25,7 @@ void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq
     *Id = Ialpha * c + Ibeta * s;
     *Iq = -Ialpha * s + Ibeta * c;
 }
+#include "motor_timing.h"
+bool Motor_Timing_ProfileIsActive(void) { return false; }
+uint32_t Motor_Timing_ProfileTimeUs(void) { return 0U; }
+void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start) { (void)stage; (void)start; }

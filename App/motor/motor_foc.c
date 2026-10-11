@@ -82,8 +82,8 @@ void inverse_clarke(float Ialpha, float Ibeta, float *Ia, float *Ib, float *Ic)
  */
 void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq)
 {
-	float s = sin_f32(Theta);
-	float c = cos_f32(Theta);
+	float s, c;
+	sincos_f32(Theta, &s, &c);
 	*Id =   Ialpha * c + Ibeta * s;
 	*Iq = - Ialpha * s + Ibeta * c;
 }
@@ -100,8 +100,8 @@ void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq
  */
 void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float *mod_beta)
 {
-	float s = sin_f32(Theta);
-	float c = cos_f32(Theta);
+	float s, c;
+	sincos_f32(Theta, &s, &c);
 	/* 保持当前功率板已经上板验证过的电压矢量极性（3e5d564）。 */
 	*mod_alpha = -(mod_d * c - mod_q * s);
 	*mod_beta  = -(mod_d * s + mod_q * c);

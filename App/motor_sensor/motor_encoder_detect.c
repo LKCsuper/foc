@@ -103,12 +103,13 @@ bool Motor_Encoder_DetectGetTargets(float *theta_rad, float *id_target, float *i
  * @description: 无 Z 相时标定编码器方向和电角零点。
  * @detail: 阻塞在应用任务里调用，不在控制中断里跑。先在电角 0 爬升 Id，再扫过 π/2
  *          判断计数方向；随后正反向各走一圈机械角，用角度差的正余弦均值求零点。
- *          成功后写入运行时并尝试保存 Flash。电机已运行、故障锁存或标定电流超出
+ *          成功后写入运行时，按 save_to_flash 决定是否保存 Flash。电机已运行、故障锁存或标定电流超出
  *          (0, 0.5] A 时直接拒绝。
+ * @param {bool} save_to_flash true=尝试保存，false=仅应用到 RAM
  * @return {void} 无
  * @author: lkc
  */
-void Motor_Encoder_Detect(void)
+void Motor_Encoder_DetectWithSave(bool save_to_flash)
 {
     float pole_pairs = motor.ol_pole_pairs;
     float current = motor.ol_iq_set;
@@ -234,7 +235,9 @@ void Motor_Encoder_Detect(void)
     /* 电角零点或方向变化后，旧机械角齿槽表不再对应当前安装关系。 */
     Motor_Anticogging_Clear();
     printf("Encoder detect: stale cogging table cleared; run encoder cog learn again\r\n");
-    if (FlashStorage_Save(&motor)) {
+    if (!save_to_flash) {
+        printf("Encoder calibration applied to RAM only\r\n");
+    } else if (FlashStorage_Save(&motor)) {
         printf("Encoder calibration saved to flash\r\n");
     } else {
         printf("Encoder calibration save FAILED\r\n");
@@ -242,6 +245,17 @@ void Motor_Encoder_Detect(void)
     printf("Encoder detect: count=%u mech=%.3f rad elec0=%.3f rad zero_ok=%d\r\n",
            (unsigned)Motor_Encoder_GetCount(), Motor_Encoder_GetMechAngle(), Motor_Encoder_GetElecAngle(),
            Motor_Encoder_IsZeroValid() ? 1 : 0);
+}
+
+/**
+ * @description: 无 Z 相时标定编码器方向和电角零点，并尝试保存 Flash。
+ * @detail: 转调 Motor_Encoder_DetectWithSave(true)。阻塞在应用任务里调用，不在控制中断里跑。
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Encoder_Detect(void)
+{
+    Motor_Encoder_DetectWithSave(true);
 }
 
 #ifdef __cplusplus

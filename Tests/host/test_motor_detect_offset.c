@@ -109,6 +109,26 @@ int main(void)
     Motor_Detect_OffsetFinalizeDriven(&st);
     assert(st.offset_warn);
 
+    {
+        float original[3], values[3];
+        memcpy(original, motor.currentOffset, sizeof(original));
+        memcpy(values, original, sizeof(values));
+        values[0] += 0.2f;
+        values[2] = NAN;
+        assert(!Motor_Detect_OffsetSetCurrentRam(&motor, values));
+        assert(memcmp(original, motor.currentOffset, sizeof(original)) == 0);
+        values[2] = original[2];
+        motor.ol_enable = true;
+        assert(!Motor_Detect_OffsetSetCurrentRam(&motor, values));
+        motor.ol_enable = false;
+        values[2] += 2.0f;
+        assert(!Motor_Detect_OffsetSetCurrentRam(&motor, values));
+        values[2] = original[2];
+        assert(Motor_Detect_OffsetSetCurrentRam(&motor, values));
+        assert(Motor_Detect_OffsetSetCurrentRam(&motor, original));
+        assert(memcmp(original, motor.currentOffset, sizeof(original)) == 0);
+        assert(!Motor_Detect_OffsetSetCurrentRam(NULL, values));
+    }
     puts("test_motor_detect_offset: pass");
     return 0;
 }

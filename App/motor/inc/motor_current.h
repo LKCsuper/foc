@@ -58,6 +58,7 @@ typedef struct {
     bool speed_loop_active;        /* true=使用速度环 Iq 替代 ol_iq_set */
     float speed_iq_target;         /* 速度环给出的 Iq (A) */
     float id_fw;                   /* 弱磁叠加 Id，≤0 (A)；对齐阶段不使用 */
+    float frame_correction;        /* 仅坐标交接附加角(rad)，普通旋转必须为0 */
 } motor_current_target_ctx_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -70,6 +71,22 @@ typedef struct {
  * @author: lkc
  */
 void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta);
+
+/**
+ * @description: 坐标交接时旋转电流 PI 积分，并补偿目标变化的 P 项。
+ * @detail: 只用于无感渐变等坐标交接。delta 为新电角减旧电角 (rad)，不得传入正常转速积分角。
+ *          由电流环在矢量限幅前调用，不改 PWM。motor 为空或 delta 非有限值时直接返回。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，读写 ol_vd_int/ol_vq_int (V)
+ * @param {float} delta           交接附加角 (rad)
+ * @param {float} old_id          旧坐标 Id 目标 (A)
+ * @param {float} old_iq          旧坐标 Iq 目标 (A)
+ * @param {float} new_id          新坐标 Id 目标 (A)
+ * @param {float} new_iq          新坐标 Iq 目标 (A)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Current_TransportPi(MOTOR_PARAM_S *motor, float delta, float old_id, float old_iq,
+                               float new_id, float new_iq);
 
 /**
  * @description: 高占空比时重构采样窗口最短的那一相电流。
@@ -158,7 +175,8 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
 void Motor_Current_TakePiDiag(motor_current_pi_diag_t *diag);
 
 /**
- * @description: 电流环一步：反馈变换 + 取目标 + PI（不含 PWM）
+ * @description: 电流环一步：反馈变换、取目标、可选坐标交接、PI 及矢量限幅。
+ * @detail: 不含 PWM。ctx->frame_correction 非 0 时先旋转积分，再跑 PI 并限幅。
  * @param {MOTOR_PARAM_S} *motor                    电机采样与积分
  * @param {float} theta                             Park/反 Park 用电角度 (rad)
  * @param {const motor_current_target_ctx_t} *ctx   目标上下文

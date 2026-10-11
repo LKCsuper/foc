@@ -258,7 +258,10 @@ float Hal_Motor_SenseVolts(uint8_t phase)
  */
 float Hal_Motor_BusVoltage(void)
 {
-    return GET_INPUT_VOLTAGE();
+    /* 保留GET_INPUT_VOLTAGE的4095分母和板级分压参数。
+     * 固定系数在编译期换算为float，避免ADC拍内的软件双精度乘法。 */
+    const float volts_per_count = (float)((V_REG / 4095.0) * ((VIN_R1 + VIN_R2) / VIN_R2));
+    return (float)ADC_Value[ADC_IND_VIN_SENS] * volts_per_count;
 }
 
 /**

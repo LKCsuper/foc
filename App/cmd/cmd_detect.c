@@ -9,6 +9,9 @@ extern "C" {
 #include "includes.h"
 #include <math.h>
 #include <stdlib.h>
+#include "motor_detect_offset.h"
+#include "motor_crit.h"
+#include "motor_bldc.h"
 /* Private typedef -----------------------------------------------------------*/
 typedef enum tagDetectType {
     DETECT_NONE,
@@ -44,7 +47,8 @@ static const osThreadAttr_t s_detect_motor_task_attr = {
 static void Detect_PrintUsage(void)
 {
     PRINTF("Usage:\n");
-    PRINTF("  detect | detect offset | detect 1\n");
+    PRINTF("  detect | detect offset [ram] | detect 1\n");
+    PRINTF("  detect offset ram set ADC0 ADC1 ADC2 (stopped, +/-1 count, RAM only)\n");
     PRINTF("  detect hall | detect 2\n");
     PRINTF("  detect phase | detect 3   — UVW order vs hall steps\n");
     PRINTF("  detect rl [test_current_A]\n");
@@ -176,7 +180,23 @@ int Cmd_Detect(int argc, char *argv[])
 
     switch (detect_type) {
     case DETECT_OFFSET:
-        success = DETECT_Offset(false) == 1U;
+        /* 停机诊断：只在 RAM 重放零偏，各相相对现值最多 1 个 ADC count，不写 Flash。 */
+        if (argc == 7 && strcmp(argv[2], "ram") == 0 && strcmp(argv[3], "set") == 0) {
+            float values[3];
+            uint32_t key;
+            if (!Detect_ParseFloat(argv[4], &values[0]) || !Detect_ParseFloat(argv[5], &values[1]) ||
+                !Detect_ParseFloat(argv[6], &values[2]) || Motor_Bldc_IsSelected()) break;
+            key = Motor_Crit_Enter();
+            success = Motor_Detect_OffsetSetCurrentRam(&motor, values);
+            Motor_Crit_Exit(key);
+            PRINTF(success ? "RAM current offsets replayed\n" : "Offset replay rejected: stop and stay within 1 ADC count\n");
+            break;
+        }
+        if (argc > 3 || (argc == 3 && strcmp(argv[2], "ram") != 0)) {
+            PRINTF("Invalid offset arguments: detect offset [ram]\n");
+            break;
+        }
+        success = (argc == 3 ? DETECT_OffsetRam(false) : DETECT_Offset(false)) == 1U;
         break;
     case DETECT_HALL:
         success = DETECT_Hall();

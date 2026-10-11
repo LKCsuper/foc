@@ -48,6 +48,7 @@ typedef struct {
     motor_fw_t fw;           /* 弱磁负 Id 状态 */
     int last_mode;           /* 上一控制模式；-1 表示尚未运行 */
     bool speed_loop_latched; /* 速度 PI 已接管；跌回门槛以下才释放给启动 Iq */
+    float current_frame_correction; /* 本拍无感渐变附加角，排除正常转速积分(rad) */
 } motor_control_t;
 
 /**

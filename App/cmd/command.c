@@ -35,6 +35,9 @@ extern "C" {
 /* cmd_openloop.c     */ extern int Cmd_OlSpeed(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlStatus(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlRpm(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SensorlessStats(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SensorlessTrace(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SensorlessCadence(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlSnap(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlCurrentDiag(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_CurrentTest(int argc, char *argv[]);
@@ -69,6 +72,8 @@ extern "C" {
 /* cmd_openloop.c     */ extern int Cmd_SensorlessGuard(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_SensorlessMotor(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_SensorlessObserver(int argc, char *argv[]);
+extern int Cmd_SensorlessDeadtime(int argc, char *argv[]);
+extern int Cmd_SensorlessTest(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_SensorlessPhase(int argc, char *argv[]);
 
 /* -- 命令表 ----------------------------------------------------------------*/
@@ -82,6 +87,10 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olspeed",    Cmd_OlSpeed,            "openloop V/F speed set <rpm>" },
     { "olstatus",   Cmd_OlStatus,           "show openloop current and fault status" },
     { "olrpm",      Cmd_OlRpm,              "one-line rpm/current while running" },
+    { "slstats",    Cmd_SensorlessStats,    "sensorless steady-window counters retained after stop" },
+    { "sltest",     Cmd_SensorlessTest,     "sensorless speeds [hold_s [rpm1 ... rpm6]], stopped only" },
+    { "sltrace",    Cmd_SensorlessTrace,    "RAM event trace arm|show (stopped only)" },
+    { "slcadence",  Cmd_SensorlessCadence,  "measured control entry intervals reset|stop|show" },
     { "olsnap",     Cmd_OlSnap,             "short Id/Iq/RPM/fault snapshot while running" },
     { "olcurdiag",  Cmd_OlCurrentDiag,      "Hall current errors by sector since last start" },
     { "curtest",    Cmd_CurrentTest,        "static D-axis current-loop test [A] [ms]" },
@@ -120,6 +129,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "slguard",    Cmd_SensorlessGuard,    "set I/F ceiling and takeover guard" },
     { "slmotor",    Cmd_SensorlessMotor,    "set sensorless motor model" },
     { "slobs",      Cmd_SensorlessObserver, "set observer and PLL gains" },
+    { "sldt",       Cmd_SensorlessDeadtime, "RAM observer deadtime fraction, stopped only" },
     { "slphase",    Cmd_SensorlessPhase,    "set observer phase offset <deg>" },
     /* 杂项 */
     { "show",       Cmd_Show,               "show hall sensor state" },
