@@ -2084,12 +2084,66 @@ static bool speed_wait_or_key(uint32_t period_ms)
 }
 
 /* sltest: bounded sensorless sequence, task context only. */
+/* 测试保护边界：独立于电机模型；调整需重新验证适用硬件范围。 */
+typedef struct {
+    float bus_min_v, bus_max_v, pole_pairs;
+    float rpm_min, rpm_max, current_abort_a;
+    float startup_speed_max_rpm, closed_speed_max_rpm, overspeed_ratio;
+    float command_tolerance_rpm, encoder_age_max_s;
+    uint32_t hold_min_s, hold_max_s;
+} sltest_bounds_t;
+static const sltest_bounds_t sltest_bounds = {
+    .bus_min_v = 15.0f, .bus_max_v = 17.0f, .pole_pairs = 7.0f,
+    .rpm_min = 500.0f, .rpm_max = 2600.0f, .current_abort_a = 1.0f,
+    .startup_speed_max_rpm = 900.0f, .closed_speed_max_rpm = 3000.0f, .overspeed_ratio = 1.25f,
+    .command_tolerance_rpm = 1.0f, .encoder_age_max_s = 0.005f,
+    .hold_min_s = 2U, .hold_max_s = 20U
+};
+
+/* 2804/16V空载测试配置，单位见字段后缀。仅测试期间覆盖，退出恢复原配置。
+ * R/L/磁链和零偏仍来自当前电机配置，不在这里指定。 */
+typedef struct {
+    float default_rpms[3];
+    uint32_t hold_s, startup_ms, takeover_ms, settle_ms, poll_ms, output_ms;
+    float startup_rpm, startup_iq_a, startup_tolerance_rpm, ramp_rpm_s;
+    float speed_kp, speed_ki, low_iq_limit_a, high_iq_limit_a, high_iq_above_rpm;
+    float openloop_max_rpm, phase_tolerance_rad, blend_s;
+    float high_voltage_above_rpm, high_voltage_limit_v;
+    float tracking_absolute_rpm, tracking_relative;
+    unsigned tracking_bad_samples;
+} sltest_profile_t;
+static const sltest_profile_t sltest_profile = {
+    .default_rpms = {500.0f, 600.0f, 700.0f}, .hold_s = 5U,
+    .startup_ms = 8000U, .takeover_ms = 5000U, .settle_ms = 2000U,
+    .poll_ms = 50U, .output_ms = 1000U,
+    .startup_rpm = 600.0f, .startup_iq_a = 0.30f, .startup_tolerance_rpm = 120.0f,
+    .ramp_rpm_s = 100.0f, .speed_kp = 0.0003f, .speed_ki = 0.0005f,
+    .low_iq_limit_a = 0.15f, .high_iq_limit_a = 0.30f, .high_iq_above_rpm = 1800.0f,
+    .openloop_max_rpm = 800.0f, .phase_tolerance_rad = 1.4f, .blend_s = 0.05f,
+    .high_voltage_above_rpm = 1200.0f, .high_voltage_limit_v = 8.0f,
+    .tracking_absolute_rpm = 60.0f, .tracking_relative = 0.05f, .tracking_bad_samples = 5U
+};
+
+
+static void sltest_print_output(const motor_status_t *status, float rpm)
+{
+    float period = (float)Hal_Motor_PwmPeriodCounts();
+    float alpha = period > 0.0f ? status->v_bus *
+        (2.0f * status->duty1 - status->duty2 - status->duty3) / (3.0f * period) : 0.0f;
+    float beta = period > 0.0f ? status->v_bus *
+        ((float)status->duty2 - status->duty3) / (1.732050808f * period) : 0.0f;
+    PRINTF("sltest output: target=%.0f rpm=%.1f iq=%.4f/%.4f speedIq=%.4f limit=%.3f "
+           "id=%.4f PWMV=%.3f/%.1f bus=%.2f\n", status->target_rpm, rpm,
+           status->iq, status->iq_target, status->speed_iq, motor.speed_iq_limit,
+           status->id, sqrtf(alpha * alpha + beta * beta), motor.ol_vq_limit, status->v_bus);
+}
 /* phase: 0=拖转，1=等待接管，2=闭环稳定等待，3=统计并检查跟踪。 */
 static bool sltest_monitor(uint32_t duration_ms, float target, unsigned phase, float *average)
 {
     uint32_t start = Hal_Motor_TimeUs();
     unsigned n = 0U, tracking_bad = 0U;
     float sum = 0.0f;
+    uint32_t last_output = start;
     do {
         motor_status_t status = {0};
         motor_sensorless_state_t state;
@@ -2103,7 +2157,7 @@ static bool sltest_monitor(uint32_t duration_ms, float target, unsigned phase, f
         reason = read_result != MOTOR_OK ? 1U :
                  (!status.enable ? 2U : 0U) | (status.fault_latched ? 4U : 0U) |
                  (!isfinite(status.iq) || !isfinite(status.id) ? 16U : 0U) |
-                 (fabsf(status.iq) > 1.0f || fabsf(status.id) > 1.0f ? 32U : 0U);
+                 (fabsf(status.iq) > sltest_bounds.current_abort_a || fabsf(status.id) > sltest_bounds.current_abort_a ? 32U : 0U);
         if (protect) reason |= 8U;
         if (reason != 0U) {
             uint32_t observed_us = Hal_Motor_TimeUs();
@@ -2122,24 +2176,38 @@ static bool sltest_monitor(uint32_t duration_ms, float target, unsigned phase, f
         state = Motor_Sensorless_GetState();
         {
             float rpm = Motor_Sensorless_GetMechanicalRpm();
-            float speed_limit = phase < 2U ? 900.0f : fminf(3000.0f, fmaxf(900.0f, 1.25f * target));
-            if (!isfinite(rpm) || fabsf(rpm) > speed_limit || fabsf(status.target_rpm - target) > 1.0f) {
-                PRINTF("sltest: speed/target check failed\n"); return false;
+            float speed_limit = phase < 2U ? sltest_bounds.startup_speed_max_rpm :
+                fminf(sltest_bounds.closed_speed_max_rpm,
+                      fmaxf(sltest_bounds.startup_speed_max_rpm, sltest_bounds.overspeed_ratio * target));
+            if (!isfinite(rpm) || fabsf(rpm) > speed_limit || fabsf(status.target_rpm - target) > sltest_bounds.command_tolerance_rpm) {
+                PRINTF("sltest: speed/target check failed phase=%u rpm=%.1f limit=%.1f command=%.1f expected=%.1f\n",
+                       phase, rpm, speed_limit, status.target_rpm, target); return false;
             }
             if (phase == 1U && state == MOTOR_SENSORLESS_CLOSED && Motor_SpeedLoop_IsFeedbackValid()) return true;
             if (phase >= 2U && (state != MOTOR_SENSORLESS_CLOSED || !Motor_SpeedLoop_IsFeedbackValid())) {
                 PRINTF("sltest: lost sensorless takeover\n"); return false;
             }
             if (phase == 3U) {
-                tracking_bad = fabsf(rpm - target) > fmaxf(60.0f, 0.20f * target) ? tracking_bad + 1U : 0U;
-                if (tracking_bad >= 5U) { PRINTF("sltest: speed not tracking\n"); return false; }
+                if ((uint32_t)(Hal_Motor_TimeUs() - last_output) >= sltest_profile.output_ms * 1000U) {
+                    sltest_print_output(&status, rpm);
+                    last_output = Hal_Motor_TimeUs();
+                }
+                tracking_bad = fabsf(rpm - target) > fmaxf(sltest_profile.tracking_absolute_rpm, sltest_profile.tracking_relative * target) ? tracking_bad + 1U : 0U;
+                if (tracking_bad >= sltest_profile.tracking_bad_samples) {
+                    sltest_print_output(&status, rpm);
+                    PRINTF("sltest: speed not tracking (limit %.1f%% or %.0fRPM)\n",
+                           100.0f * sltest_profile.tracking_relative, sltest_profile.tracking_absolute_rpm); return false;
+                }
                 sum += rpm; n++;
             }
         }
-        osDelay(pdMS_TO_TICKS(50U));
+        osDelay(pdMS_TO_TICKS(sltest_profile.poll_ms));
     } while ((uint32_t)(Hal_Motor_TimeUs() - start) / 1000U < duration_ms);
     if (phase == 1U) { PRINTF("sltest: takeover timeout\n"); return false; }
     if (average != NULL) *average = n ? sum / (float)n : 0.0f;
+    if (phase == 3U && n && fabsf(sum / (float)n - target) > fmaxf(sltest_profile.tracking_absolute_rpm, sltest_profile.tracking_relative * target)) {
+        PRINTF("sltest: average speed not tracking\n"); return false;
+    }
     return true;
 }
 
@@ -2150,27 +2218,28 @@ static bool sltest_monitor(uint32_t duration_ms, float target, unsigned phase, f
  */
 int Cmd_SensorlessTest(int argc, char *argv[])
 {
-    float rpms[6] = {500.0f, 600.0f, 700.0f};
+    float rpms[6] = {0};
     unsigned count = 3U, i;
-    float max_target = 600.0f;
-    uint32_t hold_s = 5U;
+    float max_target = sltest_profile.startup_rpm;
+    uint32_t hold_s = sltest_profile.hold_s;
     motor_config_t saved, cfg;
     motor_command_t initial, cmd;
     motor_feedback_source_t feedback;
     bool ok = false, restored;
     char *end;
+    for (i = 0U; i < 3U; i++) rpms[i] = sltest_profile.default_rpms[i];
     if (argc > 8) { PRINTF("Usage: sltest [hold_s [rpm1 ... rpm6]]\n"); return -1; }
     if (argc >= 2) {
         long value = strtol(argv[1], &end, 10);
-        if (*end || value < 2 || value > 20) { PRINTF("sltest hold: 2..20 seconds\n"); return -1; }
+        if (*end || value < (long)sltest_bounds.hold_min_s || value > (long)sltest_bounds.hold_max_s) { PRINTF("sltest hold: %lu..%lu seconds\n", (unsigned long)sltest_bounds.hold_min_s, (unsigned long)sltest_bounds.hold_max_s); return -1; }
         hold_s = (uint32_t)value;
     }
     if (argc >= 3) {
         count = (unsigned)argc - 2U;
         for (i = 0U; i < count; i++) {
             rpms[i] = strtof(argv[i + 2U], &end);
-            if (end == argv[i + 2U] || *end || !isfinite(rpms[i]) || rpms[i] < 500.0f || rpms[i] > 2600.0f) {
-                PRINTF("sltest RPM: 500..2600, positive only\n"); return -1;
+            if (end == argv[i + 2U] || *end || !isfinite(rpms[i]) || rpms[i] < sltest_bounds.rpm_min || rpms[i] > sltest_bounds.rpm_max) {
+                PRINTF("sltest RPM: %.0f..%.0f, positive only\n", sltest_bounds.rpm_min, sltest_bounds.rpm_max); return -1;
             }
         }
     }
@@ -2180,51 +2249,64 @@ int Cmd_SensorlessTest(int argc, char *argv[])
     }
     if (!ol_capture_config(&saved)) { PRINTF("sltest: config unavailable\n"); return -1; }
     for (i = 0U; i < count; i++) max_target = fmaxf(max_target, rpms[i]);
-    if (saved.ol_max_rpm < max_target || saved.sensorless_transition_rpm > 600.0f ||
-        saved.sensorless_fallback_rpm >= 500.0f || !isfinite(motor.v_bus) || motor.v_bus < 15.0f || motor.v_bus > 17.0f ||
-        motor.ol_pole_pairs != 7.0f || !isfinite(saved.sensorless_motor_r) || saved.sensorless_motor_r <= 0.0f ||
+    if (saved.ol_max_rpm < max_target || saved.sensorless_transition_rpm > sltest_profile.startup_rpm ||
+        saved.sensorless_fallback_rpm >= sltest_bounds.rpm_min || !isfinite(motor.v_bus) || motor.v_bus < sltest_bounds.bus_min_v || motor.v_bus > sltest_bounds.bus_max_v ||
+        motor.ol_pole_pairs != sltest_bounds.pole_pairs || !isfinite(saved.sensorless_motor_r) || saved.sensorless_motor_r <= 0.0f ||
         !isfinite(saved.sensorless_motor_l) || saved.sensorless_motor_l <= 0.0f ||
         !isfinite(saved.sensorless_flux_linkage) || saved.sensorless_flux_linkage <= 0.0f) {
-        PRINTF("sltest: current test range is 7 pole-pairs, 16V, transition<=600, fallback<500\n"); return -1;
+        PRINTF("sltest: requires %.0f pole-pairs, %.1f..%.1fV, transition<=%.0f, fallback<%.0f\n",
+               sltest_bounds.pole_pairs, sltest_bounds.bus_min_v, sltest_bounds.bus_max_v,
+               sltest_profile.startup_rpm, sltest_bounds.rpm_min); return -1;
     }
     feedback = Motor_GetFeedbackSource();
     cfg = saved;
     cfg.sensorless_enable = true; cfg.sensorless_takeover = false;
-    cfg.ol_align_enable = false; cfg.hfi_start_enable = false; cfg.ol_ramp_rpm_s = 100.0f;
-    cfg.speed_kp = 0.0003f; cfg.speed_ki = 0.0005f; cfg.speed_iq_limit = 0.15f;
-    cfg.sensorless_openloop_max_rpm = 800.0f; cfg.sensorless_phase_tolerance = 1.4f;
-    cfg.sensorless_blend_time = 0.05f;
+    cfg.ol_align_enable = false; cfg.hfi_start_enable = false; cfg.ol_ramp_rpm_s = sltest_profile.ramp_rpm_s;
+    cfg.speed_kp = sltest_profile.speed_kp; cfg.speed_ki = sltest_profile.speed_ki;
+    cfg.speed_iq_limit = sltest_profile.low_iq_limit_a;
+    cfg.sensorless_openloop_max_rpm = sltest_profile.openloop_max_rpm;
+    cfg.sensorless_phase_tolerance = sltest_profile.phase_tolerance_rad;
+    cfg.sensorless_blend_time = sltest_profile.blend_s;
     /* 高速需覆盖反电势电压，仍保持800RPM开环上限及原电流限幅。
      * 16V母线下8V低于线性调制范围；测试结束恢复原电压上限。 */
-    if (max_target > 1200.0f) cfg.ol_vq_limit = 8.0f;
+    if (max_target > sltest_profile.high_voltage_above_rpm) cfg.ol_vq_limit = sltest_profile.high_voltage_limit_v;
     (void)Motor_Position_Enable(false); (void)Motor_Joint_Enable(false);
-    PRINTF("sltest: 600RPM startup -> %u tiers, %lus each; new input stops\n", count, (unsigned long)hold_s);
+    PRINTF("sltest: %.0fRPM startup -> %u tiers, %lus each; new input stops\n",
+           sltest_profile.startup_rpm, count, (unsigned long)hold_s);
     PRINTF("model R=%.3f ohm L=%.3f mH flux=%.3f mWb; existing offsets, RAM only\n",
            cfg.sensorless_motor_r, cfg.sensorless_motor_l * 1000.0f, cfg.sensorless_flux_linkage * 1000.0f);
     PRINTF("sltest voltage limit=%.1f V; high speeds require CLOSED\n", cfg.ol_vq_limit);
+    PRINTF("sltest limits: Iq=%.2f/%.2fA above %.0fRPM; tracking %.1f%% or %.0fRPM, %u samples @ %lums\n",
+           sltest_profile.low_iq_limit_a, sltest_profile.high_iq_limit_a, sltest_profile.high_iq_above_rpm,
+           sltest_profile.tracking_relative * 100.0f, sltest_profile.tracking_absolute_rpm,
+           sltest_profile.tracking_bad_samples, (unsigned long)sltest_profile.poll_ms);
     if (Motor_SetConfig(&motor, &cfg) != MOTOR_OK || Motor_SetFeedbackSource(MOTOR_FEEDBACK_SRC_SENSORLESS) != MOTOR_OK)
         goto done;
     cmd = initial; cmd.enable = true; cmd.mode = MOTOR_OL_MODE_IF;
-    cmd.target_rpm = 600.0f; cmd.iq_set = 0.30f; cmd.id_set = 0.0f; cmd.speed_enable = false;
+    cmd.target_rpm = sltest_profile.startup_rpm; cmd.iq_set = sltest_profile.startup_iq_a; cmd.id_set = 0.0f; cmd.speed_enable = false;
     Motor_Timing_TraceArmEntry();
-    if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK || !sltest_monitor(8000U, 600.0f, 0U, NULL)) goto done;
-    if (fabsf(Motor_Sensorless_GetMechanicalRpm() - 600.0f) > 120.0f) {
+    if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK || !sltest_monitor(sltest_profile.startup_ms, sltest_profile.startup_rpm, 0U, NULL)) goto done;
+    if (fabsf(Motor_Sensorless_GetMechanicalRpm() - sltest_profile.startup_rpm) > sltest_profile.startup_tolerance_rpm) {
         PRINTF("sltest: startup not tracking\n"); goto done;
     }
     cmd.speed_enable = true;
     if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) goto done;
     cfg.speed_enable = true;
     cfg.sensorless_takeover = true;
-    if (Motor_SetConfig(&motor, &cfg) != MOTOR_OK || !sltest_monitor(5000U, 600.0f, 1U, NULL) ||
-        !sltest_monitor(2000U, 600.0f, 2U, NULL)) goto done;
+    if (Motor_SetConfig(&motor, &cfg) != MOTOR_OK || !sltest_monitor(sltest_profile.takeover_ms, sltest_profile.startup_rpm, 1U, NULL) ||
+        !sltest_monitor(sltest_profile.settle_ms, sltest_profile.startup_rpm, 2U, NULL)) goto done;
     for (i = 0U; i < count; i++) {
         float average;
         cmd.target_rpm = rpms[i];
+        /* 仅高速档放宽转矩限流，600RPM接管继续使用原0.15A。 */
+        cfg.speed_iq_limit = rpms[i] > sltest_profile.high_iq_above_rpm ?
+            sltest_profile.high_iq_limit_a : sltest_profile.low_iq_limit_a;
+        if (Motor_SetConfig(&motor, &cfg) != MOTOR_OK) goto done;
         PRINTF("sltest %u/%u target=%.0f RPM\n", i + 1U, count, rpms[i]);
-        if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK || !sltest_monitor(2000U, rpms[i], 2U, NULL) ||
+        if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK || !sltest_monitor(sltest_profile.settle_ms, rpms[i], 2U, NULL) ||
             !sltest_monitor(hold_s * 1000U, rpms[i], 3U, &average)) goto done;
         PRINTF("  CLOSED avg=%.1f RPM", average);
-        if (Motor_Encoder_IsCompareEnabled() && Motor_Encoder_IsSpeedValid() && Motor_Encoder_GetSampleAge() < 0.005f)
+        if (Motor_Encoder_IsCompareEnabled() && Motor_Encoder_IsSpeedValid() && Motor_Encoder_GetSampleAge() < sltest_bounds.encoder_age_max_s)
             PRINTF(" encoder=%.1f RPM(reference)", Motor_Encoder_GetMechRpm());
         PRINTF("\n");
     }

@@ -32,6 +32,7 @@ extern "C" {
 #include "motor_foc.h"
 #include "motor_bldc.h"
 #include "motor_math.h"
+#include "motor_encoder.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define DETECT_OFFSET_ISR_TIMEOUT_MS (2000U)
@@ -44,8 +45,9 @@ extern "C" {
 #define MOTOR_DETECT_RESISTANCE_VOLTAGE_V (5.0f)
 #define MOTOR_DETECT_RESISTANCE_RAMP_S (0.8f)
 /* 2804高电阻、保守Ki下0.2s等待仍有建流误差；延长等待后再取同长度均值。 */
-#define MOTOR_DETECT_RESISTANCE_SETTLE_S (0.8f)
-#define MOTOR_DETECT_RESISTANCE_SAMPLE_S (0.5f)
+/* 小电机低电流检测延长稳态与平均窗口，保留原漂移/斜率验收门槛。 */
+#define MOTOR_DETECT_RESISTANCE_SETTLE_S (1.5f)
+#define MOTOR_DETECT_RESISTANCE_SAMPLE_S (1.0f)
 #define MOTOR_DETECT_RESISTANCE_MIN_SAMPLES (100U)
 #define MOTOR_DETECT_RESISTANCE_MIN_OHM (0.005f)
 #define MOTOR_DETECT_RESISTANCE_MAX_OHM (10.0f)
@@ -156,6 +158,10 @@ typedef struct {
     float flux_coast_elapsed;
     float flux_bemf_angle_last;
     float flux_angle_sum;
+    /* scan按配对时间积分：前两项单位分别为电气rad、V*s。 */
+    float flux_encoder_omega_sum, flux_encoder_voltage_sum;
+    float flux_pair_bemf_angle, flux_pair_time; /* rad、s，与编码器使用相同样本区间 */
+    uint32_t flux_encoder_count, flux_encoder_attempts;
     float inductance_sum[MOTOR_DETECT_INDUCTANCE_DIRECTIONS];
     uint32_t inductance_valid[MOTOR_DETECT_INDUCTANCE_DIRECTIONS];
     bool pulse_started;
@@ -167,6 +173,29 @@ typedef struct {
 static motor_detect_control_t s_detect_control;
 static motor_detect_result_t s_detect_result = {.version = MOTOR_DETECT_RESULT_VERSION};
 static volatile bool s_detect_abort_requested;
+static bool s_flux_scan;
+static float s_flux_reference_dt;
+/* scan专用滑行轨迹，ISR只存储，关桥后在任务中打印。 */
+static struct {
+    float time, alpha, beta, erpm, age;
+    uint16_t count;
+} s_flux_trace[64];
+static uint32_t s_flux_trace_n;
+static float s_flux_raw_angle;
+static bool s_flux_raw_valid;
+static float s_flux_bemf_unwrapped, s_flux_raw_bemf;
+static uint32_t s_flux_raw_stamp;
+
+static void Detect_PrintFluxTrace(void)
+{
+    uint32_t i;
+    for (i = 0U; i < s_flux_trace_n; i++) {
+        PRINTF("Flux trace: t=%.6f ab=%.6f/%.6f enc=%.1f age=%.6f count=%u\r\n",
+               (double)s_flux_trace[i].time, (double)s_flux_trace[i].alpha,
+               (double)s_flux_trace[i].beta, (double)s_flux_trace[i].erpm,
+               (double)s_flux_trace[i].age, (unsigned)s_flux_trace[i].count);
+    }
+}
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -544,6 +573,16 @@ static void Detect_RunFluxStep(MOTOR_PARAM_S *motor_param, float dt)
 
         s_detect_control.flux_coast_elapsed += dt;
         clarke_transform(motor_param->va, motor_param->vb, motor_param->vc, &v_alpha, &v_beta);
+        if (s_flux_scan && s_flux_trace_n < 64U &&
+            s_detect_control.flux_coast_elapsed >= (float)s_flux_trace_n * 0.008f) {
+            s_flux_trace[s_flux_trace_n].time = s_detect_control.flux_coast_elapsed;
+            s_flux_trace[s_flux_trace_n].alpha = v_alpha;
+            s_flux_trace[s_flux_trace_n].beta = v_beta;
+            s_flux_trace[s_flux_trace_n].erpm = Motor_Encoder_GetMechRpm() * motor_param->ol_pole_pairs;
+            s_flux_trace[s_flux_trace_n].age = Motor_Encoder_GetSampleAge();
+            s_flux_trace[s_flux_trace_n].count = Motor_Encoder_GetCount();
+            s_flux_trace_n++;
+        }
         voltage_mag = sqrtf(v_alpha * v_alpha + v_beta * v_beta);
         angle = atan2f(v_beta, v_alpha);
         if (!s_detect_control.flux_bemf_angle_valid) {
@@ -559,12 +598,49 @@ static void Detect_RunFluxStep(MOTOR_PARAM_S *motor_param, float dt)
             delta += 2.0f * MOTOR_DETECT_PI;
         }
         s_detect_control.flux_bemf_angle_last = angle;
+        if (s_flux_scan) {
+            s_flux_bemf_unwrapped += delta;
+        }
         if (s_detect_control.flux_coast_elapsed > MOTOR_DETECT_FLUX_COAST_SETTLE_S &&
             voltage_mag >= MOTOR_DETECT_FLUX_MIN_BEMF_V) {
             s_detect_control.flux_angle_sum += delta;
             s_detect_control.accum_a += voltage_mag;
             s_detect_control.accum_b += dt;
             s_detect_control.samples++;
+            /* 约1kHz抽样；仅新鲜有效测速与同拍电压配对，不改变控制反馈。 */
+            if (s_flux_scan && (s_detect_control.samples % 16U) == 0U &&
+                voltage_mag >= 2.0f * MOTOR_DETECT_FLUX_MIN_BEMF_V) {
+                float age = Motor_Encoder_GetSampleAge();
+                uint32_t stamp = Motor_Encoder_GetSampleTimeUs();
+                float time = (float)(uint32_t)(stamp - s_flux_raw_stamp) * 1.0e-6f;
+                float mech = Motor_Encoder_GetMechAngle();
+                float interval = time;
+                float change = mech - s_flux_raw_angle;
+                float erpm = 0.0f;
+                while (change > MOTOR_DETECT_PI) change -= 2.0f * MOTOR_DETECT_PI;
+                while (change < -MOTOR_DETECT_PI) change += 2.0f * MOTOR_DETECT_PI;
+                /* 快速滑行不能用PLL平滑测速；相邻新鲜原始角度按实际时间差配对。 */
+                if (s_flux_raw_valid && interval > 0.0005f && interval <= 0.003f) {
+                    erpm = change / interval * motor_param->ol_pole_pairs *
+                           (60.0f / (2.0f * MOTOR_DETECT_PI));
+                }
+                s_detect_control.flux_encoder_attempts++;
+                if (Motor_Encoder_IsSpeedValid() && !Motor_Encoder_IsSignalFault() &&
+                    age <= 0.005f && isfinite(erpm) && erpm > 100.0f &&
+                    voltage_mag >= 2.0f * MOTOR_DETECT_FLUX_MIN_BEMF_V) {
+                    /* 同一时间区间累计角位移与电压，不能比较门槛裁剪后的两种均值。 */
+                    s_detect_control.flux_encoder_omega_sum += change * motor_param->ol_pole_pairs;
+                    s_detect_control.flux_encoder_voltage_sum += voltage_mag * interval;
+                    s_detect_control.flux_pair_bemf_angle += s_flux_bemf_unwrapped - s_flux_raw_bemf;
+                    s_detect_control.flux_pair_time += interval;
+                    s_detect_control.flux_encoder_count++;
+                }
+                s_flux_raw_valid = Motor_Encoder_IsSpeedValid() && !Motor_Encoder_IsSignalFault() &&
+                                   age <= 0.005f && isfinite(mech);
+                s_flux_raw_angle = mech;
+                s_flux_raw_stamp = stamp;
+                s_flux_raw_bemf = s_flux_bemf_unwrapped;
+            }
         }
         if (s_detect_control.flux_coast_elapsed >= MOTOR_DETECT_FLUX_COAST_SAMPLE_S) {
             float omega = 0.0f;
@@ -573,6 +649,10 @@ static void Detect_RunFluxStep(MOTOR_PARAM_S *motor_param, float dt)
             if (s_detect_control.samples > 0U && s_detect_control.accum_b > 0.0f) {
                 omega = s_detect_control.flux_angle_sum / s_detect_control.accum_b;
                 voltage_average = s_detect_control.accum_a / (float)s_detect_control.samples;
+            }
+            if (s_flux_scan && s_detect_control.flux_pair_time > 0.0f) {
+                omega = s_detect_control.flux_pair_bemf_angle / s_detect_control.flux_pair_time;
+                voltage_average = s_detect_control.flux_encoder_voltage_sum / s_detect_control.flux_pair_time;
             }
             s_detect_control.electrical_rpm_now = fabsf(omega) * (60.0f / (2.0f * MOTOR_DETECT_PI));
             s_detect_control.resistance_voltage_avg = voltage_average;
@@ -623,10 +703,22 @@ static void Detect_RunFluxStep(MOTOR_PARAM_S *motor_param, float dt)
     }
     if (rotation_time >= MOTOR_DETECT_FLUX_RAMP_S) {
         float minimum_run_duty = MOTOR_DETECT_FLUX_MIN_RUN_DUTY;
+        bool rotation_invalid;
+        if (s_flux_scan) {
+            float erpm = Motor_Encoder_GetMechRpm() * motor_param->ol_pole_pairs;
+            /* scan有独立参考：实际速度验收代替受加速瞬态影响的峰值占空比比值。
+             * 原单点检测仍保留原占空比检查，滑行BEMF质量检查也保留。 */
+            rotation_invalid = !Motor_Encoder_IsSpeedValid() || Motor_Encoder_IsSignalFault() ||
+                               Motor_Encoder_GetSampleAge() > 0.005f || !isfinite(erpm) ||
+                               erpm < 0.8f * s_detect_control.electrical_rpm_target ||
+                               erpm > 1.2f * s_detect_control.electrical_rpm_target;
+        } else {
+            rotation_invalid = s_detect_control.flux_duty_max > minimum_run_duty &&
+                               s_detect_control.flux_duty_now <
+                                   s_detect_control.flux_duty_max * MOTOR_DETECT_FLUX_DUTY_COLLAPSE_RATIO;
+        }
         if (s_detect_control.flux_duty_now < minimum_run_duty ||
-            (s_detect_control.flux_duty_max > minimum_run_duty &&
-             s_detect_control.flux_duty_now <
-                 s_detect_control.flux_duty_max * MOTOR_DETECT_FLUX_DUTY_COLLAPSE_RATIO)) {
+            rotation_invalid) {
             Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_FLUX);
             return;
         }
@@ -853,6 +945,14 @@ void Motor_Detect_IsrFeed(bool pwm_down)
         } else if (s_detect_control.stage == MOTOR_DETECT_STAGE_INDUCTANCE) {
             Detect_RunInductanceStep(&motor, dt);
         } else if (s_detect_control.stage == MOTOR_DETECT_STAGE_FLUX) {
+            /* 检测占用ISR时正常传感器更新被绕过，仅scan补充1kHz参考测速。 */
+            if (s_flux_scan) {
+                s_flux_reference_dt += dt;
+                if (s_flux_reference_dt >= 0.001f) {
+                    Motor_Encoder_UpdateReference(s_flux_reference_dt);
+                    s_flux_reference_dt = 0.0f;
+                }
+            }
             Detect_RunFluxStep(&motor, dt);
         }
         return;
@@ -883,6 +983,12 @@ static bool Detect_RunStage(motor_detect_stage_t stage, float current_a, uint32_
     uint32_t primask;
 
     s_detect_control.done = false;
+    s_flux_reference_dt = 0.0f;
+    s_flux_trace_n = 0U;
+    s_flux_raw_valid = false;
+    s_flux_bemf_unwrapped = s_flux_raw_bemf = 0.0f;
+    s_flux_raw_stamp = 0U;
+    s_detect_control.flux_pair_bemf_angle = s_detect_control.flux_pair_time = 0.0f;
     s_detect_control.success = false;
     s_detect_control.error = MOTOR_DETECT_ERROR_NONE;
     s_detect_control.fault = 0;
@@ -920,6 +1026,8 @@ static bool Detect_RunStage(motor_detect_stage_t stage, float current_a, uint32_
     s_detect_control.flux_coast_elapsed = 0.0f;
     s_detect_control.flux_bemf_angle_last = 0.0f;
     s_detect_control.flux_angle_sum = 0.0f;
+    s_detect_control.flux_encoder_omega_sum = s_detect_control.flux_encoder_voltage_sum = 0.0f;
+    s_detect_control.flux_encoder_count = s_detect_control.flux_encoder_attempts = 0U;
     memset(s_detect_control.inductance_sum, 0, sizeof(s_detect_control.inductance_sum));
     memset(s_detect_control.inductance_valid, 0, sizeof(s_detect_control.inductance_valid));
     s_detect_control.pulse_started = false;
@@ -1142,15 +1250,23 @@ bool DETECT_MotorRl(float current_a, motor_detect_result_t *result)
     return Detect_MotorRlInternal(current_a, result, false);
 }
 
-bool DETECT_MotorParameters(float current_a, float electrical_rpm, float flux_current_a,
-                            motor_detect_result_t *result)
+static bool Detect_MotorParametersInternal(float current_a, float electrical_rpm, float flux_current_a,
+                                           bool scan, motor_detect_result_t *result)
 {
     float kp_old;
     float ki_old;
     float voltage_limit_old;
     float flux_current;
     bool success;
+    unsigned point;
+    unsigned points = scan ? 3U : 1U;
+    float max_erpm = electrical_rpm;
 
+    if (scan && (max_erpm < 900.0f || max_erpm > 3000.0f ||
+                 !Motor_Encoder_IsCompareEnabled() || !Motor_Encoder_IsSpeedValid())) {
+        if (result != NULL) { memset(result, 0, sizeof(*result)); result->version = MOTOR_DETECT_RESULT_VERSION; result->error = MOTOR_DETECT_ERROR_INVALID_INPUT; }
+        return false;
+    }
     if (!isfinite(current_a) || !isfinite(electrical_rpm) || !isfinite(flux_current_a)) {
         if (result != NULL) {
             memset(result, 0, sizeof(*result));
@@ -1167,43 +1283,110 @@ bool DETECT_MotorParameters(float current_a, float electrical_rpm, float flux_cu
     electrical_rpm = Detect_Clamp(fabsf(electrical_rpm), MOTOR_DETECT_MIN_ELECTRICAL_RPM,
                                   MOTOR_DETECT_MAX_ELECTRICAL_RPM);
     flux_current = Detect_Clamp(fabsf(flux_current_a), MOTOR_DETECT_MIN_CURRENT_A, MOTOR_DETECT_MAX_CURRENT_A);
-    s_detect_result.test_electrical_rpm = electrical_rpm;
-    s_detect_result.test_flux_current_a = flux_current;
-    s_detect_control.electrical_rpm_target = electrical_rpm;
-    s_detect_control.measured_resistance = s_detect_result.resistance_ohm;
+    s_flux_scan = scan;
+    for (point = 0U; point < points; ++point) {
+        if (scan) electrical_rpm = max_erpm * (0.5f + 0.25f * (float)point);
+        s_detect_result.test_electrical_rpm = electrical_rpm;
+        s_detect_result.test_flux_current_a = flux_current;
+        s_detect_control.electrical_rpm_target = electrical_rpm;
+        s_detect_control.measured_resistance = s_detect_result.resistance_ohm;
 
-    kp_old = motor.ol_current_kp;
-    ki_old = motor.ol_current_ki;
-    voltage_limit_old = motor.ol_vq_limit;
-    motor.ol_current_kp = s_detect_result.inductance_h / MOTOR_DETECT_VESC_CURRENT_TC_S;
-    motor.ol_current_ki = s_detect_result.resistance_ohm / MOTOR_DETECT_VESC_CURRENT_TC_S;
-    motor.ol_vq_limit = MOTOR_DETECT_FLUX_VOLTAGE_LIMIT_V;
+        kp_old = motor.ol_current_kp;
+        ki_old = motor.ol_current_ki;
+        voltage_limit_old = motor.ol_vq_limit;
+        motor.ol_current_kp = s_detect_result.inductance_h / MOTOR_DETECT_VESC_CURRENT_TC_S;
+        motor.ol_current_ki = s_detect_result.resistance_ohm / MOTOR_DETECT_VESC_CURRENT_TC_S;
+        motor.ol_vq_limit = MOTOR_DETECT_FLUX_VOLTAGE_LIMIT_V;
 
-    PRINTF("Detect motor: accelerating to %.0f eRPM for coast BEMF (%.2f A)\r\n", (double)electrical_rpm,
-           (double)flux_current);
-    success = Detect_RunStage(MOTOR_DETECT_STAGE_FLUX, flux_current, MOTOR_DETECT_TIMEOUT_FLUX_MS);
-    motor.ol_current_kp = kp_old;
-    motor.ol_current_ki = ki_old;
-    motor.ol_vq_limit = voltage_limit_old;
-    if (!success) {
-        PRINTF("Detect motor: flux invalid duty still=%.4f now=%.4f max=%.4f coast=%.1f eRPM Bemf=%.4f V n=%lu\r\n",
-               (double)s_detect_control.flux_duty_still, (double)s_detect_control.flux_duty_now,
-               (double)s_detect_control.flux_duty_max, (double)s_detect_control.electrical_rpm_now,
-               (double)s_detect_control.resistance_voltage_avg, (unsigned long)s_detect_control.samples);
-        goto parameters_done;
+        PRINTF("Detect motor: accelerating to %.0f eRPM for coast BEMF (%.2f A)\r\n", (double)electrical_rpm,
+               (double)flux_current);
+        success = Detect_RunStage(MOTOR_DETECT_STAGE_FLUX, flux_current, MOTOR_DETECT_TIMEOUT_FLUX_MS);
+        motor.ol_current_kp = kp_old;
+        motor.ol_current_ki = ki_old;
+        motor.ol_vq_limit = voltage_limit_old;
+        if (scan) {
+            Detect_PrintFluxTrace();
+        }
+        if (!success) {
+            if (scan) {
+                PRINTF("Flux scan rejected reference: encoder=%.1f eRPM coverage=%.1f%% pairs=%lu/%lu\r\n",
+                       (double)(s_detect_control.flux_pair_time > 0.0f ?
+                           s_detect_control.flux_encoder_omega_sum / s_detect_control.flux_pair_time *
+                               (60.0f / (2.0f * MOTOR_DETECT_PI)) : 0.0f),
+                       (double)(s_detect_control.flux_encoder_attempts ?
+                           100.0f * s_detect_control.flux_encoder_count / s_detect_control.flux_encoder_attempts : 0.0f),
+                       (unsigned long)s_detect_control.flux_encoder_count,
+                       (unsigned long)s_detect_control.flux_encoder_attempts);
+            }
+            PRINTF("Detect motor: flux invalid duty still=%.4f now=%.4f max=%.4f coast=%.1f eRPM Bemf=%.4f V n=%lu\r\n",
+                   (double)s_detect_control.flux_duty_still, (double)s_detect_control.flux_duty_now,
+                   (double)s_detect_control.flux_duty_max, (double)s_detect_control.electrical_rpm_now,
+                   (double)s_detect_control.resistance_voltage_avg, (unsigned long)s_detect_control.samples);
+            goto parameters_done;
+        }
+        PRINTF("Detect motor: flux=%.4f mWb, coast Bemf=%.4f V at %.1f eRPM\r\n",
+               (double)(s_detect_result.flux_linkage_wb * 1000.0f),
+               (double)s_detect_control.resistance_voltage_avg, (double)s_detect_control.electrical_rpm_now);
+        if (scan) {
+            float coverage = s_detect_control.flux_encoder_attempts ?
+                (float)s_detect_control.flux_encoder_count / s_detect_control.flux_encoder_attempts : 0.0f;
+            float enc_omega = s_detect_control.flux_pair_time > 0.0f ?
+                s_detect_control.flux_encoder_omega_sum / s_detect_control.flux_pair_time : 0.0f;
+            float enc_v = s_detect_control.flux_pair_time > 0.0f ?
+                s_detect_control.flux_encoder_voltage_sum / s_detect_control.flux_pair_time : 0.0f;
+            float enc_erpm = enc_omega * (60.0f / (2.0f * MOTOR_DETECT_PI));
+            s_detect_result.flux_scan_erpm[point] = s_detect_control.electrical_rpm_now;
+            s_detect_result.flux_scan_voltage[point] = s_detect_control.resistance_voltage_avg;
+            s_detect_result.flux_scan_encoder_erpm[point] = enc_erpm;
+            s_detect_result.flux_scan_encoder_voltage[point] = enc_v;
+            s_detect_result.flux_scan_coverage[point] = coverage;
+            PRINTF("Flux scan %u/3: BEMF=%.1f encoder=%.1f eRPM E=%.4fV coverage=%.1f%%\r\n",
+                   point + 1U, (double)s_detect_control.electrical_rpm_now, (double)enc_erpm,
+                   (double)enc_v, (double)(coverage * 100.0f));
+            if (coverage < 0.8f || s_detect_control.flux_encoder_count < 30U ||
+                fabsf(enc_erpm - s_detect_control.electrical_rpm_now) >
+                    0.2f * s_detect_control.electrical_rpm_now) {
+                s_detect_result.error = MOTOR_DETECT_ERROR_FLUX;
+                goto parameters_done;
+            }
+        }
     }
-    PRINTF("Detect motor: flux=%.4f mWb, coast Bemf=%.4f V at %.1f eRPM\r\n",
-           (double)(s_detect_result.flux_linkage_wb * 1000.0f),
-           (double)s_detect_control.resistance_voltage_avg, (double)s_detect_control.electrical_rpm_now);
+    if (scan) {
+        float omega[3];
+        for (point = 0U; point < 3U; ++point)
+            omega[point] = s_detect_result.flux_scan_encoder_erpm[point] * (2.0f * MOTOR_DETECT_PI / 60.0f);
+        s_detect_result.flux_scan_valid = fabsf(omega[2] - omega[0]) >= 50.0f &&
+            Detect_FitResistance(omega, s_detect_result.flux_scan_encoder_voltage, 3U,
+                &s_detect_result.flux_scan_fit_wb, &s_detect_result.flux_scan_offset_v,
+                &s_detect_result.flux_scan_r2) &&
+            s_detect_result.flux_scan_fit_wb >= MOTOR_DETECT_FLUX_MIN_WB &&
+            s_detect_result.flux_scan_fit_wb <= MOTOR_DETECT_FLUX_MAX_WB && s_detect_result.flux_scan_r2 >= 0.95f;
+        if (!s_detect_result.flux_scan_valid) {
+            s_detect_result.error = MOTOR_DETECT_ERROR_FLUX;
+            goto parameters_done;
+        }
+    }
     s_detect_result.error = MOTOR_DETECT_ERROR_NONE;
 
 parameters_done:
+    s_flux_scan = false;
     s_detect_active = false;
     if (result != NULL) {
         *result = s_detect_result;
     }
     return s_detect_result.resistance_valid && s_detect_result.inductance_valid && s_detect_result.flux_valid &&
            s_detect_result.error == MOTOR_DETECT_ERROR_NONE;
+}
+
+bool DETECT_MotorParameters(float current_a, float electrical_rpm, float flux_current_a,
+                            motor_detect_result_t *result)
+{
+    return Detect_MotorParametersInternal(current_a, electrical_rpm, flux_current_a, false, result);
+}
+
+bool DETECT_MotorFluxScan(float current_a, float max_erpm, float flux_current_a, motor_detect_result_t *result)
+{
+    return Detect_MotorParametersInternal(current_a, max_erpm, flux_current_a, true, result);
 }
 
 void DETECT_GetResult(motor_detect_result_t *result)

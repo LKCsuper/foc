@@ -13,6 +13,36 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Timing profile host compilation failed' }
     & .build/host/test_motor_timing_profile.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor timing profile host tests failed' }
+    # 编译当前真实多速度磁链编排及拟合，测试拒绝条件和配置恢复。
+    $fluxSource = Get-Content App/motor_param/motor_detect.c -Raw -Encoding utf8
+    $refStart = $fluxSource.IndexOf('            if (s_flux_scan && (s_detect_control.samples % 16U) == 0U &&')
+    $refEnd = $fluxSource.IndexOf("        if (s_detect_control.flux_coast_elapsed >=", $refStart)
+    if ($refStart -lt 0 -or $refEnd -le $refStart) { throw 'Flux reference boundaries missing' }
+    $refBody = $fluxSource.Substring($refStart, $refEnd - $refStart).TrimEnd()
+    $refBody = $refBody.Substring(0, $refBody.LastIndexOf('}'))
+    $rotStart = $fluxSource.IndexOf('        float minimum_run_duty = MOTOR_DETECT_FLUX_MIN_RUN_DUTY;')
+    $rotEnd = $fluxSource.IndexOf('        if (s_detect_control.flux_duty_now < minimum_run_duty', $rotStart)
+    if ($rotStart -lt 0 -or $rotEnd -le $rotStart) { throw 'Flux rotation boundaries missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/flux_rotation_under_test.inc'),
+        "#define MOTOR_DETECT_FLUX_MIN_RUN_DUTY .03f`n#define MOTOR_DETECT_FLUX_DUTY_COLLAPSE_RATIO .70f`n" + $fluxSource.Substring($rotStart,$rotEnd-$rotStart),[Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/flux_reference_under_test.inc'), $refBody, [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/host Tests/host/test_motor_flux_reference.c -o .build/host/test_motor_flux_reference.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Flux reference compilation failed' }
+    & .build/host/test_motor_flux_reference.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Flux reference tests failed' }
+    $fitStart = $fluxSource.IndexOf('static bool Detect_FitResistance(')
+    $fitEnd = $fluxSource.IndexOf('static float Detect_PhaseCurrentPeak', $fitStart)
+    $scanStart = $fluxSource.IndexOf('static bool Detect_MotorParametersInternal(')
+    $scanEnd = $fluxSource.IndexOf('void DETECT_GetResult(', $scanStart)
+    if ($fitStart -lt 0 -or $fitEnd -le $fitStart -or $scanStart -lt 0 -or $scanEnd -le $scanStart) { throw 'Flux scan boundaries missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/flux_scan_under_test.inc'),
+        $fluxSource.Substring($fitStart, $fitEnd - $fitStart) + $fluxSource.Substring($scanStart, $scanEnd - $scanStart), [Text.UTF8Encoding]::new($false))
+    $fluxConstants = ($fluxSource -split "`n" | Where-Object { $_.StartsWith('#define MOTOR_DETECT_') }) -join "`n"
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/flux_scan_constants.inc'), $fluxConstants, [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -I.build/host -IApp/motor/inc -IApp/motor_param/inc Tests/host/test_motor_flux_scan.c -o .build/host/test_motor_flux_scan.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Flux scan host compilation failed' }
+    & .build/host/test_motor_flux_scan.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Flux scan host tests failed' }
     # 编译当前真实命令片段，用主机替身验证任务等待、异常停机和配置恢复。
     $sltestSource = Get-Content App/cmd/cmd_openloop.c -Raw -Encoding utf8
     $sltestStart = $sltestSource.IndexOf('/* sltest:')

@@ -11,7 +11,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 /* Private define ------------------------------------------------------------*/
-#define MOTOR_DETECT_RESULT_VERSION (5U)
+#define MOTOR_DETECT_RESULT_VERSION (6U)
 #define MOTOR_DETECT_INDUCTANCE_DIRECTIONS (6U)
 /* Private typedef -----------------------------------------------------------*/
 typedef enum {
@@ -30,6 +30,10 @@ typedef enum {
 
 typedef struct {
     uint32_t version;
+    bool flux_scan_valid;
+    float flux_scan_fit_wb, flux_scan_offset_v, flux_scan_r2;
+    float flux_scan_erpm[3], flux_scan_voltage[3], flux_scan_encoder_erpm[3];
+    float flux_scan_coverage[3], flux_scan_encoder_voltage[3];
     bool resistance_valid;
     bool inductance_valid;
     bool flux_valid;
@@ -102,6 +106,9 @@ bool DETECT_MotorRl(float current_a, motor_detect_result_t *result);
 /** 完整检测 R/L/磁链；磁链阶段会开环旋转电机。 */
 bool DETECT_MotorParameters(float current_a, float electrical_rpm, float flux_current_a,
                             motor_detect_result_t *result);
+
+/** 三速度滑行磁链交叉验证；最高900..3000eRPM，需有效编码器比较，RAM-only。 */
+bool DETECT_MotorFluxScan(float current_a, float max_erpm, float flux_current_a, motor_detect_result_t *result);
 
 /** 读取最近一次 R/L 检测结果。 */
 void DETECT_GetResult(motor_detect_result_t *result);

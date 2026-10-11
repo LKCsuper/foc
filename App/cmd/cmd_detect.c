@@ -20,6 +20,7 @@ typedef enum tagDetectType {
     DETECT_PHASE,
     DETECT_RL,
     DETECT_MOTOR,
+    DETECT_FLUX_SCAN,
     DETECT_SHOW,
     DETECT_ABORT,
 } DETECT_TYPE;
@@ -30,6 +31,7 @@ static float s_detect_motor_current_a;
 static float s_detect_motor_erpm;
 static float s_detect_flux_current_a;
 static bool s_detect_full_parameters;
+static bool s_detect_flux_scan;
 static volatile bool s_detect_motor_task_running;
 static const osThreadAttr_t s_detect_motor_task_attr = {
     .name = "Motor Detect",
@@ -53,6 +55,7 @@ static void Detect_PrintUsage(void)
     PRINTF("  detect phase | detect 3   — UVW order vs hall steps\n");
     PRINTF("  detect rl [test_current_A]\n");
     PRINTF("  detect motor [rl_current_A] [electrical_rpm] [flux_current_A]\n");
+    PRINTF("  detect fluxscan [rl_current_A] [max_eRPM 900..3000] [flux_current_A]\n");
     PRINTF("  detect show\n");
     PRINTF("  detect abort\n");
 }
@@ -91,6 +94,11 @@ static void Detect_PrintMotorResult(const motor_detect_result_t *result)
         PRINTF("  Test speed : %.0f eRPM\n", (double)result->test_electrical_rpm);
         PRINTF("  Flux current: %.2f A\n", (double)result->test_flux_current_a);
     }
+    if (s_detect_flux_scan) {
+        PRINTF("  Flux fit   : %s %.4f mWb offset=%.4fV R2=%.4f (encoder reference)\n",
+               result->flux_scan_valid ? "VALID" : "INVALID", (double)(result->flux_scan_fit_wb * 1000.0f),
+               (double)result->flux_scan_offset_v, (double)result->flux_scan_r2);
+    }
     PRINTF("  R/L current: %.2f A\n", (double)result->test_current_a);
     PRINTF("  Result is RAM-only; no config or Flash was changed.\n");
     PRINTF("============================\n");
@@ -103,7 +111,9 @@ static void Detect_MotorTask(void *argument)
 
     (void)argument;
     osDelay(pdMS_TO_TICKS(10));
-    if (s_detect_full_parameters) {
+    if (s_detect_flux_scan) {
+        success = DETECT_MotorFluxScan(s_detect_motor_current_a, s_detect_motor_erpm, s_detect_flux_current_a, &result);
+    } else if (s_detect_full_parameters) {
         success = DETECT_MotorParameters(s_detect_motor_current_a, s_detect_motor_erpm, s_detect_flux_current_a,
                                          &result);
     } else {
@@ -136,6 +146,7 @@ static DETECT_TYPE Detect_ParseType(int argc, char *argv[])
     if (strcmp(argv[1], "3") == 0 || strcmp(argv[1], "phase") == 0) {
         return DETECT_PHASE;
     }
+    if (strcmp(argv[1], "fluxscan") == 0) return DETECT_FLUX_SCAN;
     if (strcmp(argv[1], "motor") == 0) {
         return DETECT_MOTOR;
     }
@@ -205,16 +216,18 @@ int Cmd_Detect(int argc, char *argv[])
         success = Motor_PhaseOrder_Detect(&phase_report) == MOTOR_PHASE_ORDER_OK;
         break;
     case DETECT_RL:
-    case DETECT_MOTOR: {
+    case DETECT_MOTOR:
+    case DETECT_FLUX_SCAN: {
         osThreadId_t task;
 
         if (s_detect_motor_task_running || Motor_Detect_IsActive()) {
             PRINTF("Motor detection is already running\n");
             break;
         }
-        s_detect_motor_current_a = 0.8f;
-        s_detect_motor_erpm = 1200.0f;
-        s_detect_flux_current_a = 1.5f;
+        s_detect_flux_scan = detect_type == DETECT_FLUX_SCAN;
+        s_detect_motor_current_a = s_detect_flux_scan ? 0.5f : 0.8f;
+        s_detect_motor_erpm = s_detect_flux_scan ? 3000.0f : 1200.0f;
+        s_detect_flux_current_a = s_detect_flux_scan ? 0.3f : 1.5f;
         if (argc > (detect_type == DETECT_RL ? 3 : 5) ||
             (argc >= 3 && !Detect_ParseFloat(argv[2], &s_detect_motor_current_a)) ||
             (argc >= 4 && !Detect_ParseFloat(argv[3], &s_detect_motor_erpm)) ||
@@ -222,7 +235,7 @@ int Cmd_Detect(int argc, char *argv[])
             PRINTF("Invalid detection arguments: finite numbers required\n");
             break;
         }
-        s_detect_full_parameters = detect_type == DETECT_MOTOR;
+        s_detect_full_parameters = detect_type == DETECT_MOTOR || s_detect_flux_scan;
         DETECT_ClearAbortRequest();
         PRINTF("WARNING: motor will align and receive bipolar voltage pulses\n");
         PRINTF(s_detect_full_parameters ? "R/L/flux detection starting; use detect abort or olstop to stop\n"
