@@ -1,0 +1,3 @@
+[submodule "ThirtyLibrary/am32"]
+	path = ThirtyLibrary/am32
+	url = https://github.com/AlkaMotors/AM32-MultiRotor-ESC-firmware.git

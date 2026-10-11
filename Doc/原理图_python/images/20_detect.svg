@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="1008pt" height="576pt" viewBox="0 0 1008 576" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-10-09T16:22:26.245757</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 576 
+L 1008 576 
+L 1008 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 53.928 170.77248 
+L 954.072 170.77248 
+Q 961.7328 170.77248 961.7328 166.3488 
+L 961.7328 105.5232 
+Q 961.7328 101.09952 954.072 101.09952 
+L 53.928 101.09952 
+Q 46.2672 101.09952 46.2672 105.5232 
+L 46.2672 166.3488 
+Q 46.2672 170.77248 53.928 170.77248 
+z
+" clip-path="url(#p9a5d354420)" style="fill: #dff1e7; stroke: #245b8a; stroke-width: 1.4; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 53.928 286.89408 
+L 475.272 286.89408 
+Q 482.9328 286.89408 482.9328 282.4704 
+L 482.9328 210.5856 
+Q 482.9328 206.16192 475.272 206.16192 
+L 53.928 206.16192 
+Q 46.2672 206.16192 46.2672 210.5856 
+L 46.2672 282.4704 
+Q 46.2672 286.89408 53.928 286.89408 
+z
+" clip-path="url(#p9a5d354420)" style="fill: #dff1e7; stroke: #245b8a; stroke-width: 1.4; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 532.728 286.89408 
+L 954.072 286.89408 
+Q 961.7328 286.89408 961.7328 282.4704 
+L 961.7328 210.5856 
+Q 961.7328 206.16192 954.072 206.16192 
+L 532.728 206.16192 
+Q 525.0672 206.16192 525.0672 210.5856 
+L 525.0672 282.4704 
+Q 525.0672 286.89408 532.728 286.89408 
+z
+" clip-path="url(#p9a5d354420)" style="fill: #dff1e7; stroke: #245b8a; stroke-width: 1.4; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 53.928 403.01568 
+L 475.272 403.01568 
+Q 482.9328 403.01568 482.9328 398.592 
+L 482.9328 326.7072 
+Q 482.9328 322.28352 475.272 322.28352 
+L 53.928 322.28352 
+Q 46.2672 322.28352 46.2672 326.7072 
+L 46.2672 398.592 
+Q 46.2672 403.01568 53.928 403.01568 
+z
+" clip-path="url(#p9a5d354420)" style="fill: #dff1e7; stroke: #245b8a; stroke-width: 1.4; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 532.728 403.01568 
+L 954.072 403.01568 
+Q 961.7328 403.01568 961.7328 398.592 
+L 961.7328 326.7072 
+Q 961.7328 322.28352 954.072 322.28352 
+L 532.728 322.28352 
+Q 525.0672 322.28352 525.0672 326.7072 
+L 525.0672 398.592 
+Q 525.0672 403.01568 532.728 403.01568 
+z
+" clip-path="url(#p9a5d354420)" style="fill: #dff1e7; stroke: #245b8a; stroke-width: 1.4; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 53.928 508.07808 
+L 954.072 508.07808 
+Q 961.7328 508.07808 961.7328 503.6544 
+L 961.7328 442.8288 
+Q 961.7328 438.40512 954.072 438.40512 
+L 53.928 438.40512 
+Q 46.2672 438.40512 46.2672 442.8288 
+L 46.2672 503.6544 
+Q 46.2672 508.07808 53.928 508.07808 
+z
+" clip-path="url(#p9a5d354420)" style="fill: #dff1e7; stroke: #245b8a; stroke-width: 1.4; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 264.6 173.87505 
+Q 264.6 188.46638 264.6 201.380658 
+" clip-path="url(#p9a5d354420)" style="fill: none; stroke: #245b8a; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 268 194.580658 
+L 264.6 201.380658 
+L 261.2 194.580658 
+z
+" clip-path="url(#p9a5d354420)" style="fill: #245b8a; stroke: #245b8a; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 264.6 406.11825 
+Q 264.6 420.70958 264.6 433.623858 
+" clip-path="url(#p9a5d354420)" style="fill: none; stroke: #245b8a; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 268 426.823858 
+L 264.6 433.623858 
+L 261.2 426.823858 
+z
+" clip-path="url(#p9a5d354420)" style="fill: #245b8a; stroke: #245b8a; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 743.4 173.87505 
+Q 743.4 188.46638 743.4 201.380658 
+" clip-path="url(#p9a5d354420)" style="fill: none; stroke: #245b8a; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 746.8 194.580658 
+L 743.4 201.380658 
+L 740 194.580658 
+z
+" clip-path="url(#p9a5d354420)" style="fill: #245b8a; stroke: #245b8a; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="patch_11">
+    <path d="M 743.4 406.11825 
+Q 743.4 420.70958 743.4 433.623858 
+" clip-path="url(#p9a5d354420)" style="fill: none; stroke: #245b8a; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 746.8 426.823858 
+L 743.4 433.623858 
+L 740 426.823858 
+z
+" clip-path="url(#p9a5d354420)" style="fill: #245b8a; stroke: #245b8a; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 21px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #245b8a" x="58.716" y="39.168" transform="rotate(-0 58.716 39.168)">偏移、R/L/磁链检测</text>
+   </g>
+   <g id="text_2">
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(468 132.92768)">停机检测命令</text>
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(443.305312 145.975805)">检测 ISR 优先占用输出</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(226.036875 243.536555)">电流/电压偏移</text>
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(228.6 256.64468)">累计样本均值</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(680.34375 243.402492)">R：多点 V=R×I+offset</text>
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(689.285625 256.626867)">最小二乘 / 残差检查</text>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(207.52125 359.734209)">L：不同方向双极脉冲</text>
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(195.56625 372.5721)">L=(Veff−R×Imid)/(di/dt)</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(671.4 359.576475)">磁链：开环加速后关桥滑行</text>
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(687.525 372.7071)">ψf≈反电势幅值/|ωe|</text>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(458.22375 470.145155)">结果保存在 RAM</text>
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(435.436875 483.35828)">显式应用/保存为独立动作</text>
+   </g>
+   <g id="text_8">
+    <g id="patch_12">
+     <path d="M 415 313.88778 
+L 593 313.88778 
+L 593 294.920787 
+L 415 294.920787 
+z
+" style="fill: #ffffff"/>
+    </g>
+    <text style="font-size: 10px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #245b8a" x="504" y="307.3536" transform="rotate(-0 504 307.3536)">按命令选择对应检测（四种独立方法）</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 10px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start" x="58.716" y="545.1264" transform="rotate(-0 58.716 545.1264)">R/L/磁链结果仅 RAM；偏移结果写入校准字段。显式保存另行执行。</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="561.7152" transform="rotate(-0 58.716 561.7152)">App/motor_param/motor_detect.c / motor_detect_offset.c</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p9a5d354420">
+   <rect x="25.2" y="11.52" width="957.6" height="552.96"/>
+  </clipPath>
+ </defs>
+</svg>

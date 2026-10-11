@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="1080pt" height="720pt" viewBox="0 0 1080 720" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-10-09T16:44:57.994355</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 720 
+L 1080 720 
+L 1080 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 158.5539 207.000919 
+C 166.390858 207.000919 173.90789 206.196603 179.449457 204.765112 
+C 184.991023 203.333621 188.10468 201.39183 188.10468 199.367396 
+C 188.10468 197.342963 184.991023 195.401172 179.449457 193.969681 
+C 173.90789 192.53819 166.390858 191.733874 158.5539 191.733874 
+C 150.716942 191.733874 143.19991 192.53819 137.658343 193.969681 
+C 132.116777 195.401172 129.00312 197.342963 129.00312 199.367396 
+C 129.00312 201.39183 132.116777 203.333621 137.658343 204.765112 
+C 143.19991 206.196603 150.716942 207.000919 158.5539 207.000919 
+z
+" clip-path="url(#p4113a63391)" style="fill: #ffffff; stroke: #245b8a; stroke-width: 1.4; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 264.0924 226.629979 
+L 464.61555 226.629979 
+L 464.61555 172.104814 
+L 264.0924 172.104814 
+z
+" clip-path="url(#p4113a63391)" style="fill: #e4eff7; stroke: #245b8a; stroke-width: 1.4; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 549.04635 226.629979 
+L 749.5695 226.629979 
+L 749.5695 172.104814 
+L 549.04635 172.104814 
+z
+" clip-path="url(#p4113a63391)" style="fill: #e4eff7; stroke: #245b8a; stroke-width: 1.4; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 823.44645 226.629979 
+L 1034.52345 226.629979 
+L 1034.52345 172.104814 
+L 823.44645 172.104814 
+z
+" clip-path="url(#p4113a63391)" style="fill: #e4eff7; stroke: #245b8a; stroke-width: 1.4; stroke-linejoin: miter"/>
+   </g>
+   <g id="line2d_1">
+    <path d="M 939.5388 226.629979 
+L 939.5388 302.965208 
+L 158.5539 302.965208 
+L 158.5539 207.546171 
+" clip-path="url(#p4113a63391)" style="fill: none; stroke: #245b8a; stroke-width: 1.5; stroke-linecap: square"/>
+   </g>
+   <g id="text_1">
+    <text style="font-size: 10px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start" x="31.9077" y="193.91488" transform="rotate(-0 31.9077 193.91488)">ω*</text>
+   </g>
+   <g id="text_2">
+    <text style="font-size: 14px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: middle" x="158.5539" y="203.277553" transform="rotate(-0 158.5539 203.277553)">Σ</text>
+   </g>
+   <g id="patch_6">
+    <path d="M 55.012927 199.367396 
+Q 89.954557 199.367396 122.660119 199.367396 
+" style="fill: none; stroke: #245b8a; stroke-width: 2; stroke-linecap: round"/>
+    <path d="M 118.660119 197.367396 
+L 122.660119 199.367396 
+L 118.660119 201.367396 
+z
+" style="fill: #245b8a; stroke: #245b8a; stroke-width: 2; stroke-linecap: round"/>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(345.143663 196.388139)">速度 PI</text>
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(342.24585 209.413764)">输出 Iq*</text>
+   </g>
+   <g id="patch_7">
+    <path d="M 192.212977 199.367396 
+Q 227.154607 199.367396 259.860169 199.367396 
+" style="fill: none; stroke: #245b8a; stroke-width: 2; stroke-linecap: round"/>
+    <path d="M 255.860169 197.367396 
+L 259.860169 199.367396 
+L 255.860169 201.367396 
+z
+" style="fill: #245b8a; stroke: #245b8a; stroke-width: 2; stroke-linecap: round"/>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(625.307925 196.364701)">电流控制</text>
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(616.9398 209.495326)">Iq → 转矩 T</text>
+   </g>
+   <g id="patch_8">
+    <path d="M 466.617586 199.367396 
+Q 506.832047 199.367396 544.810439 199.367396 
+" style="fill: none; stroke: #245b8a; stroke-width: 2; stroke-linecap: round"/>
+    <path d="M 540.810439 197.367396 
+L 544.810439 199.367396 
+L 540.810439 201.367396 
+z
+" style="fill: #245b8a; stroke: #245b8a; stroke-width: 2; stroke-linecap: round"/>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(904.98495 196.340326)">机械系统</text>
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(881.58495 209.448451)">J·ω点=T−TL−Bω</text>
+   </g>
+   <g id="patch_9">
+    <path d="M 751.567027 199.367396 
+Q 786.508657 199.367396 819.214219 199.367396 
+" style="fill: none; stroke: #245b8a; stroke-width: 2; stroke-linecap: round"/>
+    <path d="M 815.214219 197.367396 
+L 819.214219 199.367396 
+L 815.214219 201.367396 
+z
+" style="fill: #245b8a; stroke: #245b8a; stroke-width: 2; stroke-linecap: round"/>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 10px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start" x="485.72325" y="294.786434" transform="rotate(-0 485.72325 294.786434)">机械速度反馈</text>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 10px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start" x="116.3385" y="215.724946" transform="rotate(-0 116.3385 215.724946)">−</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: middle" x="538.4925" y="97.948359" transform="rotate(-0 538.4925 97.948359)">速度环：转矩改变加速度，速度反馈修正转矩需求</text>
+   </g>
+  </g>
+  <g id="axes_2">
+   <g id="patch_10">
+    <path d="M 63.56925 595.012254 
+L 148.00005 595.012254 
+L 148.00005 513.224508 
+L 63.56925 513.224508 
+z
+" clip-path="url(#pe2d420d284)" style="fill: #aaaaaa"/>
+   </g>
+   <g id="patch_11">
+    <path d="M 696.80025 586.833479 
+L 865.66185 586.833479 
+L 865.66185 521.403282 
+L 696.80025 521.403282 
+z
+" clip-path="url(#pe2d420d284)" style="fill: #e4eff7; stroke: #245b8a; stroke-linejoin: miter"/>
+   </g>
+   <g id="line2d_2">
+    <path d="M 148.00005 554.118381 
+L 187.200064 539.123961 
+L 226.400079 569.112801 
+L 265.600093 539.123961 
+L 304.800107 569.112801 
+L 344.000121 539.123961 
+L 383.200136 569.112801 
+L 422.40015 539.123961 
+L 461.600164 569.112801 
+L 500.800179 539.123961 
+L 540.000193 569.112801 
+L 579.200207 539.123961 
+L 618.400221 569.112801 
+L 657.600236 539.123961 
+L 696.80025 554.118381 
+" clip-path="url(#pe2d420d284)" style="fill: none; stroke: #308363; stroke-width: 2; stroke-linecap: square"/>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 10px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: middle" x="781.23105" y="554.118381" transform="rotate(-0 781.23105 554.118381)">关节</text>
+   </g>
+   <g id="patch_12">
+    <path d="M 888.767077 554.118381 
+Q 960.646658 554.118381 1030.290171 554.118381 
+" style="fill: none; stroke: #c05060; stroke-width: 2; stroke-linecap: round"/>
+    <path d="M 1026.290171 552.118381 
+L 1030.290171 554.118381 
+L 1026.290171 556.118381 
+z
+" style="fill: #c05060; stroke: #c05060; stroke-width: 2; stroke-linecap: round"/>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #c05060" x="1060.908075" y="547.302735" transform="rotate(-0 1060.908075 547.302735)">u</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 14px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start" x="200.7693" y="485.961926" transform="rotate(-0 200.7693 485.961926)">虚拟弹簧：Kp(p*−p) + 虚拟阻尼：Kd(v*−v)</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 13px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(200.7693 629.719902)">u=Kp·位置误差+Kd·速度误差+前馈+条件积分</text>
+    <text style="font-size: 13px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif" transform="translate(200.7693 644.084902)">应用层把 u 映射成 Vq 或 Iq，滞回选择低电流后端。</text>
+   </g>
+   <g id="text_13">
+    <text style="font-size: 12px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: middle" x="538.4925" y="398.17418" transform="rotate(-0 538.4925 398.17418)">关节阻抗：把软件增益解释成弹性与阻尼</text>
+   </g>
+  </g>
+  <g id="text_14">
+   <text style="font-weight: 700; font-size: 20px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #245b8a" x="540" y="31.146875" transform="rotate(-0 540 31.146875)">速度、位置与关节外环的机械原理</text>
+  </g>
+  <g id="text_15">
+   <text style="font-size: 10px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="27" y="711.36" transform="rotate(-0 27 711.36)">原理示意：数值为教学参数；符号/分支对应当前代码，曲线不是硬件实测。</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p4113a63391">
+   <rect x="10.8" y="103.948359" width="1055.385" height="272.62582"/>
+  </clipPath>
+  <clipPath id="pe2d420d284">
+   <rect x="10.8" y="404.17418" width="1055.385" height="272.62582"/>
+  </clipPath>
+ </defs>
+</svg>

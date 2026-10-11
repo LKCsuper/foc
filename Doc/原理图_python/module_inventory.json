@@ -1,0 +1,396 @@
+[
+  {
+    "path": "App/motor/bldc/motor_bldc.c",
+    "description": "默认 BLDC 六步实例、运行控制与状态查询",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor/bldc/motor_bldc_defaults.c",
+    "description": "BM75/HD75 实机验证过的 BLDC 默认启动参数",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor/bldc/motor_bldc_isr.c",
+    "description": "BLDC 六步模式的 ADC-DMA 快速入口",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor/bldc/motor_bldc_sensorless.c",
+    "description": "传统 BLDC 反电动势积分无感六步控制器",
+    "direct_diagrams": [
+      "19_bldc"
+    ]
+  },
+  {
+    "path": "App/motor/bldc/motor_bldc_six_step.c",
+    "description": "传统 BLDC 霍尔六步换相独立控制器",
+    "direct_diagrams": [
+      "19_bldc"
+    ]
+  },
+  {
+    "path": "App/motor/bldc/motor_bldc_six_step_hal.c",
+    "description": "BLDC 六步控制结果到电机 HAL 的应用适配",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor/bldc/motor_bldc_status.c",
+    "description": "BLDC 控制状态快照组装",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor/calibration/motor_detect_isr.c",
+    "description": "电流偏移校准的 ADC 中断包装",
+    "direct_diagrams": [
+      "20_detect"
+    ]
+  },
+  {
+    "path": "App/motor/diagnostic/motor_fast_vf.c",
+    "description": "保留历史实机基线行为的简化 V/F 诊断控制",
+    "direct_diagrams": [
+      "06_vf"
+    ]
+  },
+  {
+    "path": "App/motor/diagnostic/motor_fast_vf_isr.c",
+    "description": "快速 V/F 诊断路径的 ADC 中断包装",
+    "direct_diagrams": [
+      "06_vf"
+    ]
+  },
+  {
+    "path": "App/motor/joint/motor_joint.c",
+    "description": "关节级联控制（位置/速度外环生成Iq，电流内环生成电压）",
+    "direct_diagrams": [
+      "12_joint",
+      "24_commands"
+    ]
+  },
+  {
+    "path": "App/motor/joint/motor_joint_control.c",
+    "description": "关节阻抗控制纯算法",
+    "direct_diagrams": [
+      "12_joint"
+    ]
+  },
+  {
+    "path": "App/motor/joint/motor_joint_protocol.c",
+    "description": "关节控制固定帧编解码；全部多字节字段使用大端",
+    "direct_diagrams": [
+      "24_commands"
+    ]
+  },
+  {
+    "path": "App/motor/motor.c",
+    "description": "电机公共 API（命令提交、状态快照、调试打印）",
+    "direct_diagrams": [
+      "24_commands"
+    ]
+  },
+  {
+    "path": "App/motor/motor_anticogging.c",
+    "description": "位置保持电压抗齿槽表",
+    "direct_diagrams": [
+      "23_compensation"
+    ]
+  },
+  {
+    "path": "App/motor/motor_control.c",
+    "description": "开环/I/F 主控制编排与输出仲裁（不含 HAL）",
+    "direct_diagrams": [
+      "03_current",
+      "05_task",
+      "07_start",
+      "10_speed",
+      "21_protection"
+    ]
+  },
+  {
+    "path": "App/motor/motor_current.c",
+    "description": "电流环：Clarke/Park、目标选择、d/q PI 与矢量限幅",
+    "direct_diagrams": [
+      "02_sampling",
+      "03_current"
+    ]
+  },
+  {
+    "path": "App/motor/motor_foc.c",
+    "description": "FOC 坐标变换与 SVPWM 调制（Clarke/Park/逆 Park/SVM）",
+    "direct_diagrams": [
+      "04_output"
+    ]
+  },
+  {
+    "path": "App/motor/motor_foc_divider.c",
+    "description": "FOC 控制环分频计数",
+    "direct_diagrams": [
+      "01_main"
+    ]
+  },
+  {
+    "path": "App/motor/motor_foc_isr.c",
+    "description": "正常 FOC 中断路径：采样、保护、控制与输出",
+    "direct_diagrams": [
+      "01_main",
+      "21_protection"
+    ]
+  },
+  {
+    "path": "App/motor/motor_fw.c",
+    "description": "弱磁：电压利用率触发负 Id",
+    "direct_diagrams": [
+      "23_compensation"
+    ]
+  },
+  {
+    "path": "App/motor/motor_it.c",
+    "description": "FOC 中断集成：采样、保护、分频、控制调用与 PWM/耗时",
+    "direct_diagrams": [
+      "01_main"
+    ]
+  },
+  {
+    "path": "App/motor/motor_math.c",
+    "description": "电机控制通用数学工具（角度与 CRC）",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor/motor_output.c",
+    "description": "FOC 安全输出、反 Park、SVPWM 与板级相序提交",
+    "direct_diagrams": [
+      "04_output"
+    ]
+  },
+  {
+    "path": "App/motor/motor_pid.c",
+    "description": "通用单轴电流 PI 控制器",
+    "direct_diagrams": [
+      "03_current"
+    ]
+  },
+  {
+    "path": "App/motor/motor_position.c",
+    "description": "编码器多圈位置环（位置 P 串速度 PI，输出电压）",
+    "direct_diagrams": [
+      "11_position"
+    ]
+  },
+  {
+    "path": "App/motor/motor_position_control.c",
+    "description": "纯位置 P 串速度 PI，状态由调用者持有",
+    "direct_diagrams": [
+      "11_position"
+    ]
+  },
+  {
+    "path": "App/motor/motor_protect.c",
+    "description": "电机保护：过流、欠压、堵转、失速；核心只依赖注入状态/辅助快照",
+    "direct_diagrams": [
+      "21_protection"
+    ]
+  },
+  {
+    "path": "App/motor/motor_sense.c",
+    "description": "电流/相电压/母线采样换算（采样帧 → 物理量）",
+    "direct_diagrams": [
+      "02_sampling"
+    ]
+  },
+  {
+    "path": "App/motor/motor_snapshot.c",
+    "description": "电机状态帧捕获；ISR 发布双缓冲，任务无锁读取",
+    "direct_diagrams": [
+      "24_commands"
+    ]
+  },
+  {
+    "path": "App/motor/motor_speed.c",
+    "description": "通用速度 PI 外环实现（支持状态实例；默认单实例包装保留）",
+    "direct_diagrams": [
+      "10_speed"
+    ]
+  },
+  {
+    "path": "App/motor/motor_speed_ff_detect.c",
+    "description": "空载速度电压前馈的线性拟合 */",
+    "direct_diagrams": [
+      "23_compensation"
+    ]
+  },
+  {
+    "path": "App/motor/motor_task.c",
+    "description": "电机后台任务：速度/位置外环（对齐 VESC foc pid 线程）",
+    "direct_diagrams": [
+      "05_task"
+    ]
+  },
+  {
+    "path": "App/motor/motor_timing.c",
+    "description": "ADC/控制周期计算与 ADC-DMA 中断耗时统计",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor/motor_trajectory.c",
+    "description": "一维梯形运动轨迹；按剩余制动距离提前减速",
+    "direct_diagrams": [
+      "13_trajectory"
+    ]
+  },
+  {
+    "path": "App/motor/motor_utils.c",
+    "description": "* @Date: 2023-02-18 23:29:37",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor/observer/motor_ekf.c",
+    "description": "扩展卡尔曼滤波无感观测器（αβ，四状态）",
+    "direct_diagrams": [
+      "17_ekf"
+    ]
+  },
+  {
+    "path": "App/motor/observer/motor_flux.c",
+    "description": "Ortega 非线性磁链观测器（αβ 静止坐标系）",
+    "direct_diagrams": [
+      "14_flux"
+    ]
+  },
+  {
+    "path": "App/motor/observer/motor_hfi.c",
+    "description": "脉振高频注入（HFI）低速凸极跟踪",
+    "direct_diagrams": [
+      "18_hfi"
+    ]
+  },
+  {
+    "path": "App/motor/observer/motor_luenberger.c",
+    "description": "龙伯格反电势观测器（αβ 静止坐标系）",
+    "direct_diagrams": [
+      "15_lbg"
+    ]
+  },
+  {
+    "path": "App/motor/observer/motor_sensorless.c",
+    "description": "无感观测器：Ortega 磁链观测 + PLL 锁相与角度接管（支持状态实例）",
+    "direct_diagrams": [
+      "14_flux"
+    ]
+  },
+  {
+    "path": "App/motor/observer/motor_smo.c",
+    "description": "滑模反电势观测器（αβ 静止坐标系，饱和函数）",
+    "direct_diagrams": [
+      "16_smo"
+    ]
+  },
+  {
+    "path": "App/motor/start/motor_alignment.c",
+    "description": "I/F 启动前转子 D 轴预对齐状态机",
+    "direct_diagrams": [
+      "07_start"
+    ]
+  },
+  {
+    "path": "App/motor/start/motor_hfi_start.c",
+    "description": "HFI 凸极扫描零速初始位置估计",
+    "direct_diagrams": [
+      "18_hfi"
+    ]
+  },
+  {
+    "path": "App/motor/start/motor_if_start.c",
+    "description": "I/F 开环启动：相位补偿、Iq 缩放与角度积分转速",
+    "direct_diagrams": [
+      "07_start"
+    ]
+  },
+  {
+    "path": "App/motor_sensor/motor_encoder.c",
+    "description": "编码器角度、速度与零点（MT6701 绝对计数 + ODrive 临界阻尼 PLL）",
+    "direct_diagrams": [
+      "08_encoder"
+    ]
+  },
+  {
+    "path": "App/motor_sensor/motor_encoder_detect.c",
+    "description": "编码器方向与电角零点标定（阻塞式应用流程）",
+    "direct_diagrams": [
+      "08_encoder"
+    ]
+  },
+  {
+    "path": "App/motor_sensor/motor_feedback.c",
+    "description": "统一转子反馈选择（开环/无感/编码器/霍尔）",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor_sensor/motor_hall.c",
+    "description": "三相霍尔读取与霍尔表标定",
+    "direct_diagrams": [
+      "09_hall"
+    ]
+  },
+  {
+    "path": "App/motor_sensor/motor_hall_angle.c",
+    "description": "霍尔表正常解码（扇区→电角、转速与非法状态）",
+    "direct_diagrams": [
+      "09_hall"
+    ]
+  },
+  {
+    "path": "App/motor_sensor/motor_hall_diag.c",
+    "description": "Hall I/F 电流诊断：扇区累计、最差帧、换向窗与 mean/RMS",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor_sensor/motor_mt6701.c",
+    "description": "MT6701 I2C 绝对角度传感器",
+    "direct_diagrams": [
+      "05_task"
+    ]
+  },
+  {
+    "path": "App/motor_sensor/motor_phase_order.c",
+    "description": "UVW 线序检测：开环正转与霍尔扇区方向对照",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor_sensor/motor_sensor_update.c",
+    "description": "编码器与霍尔反馈的控制拍更新及传感器故障接入",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor_param/flash_storage.c",
+    "description": "配置与校准 Flash v2 双槽持久化（擦写经 Hal_Flash）",
+    "direct_diagrams": [
+      "22_storage"
+    ]
+  },
+  {
+    "path": "App/motor_param/motor_detect.c",
+    "description": "电流/电压偏移校准。R/L/磁链等电机参数检测后期再做。",
+    "direct_diagrams": [
+      "20_detect"
+    ]
+  },
+  {
+    "path": "App/motor_param/motor_detect_offset.c",
+    "description": "电流/电压偏移校准非阻塞核心（收样本，不延时、不写 PWM）",
+    "direct_diagrams": [
+      "20_detect"
+    ]
+  },
+  {
+    "path": "App/motor_param/motor_param.c",
+    "description": "电机运行参数初始化与全局状态",
+    "direct_diagrams": []
+  },
+  {
+    "path": "App/motor_param/motor_settings.c",
+    "description": "平台无关的配置与校准快照；保持旧控制字段兼容。",
+    "direct_diagrams": [
+      "22_storage"
+    ]
+  }
+]
