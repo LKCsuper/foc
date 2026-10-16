@@ -17,6 +17,7 @@ extern "C" {
 #include "cmsis_os2.h"
 #include "motor_detect.h"
 #include "motor_detect_offset.h"
+#include "motor_detect_rl_fit.h"
 #include "flash_storage.h"
 #include "motor_param.h"
 #include "motor_sensorless.h"
@@ -148,6 +149,7 @@ typedef struct {
     uint32_t pulse_count;
     uint32_t valid_pulses;
     float pulse_start_current;
+    float pulse_current[MOTOR_DETECT_INDUCTANCE_HALF_CYCLES];
     float injection_theta;
     float theta;
     float electrical_rpm_target;
@@ -481,15 +483,18 @@ static void Detect_RunInductanceStep(MOTOR_PARAM_S *motor_param, float dt)
         if (s_detect_control.pulse_position == 0U) {
             s_detect_control.pulse_start_current = motor_param->Id;
         }
+        s_detect_control.pulse_current[s_detect_control.pulse_position] = motor_param->Id;
         if (s_detect_control.pulse_position >= MOTOR_DETECT_INDUCTANCE_HALF_CYCLES - 1U) {
             float current_end = motor_param->Id;
-            float current_mid = 0.5f * (s_detect_control.pulse_start_current + current_end);
             float slope_dt = (float)(MOTOR_DETECT_INDUCTANCE_HALF_CYCLES - 1U) * dt;
             float slope = (current_end - s_detect_control.pulse_start_current) / slope_dt;
-            float effective_voltage = voltage * MOTOR_DETECT_APPLIED_VOLTAGE_SCALE -
-                                      s_detect_control.measured_resistance * current_mid;
-            if (fabsf(slope) > MOTOR_DETECT_INDUCTANCE_MIN_SLOPE) {
-                float inductance = effective_voltage / slope;
+            float inductance;
+            /* 保留原首尾斜率激励门槛；用全窗口磁链积分拟合替代两点相除。
+             * 此处仍为指令电压，未标定的输出延时/压降不能由拟合自动消除。 */
+            if (isfinite(slope) && fabsf(slope) > MOTOR_DETECT_INDUCTANCE_MIN_SLOPE &&
+                Motor_Detect_FitPulse(s_detect_control.pulse_current, MOTOR_DETECT_INDUCTANCE_HALF_CYCLES,
+                                     dt, voltage * MOTOR_DETECT_APPLIED_VOLTAGE_SCALE,
+                                     s_detect_control.measured_resistance, &inductance)) {
                 if (inductance > MOTOR_DETECT_INDUCTANCE_MIN_H && inductance < MOTOR_DETECT_INDUCTANCE_MAX_H) {
                     s_detect_control.inductance_sum[direction] += inductance;
                     s_detect_control.inductance_valid[direction]++;
