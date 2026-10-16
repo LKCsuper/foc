@@ -24,6 +24,7 @@ extern "C" {
 #include "motor_speed_ff_detect.h"
 #include "motor_crit.h"
 #include "motor_output.h"
+#include "motor_foc.h"
 #include "motor_mt6701.h"
 #include "hal_motor.h"
 #include <math.h>
@@ -763,18 +764,163 @@ int Cmd_SensorlessCadence(int argc, char *argv[])
 {
     motor_cadence_t c;
     motor_callback_t cb;
-    if (argc > 1 && strcmp(argv[1], "reset") == 0) Motor_Timing_CadenceReset();
+    if (argc > 1 && strcmp(argv[1], "blendbench") == 0) {
+        static MOTOR_PARAM_S test_motor;
+        static motor_sensorless_runtime_t test_runtime;
+        motor_sensorless_effects_t effects;
+        unsigned mode, i;
+        if (motor.ol_enable) {
+            PRINTF("Invalid: slcadence blendbench requires stopped motor\n");
+            return -1;
+        }
+        /* 仅调用独立实例核心，effects不落地，绝不启动真实电机或修改默认观测器。 */
+        test_motor = motor;
+        test_motor.ol_enable = true;
+        test_motor.ol_mode = MOTOR_OL_MODE_IF;
+        test_motor.sensorless_enable = true;
+        test_motor.ol_pole_pairs = 7.0f;
+        test_motor.ol_current_rpm = test_motor.ol_target_rpm = 600.0f;
+        test_motor.sensorless_motor_r = 0.646111f;
+        test_motor.sensorless_motor_l = 0.000133819f;
+        test_motor.sensorless_flux_linkage = 0.0023358f;
+        test_motor.sensorless_observer_gain = 12000000.0f;
+        test_motor.sensorless_pll_kp = 2000.0f;
+        test_motor.sensorless_pll_ki = 30000.0f;
+        test_motor.sensorless_blend_time = 0.2f;
+        test_motor.ia = test_motor.ib = test_motor.ic = 0.0f;
+        for (mode = 0; mode < 3U; ++mode) {
+            uint32_t total = 0U, maximum = 0U;
+            unsigned closed = 0U;
+            for (i = 0; i < 128U; ++i) {
+                float phase = (float)(i % 4U) * 1.5f - 2.8f;
+                float s = sin_f32(phase), co = cos_f32(phase);
+                uint32_t key, begin, elapsed;
+                memset(&test_runtime, 0, sizeof(test_runtime));
+                test_runtime.initialized = true;
+                test_runtime.x_alpha = 0.0023358f * co;
+                test_runtime.x_beta = 0.0023358f * s;
+                test_runtime.applied_v_alpha = -0.0023358f * 439.82297f * s;
+                test_runtime.applied_v_beta = 0.0023358f * 439.82297f * co;
+                test_runtime.pll_angle = phase;
+                test_runtime.pll_speed_electrical = 439.82297f;
+                test_runtime.filtered_rpm = 600.0f;
+                test_runtime.state = mode == 0U ? MOTOR_SENSORLESS_OPEN_LOOP : MOTOR_SENSORLESS_CLOSED;
+                test_runtime.blend = mode == 1U ? ((i & 1U) ? 0.01f : 0.99f) : 1.0f;
+                test_runtime.stats.samples = i % 8U;
+                test_motor.sensorless_takeover = mode != 0U;
+                test_motor.ol_theta = phase - 1.2f;
+                utils_norm_angle_rad(&test_motor.ol_theta);
+                key = Motor_Crit_Enter();
+                begin = Hal_Motor_TimeUs();
+                Motor_Sensorless_UpdateState(&test_runtime, &test_motor, 1.0f / 15000.0f, &effects);
+                elapsed = Hal_Motor_TimeUs() - begin;
+                Motor_Crit_Exit(key);
+                total += elapsed;
+                if (elapsed > maximum) maximum = elapsed;
+                if (test_runtime.state == MOTOR_SENSORLESS_CLOSED) closed++;
+            }
+            PRINTF("Stopped observer bench mode=%u (0=open 1=blend 2=closed) n=128 avg=%.3f max=%lu us closed=%u\n",
+                   mode, (float)total / 128.0f, (unsigned long)maximum, closed);
+        }
+        PRINTF("Synthetic independent instance, 600RPM 7pp; IRQ isolated per update; PWM unchanged\n");
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "bench") == 0) {
+        static MOTOR_PARAM_S bench_motor;
+        motor_trace_sample_t sample = {0};
+        uint32_t begin, transport_us = 0U, write_us = 0U, capture_us = 0U, maximum_batch_us = 0U;
+        unsigned i, batch;
+        bool isolated = argc > 2 && strcmp(argv[2], "isolated") == 0;
+        if (motor.ol_enable) {
+            PRINTF("Invalid: slcadence bench requires stopped motor\n");
+            return -1;
+        }
+        memset(&bench_motor, 0, sizeof(bench_motor));
+        bench_motor.ol_current_kp = 0.12f;
+        bench_motor.ol_vd_int = 0.5f;
+        bench_motor.ol_vq_int = 1.0f;
+        for (batch = 0; batch < 256U; batch += 4U) {
+            uint32_t key = isolated ? Motor_Crit_Enter() : 0U;
+            uint32_t elapsed;
+            begin = Hal_Motor_TimeUs();
+            for (i = batch; i < batch + 4U; ++i) {
+                Motor_Current_TransportPi(&bench_motor, 0.001f + (float)(i % 16U) * 0.001f,
+                                          0.0f, 0.5f, 0.0f, 0.5f);
+            }
+            elapsed = Hal_Motor_TimeUs() - begin;
+            if (isolated) Motor_Crit_Exit(key);
+            transport_us += elapsed;
+            if (elapsed > maximum_batch_us) maximum_batch_us = elapsed;
+        }
+        for (batch = 0; batch < 256U; batch += 4U) {
+            uint32_t key = isolated ? Motor_Crit_Enter() : 0U;
+            uint32_t elapsed;
+            begin = Hal_Motor_TimeUs();
+            for (i = batch; i < batch + 4U; ++i) {
+                Motor_FocIsr_CaptureTraceSample(&motor, 0.0f, 0.0f, &sample);
+            }
+            elapsed = Hal_Motor_TimeUs() - begin;
+            if (isolated) Motor_Crit_Exit(key);
+            capture_us += elapsed;
+            if (elapsed > maximum_batch_us) maximum_batch_us = elapsed;
+        }
+        Motor_Timing_TraceArmEntryFast();
+        for (batch = 0; batch < 384U; batch += 4U) {
+            uint32_t key = isolated ? Motor_Crit_Enter() : 0U;
+            uint32_t elapsed;
+            begin = Hal_Motor_TimeUs();
+            for (i = batch; i < batch + 4U; ++i) {
+                sample.time_us = i;
+                sample.theta = (float)i * 0.001f;
+                if (Motor_Timing_TraceDue(2U)) Motor_Timing_TracePush(&sample);
+            }
+            elapsed = Hal_Motor_TimeUs() - begin;
+            if (isolated) Motor_Crit_Exit(key);
+            write_us += elapsed;
+            if (elapsed > maximum_batch_us) maximum_batch_us = elapsed;
+        }
+        Motor_Timing_TraceStop();
+        PRINTF("Stopped bench: transport n=256 total=%lu us avg=%.3f us checksum=%.6f/%.6f\n",
+               (unsigned long)transport_us, (float)transport_us / 256.0f,
+               bench_motor.ol_vd_int, bench_motor.ol_vq_int);
+        PRINTF("Stopped bench: RAM Due+Push n=384 total=%lu us avg=%.3f us; excludes diagnostic capture\n",
+               (unsigned long)write_us, (float)write_us / 384.0f);
+        PRINTF("Stopped bench: diagnostic capture n=256 total=%lu us avg=%.3f us\n",
+               (unsigned long)capture_us, (float)capture_us / 256.0f);
+        PRINTF("Bench isolated=%u batch=4 max_batch=%lu us; RAM trace replaced by synthetic samples; PWM unchanged\n",
+               isolated ? 1U : 0U, (unsigned long)maximum_batch_us);
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "reset") == 0) {
+        Motor_Timing_ProfileSetDetailed(false);
+        Motor_Timing_CadenceReset();
+    }
+    if (argc > 1 && strcmp(argv[1], "detail") == 0) {
+        Motor_Timing_ProfileSetDetailed(true);
+        Motor_Timing_CadenceReset();
+    }
+    if (argc > 1 && strcmp(argv[1], "lean") == 0) {
+        Motor_Timing_ProfileSetDetailed(argc > 2 && strcmp(argv[2], "detail") == 0);
+        Motor_Timing_CadenceReset();
+        Motor_Timing_CallbackStop();
+        PRINTF("Lean cadence: callback statistics disabled; sampled IRQ body and task statistics enabled\n");
+    }
+    if (argc > 1 && strcmp(argv[1], "task") == 0) {
+        Motor_Timing_SpeedTaskReset();
+        PRINTF("Task-only statistics: IRQ/cadence/runtime/stage profiling disabled\n");
+    }
+    if (argc > 1 && strcmp(argv[1], "probe") == 0) Motor_Timing_WakeProbeReset();
     if (argc > 1 && strcmp(argv[1], "stop") == 0) Motor_Timing_CadenceStop();
     Motor_Timing_CadenceGet(&c);
     Motor_Timing_CallbackGet(&cb);
     {
-        float avg[MOTOR_TIMING_STAGE_COUNT];
+        motor_profile_snapshot_t snapshot;
         unsigned i;
-        uint32_t count, maximum;
-        Motor_Timing_ProfileGet(avg, NULL);
-        for (i = MOTOR_TIMING_OBSERVER_BLEND; i < MOTOR_TIMING_STAGE_COUNT; ++i) {
-            Motor_Timing_ProfileDetail((motor_timing_stage_t)i, &count, &maximum);
-            PRINTF("stage %u n=%lu avg=%.2f max=%lu us\n", i, (unsigned long)count, avg[i], (unsigned long)maximum);
+        Motor_Timing_ProfileSnapshot(&snapshot);
+        for (i = 0U; i < MOTOR_TIMING_STAGE_COUNT; ++i) {
+            PRINTF("stage %u n=%lu avg=%.2f max=%lu us\n", i, (unsigned long)snapshot.count[i],
+                   snapshot.count[i] ? (float)snapshot.sum_us[i] / (float)snapshot.count[i] : 0.0f,
+                   (unsigned long)snapshot.max_us[i]);
         }
     }
     PRINTF("cadence n=%lu sum=%lu min=%lu max=%lu up=%lu down=%lu gaps=%lu\n",
@@ -795,6 +941,54 @@ int Cmd_SensorlessCadence(int argc, char *argv[])
            (unsigned long)cb.full, cb.full ? (float)cb.full_sum / (float)cb.full : 0.0f, (unsigned long)cb.full_max,
            cb.count > cb.full ? (float)cb.skip_sum / (float)(cb.count - cb.full) : 0.0f, (unsigned long)cb.skip_max,
            (unsigned long)cb.over33, (unsigned long)cb.over66, (unsigned long)cb.pending);
+    {
+        motor_speed_task_diag_t task;
+        Motor_Timing_SpeedTaskGet(&task);
+        PRINTF("wake probe worst_PI valid=%lu delay=%luus DMA_n=%lu DMA_body=%luus\n",
+               (unsigned long)task.worst_pi_wake.valid, (unsigned long)task.worst_pi_wake.delay_us,
+               (unsigned long)task.worst_pi_wake.dma_count, (unsigned long)task.worst_pi_wake.dma_us);
+        PRINTF("wake probe worst_wake valid=%lu delay=%luus DMA_n=%lu DMA_body=%luus\n",
+               (unsigned long)task.worst_wake.valid, (unsigned long)task.worst_wake.delay_us,
+               (unsigned long)task.worst_wake.dma_count, (unsigned long)task.worst_wake.dma_us);
+        PRINTF("speed PI gaps <=1000/1100/1250/1500/2000/>2000us=%lu/%lu/%lu/%lu/%lu/%lu\n",
+               (unsigned long)task.pi_gap_bins[0], (unsigned long)task.pi_gap_bins[1],
+               (unsigned long)task.pi_gap_bins[2], (unsigned long)task.pi_gap_bins[3],
+               (unsigned long)task.pi_gap_bins[4], (unsigned long)task.pi_gap_bins[5]);
+        PRINTF("speed PI over1000us=%lu ratio=%.2f%% longest_streak=%lu\n",
+               (unsigned long)task.pi_over_1ms,
+               task.pi_count > 1U ? 100.0 * (double)task.pi_over_1ms / (double)(task.pi_count - 1U) : 0.0,
+               (unsigned long)task.pi_over_streak_max);
+        PRINTF("speed PI updates=%lu no_update=%lu max_gap=%luus mean_gap=%.1fus\n",
+               (unsigned long)task.pi_count, (unsigned long)task.pi_no_update,
+               (unsigned long)task.pi_max_gap_us,
+               task.pi_count > 1U ? (double)task.pi_sum_gap_us / (double)(task.pi_count - 1U) : 0.0);
+        PRINTF("speed task n=%lu max_gap=%luus last=%lu gate=%u target=%.1f feedback=%.1f iq=%.4f\n",
+               (unsigned long)task.count, (unsigned long)task.max_gap_us, (unsigned long)task.last_us,
+               task.allowed ? 1U : 0U, task.target, task.feedback, task.iq);
+        PRINTF("speed task worst_gap_ticks=%lu tick_hz=%lu phase=%lu tick=%lu\n",
+               (unsigned long)task.max_gap_ticks, (unsigned long)osKernelGetTickFreq(),
+               (unsigned long)task.phase, (unsigned long)task.tick);
+        PRINTF("speed task phase_max_us wait=%lu position=%lu speed=%lu publish=%lu wake_late_max_ticks=%lu\n",
+               (unsigned long)task.phase_max_us[0], (unsigned long)task.phase_max_us[1],
+               (unsigned long)task.phase_max_us[2], (unsigned long)task.phase_max_us[3],
+               (unsigned long)task.wake_late_max_ticks);
+        PRINTF("speed task phase_ticks_at_max wait=%lu position=%lu speed=%lu publish=%lu\n",
+               (unsigned long)task.phase_max_ticks[0], (unsigned long)task.phase_max_ticks[1],
+               (unsigned long)task.phase_max_ticks[2], (unsigned long)task.phase_max_ticks[3]);
+    }
+    {
+        unsigned kind;
+        for (kind = 0U; kind < 2U; kind++) {
+            motor_irq_diag_t irq;
+            Motor_Timing_IrqGet(kind, &irq);
+            PRINTF("irq sampled body kind=%u n=%lu avg=%.2fus max=%lu span=%lu sum=%lu tick_pending=%lu switch_pending=%lu\n",
+                   kind, (unsigned long)irq.count, irq.count ? (float)irq.sum_us / irq.count : 0.0f,
+                   (unsigned long)irq.max_us, (unsigned long)(irq.last_us - irq.first_us), (unsigned long)irq.sum_us,
+                   (unsigned long)irq.tick_pending, (unsigned long)irq.switch_pending);
+            PRINTF("irq sampling kind=%u stride=%u seen=%lu; sum/max/pending are sampled, not exhaustive\n",
+                   kind, (unsigned)MOTOR_TIMING_IRQ_STRIDE, (unsigned long)irq.seen);
+        }
+    }
     return 0;
 }
 
@@ -808,6 +1002,132 @@ int Cmd_SensorlessCadence(int argc, char *argv[])
  * @return {int} 0 成功，-1 电机仍在运行
  * @author: lkc
  */
+int Cmd_SensorlessHandoff(int argc, char *argv[])
+{
+    unsigned index;
+    motor_handoff_sample_t sample;
+    char row[512];
+    if (motor.ol_enable) {
+        PRINTF("Invalid: slhandoff requires stopped motor\n");
+        return -1;
+    }
+    Hal_Motor_PwmDiagnosticEnable(false);
+    if (argc > 1 && strcmp(argv[1], "pair") == 0) {
+        Motor_Timing_PairArm();
+        Hal_Motor_PwmDiagnosticEnable(true);
+        PRINTF("ADC pair armed: stride=450, software PWM sequence only; callback phase is not trigger phase\n");
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "arm") == 0) {
+        Motor_Timing_HandoffArm();
+        PRINTF("Handoff armed: 32 rows, stride 15, trigger blend completion\n");
+        return 0;
+    }
+    if (argc > 1 && (strcmp(argv[1], "phase") == 0 || strcmp(argv[1], "phaselong") == 0)) {
+        bool extended = strcmp(argv[1], "phaselong") == 0;
+        if (extended) Motor_Timing_PhaseArmLong();
+        else Motor_Timing_PhaseArm();
+        PRINTF("PLL phase capture armed: shared 32-row buffer, stride=%u, post=%u\n",
+               extended ? 450U : 15U, extended ? 27U : 15U);
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "step") == 0) {
+        Motor_Timing_ObserverStepArm();
+        PRINTF("Observer step armed: shared 32 rows, stride=450, trigger follows blend completion\n");
+        return 0;
+    }
+    Motor_Timing_HandoffStop();
+    if (Motor_Timing_PairMode()) {
+        motor_pair_sample_t pair;
+        PRINTF("pair samples=%u\n", Motor_Timing_HandoffCount());
+        PRINTF("seq,time_us,flags,prev_sample,prev_pwm,prev_entry_us,prev_ia,prev_ib,prev_ic,prev_adc0,prev_adc1,prev_adc2,prev_ccr0,prev_ccr1,prev_ccr2,prev_count,prev_cr1,prev_recon,prev_period,sample,pwm,entry_us,ia,ib,ic,adc0,adc1,adc2,ccr0,ccr1,ccr2,count,cr1,recon,period,v_alpha,v_beta,crc32\n");
+        for (index = 0U; index < Motor_Timing_HandoffCount(); index++) {
+            unsigned frame_index;
+            int length;
+            if (!Motor_Timing_PairGet(index, &pair)) break;
+            length = snprintf(row, sizeof(row), "%u,%lu,%lu", index, (unsigned long)pair.time_us, (unsigned long)pair.flags);
+            for (frame_index = 0U; frame_index < 2U; frame_index++) {
+                const motor_pair_frame_t *frame = frame_index ? &pair.current : &pair.previous;
+                int added;
+                if (length < 0 || (unsigned)length >= sizeof(row)) return -1;
+                added = snprintf(row + length, sizeof(row) - (unsigned)length,
+                    ",%lu,%lu,%lu,%.9g,%.9g,%.9g,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u",
+                    (unsigned long)frame->sample_sequence, (unsigned long)frame->pwm_sequence,
+                    (unsigned long)frame->entry_us, frame->ia, frame->ib, frame->ic,
+                    frame->adc[0], frame->adc[1], frame->adc[2], frame->ccr[0], frame->ccr[1], frame->ccr[2],
+                    frame->callback_count, frame->callback_cr1, frame->reconstructed, frame->period);
+                if (added < 0 || (unsigned)added >= sizeof(row) - (unsigned)length) return -1;
+                length += added;
+            }
+            {
+                int added = snprintf(row + length, sizeof(row) - (unsigned)length, ",%.9g,%.9g", pair.v_alpha, pair.v_beta);
+                if (added < 0 || (unsigned)added >= sizeof(row) - (unsigned)length) return -1;
+                length += added;
+            }
+            PRINTF("%s,%08lx\n", row, (unsigned long)crc32((uint8_t *)row, (uint32_t)length));
+            Bsp_Usart_Flush();
+        }
+        return 0;
+    }
+    if (Motor_Timing_ObserverStepMode()) {
+        motor_observer_step_sample_t step;
+        PRINTF("step samples=%u\n", Motor_Timing_HandoffCount());
+        PRINTF("seq,time_us,flags,x_before_alpha,x_before_beta,x_after_alpha,x_after_beta,i_before_alpha,i_before_beta,i_alpha,i_beta,v_alpha,v_beta,correction_alpha,correction_beta,dt,resistance,inductance,flux_nominal,gain,pll_before,observer,phase_error,blend,control_angle,previous_dt,phase_offset,crc32\n");
+        for (index = 0U; index < Motor_Timing_HandoffCount(); index++) {
+            int length;
+            if (!Motor_Timing_ObserverStepGet(index, &step)) break;
+            length = snprintf(row, sizeof(row), "%u,%lu,%lu,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g",
+                index, (unsigned long)step.time_us, (unsigned long)step.flags,
+                step.x_before_alpha, step.x_before_beta, step.x_after_alpha, step.x_after_beta,
+                step.i_before_alpha, step.i_before_beta, step.i_alpha, step.i_beta,
+                step.v_alpha, step.v_beta, step.correction_alpha, step.correction_beta,
+                step.dt, step.resistance, step.inductance, step.flux_nominal, step.gain,
+                step.pll_before, step.observer, step.phase_error, step.blend, step.control_angle,
+                step.previous_dt, step.phase_offset);
+            if (length < 0 || (unsigned)length >= sizeof(row)) return -1;
+            PRINTF("%s,%08lx\n", row, (unsigned long)crc32((uint8_t *)row, (uint32_t)length));
+            Bsp_Usart_Flush();
+        }
+        return 0;
+    }
+    if (Motor_Timing_PhaseMode()) {
+        motor_phase_sample_t phase;
+        PRINTF("phase samples=%u\n", Motor_Timing_HandoffCount());
+        PRINTF("seq,time_us,flags,observer,pll_before,pll_after,phase_error,speed_before,speed_after,rpm,flux,x_alpha,x_beta,v_alpha,v_beta,i_alpha,i_beta,dt,kp,ki,resistance,inductance,flux_nominal,phase_offset,blend,control_angle,crc32\n");
+        for (index = 0U; index < Motor_Timing_HandoffCount(); index++) {
+            int length;
+            if (!Motor_Timing_PhaseGet(index, &phase)) break;
+            length = snprintf(row, sizeof(row), "%u,%lu,%lu,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g",
+                index, (unsigned long)phase.time_us, (unsigned long)phase.flags,
+                phase.observer, phase.pll_before, phase.pll_after, phase.phase_error,
+                phase.speed_before, phase.speed_after, phase.rpm, phase.flux,
+                phase.x_alpha, phase.x_beta, phase.v_alpha, phase.v_beta, phase.i_alpha, phase.i_beta,
+                phase.dt, phase.kp, phase.ki, phase.resistance, phase.inductance,
+                phase.flux_nominal, phase.phase_offset, phase.blend, phase.control_angle);
+            if (length < 0 || (unsigned)length >= sizeof(row)) return -1;
+            PRINTF("%s,%08lx\n", row, (unsigned long)crc32((uint8_t *)row, (uint32_t)length));
+            Bsp_Usart_Flush();
+        }
+        return 0;
+    }
+    PRINTF("handoff samples=%u\n", Motor_Timing_HandoffCount());
+    PRINTF("seq,time_us,flags,theta,delta,id,iq,old_id,old_iq,id_cmd,iq_cmd,vd_before,vq_before,vd_transport,vq_transport,vd_after,vq_after,vd,vq,ia,ib,ic,vbus,kp,dt,adc0,adc1,adc2,crc32\n");
+    for (index = 0U; index < Motor_Timing_HandoffCount(); index++) {
+        int length;
+        if (!Motor_Timing_HandoffGet(index, &sample)) break;
+        length = snprintf(row, sizeof(row), "%u,%lu,%lu,%.7f,%.7f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.5f,%.5f,%.5f,%.3f,%.6f,%.7f,%u,%u,%u",
+            index, (unsigned long)sample.time_us, (unsigned long)sample.flags, sample.theta, sample.delta,
+            sample.id, sample.iq, sample.old_id, sample.old_iq, sample.id_cmd, sample.iq_cmd,
+            sample.vd_before, sample.vq_before, sample.vd_transport, sample.vq_transport,
+            sample.vd_after, sample.vq_after, sample.vd, sample.vq, sample.ia, sample.ib, sample.ic,
+            sample.vbus, sample.kp, sample.dt, (unsigned)sample.adc[0], (unsigned)sample.adc[1], (unsigned)sample.adc[2]);
+        if (length < 0 || (unsigned)length >= sizeof(row)) return -1;
+        PRINTF("%s,%08lx\n", row, (unsigned long)crc32((uint8_t *)row, (uint32_t)length));
+        Bsp_Usart_Flush();
+    }
+    return 0;
+}
+
 int Cmd_SensorlessTrace(int argc, char *argv[])
 {
     unsigned i, count;
@@ -821,14 +1141,78 @@ int Cmd_SensorlessTrace(int argc, char *argv[])
         PRINTF("RAM trace armed; 2ms samples, freeze after CLOSED exit\n");
         return 0;
     }
+    if (argc > 1 && strcmp(argv[1], "compact") == 0) {
+        Motor_Timing_TraceArmCompact();
+        PRINTF("Compact RAM trace armed: %u bytes, capacity=%u, stride=%u; performance counters paused\n",
+               (unsigned)sizeof(motor_trace_compact_sample_t), (unsigned)MOTOR_TRACE_COMPACT_CAPACITY,
+               (unsigned)MOTOR_TRACE_COMPACT_STRIDE);
+        return 0;
+    }
     if (argc > 1 && strcmp(argv[1], "entry") == 0) {
         Motor_Timing_TraceArmEntry();
         PRINTF("RAM trace armed; freeze 384 samples after first CLOSED; motor keeps running\n");
         return 0;
     }
+    if (argc > 1 && strcmp(argv[1], "entryfast") == 0) {
+        Motor_Timing_TraceArmEntryFast();
+        PRINTF("RAM trace armed; 384 consecutive control samples after first CLOSED; motor keeps running\n");
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "flight") == 0) {
+        Motor_Timing_TraceArmFlight();
+        PRINTF("Light RAM flight trace armed; entry192 + rolling320; freeze on CLOSED exit or test stop\n");
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "lite") == 0) {
+        Motor_Timing_TraceArmLight();
+        PRINTF("Light RAM trace armed; 384 samples at 8 control steps after first CLOSED; motor keeps running\n");
+        return 0;
+    }
     Motor_Timing_TraceStop();
     count = Motor_Timing_TraceCount();
     PRINTF("trace samples=%u\n", count);
+    if (Motor_Timing_TraceIsCompact()) {
+        motor_trace_compact_sample_t compact;
+        PRINTF("trace format=compact sample_bytes=%u stride=%u capacity=%u\n",
+               (unsigned)sizeof(compact), (unsigned)MOTOR_TRACE_COMPACT_STRIDE,
+               (unsigned)MOTOR_TRACE_COMPACT_CAPACITY);
+        PRINTF("seq,time_us,flags,theta,rpm,id,iq,id_cmd,iq_cmd,crc32\n");
+        for (i = 0U; i < count; i++) {
+            char row[384];
+            int length;
+            if (!Motor_Timing_TraceGetCompact(i, &compact)) break;
+            length = snprintf(row, sizeof(row), "%u,%lu,%lu,%.5f,%.1f,%.4f,%.4f,%.4f,%.4f",
+                              i, (unsigned long)compact.time_us, (unsigned long)compact.flags,
+                              compact.theta, compact.rpm, compact.id, compact.iq, compact.id_cmd, compact.iq_cmd);
+            if (length < 0 || (unsigned)length >= sizeof(row)) {
+                PRINTF("Compact export failed: row formatting\n");
+                return -1;
+            }
+            PRINTF("%s,%08lx\n", row, (unsigned long)crc32((const uint8_t *)row, (uint32_t)length));
+            Bsp_Usart_Flush();
+        }
+        return 0;
+    }
+    if (Motor_Timing_TraceIsLight()) {
+        motor_trace_light_sample_t light;
+        PRINTF("trace format=lite sample_bytes=%u post_stride=8\n", (unsigned)sizeof(light));
+        if (Motor_Timing_TraceIsFlight()) PRINTF("trace flight entry_rows=%u rolling_rows=%u rolling_stride=128; may contain a time gap\n",
+                Motor_Timing_TraceFlightEntryCount(), count - Motor_Timing_TraceFlightEntryCount());
+        PRINTF("time_us,flags,theta,pll,flux,rpm,id,iq,id_cmd,iq_cmd,blend,loss,va,vb,gap_max_us,full_max_us,task_count,task_age_us,task_gate,speed_target,speed_feedback,speed_iq,task_tick,task_phase,task_phase_age_us\n");
+        for (i = 0U; i < count; ++i) {
+            if (!Motor_Timing_TraceGetLight(i, &light)) break;
+            PRINTF("%lu,%lu,%.5f,%.5f,%.6f,%.1f,%.4f,%.4f,%.4f,%.4f,%.4f,%.6f,%.4f,%.4f,%u,%u,%lu,%lu,%lu,%.1f,%.1f,%.4f,%lu,%lu,%lu\n",
+                   (unsigned long)light.time_us, (unsigned long)light.flags,
+                   light.theta, light.pll, light.flux, light.rpm, light.id, light.iq,
+                   light.id_cmd, light.iq_cmd, light.blend, light.loss, light.v_alpha, light.v_beta,
+                   (unsigned)light.gap_max_us, (unsigned)light.full_max_us,
+                   (unsigned long)light.task_count, (unsigned long)light.task_age_us, (unsigned long)light.task_gate,
+                   light.speed_target, light.speed_feedback, light.speed_iq,
+                   (unsigned long)light.task_tick, (unsigned long)light.task_phase, (unsigned long)light.task_phase_age_us);
+            Bsp_Usart_Flush();
+        }
+        return 0;
+    }
     PRINTF("time_us,flags,theta,pll,flux,rpm,id,iq,iq_PI,va,vb,enc,enc_rpm,age,blend,loss,id_cmd,iq_cmd,ia,ib,vd,vq,vbus,vlimit,gap_max_us,full_max_us,pending,up\n");
     for (i = 0U; i < count; ++i) {
         if (!Motor_Timing_TraceGet(i, &t)) break;
@@ -1107,6 +1491,10 @@ int Cmd_CurrentTest(int argc, char *argv[])
     float iq_sum = 0.0f;
     float id_abs_error_sum = 0.0f;
     float iq_abs_sum = 0.0f;
+    float id_target_sum = 0.0f;
+    float iq_target_sum = 0.0f;
+    float vd_int_sum = 0.0f;
+    float vq_int_sum = 0.0f;
     float adc_delta_abs_sum[3] = {0.0f, 0.0f, 0.0f};
     mc_fault_code fault = FAULT_CODE_NONE;
     bool restored = false;
@@ -1190,6 +1578,10 @@ int Cmd_CurrentTest(int argc, char *argv[])
         iq_sum += status.iq;
         id_abs_error_sum += fabsf(current_a - status.id);
         iq_abs_sum += fabsf(status.iq);
+        id_target_sum += status.id_target;
+        iq_target_sum += status.iq_target;
+        vd_int_sum += status.vd_int;
+        vq_int_sum += status.vq_int;
         adc_delta_abs_sum[0] += fabsf(status.current_adc[0] - status.current_offset[0]);
         adc_delta_abs_sum[1] += fabsf(status.current_adc[1] - status.current_offset[1]);
         adc_delta_abs_sum[2] += fabsf(status.current_adc[2] - status.current_offset[2]);
@@ -1218,11 +1610,21 @@ cleanup:
            id_sum / (float)samples, iq_sum / (float)samples);
     PRINTF("  mean |Id error|=%.3f A, mean |Iq|=%.3f A\n", id_abs_error_sum / (float)samples,
            iq_abs_sum / (float)samples);
+    PRINTF("  applied targets Id=%.3f A Iq=%.3f A, integrators Vd=%.3f V Vq=%.3f V\n",
+           id_target_sum / (float)samples, iq_target_sum / (float)samples,
+           vd_int_sum / (float)samples, vq_int_sum / (float)samples);
     PRINTF("  mean |ADC-zero|=%.2f %.2f %.2f counts\n", adc_delta_abs_sum[0] / (float)samples,
            adc_delta_abs_sum[1] / (float)samples, adc_delta_abs_sum[2] / (float)samples);
     PRINTF("  fault=NONE, auto-stopped=yes, config restored=%s\n", restored ? "yes" : "no");
     PRINTF("Note: BM75 0.10..0.20 A is only about 1..2.5 ADC counts; do not validate PI there.\n");
-    return restored ? 0 : -1;
+    {
+        float tolerance_a = fmaxf(0.10f, 0.30f * current_a);
+        bool tracking = samples >= 10U && fabsf(id_sum / (float)samples - current_a) <= tolerance_a &&
+                        id_abs_error_sum / (float)samples <= tolerance_a &&
+                        iq_abs_sum / (float)samples <= tolerance_a;
+        PRINTF("  tracking=%s tolerance=%.3f A\n", tracking ? "PASS" : "FAIL", tolerance_a);
+        return restored && tracking ? 0 : -1;
+    }
 }
 
 /**
@@ -2092,13 +2494,14 @@ typedef struct {
     float command_tolerance_rpm, encoder_age_max_s;
     uint32_t hold_min_s, hold_max_s;
 } sltest_bounds_t;
-static const sltest_bounds_t sltest_bounds = {
+static const sltest_bounds_t sltest_bounds_default = {
     .bus_min_v = 15.0f, .bus_max_v = 17.0f, .pole_pairs = 7.0f,
     .rpm_min = 500.0f, .rpm_max = 2600.0f, .current_abort_a = 1.0f,
     .startup_speed_max_rpm = 900.0f, .closed_speed_max_rpm = 3000.0f, .overspeed_ratio = 1.25f,
     .command_tolerance_rpm = 1.0f, .encoder_age_max_s = 0.005f,
     .hold_min_s = 2U, .hold_max_s = 20U
 };
+static sltest_bounds_t sltest_bounds;
 
 /* 2804/16V空载测试配置，单位见字段后缀。仅测试期间覆盖，退出恢复原配置。
  * R/L/磁链和零偏仍来自当前电机配置，不在这里指定。 */
@@ -2112,7 +2515,7 @@ typedef struct {
     float tracking_absolute_rpm, tracking_relative;
     unsigned tracking_bad_samples;
 } sltest_profile_t;
-static const sltest_profile_t sltest_profile = {
+static const sltest_profile_t sltest_profile_default = {
     .default_rpms = {500.0f, 600.0f, 700.0f}, .hold_s = 5U,
     .startup_ms = 8000U, .takeover_ms = 5000U, .settle_ms = 2000U,
     .poll_ms = 50U, .output_ms = 1000U,
@@ -2123,6 +2526,7 @@ static const sltest_profile_t sltest_profile = {
     .high_voltage_above_rpm = 1200.0f, .high_voltage_limit_v = 8.0f,
     .tracking_absolute_rpm = 60.0f, .tracking_relative = 0.05f, .tracking_bad_samples = 5U
 };
+static sltest_profile_t sltest_profile;
 
 
 static void sltest_print_output(const motor_status_t *status, float rpm)
@@ -2220,25 +2624,54 @@ int Cmd_SensorlessTest(int argc, char *argv[])
 {
     float rpms[6] = {0};
     unsigned count = 3U, i;
-    float max_target = sltest_profile.startup_rpm;
-    uint32_t hold_s = sltest_profile.hold_s;
+    float max_target = sltest_profile_default.startup_rpm;
+    uint32_t hold_s = sltest_profile_default.hold_s;
     motor_config_t saved, cfg;
     motor_command_t initial, cmd;
     motor_feedback_source_t feedback;
     bool ok = false, restored;
     char *end;
+    unsigned first_arg = 1U;
+    unsigned trace_mode = 3U;
+    bool motor3508 = false;
+    sltest_profile = sltest_profile_default;
+    sltest_bounds = sltest_bounds_default;
+    while ((unsigned)argc > first_arg && strncmp(argv[first_arg], "--", 2U) == 0) {
+        const char *option = argv[first_arg];
+        if (strcmp(option, "--3508") == 0) motor3508 = true;
+        else if (strncmp(option, "--trace=", 8U) == 0) {
+            const char *value = option + 8;
+            if (strcmp(value, "off") == 0) trace_mode = 0U;
+            else if (strcmp(value, "entry") == 0) trace_mode = 1U;
+            else if (strcmp(value, "entryfast") == 0) trace_mode = 2U;
+            else if (strcmp(value, "lite") == 0) trace_mode = 3U;
+            else if (strcmp(value, "flight") == 0) trace_mode = 4U;
+            else { PRINTF("Invalid sltest trace: off|entry|entryfast|lite\n"); return -1; }
+        } else { PRINTF("Invalid sltest option\n"); return -1; }
+        first_arg++;
+    }
+    if (motor3508) {
+        /* 已验证的3508/24V低速诊断配置；显式选择，禁止借此进入高速。 */
+        sltest_bounds.bus_min_v = 22.0f; sltest_bounds.bus_max_v = 26.0f;
+        sltest_bounds.rpm_max = 600.0f; sltest_bounds.current_abort_a = 1.6f;
+        sltest_profile.default_rpms[2] = 600.0f;
+        sltest_profile.startup_iq_a = 1.0f;
+        sltest_profile.speed_kp = 0.003f; sltest_profile.speed_ki = 0.01f;
+        sltest_profile.low_iq_limit_a = 1.0f;
+        sltest_profile.blend_s = 0.2f;
+    }
     for (i = 0U; i < 3U; i++) rpms[i] = sltest_profile.default_rpms[i];
-    if (argc > 8) { PRINTF("Usage: sltest [hold_s [rpm1 ... rpm6]]\n"); return -1; }
-    if (argc >= 2) {
-        long value = strtol(argv[1], &end, 10);
+    if ((unsigned)argc > first_arg + 7U) { PRINTF("Usage: sltest [--3508] [--trace=off|entry|entryfast|lite|flight] [hold_s [rpm1 ... rpm6]]\n"); return -1; }
+    if ((unsigned)argc > first_arg) {
+        long value = strtol(argv[first_arg], &end, 10);
         if (*end || value < (long)sltest_bounds.hold_min_s || value > (long)sltest_bounds.hold_max_s) { PRINTF("sltest hold: %lu..%lu seconds\n", (unsigned long)sltest_bounds.hold_min_s, (unsigned long)sltest_bounds.hold_max_s); return -1; }
         hold_s = (uint32_t)value;
     }
-    if (argc >= 3) {
-        count = (unsigned)argc - 2U;
+    if ((unsigned)argc > first_arg + 1U) {
+        count = (unsigned)argc - first_arg - 1U;
         for (i = 0U; i < count; i++) {
-            rpms[i] = strtof(argv[i + 2U], &end);
-            if (end == argv[i + 2U] || *end || !isfinite(rpms[i]) || rpms[i] < sltest_bounds.rpm_min || rpms[i] > sltest_bounds.rpm_max) {
+            rpms[i] = strtof(argv[i + first_arg + 1U], &end);
+            if (end == argv[i + first_arg + 1U] || *end || !isfinite(rpms[i]) || rpms[i] < sltest_bounds.rpm_min || rpms[i] > sltest_bounds.rpm_max) {
                 PRINTF("sltest RPM: %.0f..%.0f, positive only\n", sltest_bounds.rpm_min, sltest_bounds.rpm_max); return -1;
             }
         }
@@ -2284,10 +2717,21 @@ int Cmd_SensorlessTest(int argc, char *argv[])
         goto done;
     cmd = initial; cmd.enable = true; cmd.mode = MOTOR_OL_MODE_IF;
     cmd.target_rpm = sltest_profile.startup_rpm; cmd.iq_set = sltest_profile.startup_iq_a; cmd.id_set = 0.0f; cmd.speed_enable = false;
-    Motor_Timing_TraceArmEntry();
+    if (trace_mode == 0U) {
+        Motor_Timing_TraceArm();
+        Motor_Timing_TraceStop();
+    } else if (trace_mode == 2U) Motor_Timing_TraceArmEntryFast();
+    else if (trace_mode == 3U) Motor_Timing_TraceArmLight();
+    else if (trace_mode == 4U) Motor_Timing_TraceArmFlight();
+    else Motor_Timing_TraceArmEntry();
     if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK || !sltest_monitor(sltest_profile.startup_ms, sltest_profile.startup_rpm, 0U, NULL)) goto done;
     if (fabsf(Motor_Sensorless_GetMechanicalRpm() - sltest_profile.startup_rpm) > sltest_profile.startup_tolerance_rpm) {
         PRINTF("sltest: startup not tracking\n"); goto done;
+    }
+    if (motor3508) {
+        cmd.iq_set = 0.5f;
+        if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK ||
+            !sltest_monitor(sltest_profile.settle_ms, sltest_profile.startup_rpm, 0U, NULL)) goto done;
     }
     cmd.speed_enable = true;
     if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) goto done;
@@ -2312,8 +2756,10 @@ int Cmd_SensorlessTest(int argc, char *argv[])
     }
     ok = true;
 done:
-    (void)Motor_RequestStop(&motor);
+    /* 在关桥改变观测状态之前冻结故障前窗口；不发送串口、不等待。 */
     Motor_Timing_TraceStop();
+    (void)Motor_RequestStop(&motor);
+    Motor_Timing_CadenceStop();
     restored = Motor_SetConfig(&motor, &saved) == MOTOR_OK;
     restored = (Motor_SetFeedbackSource(feedback) == MOTOR_OK) && restored;
     initial.enable = false; initial.target_rpm = 0.0f; initial.speed_enable = false;

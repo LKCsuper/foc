@@ -121,6 +121,7 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
     bool mode_changed;
     bool stopping;
     bool speed_changed;
+    bool was_enabled;
 
     if (motor == NULL || cmd == NULL) {
         return MOTOR_ERR_NULL;
@@ -133,6 +134,7 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
     }
 
     primask = Motor_Crit_Enter();
+    was_enabled = motor->ol_enable;
     mode_changed = (motor->ol_mode != normalized.mode);
     stopping = !normalized.enable;
     speed_changed = (motor->speed_enable != normalized.speed_enable);
@@ -152,9 +154,12 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
         Motor_SpeedLoop_Reset();
     }
 
-    /* 应用层命令提交后同步桥臂；占空比仍由 ISR/控制步进决定。 */
+    /* 运行中仅更新命令，不重复改OC模式/通道或产生额外COM事件。
+     * 真正起动或切换模式仍沿用原HAL启动路径；停机始终关断桥臂。 */
     if (normalized.enable) {
-        Hal_Motor_PwmStart();
+        if (!was_enabled || mode_changed) {
+            Hal_Motor_PwmStart();
+        }
     } else {
         /* 旋转中三相 50% 同步 PWM 会形成主动短路制动；停机命令应关断桥臂。 */
         Hal_Motor_PwmStop();

@@ -6,11 +6,16 @@
 #include <stdbool.h>
 #include "motor_sensorless.h"
 #include "motor_speed.h"
+unsigned protect_diagnostic_reads;
 
 void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_t *diagnostics)
 {
     if (diagnostics != NULL) {
+        protect_diagnostic_reads++;
         memset(diagnostics, 0, sizeof(*diagnostics));
+        diagnostics->applied_voltage = 7.0f;
+        diagnostics->blend = 0.75f;
+        diagnostics->flux_ok = true;
     }
 }
 

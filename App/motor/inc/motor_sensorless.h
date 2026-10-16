@@ -66,6 +66,13 @@ typedef struct {
     motor_sensorless_state_t state;
 } motor_sensorless_diagnostics_t;
 
+/* 已计算字段的轻量快照；不求模长、不查询外设，角度rad、磁链Wb、转速RPM。 */
+typedef struct {
+    motor_sensorless_state_t state;
+    bool flux_ok, direction_ok;
+    float pll, flux, rpm, blend, loss, v_alpha, v_beta;
+} motor_sensorless_light_snapshot_t;
+
 /**
  * @description: 无感观测器运行时状态（不持久化）。
  * @detail: 角度均为电角度 (rad)；时间单位 s；转速为机械 RPM。
@@ -142,6 +149,9 @@ typedef struct {
     motor_sensorless_state_t state;
     motor_sensorless_stats_t stats; /* 到达目标且达到接管速度后最多采集10秒，停机保留 */
 } motor_sensorless_runtime_t;
+void Motor_Sensorless_GetLightSnapshotState(const motor_sensorless_runtime_t *rt,
+                                           motor_sensorless_light_snapshot_t *out);
+void Motor_Sensorless_GetLightSnapshot(motor_sensorless_light_snapshot_t *out);
 
 /**
  * @description: 拷贝默认实例最近一次启动的观测统计。

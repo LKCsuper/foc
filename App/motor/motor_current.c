@@ -17,6 +17,10 @@ extern "C" {
 #include "motor_pid.h"
 #include "motor_crit.h"
 #include "motor_timing.h"
+#if defined(__CC_ARM)
+/* 仅提高电流控制计算优化等级；保留浮点规则、PI公式和采样基线。 */
+#pragma O2
+#endif
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -275,6 +279,8 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
     float iq_err;
     float vq_int_before;
     float vq_step;
+    bool profile;
+    uint32_t stage_start;
 
     if (motor == NULL) {
         return v;
@@ -282,12 +288,17 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
 
     iq_err = iq_target - motor->Iq;
     vq_int_before = motor->ol_vq_int;
+    profile = Motor_Timing_ProfileDetailedIsActive();
+    stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
     v.vd = Motor_Current_PI_Run(id_target, motor->Id, &motor->ol_vd_int, motor->ol_current_kp, motor->ol_current_ki, dt,
                                 v_limit);
     v.vq = Motor_Current_PI_Run(iq_target, motor->Iq, &motor->ol_vq_int, motor->ol_current_kp, motor->ol_current_ki, dt,
                                 v_limit);
+    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CURRENT_PI, stage_start);
 
+    stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
     Motor_Current_LimitVoltage(motor, &v, id_target - motor->Id, iq_err, v_limit);
+    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CURRENT_LIMIT, stage_start);
     vq_step = motor->ol_vq_int - vq_int_before;
     if (s_pi_samples < UINT32_MAX) {
         s_pi_samples++;
@@ -382,15 +393,26 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
     float id_target = 0.0f;
     float iq_target = 0.0f;
     motor_dq_voltage_t voltage = {0.0f, 0.0f};
+    bool profile;
+    bool capture;
+    uint32_t stage_start;
 
     if (motor == NULL) {
         return voltage;
     }
 
+    profile = Motor_Timing_ProfileDetailedIsActive();
+    stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
     Motor_Current_FeedbackUpdateDq(motor, theta);
+    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CURRENT_PARK, stage_start);
+    stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
     Motor_Current_GetTargets(motor, ctx, &id_target, &iq_target);
+    capture = Motor_Timing_HandoffDue();
+    if (capture) Motor_Timing_HandoffBefore(motor, theta, ctx != NULL ? ctx->frame_correction : 0.0f,
+                                           id_target, iq_target, dt);
+    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CURRENT_TARGET, stage_start);
     if (ctx != NULL && ctx->frame_correction != 0.0f) {
-        bool profile = Motor_Timing_ProfileIsActive();
+        bool profile = Motor_Timing_ProfileDetailedIsActive();
         uint32_t start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
         Motor_Current_TransportPi(motor, ctx->frame_correction, motor->id_target, motor->iq_target,
                                   id_target, iq_target);
@@ -402,7 +424,10 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
     if (iq_target_out != NULL) {
         *iq_target_out = iq_target;
     }
-    return Motor_Current_RunPi(motor, id_target, iq_target, dt, v_limit);
+    if (capture) Motor_Timing_HandoffTransport(motor);
+    voltage = Motor_Current_RunPi(motor, id_target, iq_target, dt, v_limit);
+    if (capture) Motor_Timing_HandoffAfter(motor, voltage.vd, voltage.vq);
+    return voltage;
 }
 
 /**

@@ -117,7 +117,11 @@ void DebugMon_Handler(void)
  */
 void SysTick_Handler(void)
 {	
+    if (Motor_Timing_WakeProbeArmed()) Motor_Timing_WakeProbeTick(osKernelGetTickCount() + 1U);
+    bool timing_due = Motor_Timing_IrqDue(1U);
+    uint32_t start_us = timing_due ? Hal_Motor_TimeUs() : 0U;
     Bsp_SysTick_Handler();
+    if (timing_due) Motor_Timing_IrqNote(1U, start_us, Hal_Motor_TimeUs(), 0U);
 
     return;
 }
@@ -129,7 +133,19 @@ void SysTick_Handler(void)
  */
 void DMA2_Stream4_IRQHandler(void)
 {
+    bool probe_due = Motor_Timing_WakeProbeDmaDue();
+    bool timing_due = Motor_Timing_IrqDue(0U);
+    uint32_t start_us = (timing_due || probe_due) ? Hal_Motor_TimeUs() : 0U;
+    uint32_t end_us, pending;
     Bsp_Dma2Stream4_Handler();
+    if (probe_due) Motor_Timing_WakeProbeDmaNote(start_us, Hal_Motor_TimeUs());
+    if (timing_due) {
+        end_us = Hal_Motor_TimeUs();
+        pending = SCB->ICSR;
+        Motor_Timing_IrqNote(0U, start_us, end_us,
+            ((pending & SCB_ICSR_PENDSTSET_Msk) ? 1U : 0U) |
+            ((pending & SCB_ICSR_PENDSVSET_Msk) ? 2U : 0U));
+    }
     
     return;
 }

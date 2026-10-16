@@ -13,6 +13,10 @@ extern "C" {
 #include <string.h>
 #include "motor_utils.h"
 #include "motor_foc.h"
+#if defined(__CC_ARM)
+/* 查表数学和通用工具局部O2，不启用快速浮点或改变插值公式。 */
+#pragma O2
+#endif
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define SIN_TABLE_SIZE  512

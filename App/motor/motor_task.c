@@ -12,6 +12,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#include "motor_task_clock.h"
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_TASK_PID_STACK_WORDS 512U
 #define MOTOR_TASK_ENCODER_STACK_WORDS 256U
@@ -108,17 +109,31 @@ static void Motor_Task_Pid(void *argument)
 {
     uint32_t tick;
     uint32_t last_us;
+    uint32_t now_us;
+    uint32_t complete_us;
+    bool diagnostics;
     float dt;
+    motor_speed_snapshot_t before;
 
     (void)argument;
     tick = osKernelGetTickCount();
     last_us = Hal_Motor_TimeUs();
 
     for (;;) {
-        Motor_Task_DelayNextTick(&tick, Motor_Task_PidPeriodTicks());
+        if (Motor_Timing_SpeedTaskIsActive()) {
+            Motor_Timing_SpeedTaskStage(Hal_Motor_TimeUs(), osKernelGetTickCount(), 1U);
+        }
+        tick = Motor_Task_NextDeadline(tick, osKernelGetTickCount(), Motor_Task_PidPeriodTicks());
+        Motor_Timing_WakeProbeArm(tick);
+        (void)osDelayUntil(tick);
+        diagnostics = Motor_Timing_SpeedTaskIsActive();
+        if (diagnostics) {
+            Motor_Timing_SpeedTaskWake(Hal_Motor_TimeUs(), osKernelGetTickCount(), tick);
+        }
 
-        dt = Hal_Motor_TimeElapsedSec(last_us);
-        last_us = Hal_Motor_TimeUs();
+        now_us = Hal_Motor_TimeUs();
+        dt = (float)(uint32_t)(now_us - last_us) * 1.0e-6f;
+        last_us = now_us;
         if (dt < MOTOR_TASK_PID_DT_MIN_S) {
             dt = MOTOR_TASK_PID_DT_MIN_S;
         } else if (dt > MOTOR_TASK_PID_DT_MAX_S) {
@@ -130,7 +145,22 @@ static void Motor_Task_Pid(void *argument)
         } else {
             Motor_Position_Run(dt);
         }
-        Motor_SpeedLoop_Run(&motor, dt);
+        if (diagnostics) {
+            Motor_Timing_SpeedTaskStage(Hal_Motor_TimeUs(), osKernelGetTickCount(), 3U);
+            (void)Motor_SpeedLoop_GetSnapshot(&before);
+        }
+        Motor_SpeedLoop_RunScheduled(&motor, dt);
+        if (diagnostics) {
+            motor_speed_snapshot_t speed;
+            Motor_Timing_SpeedTaskStage(Hal_Motor_TimeUs(), osKernelGetTickCount(), 4U);
+            (void)Motor_SpeedLoop_GetSnapshot(&speed);
+            complete_us = Hal_Motor_TimeUs();
+            Motor_Timing_SpeedPiNote(complete_us, speed.update_count != before.update_count);
+            Motor_Timing_SpeedTaskNote(complete_us, Motor_SpeedLoop_IsRunAllowed(),
+                                      speed.target_rpm, speed.measured_rpm, speed.iq_target);
+        } else {
+            Motor_Timing_SpeedTaskHeartbeat(Hal_Motor_TimeUs());
+        }
     }
 }
 

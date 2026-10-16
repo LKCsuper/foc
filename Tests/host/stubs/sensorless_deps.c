@@ -7,6 +7,18 @@
 #include "motor_timing.h"
 
 bool Motor_Timing_ProfileIsActive(void) { return false; }
+bool host_observer_step_active;
+motor_observer_step_sample_t host_observer_step;
+unsigned host_observer_step_count;
+bool Motor_Timing_ObserverStepActive(void) { return host_observer_step_active; }
+bool Motor_Timing_ObserverStepDue(void) { return host_observer_step_active; }
+void Motor_Timing_ObserverStepPush(const motor_observer_step_sample_t *sample)
+{
+    host_observer_step = *sample;
+    host_observer_step_count++;
+}
+bool Motor_Timing_PhaseDue(bool completed) { (void)completed; return false; }
+void Motor_Timing_PhasePush(const motor_phase_sample_t *sample) { (void)sample; }
 uint32_t Motor_Timing_ProfileTimeUs(void) { return 0U; }
 void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start)
 {

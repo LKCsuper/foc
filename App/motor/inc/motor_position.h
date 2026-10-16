@@ -13,23 +13,9 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
+#include "motor_position_core.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
-/**
- * @description: 位置环只读状态
- */
-typedef struct {
-    bool enabled;          /* true=本拍由位置速度 PI 输出电压 */
-    int32_t origin_count;  /* 零点对应的累计机械计数 */
-    float target_deg;      /* 目标位置 (deg) */
-    float position_deg;    /* 当前位置 (deg) */
-    float error_deg;       /* 目标减当前位置 (deg) */
-    float target_rpm;      /* 位置 P 给出的速度目标 (RPM) */
-    float kp_rpm_per_deg;  /* 位置比例 (RPM/deg) */
-    float max_rpm;         /* 速度目标限幅 (RPM) */
-    float tolerance_deg;   /* 误差和转速都足够小才把速度命令收成 0 (deg) */
-    bool voltage_hold_mode; /* true=目标附近直接电压保持；false=速度电流环移动 */
-} motor_position_state_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/

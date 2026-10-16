@@ -11,6 +11,9 @@ extern "C" {
 #include <math.h>
 #include "motor_foc.h"
 #include "motor_math.h"
+#if defined(__CC_ARM)
+#pragma O2
+#endif
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -59,6 +62,13 @@ void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
  */
 void inverse_clarke(float Ialpha, float Ibeta, float *Ia, float *Ib, float *Ic)
 {
+    /*
+     * 历史写法（已停用）：三相各自加 24/2 = 12 的直流偏置，即把围绕 0 的
+     * 双极性相电压平移半个 24 V 母线，凑成单极性区间，便于直接写比较值。
+     * 现直流偏置已统一到 SVPWM 级完成（foc_svm/svm_hqd 以 ARR/2 为中心），
+     * 此处若再加一次会重复抬升、把占空比整体顶偏，故只保留三相零和的差模输出。
+     * 下方三行仅作历史参考，C 侧无调用者；对应 MATLAB foc.inverse_clarke（零和版）。
+     */
     // *Ia =  Ialpha + 24.0f / 2;
     // *Ib =  Ibeta * SQRT3_BY_2 - Ialpha / 2 + 24.0 / 2;
     // *Ic =  - Ialpha / 2 - Ibeta * SQRT3_BY_2 + 24.0 / 2;

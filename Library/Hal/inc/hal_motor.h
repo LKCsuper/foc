@@ -51,6 +51,9 @@ void Hal_Motor_PwmSetDuty(uint32_t duty_a, uint32_t duty_b, uint32_t duty_c);
  * @author: lkc
  */
 void Hal_Motor_PwmCommit(void);
+/** 停机设置软件提交计数，enable时清零；不改变定时器。计数不代表硬件装载事件。 */
+void Hal_Motor_PwmDiagnosticEnable(bool enable);
+uint32_t Hal_Motor_PwmDiagnosticSequence(void);
 
 /**
  * @description: 输出三相中点占空比并提交（各 period/2）。

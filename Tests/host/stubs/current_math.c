@@ -27,5 +27,12 @@ void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq
 }
 #include "motor_timing.h"
 bool Motor_Timing_ProfileIsActive(void) { return false; }
+bool Motor_Timing_HandoffDue(void) { return false; }
+void Motor_Timing_HandoffBefore(const MOTOR_PARAM_S *motor, float theta, float delta, float id, float iq, float dt)
+{ (void)motor; (void)theta; (void)delta; (void)id; (void)iq; (void)dt; }
+void Motor_Timing_HandoffTransport(const MOTOR_PARAM_S *motor) { (void)motor; }
+void Motor_Timing_HandoffAfter(const MOTOR_PARAM_S *motor, float vd, float vq)
+{ (void)motor; (void)vd; (void)vq; }
+bool Motor_Timing_ProfileDetailedIsActive(void) { return false; }
 uint32_t Motor_Timing_ProfileTimeUs(void) { return 0U; }
 void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start) { (void)stage; (void)start; }

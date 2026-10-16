@@ -56,16 +56,7 @@ void MotorHfiStart_Reset(motor_hfi_start_t *state)
  */
 void MotorHfiStart_NormalizeConfig(motor_hfi_start_config_t *config)
 {
-    if (config == NULL) return;
-    if (config->voltage < 0.0f) config->voltage = 0.0f;
-    if (config->cycles_per_axis < 2U) config->cycles_per_axis = 2U;
-    if (config->cycles_per_axis > 32U) config->cycles_per_axis = 32U;
-    if (config->min_confidence < 0.0f) config->min_confidence = 0.0f;
-    if (config->min_confidence > 1.0f) config->min_confidence = 1.0f;
-    if (config->max_bus_voltage_ratio <= 0.0f ||
-        config->max_bus_voltage_ratio > 1.0f) {
-        config->max_bus_voltage_ratio = 0.20f;
-    }
+    MotorHfiStart_NormalizeConfigInline(config);
 }
 
 /**

@@ -21,6 +21,7 @@ extern "C" {
 #include "motor_hall.h"
 #include "motor_encoder.h"
 #include "motor_anticogging.h"
+#include "motor_timing.h"
 #if defined(__CC_ARM)
 /* 仅优化控制编排的调用开销，保持浮点规则及外设配置。 */
 #pragma O2
@@ -264,7 +265,7 @@ void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor)
     alignment_config.current = motor->ol_align_current;
     alignment_config.duration = motor->ol_align_time;
     alignment_config.angle = motor->ol_align_angle;
-    MotorAlignment_NormalizeConfig(&alignment_config);
+    MotorAlignment_NormalizeConfigInline(&alignment_config);
     motor->ol_align_current = alignment_config.current;
     motor->ol_align_time = alignment_config.duration;
     utils_norm_angle_rad(&motor->ol_align_angle);
@@ -274,7 +275,7 @@ void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor)
     hfi_config.cycles_per_axis = motor->hfi_start_cycles;
     hfi_config.min_confidence = motor->hfi_start_min_confidence;
     hfi_config.max_bus_voltage_ratio = 0.20f;
-    MotorHfiStart_NormalizeConfig(&hfi_config);
+    MotorHfiStart_NormalizeConfigInline(&hfi_config);
     motor->hfi_start_voltage = hfi_config.voltage;
     motor->hfi_start_cycles = hfi_config.cycles_per_axis;
     motor->hfi_start_min_confidence = hfi_config.min_confidence;
@@ -794,7 +795,6 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
     } else if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
         float iq_abs;
         float fw_max;
-        float id_room;
 
         if (ctx.speed_loop_active) {
             iq_abs = fabsf(ctx.speed_iq_target * ctx.soft_current_scale);
@@ -802,9 +802,12 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
             iq_abs = fabsf(motor->ol_iq_set * ctx.if_iq_scale * ctx.soft_current_scale);
         }
         fw_max = motor->fw_current_max;
-        id_room = Motor_Fw_IdRoom(iq_abs, MOTOR_FW_I_BUDGET);
-        if (fw_max > id_room) {
-            fw_max = id_room;
+        /* 弱磁关闭时Step直接清零Id，不必每拍计算电流圆的sqrt余量。 */
+        if (fw_max > 0.0f) {
+            float id_room = Motor_Fw_IdRoom(iq_abs, MOTOR_FW_I_BUDGET);
+            if (fw_max > id_room) {
+                fw_max = id_room;
+            }
         }
         ctx.id_fw = Motor_Fw_Step(&ctrl->fw, fw_max, motor->fw_duty_start, motor->fw_ramp_a_s, ctrl->fw.last_vd,
                                   ctrl->fw.last_vq, v_limit, dt);
@@ -1106,12 +1109,15 @@ static const motor_feedback_sample_t *Motor_Control_RunIfDrag(motor_control_t *c
 {
     bool sensored = Motor_Feedback_IsSensoredSource(Motor_Feedback_GetSourceDefault());
     bool was_latched;
+    bool profile = Motor_Timing_ProfileDetailedIsActive();
+    uint32_t stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
 
     Motor_Control_UpdateDragCurrent(ctrl, dt);
     Motor_Control_UpdateSpeed(motor, dt, sensored || Motor_Sensorless_IsTakeoverComplete());
     Motor_Control_StartupIf(ctrl, motor);
     Motor_Control_UpdateTheta(ctrl, motor, dt);
     ctrl->current_frame_correction = 0.0f;
+    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_DRAG_ANGLE, stage_start);
 
     if (sensored) {
         float open = motor->ol_theta + ctrl->startup.if_start.phase_boost;
@@ -1126,11 +1132,13 @@ static const motor_feedback_sample_t *Motor_Control_RunIfDrag(motor_control_t *c
                              Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_SENSORLESS &&
                              !Motor_Sensorless_IsTakeoverComplete();
         Motor_Sensorless_Update(motor, dt);
+        if (transitioning && Motor_Sensorless_IsTakeoverComplete()) Motor_Timing_HandoffMark();
         if (transitioning && motor->ol_theta != before_theta) {
             ctrl->current_frame_correction = utils_angle_difference_rad(motor->ol_theta, before_theta);
         }
     }
 
+    stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
     was_latched = ctrl->speed_loop_latched;
     if (Motor_Control_SpeedLoopReady(ctrl, motor)) {
         if (!was_latched) {
@@ -1143,6 +1151,7 @@ static const motor_feedback_sample_t *Motor_Control_RunIfDrag(motor_control_t *c
         Motor_SpeedLoop_Reset();
     }
 
+    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_SPEED_GATE, stage_start);
     return sensored ? feedback_out : NULL;
 }
 
@@ -1161,6 +1170,8 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
 {
     motor_control_result_t result;
     motor_control_result_t hfi_result;
+    bool profile = Motor_Timing_ProfileDetailedIsActive();
+    uint32_t stage_start;
     motor_feedback_sample_t sensored_feedback;
     const motor_feedback_sample_t *current_feedback = NULL;
 
@@ -1196,17 +1207,24 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
         return Motor_Control_PublishTheta(motor, result);
     }
 
+    stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
     Motor_Control_NormalizeConfig(motor);
+    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CONFIG, stage_start);
 
     if (motor->ol_mode == MOTOR_OL_MODE_IF) {
+        stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
         if (Motor_Control_RunHfi(ctrl, motor, v_bus, &hfi_result)) {
             return Motor_Control_PublishTheta(motor, hfi_result);
         }
         Motor_Control_AdvanceIfStartup(ctrl, motor, dt);
+        if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_STARTUP, stage_start);
         if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
             current_feedback = Motor_Control_RunIfDrag(ctrl, motor, dt, &sensored_feedback);
         }
-        return Motor_Control_PublishTheta(motor, Motor_Control_RunIf(ctrl, motor, v_bus, dt, current_feedback));
+        stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+        result = Motor_Control_RunIf(ctrl, motor, v_bus, dt, current_feedback);
+        if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_IF_CURRENT, stage_start);
+        return Motor_Control_PublishTheta(motor, result);
     }
 
     /* V/F：电压软起 + 幅值上限；与转速同时斜坡（不做高压直流励磁）。 */
@@ -1285,27 +1303,7 @@ float Motor_Control_HfiGetConfidence(const motor_control_t *ctrl)
     return ctrl == NULL ? 0.0f : ctrl->startup.hfi_start.confidence;
 }
 
-/**
- * @description: 故障仲裁：已锁存故障时强制 SAFE，禁止 DQ 覆盖安全输出。
- * @param {bool} fault_latched  保护是否已锁存
- * @param {const motor_control_result_t} *proposed  Control_Step 提议
- * @return {motor_control_result_t} 最终输出
- * @author: lkc
- */
-motor_control_result_t Motor_Control_ArbitrateOutput(bool fault_latched, const motor_control_result_t *proposed)
-{
-    motor_control_result_t none;
 
-    if (fault_latched) {
-        return Motor_Control_ResultSafe();
-    }
-    if (proposed == NULL) {
-        memset(&none, 0, sizeof(none));
-        none.action = MOTOR_CONTROL_ACTION_NONE;
-        return none;
-    }
-    return *proposed;
-}
 
 #ifdef __cplusplus
 }

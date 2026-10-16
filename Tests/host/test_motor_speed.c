@@ -123,9 +123,13 @@ int main(void)
     Motor_Speed_Init();
     Motor_SpeedFeedback_Set(900.0f, true);
     Motor_SpeedLoop_SetRunAllowed(false);
+    Motor_SpeedLoop_RunScheduled(&motor_a, 0.00099f);
+    assert(Motor_SpeedLoop_GetSnapshot(&speed_snapshot) && speed_snapshot.update_count == 0U);
     Motor_SpeedLoop_Run(&motor_a, dt);
     assert(Motor_SpeedLoop_GetIqTarget() == 0.0f);
     Motor_SpeedLoop_SetRunAllowed(true);
+    Motor_SpeedLoop_RunScheduled(&motor_a, 0.00099f);
+    assert(Motor_SpeedLoop_GetSnapshot(&speed_snapshot) && speed_snapshot.update_count == 1U);
     Motor_SpeedLoop_PrimeIq(0.5f);
     Motor_SpeedLoop_Run(&motor_a, dt);
     assert(Motor_SpeedLoop_GetIqTarget() != 0.0f);

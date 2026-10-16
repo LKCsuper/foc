@@ -58,9 +58,19 @@ void Hal_Motor_PwmSetDuty(uint32_t duty_a, uint32_t duty_b, uint32_t duty_c)
  * @return {*}
  * @author: lkc
  */
+static volatile bool s_pwm_diagnostic_enabled;
+static volatile uint32_t s_pwm_diagnostic_sequence;
+void Hal_Motor_PwmDiagnosticEnable(bool enable)
+{
+    s_pwm_diagnostic_enabled = false;
+    if (enable) s_pwm_diagnostic_sequence = 0U;
+    s_pwm_diagnostic_enabled = enable;
+}
+uint32_t Hal_Motor_PwmDiagnosticSequence(void) { return s_pwm_diagnostic_sequence; }
 void Hal_Motor_PwmCommit(void)
 {
     TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
+    if (s_pwm_diagnostic_enabled) s_pwm_diagnostic_sequence++;
 }
 
 /**

@@ -6,300 +6,54 @@
 extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
-#include <math.h>
-#include <string.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "motor_param.h"
 #include "motor_speed.h"
 #include "motor_protect.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-/* 速度输出与误差同向顶满时，积分泄放时间常数 (s)。此期间不再累加。 */
-#define MOTOR_SPEED_LIMIT_DECAY_S 0.100f
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* 默认单实例包装，步骤 2 过渡期保留。 */
 static motor_speed_state_t s_speed;
 /* ISR 在速度 PI 接管后置 true；foc pid 任务据此决定是否 Run。 */
 static volatile bool s_pi_run_allowed;
+bool Motor_SpeedLoop_IsRunAllowed(void) { return s_pi_run_allowed; }
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
-/**
- * @description: 将 value 限幅到 [minimum, maximum]
- * @param {float} value 待限幅值
- * @param {float} minimum 下限
- * @param {float} maximum 上限
- * @return {float} 限幅结果
- * @author: lkc
- */
-static float Motor_Speed_Clamp(float value, float minimum, float maximum)
+/** 项目兼容入口：只映射输入，控制算法唯一实现位于core。 */
+static void Motor_SpeedLoop_RunInternal(motor_speed_state_t *state, MOTOR_PARAM_S *motor, float dt, bool scheduled)
 {
-    if (value > maximum) {
-        return maximum;
-    }
-    if (value < minimum) {
-        return minimum;
-    }
-    return value;
-}
-
-/**
- * @description: 清零速度 PI 的积分、误差和 Iq，保留反馈转速。
- * @param {motor_speed_state_t *} state  速度环状态，调用方保证非空
- * @return {void} 无
- * @author: lkc
- */
-static void Motor_Speed_ClearPi(motor_speed_state_t *state)
-{
-    state->loop_time = 0.0f;
-    state->integral = 0.0f;
-    state->error = 0.0f;
-    state->iq_target = 0.0f;
-}
-
-/**
- * @description: 初始化指定速度环状态对象，清零反馈、PI 与分频时间
- * @param {motor_speed_state_t} *state 状态对象，不可为空
- * @return {*}
- * @author: lkc
- */
-void Motor_Speed_InitState(motor_speed_state_t *state)
-{
-    if (state == NULL) {
-        return;
-    }
-    memset(state, 0, sizeof(*state));
-}
-
-/**
- * @description: 更新指定状态对象的机械转速反馈
- * @detail: 反馈无效时清零转速并复位 PI，避免用不可信值闭环
- * @param {motor_speed_state_t} *state 状态对象，不可为空
- * @param {float} rpm 机械转速 (RPM)
- * @param {bool} valid true=反馈可信
- * @return {*}
- * @author: lkc
- */
-void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool valid)
-{
-    if (state == NULL) {
-        return;
-    }
-    state->measured_rpm = valid ? rpm : 0.0f;
-    state->feedback_valid = valid;
-    if (!valid) {
-        Motor_SpeedLoop_ResetState(state);
+    motor_speed_input_t input;
+    if (state == NULL || motor == NULL) { return; }
+    input.enabled = motor->speed_enable && motor->ol_mode == MOTOR_OL_MODE_IF && motor->ol_enable;
+    input.inhibited = motor->position_voltage_hold || motor->joint_voltage_hold || motor->joint_current_hold;
+    input.allow_braking = motor->speed_allow_braking;
+    input.position_hold = motor->position_hold;
+    input.command_rpm = motor->ol_target_rpm;
+    input.target_rpm = motor->ol_current_rpm;
+    input.loop_hz = motor->speed_loop_hz;
+    input.kp = motor->speed_kp;
+    input.ki = motor->speed_ki;
+    input.iq_limit = motor->speed_iq_limit;
+    if ((scheduled ? Motor_SpeedLoop_StepScheduledState(state, &input, dt) :
+                     Motor_SpeedLoop_StepState(state, &input, dt)) && motor->speed_loop_hz < 1.0f) {
+        motor->speed_loop_hz = 1.0f; /* 保留旧入口仅进入分频后归一化的行为。 */
     }
 }
 
-/**
- * @description: 清除指定状态对象的 PI（保留反馈转速）
- * @param {motor_speed_state_t} *state 状态对象，不可为空
- * @return {*}
- * @author: lkc
- */
-void Motor_SpeedLoop_ResetState(motor_speed_state_t *state)
-{
-    if (state == NULL) {
-        return;
-    }
-    Motor_Speed_ClearPi(state);
-    state->zero_brake_active = false;
-    state->zero_brake_released = false;
-    state->zero_brake_direction = 0;
-}
-
-/**
- * @description: 预置指定状态对象的 Iq 积分与输出，清分频时间
- * @param {motor_speed_state_t} *state 状态对象，不可为空
- * @param {float} iq 预置 Iq (A)
- * @return {*}
- * @author: lkc
- */
-void Motor_SpeedLoop_PrimeIqState(motor_speed_state_t *state, float iq)
-{
-    if (state == NULL) {
-        return;
-    }
-    state->integral = iq;
-    state->iq_target = iq;
-    state->loop_time = 0.0f;
-}
-
-/**
- * @description: 运行指定状态对象的速度 PI，输出 Iq 目标
- * @detail: 仅 I/F+使能且反馈有效时分频执行；输出限幅到 speed_iq_limit。
- *          输出与误差同向顶满时积分按 MOTOR_SPEED_LIMIT_DECAY_S 泄放，不再累加。
- *          负误差可以出负 Iq，用来抵消前馈。禁止制动的反向限制不在这里做。
- * @param {motor_speed_state_t} *state 状态对象，不可为空
- * @param {MOTOR_PARAM_S} *motor 配置与目标来源，不可为空
- * @param {float} dt 距上一拍时间 (s)
- * @return {*}
- * @author: lkc
- */
 void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, float dt)
 {
-    float loop_period;
-    float control_dt;
-    float iq_limit;
-    float proportional;
-    float integral_candidate;
-    float unsaturated_output;
-    float output;
-
-    if (state == NULL || motor == NULL) {
-        return;
-    }
-
-    if (!motor->speed_enable || motor->ol_mode != MOTOR_OL_MODE_IF || !motor->ol_enable || !state->feedback_valid) {
-        Motor_SpeedLoop_ResetState(state);
-        return;
-    }
-
-    /* 位置环自己出电压，原速度 PI 的低速噪声和起动前馈不能再叠进去。 */
-    if (motor->position_voltage_hold || motor->joint_voltage_hold || motor->joint_current_hold) {
-        Motor_SpeedLoop_ResetState(state);
-        return;
-    }
-
-    /*
-     * 零速且禁止制动表示自然滑停：立即释放历史正向积分，避免停住后仍持续施加转矩。
-     * 位置环保持时零速是要定住的目标，不能走这条松开路径。
-     */
-    if (!motor->speed_allow_braking && !motor->position_hold && motor->ol_target_rpm == 0.0f) {
-        Motor_SpeedLoop_ResetState(state);
-        return;
-    }
-    if (motor->position_hold || motor->ol_target_rpm != 0.0f) {
-        state->zero_brake_active = false;
-        state->zero_brake_released = false;
-        state->zero_brake_direction = 0;
-    } else {
-        int8_t direction = state->measured_rpm > 1.0f ? 1 : (state->measured_rpm < -1.0f ? -1 : 0);
-
-        if (!state->zero_brake_active && !state->zero_brake_released) {
-            if (direction == 0) {
-                state->zero_brake_released = true;
-            } else {
-                state->zero_brake_active = true;
-                state->zero_brake_direction = direction;
-            }
-        } else if (state->zero_brake_active &&
-                   (direction == 0 || direction != state->zero_brake_direction)) {
-            /* Hall 低速区可能超时归零，也可能越过零点后才给出反向边沿；两种情况都必须释放。 */
-            state->zero_brake_active = false;
-            state->zero_brake_released = true;
-        }
-        if (state->zero_brake_released) {
-            Motor_Speed_ClearPi(state);
-            return;
-        }
-    }
-
-    if (motor->speed_loop_hz < 1.0f) {
-        motor->speed_loop_hz = 1.0f;
-    }
-    loop_period = 1.0f / motor->speed_loop_hz;
-    state->loop_time += dt;
-    if (state->loop_time < loop_period) {
-        return;
-    }
-
-    control_dt = state->loop_time;
-    state->loop_time = 0.0f;
-    iq_limit = fabsf(motor->speed_iq_limit);
-
-    state->control_target_rpm = motor->ol_current_rpm;
-    state->control_measured_rpm = state->measured_rpm;
-    state->error = state->control_target_rpm - state->control_measured_rpm;
-    proportional = motor->speed_kp * state->error;
-    integral_candidate = state->integral + motor->speed_ki * state->error * control_dt;
-    unsaturated_output = proportional + integral_candidate;
-
-    if ((unsaturated_output > iq_limit && state->error > 0.0f) ||
-        (unsaturated_output < -iq_limit && state->error < 0.0f)) {
-        float decay = control_dt / MOTOR_SPEED_LIMIT_DECAY_S;
-
-        if (decay > 1.0f) {
-            decay = 1.0f;
-        }
-        /* 同向顶满时不再累加，并按时间常数把已有积分泄掉，避免转速过了目标还满电流推。 */
-        state->integral *= (1.0f - decay);
-    } else {
-        state->integral = Motor_Speed_Clamp(integral_candidate, -iq_limit, iq_limit);
-    }
-    output = Motor_Speed_Clamp(proportional + state->integral, -iq_limit, iq_limit);
-    state->iq_target = output;
+    Motor_SpeedLoop_RunInternal(state, motor, dt, false);
 }
 
-/**
- * @description: 禁用制动时，把最终电压或电流限制成不与转速命令反向。
- * @detail: 速度 PI 本身可以出负修正，用来抵消前馈。本函数用在前馈与 PI 相加之后。
- *          允许制动，或命令转速为 0 时，原样返回。
- * @param {float} command_rpm  转速命令 (RPM)，符号表示驱动方向
- * @param {float} output       即将执行的电压 (V) 或电流 (A)
- * @param {bool} allow_braking true=允许反向制动
- * @return {float} 限幅后的输出，单位与 output 相同
- * @author: lkc
- */
-float Motor_Speed_LimitNoBrakeOutput(float command_rpm, float output, bool allow_braking)
+void Motor_SpeedLoop_RunScheduled(MOTOR_PARAM_S *motor, float dt)
 {
-    if (allow_braking) {
-        return output;
-    }
-    if (command_rpm > 0.0f && output < 0.0f) {
-        return 0.0f;
-    }
-    if (command_rpm < 0.0f && output > 0.0f) {
-        return 0.0f;
-    }
-    return output;
-}
-
-/**
- * @description: 读取指定状态当前 Iq 目标
- * @param {const motor_speed_state_t} *state 状态对象；NULL 返回 0
- * @return {float} Iq 目标 (A)
- * @author: lkc
- */
-float Motor_SpeedLoop_GetIqTargetState(const motor_speed_state_t *state)
-{
-    return state == NULL ? 0.0f : state->iq_target;
-}
-
-/**
- * @description: 读取指定状态实测机械转速
- * @param {const motor_speed_state_t} *state 状态对象；NULL 返回 0
- * @return {float} 机械转速 (RPM)
- * @author: lkc
- */
-float Motor_SpeedLoop_GetMeasuredRpmState(const motor_speed_state_t *state)
-{
-    return state == NULL ? 0.0f : state->measured_rpm;
-}
-
-/**
- * @description: 读取指定状态速度误差（目标−实测）
- * @param {const motor_speed_state_t} *state 状态对象；NULL 返回 0
- * @return {float} 速度误差 (RPM)
- * @author: lkc
- */
-float Motor_SpeedLoop_GetErrorState(const motor_speed_state_t *state)
-{
-    return state == NULL ? 0.0f : state->error;
-}
-
-/**
- * @description: 查询指定状态速度反馈是否可信
- * @param {const motor_speed_state_t} *state 状态对象；NULL 返回 false
- * @return {bool} true=反馈可信，可用于闭环
- * @author: lkc
- */
-bool Motor_SpeedLoop_IsFeedbackValidState(const motor_speed_state_t *state)
-{
-    return state != NULL && state->feedback_valid;
+    if (!s_pi_run_allowed) return;
+    Motor_SpeedLoop_RunInternal(&s_speed, motor, dt, true);
 }
 
 /**
@@ -432,6 +186,7 @@ bool Motor_SpeedLoop_GetSnapshot(motor_speed_snapshot_t *snapshot)
     }
 
     snapshot->target_rpm = s_speed.control_target_rpm;
+    snapshot->update_count = s_speed.update_count;
     snapshot->measured_rpm = s_speed.control_measured_rpm;
     snapshot->error = s_speed.error;
     snapshot->iq_target = s_speed.iq_target;

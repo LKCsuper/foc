@@ -82,7 +82,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor API host compilation failed' }
     & .build/host/test_motor_api.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor API host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_speed.c Tests/host/test_motor_speed.c -o .build/host/test_motor_speed.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_speed_core.c App/motor/motor_speed.c Tests/host/test_motor_speed.c -o .build/host/test_motor_speed.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor speed host compilation failed' }
     & .build/host/test_motor_speed.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor speed host tests failed' }
@@ -98,7 +98,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor timing host compilation failed' }
     & .build/host/test_motor_timing.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor timing host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_output.c Tests/host/test_motor_output.c -o .build/host/test_motor_output.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_output_core.c App/motor/motor_output.c Tests/host/test_motor_output.c -o .build/host/test_motor_output.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor output host compilation failed' }
     & .build/host/test_motor_output.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor output host tests failed' }
@@ -130,7 +130,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor sensor update host compilation failed' }
     & .build/host/test_motor_sensor_update.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor sensor update host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_position_control.c App/motor/motor_position.c Tests/host/test_motor_position.c -o .build/host/test_motor_position.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_position_core.c App/motor/motor_position_control.c App/motor/motor_position.c Tests/host/test_motor_position.c -o .build/host/test_motor_position.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor position host compilation failed' }
     & .build/host/test_motor_position.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor position host tests failed' }
@@ -150,7 +150,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint trajectory host compilation failed' }
     & .build/host/test_motor_joint_trajectory.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor joint trajectory host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_protect.c Tests/host/stubs/protect_deps.c Tests/host/test_motor_protect.c -o .build/host/test_motor_protect.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_protect_core.c App/motor/motor_protect.c Tests/host/stubs/protect_deps.c Tests/host/test_motor_protect.c -o .build/host/test_motor_protect.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor protect host compilation failed' }
     & .build/host/test_motor_protect.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor protect host tests failed' }
@@ -198,11 +198,11 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor SMO host compilation failed' }
     & .build/host/test_motor_smo.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor SMO host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_output_core.c App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control host compilation failed' }
     & .build/host/test_motor_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control host tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -DMOTOR_CONTROL_HOLD_ONLY -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control_hold_2804.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -DMOTOR_CONTROL_HOLD_ONLY -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_output_core.c App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control_hold_2804.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control 2804 hold compilation failed' }
     & .build/host/test_motor_control_hold_2804.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control 2804 hold tests failed' }
@@ -263,6 +263,22 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Example 01 transform compilation failed' }
     & .build/host/example_01_transform.exe
     if ($LASTEXITCODE -ne 0) { throw 'Example 01 transform failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/motor_speed_core.c Tests/host/test_motor_speed_core.c -o .build/host/test_motor_speed_core.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Speed standalone compilation failed' }
+    & .build/host/test_motor_speed_core.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Speed standalone tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/motor_protect_core.c App/motor/motor_position_control.c Tests/host/test_motor_control_cores.c -o .build/host/test_motor_control_cores.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Protection/position standalone compilation failed' }
+    & .build/host/test_motor_control_cores.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Protection/position standalone tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/motor_position_core.c App/motor/motor_position_control.c Tests/host/test_motor_position_core.c -o .build/host/test_motor_position_core.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Position mode standalone compilation failed' }
+    & .build/host/test_motor_position_core.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Position mode standalone tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/motor_output_core.c Tests/host/test_motor_output_core.c -o .build/host/test_motor_output_core.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Output standalone compilation failed' }
+    & .build/host/test_motor_output_core.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Output standalone tests failed' }
     & ./Scripts/export_reusable_modules.ps1
     $portableSources = @(Get-Content .build/reusable_modules/source_manifest.json -Raw | ConvertFrom-Json | ForEach-Object {
         Join-Path '.build/reusable_modules/src' (Split-Path $_ -Leaf)

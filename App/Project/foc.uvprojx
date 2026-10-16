@@ -1034,6 +1034,11 @@
               <FilePath>..\motor\motor_foc_isr.c</FilePath>
             </File>
             <File>
+              <FileName>motor_output_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_output_core.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_output.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_output.c</FilePath>
@@ -1074,9 +1079,19 @@
               <FilePath>..\motor\motor_anticogging.c</FilePath>
             </File>
             <File>
+              <FileName>motor_protect_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_protect_core.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_protect.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_protect.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_speed_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_speed_core.c</FilePath>
             </File>
             <File>
               <FileName>motor_speed.c</FileName>
@@ -1087,6 +1102,11 @@
               <FileName>motor_speed_ff_detect.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_speed_ff_detect.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_position_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_position_core.c</FilePath>
             </File>
             <File>
               <FileName>motor_position.c</FileName>

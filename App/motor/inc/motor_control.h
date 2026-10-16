@@ -17,6 +17,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include "motor_param.h"
+#include "motor_output_core.h"
 #include "motor_alignment.h"
 #include "motor_if_start.h"
 #include "motor_hfi_start.h"
@@ -51,24 +52,6 @@ typedef struct {
     float current_frame_correction; /* 本拍无感渐变附加角，排除正常转速积分(rad) */
 } motor_control_t;
 
-/**
- * @description: 本拍输出仲裁动作（由平台层应用 PWM）
- */
-typedef enum {
-    MOTOR_CONTROL_ACTION_NONE = 0, /* 无 PWM 更新（极少用） */
-    MOTOR_CONTROL_ACTION_SAFE,     /* 三相 mid=period/2；非关桥/非无转矩保证 */
-    MOTOR_CONTROL_ACTION_OUTPUT_DQ /* 请求 vd/vq + theta 经反 Park/SVPWM */
-} motor_control_action_t;
-
-/**
- * @description: 本拍输出仲裁结果
- */
-typedef struct {
-    motor_control_action_t action;
-    float vd;    /* D 轴电压 (V) */
-    float vq;    /* Q 轴电压 (V) */
-    float theta; /* 电角度 (rad)，Park/反 Park 用 */
-} motor_control_result_t;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/

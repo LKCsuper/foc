@@ -109,24 +109,27 @@ VOID Bsp_Usart_Handler(VOID)
  */
 VOID Bsp_Dma2Stream4_Handler(VOID)
 {
+    bool timing_active = Motor_Timing_CallbackIsActive();
     /* modify:codex 原因：只在当前启用的 HT/TC 标志置位时调用 Motor_DmaInt，避免非目标或残留 DMA 标志误触发 FOC 计算。 */
 #if ADC_IND_CURR1 < 3 && ADC_IND_CURR2 < 3 && ADC_IND_CURR3 < 3
     if (RESET != DMA_GetITStatus(DMA2_Stream4, DMA_IT_HTIF4))
     {
         DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_HTIF4);
         /* 只统计回调耗时，不改变清标志和 Motor_DmaInt 的顺序。 */
-        Motor_Timing_CallbackBegin(Hal_Motor_TimeUs());
+        if (timing_active) Motor_Timing_CallbackBegin(Hal_Motor_TimeUs());
         Motor_DmaInt(NULL, NULL);
-        Motor_Timing_CallbackEnd(Hal_Motor_TimeUs(), RESET != DMA_GetITStatus(DMA2_Stream4, DMA_IT_HTIF4));
+        if (timing_active)
+            Motor_Timing_CallbackEnd(Hal_Motor_TimeUs(), RESET != DMA_GetITStatus(DMA2_Stream4, DMA_IT_HTIF4));
     }
 #else
     if (RESET != DMA_GetITStatus(DMA2_Stream4, DMA_IT_TCIF4))
     {
         DMA_ClearITPendingBit(DMA2_Stream4, DMA_IT_TCIF4);
         /* 只统计回调耗时，不改变清标志和 Motor_DmaInt 的顺序。 */
-        Motor_Timing_CallbackBegin(Hal_Motor_TimeUs());
+        if (timing_active) Motor_Timing_CallbackBegin(Hal_Motor_TimeUs());
         Motor_DmaInt(NULL, NULL);
-        Motor_Timing_CallbackEnd(Hal_Motor_TimeUs(), RESET != DMA_GetITStatus(DMA2_Stream4, DMA_IT_TCIF4));
+        if (timing_active)
+            Motor_Timing_CallbackEnd(Hal_Motor_TimeUs(), RESET != DMA_GetITStatus(DMA2_Stream4, DMA_IT_TCIF4));
     }
 #endif
     return;

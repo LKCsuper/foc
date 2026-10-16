@@ -10,6 +10,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
+#include <stddef.h>
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 typedef struct {
@@ -55,6 +56,13 @@ void MotorAlignment_Reset(motor_alignment_t *state);
  * @author: lkc
  */
 void MotorAlignment_NormalizeConfig(motor_alignment_config_t *config);
+/** 热路径共享实现；与NormalizeConfig保持同一套规则，不缓存配置。 */
+static inline void MotorAlignment_NormalizeConfigInline(motor_alignment_config_t *config)
+{
+    if (config == NULL) return;
+    if (config->current < 0.0f) config->current = 0.0f;
+    if (config->duration < 0.0f) config->duration = 0.0f;
+}
 
 /**
  * @description: 将状态机标记为“跳过对齐”。

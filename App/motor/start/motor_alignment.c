@@ -39,9 +39,7 @@ void MotorAlignment_Reset(motor_alignment_t *state)
  */
 void MotorAlignment_NormalizeConfig(motor_alignment_config_t *config)
 {
-    if (config == NULL) return;
-    if (config->current < 0.0f) config->current = 0.0f;
-    if (config->duration < 0.0f) config->duration = 0.0f;
+    MotorAlignment_NormalizeConfigInline(config);
 }
 
 /**

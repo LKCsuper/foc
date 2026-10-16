@@ -11,6 +11,10 @@ extern "C" {
 #include <stdbool.h>
 
 #include "motor_param.h"
+#include "motor_timing.h"
+/** 读取默认实例完整诊断字段；不改控制/PWM。用于ISR采集及停机基准。 */
+void Motor_FocIsr_CaptureTraceSample(const MOTOR_PARAM_S *motor_param, float vd, float vq,
+                                    motor_trace_sample_t *sample);
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/

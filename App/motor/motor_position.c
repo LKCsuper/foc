@@ -19,10 +19,8 @@ extern "C" {
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-static motor_position_state_t s_position;
-static motor_position_control_t s_control;
+static motor_position_runtime_t s_runtime;
 /* Private function prototypes -----------------------------------------------*/
-static float Motor_Position_ReadDeg(void);
 static void Motor_Position_ClearHold(void);
 static void Motor_Position_FillControlConfig(motor_position_control_config_t *config);
 /* Private functions ---------------------------------------------------------*/
@@ -34,8 +32,8 @@ static void Motor_Position_FillControlConfig(motor_position_control_config_t *co
  */
 static void Motor_Position_FillControlConfig(motor_position_control_config_t *config)
 {
-    config->position_kp_rpm_per_deg = s_position.kp_rpm_per_deg;
-    config->maximum_rpm = s_position.max_rpm;
+    config->position_kp_rpm_per_deg = s_runtime.state.kp_rpm_per_deg;
+    config->maximum_rpm = s_runtime.state.max_rpm;
     config->velocity_kp_v_per_rpm = MOTOR_POSITION_VEL_KP_DEFAULT;
     config->velocity_ki_v_per_rpm_s = MOTOR_POSITION_VEL_KI_DEFAULT;
     config->voltage_limit_v = MOTOR_POSITION_VOLTAGE_LIMIT_DEFAULT;
@@ -44,15 +42,15 @@ static void Motor_Position_FillControlConfig(motor_position_control_config_t *co
     config->maximum_dt_s = 0.05f;
 }
 
-/**
- * @description: 用累计机械计数换算相对零点的角度。
- * @return {float} 当前位置 (deg)
- * @author: lkc
- */
-static float Motor_Position_ReadDeg(void)
+
+
+static void Motor_Position_FillConfig(motor_position_config_t *config)
 {
-    int32_t delta = (int32_t)(Motor_Encoder_GetAccumulatedCount() - (uint32_t)s_position.origin_count);
-    return (float)delta * 360.0f / (float)MOTOR_MT6701_COUNTS_PER_REV;
+    config->counts_per_rev = MOTOR_MT6701_COUNTS_PER_REV;
+    config->hybrid_speed_enabled = MOTOR_POSITION_HYBRID_SPEED_ENABLE != 0U;
+    config->hold_enter_deg = MOTOR_POSITION_HOLD_ENTER_DEG;
+    config->hold_exit_deg = MOTOR_POSITION_HOLD_EXIT_DEG;
+    Motor_Position_FillControlConfig(&config->control);
 }
 
 /**
@@ -62,8 +60,7 @@ static float Motor_Position_ReadDeg(void)
  */
 static void Motor_Position_ClearHold(void)
 {
-    Motor_PositionControl_Reset(&s_control);
-    s_position.voltage_hold_mode = true;
+    Motor_PositionCore_ClearHold(&s_runtime);
     motor.position_hold = false;
     motor.position_voltage_hold = false;
     motor.position_hold_v = 0.0f;
@@ -76,17 +73,11 @@ static void Motor_Position_ClearHold(void)
  */
 void Motor_Position_Init(void)
 {
-    memset(&s_position, 0, sizeof(s_position));
-    s_position.origin_count = (int32_t)Motor_Encoder_GetAccumulatedCount();
-    s_position.kp_rpm_per_deg = MOTOR_POSITION_KP_DEFAULT_RPM_PER_DEG;
-    s_position.max_rpm = MOTOR_POSITION_MAX_RPM_DEFAULT;
-    s_position.tolerance_deg = MOTOR_POSITION_TOLERANCE_DEG;
-    s_position.voltage_hold_mode = true;
-    {
-        motor_position_control_config_t config;
-        Motor_Position_FillControlConfig(&config);
-        (void)Motor_PositionControl_Init(&s_control, &config);
-    }
+    motor_position_config_t config;
+    s_runtime.state.kp_rpm_per_deg = MOTOR_POSITION_KP_DEFAULT_RPM_PER_DEG;
+    s_runtime.state.max_rpm = MOTOR_POSITION_MAX_RPM_DEFAULT;
+    Motor_Position_FillConfig(&config);
+    (void)Motor_PositionCore_Init(&s_runtime, &config, Motor_Encoder_GetAccumulatedCount(), MOTOR_POSITION_TOLERANCE_DEG);
 }
 
 /**
@@ -96,11 +87,7 @@ void Motor_Position_Init(void)
  */
 void Motor_Position_Zero(void)
 {
-    s_position.origin_count = (int32_t)Motor_Encoder_GetAccumulatedCount();
-    s_position.position_deg = 0.0f;
-    s_position.target_deg = 0.0f;
-    s_position.voltage_hold_mode = true;
-    Motor_PositionControl_Reset(&s_control);
+    Motor_PositionCore_Zero(&s_runtime, Motor_Encoder_GetAccumulatedCount());
 }
 
 /**
@@ -112,13 +99,9 @@ void Motor_Position_Zero(void)
  */
 bool Motor_Position_Enable(bool enable)
 {
-    if (enable && (!Motor_Encoder_IsZeroValid() || Motor_Encoder_IsSignalFault())) {
-        return false;
-    }
-    s_position.enabled = enable;
-    if (!enable) {
-        Motor_Position_ClearHold();
-    }
+    bool ready = !enable || (Motor_Encoder_IsZeroValid() && !Motor_Encoder_IsSignalFault());
+    if (!Motor_PositionCore_Enable(&s_runtime, enable, ready)) return false;
+    if (!enable) Motor_Position_ClearHold();
     return true;
 }
 
@@ -130,13 +113,7 @@ bool Motor_Position_Enable(bool enable)
  */
 bool Motor_Position_SetTargetDeg(float target_deg)
 {
-    if (!isfinite(target_deg)) return false;
-    if (target_deg != s_position.target_deg) {
-        /* 新目标不继承旧目标为克服齿槽积出的电压，尤其避免大角度反向时先向旧方向冲击。 */
-        Motor_PositionControl_Reset(&s_control);
-    }
-    s_position.target_deg = target_deg;
-    return true;
+    return Motor_PositionCore_SetTarget(&s_runtime, target_deg);
 }
 
 /**
@@ -147,14 +124,7 @@ bool Motor_Position_SetTargetDeg(float target_deg)
  */
 bool Motor_Position_MoveDeg(float delta_deg)
 {
-    float target_deg;
-
-    if (!isfinite(delta_deg)) return false;
-    target_deg = s_position.target_deg + delta_deg;
-    if (!isfinite(target_deg)) return false;
-    s_position.target_deg = target_deg;
-    Motor_PositionControl_Reset(&s_control);
-    return true;
+    return Motor_PositionCore_Move(&s_runtime, delta_deg);
 }
 
 /**
@@ -165,9 +135,7 @@ bool Motor_Position_MoveDeg(float delta_deg)
  */
 bool Motor_Position_SetKp(float kp_rpm_per_deg)
 {
-    if (!isfinite(kp_rpm_per_deg) || kp_rpm_per_deg <= 0.0f || kp_rpm_per_deg > 100.0f) return false;
-    s_position.kp_rpm_per_deg = kp_rpm_per_deg;
-    return true;
+    return Motor_PositionCore_SetKp(&s_runtime, kp_rpm_per_deg);
 }
 
 /**
@@ -178,9 +146,7 @@ bool Motor_Position_SetKp(float kp_rpm_per_deg)
  */
 bool Motor_Position_SetMaxRpm(float max_rpm)
 {
-    if (!isfinite(max_rpm) || max_rpm < 1.0f || max_rpm > MOTOR_POSITION_MAX_RPM_ALLOWED) return false;
-    s_position.max_rpm = max_rpm;
-    return true;
+    return Motor_PositionCore_SetMaxRpm(&s_runtime, max_rpm, MOTOR_POSITION_MAX_RPM_ALLOWED);
 }
 
 /**
@@ -194,57 +160,24 @@ bool Motor_Position_SetMaxRpm(float max_rpm)
  */
 void Motor_Position_Run(float dt)
 {
-    motor_position_control_config_t config;
-    motor_position_control_input_t input;
-    motor_position_control_output_t output;
-
-    s_position.position_deg = Motor_Position_ReadDeg();
-    /* 未使能时位置模块不拥有速度命令，不能把 olspeed 写入的目标反复清成 0。 */
-    if (!s_position.enabled) {
-        Motor_Position_ClearHold();
-        return;
-    }
-    Motor_Position_FillControlConfig(&config);
-    memset(&input, 0, sizeof(input));
-    input.enabled = s_position.enabled;
+    motor_position_config_t config;
+    motor_position_input_t input;
+    motor_position_output_t output;
+    Motor_Position_FillConfig(&config);
+    input.accumulated_count = Motor_Encoder_GetAccumulatedCount();
     input.motor_running = motor.ol_enable;
     input.feedback_valid = !Motor_Encoder_IsSignalFault();
     input.speed_valid = Motor_Encoder_IsSpeedValid();
-    input.target_deg = s_position.target_deg;
-    input.position_deg = s_position.position_deg;
     input.measured_rpm = input.speed_valid ? Motor_Encoder_GetMechRpm() : 0.0f;
     input.dt = dt;
-    if (!Motor_PositionControl_Step(&s_control, &config, &input, &output)) {
+    if (!Motor_PositionCore_Step(&s_runtime, &config, &input, &output)) {
         Motor_Position_ClearHold();
         return;
     }
-    s_position.error_deg = output.error_deg;
-    s_position.target_rpm = output.target_rpm;
     motor.position_hold = output.hold_active;
-    if ((MOTOR_POSITION_HYBRID_SPEED_ENABLE != 0U) && output.hold_active) {
-        float error_abs = fabsf(output.error_deg);
-
-        if (s_position.voltage_hold_mode) {
-            if (error_abs > MOTOR_POSITION_HOLD_EXIT_DEG) s_position.voltage_hold_mode = false;
-        } else if (error_abs <= MOTOR_POSITION_HOLD_ENTER_DEG) {
-            s_position.voltage_hold_mode = true;
-        }
-    } else {
-        s_position.voltage_hold_mode = true;
-    }
-    motor.position_voltage_hold = output.hold_active && s_position.voltage_hold_mode;
-    if (motor.position_voltage_hold) {
-        motor.position_hold_v = output.output_v;
-        motor.ol_target_rpm = 0.0f;
-    } else if (output.hold_active) {
-        /* 移动阶段复用编码器速度电流环；直接电压 PI 不在后台积累。 */
-        Motor_PositionControl_Reset(&s_control);
-        motor.position_hold_v = 0.0f;
-        motor.ol_target_rpm = output.target_rpm;
-    } else {
-        motor.position_hold_v = 0.0f;
-        motor.ol_target_rpm = 0.0f;
-    }
+    motor.position_voltage_hold = output.voltage_hold;
+    motor.position_hold_v = output.voltage_v;
+    if (output.owns_speed_command) motor.ol_target_rpm = output.speed_rpm;
 }
 
 /**
@@ -255,19 +188,10 @@ void Motor_Position_Run(float dt)
  */
 void Motor_Position_GetState(motor_position_state_t *state)
 {
-    if (state == NULL) return;
-
-    *state = s_position;
-    /*
-     * Shell 可能刚改完目标、控制任务还没运行下一拍。只刷新返回快照中的观测量，
-     * 不推进 PI、不改积分，避免立即打印上一拍的位置误差和速度命令。
-     */
-    state->position_deg = Motor_Position_ReadDeg();
-    state->error_deg = state->target_deg - state->position_deg;
-    state->target_rpm = Motor_Encoder_IsSignalFault()
-                            ? 0.0f
-                            : fmaxf(-state->max_rpm,
-                                    fminf(state->kp_rpm_per_deg * state->error_deg, state->max_rpm));
+    motor_position_config_t config;
+    Motor_Position_FillConfig(&config);
+    Motor_PositionCore_Snapshot(&s_runtime, &config, Motor_Encoder_GetAccumulatedCount(),
+                                !Motor_Encoder_IsSignalFault(), state);
 }
 
 /**
@@ -277,7 +201,7 @@ void Motor_Position_GetState(motor_position_state_t *state)
  */
 bool Motor_Position_IsEnabled(void)
 {
-    return s_position.enabled;
+    return s_runtime.state.enabled;
 }
 #ifdef __cplusplus
 }

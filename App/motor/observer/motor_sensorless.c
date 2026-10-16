@@ -277,8 +277,9 @@ void Motor_Sensorless_SetAppliedVoltageState(motor_sensorless_runtime_t *rt, flo
  * @return {*}
  * @author: lkc
  */
-void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
-                                  motor_sensorless_effects_t *effects)
+static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
+                                                 motor_sensorless_effects_t *effects,
+                                                 motor_observer_step_sample_t *diagnostic)
 {
     /* 电机模型参数，全部使用 SI 单位。 */
     float resistance;
@@ -399,6 +400,16 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
     x_alpha_dot =
         rt->applied_v_alpha - resistance * i_alpha + 0.5f * observer_gain * rotor_flux_alpha * magnitude_error;
     x_beta_dot = rt->applied_v_beta - resistance * i_beta + 0.5f * observer_gain * rotor_flux_beta * magnitude_error;
+    if (diagnostic != NULL) {
+        diagnostic->x_before_alpha = rt->x_alpha; diagnostic->x_before_beta = rt->x_beta;
+        diagnostic->i_alpha = i_alpha; diagnostic->i_beta = i_beta;
+        diagnostic->v_alpha = rt->applied_v_alpha; diagnostic->v_beta = rt->applied_v_beta;
+        diagnostic->correction_alpha = 0.5f * observer_gain * rotor_flux_alpha * magnitude_error;
+        diagnostic->correction_beta = 0.5f * observer_gain * rotor_flux_beta * magnitude_error;
+        diagnostic->resistance = resistance; diagnostic->inductance = inductance;
+        diagnostic->flux_nominal = flux; diagnostic->gain = observer_gain;
+        diagnostic->pll_before = rt->pll_angle; diagnostic->phase_offset = motor->sensorless_phase_offset;
+    }
     /* 欧拉积分：新磁链 = 旧磁链 + 磁链变化率 × FOC 周期。 */
     rt->x_alpha += x_alpha_dot * dt;
     rt->x_beta += x_beta_dot * dt;
@@ -428,6 +439,12 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
 
     /* phase_offset 用于补偿固定相位偏差；归一化后角度保持在标准周期内。 */
     utils_norm_angle_rad(&rt->observer_angle);
+    if (diagnostic != NULL) {
+        diagnostic->x_after_alpha = rt->x_alpha; diagnostic->x_after_beta = rt->x_beta;
+        diagnostic->observer = rt->observer_angle;
+        diagnostic->phase_error = utils_angle_difference_rad(rt->observer_angle, diagnostic->pll_before);
+        diagnostic->dt = dt;
+    }
 
     /*
      * 原始 atan2 角度先进入 PLL，不能直接拿去控制电流环。
@@ -784,6 +801,27 @@ void Motor_Sensorless_GetDiagnosticsState(const motor_sensorless_runtime_t *rt,
     diagnostics->state = rt->state;
 }
 
+void Motor_Sensorless_GetLightSnapshotState(const motor_sensorless_runtime_t *rt,
+                                           motor_sensorless_light_snapshot_t *out)
+{
+    if (rt == NULL || out == NULL) return;
+    out->state = rt->state;
+    out->flux_ok = rt->flux_ok;
+    out->direction_ok = rt->direction_ok;
+    out->pll = rt->pll_angle;
+    out->flux = rt->flux_magnitude;
+    out->rpm = rt->filtered_rpm;
+    out->blend = rt->blend;
+    out->loss = rt->loss_timer;
+    out->v_alpha = rt->applied_v_alpha;
+    out->v_beta = rt->applied_v_beta;
+}
+
+void Motor_Sensorless_GetLightSnapshot(motor_sensorless_light_snapshot_t *out)
+{
+    Motor_Sensorless_GetLightSnapshotState(&s_sensorless, out);
+}
+
 /**
  * @description: 查询指定实例是否已 CLOSED。
  * @param {const motor_sensorless_runtime_t *} rt  运行时对象
@@ -841,22 +879,64 @@ void Motor_Sensorless_SetAppliedVoltage(float v_alpha, float v_beta)
 }
 
 /**
- * @description: 默认实例更新观测器，并落地速度环/保护副作用。
+ * @description: 推进指定实例，不采集诊断；通过effects返回速度环/保护副作用。
+ * @param {motor_sensorless_runtime_t *} rt  实例状态
  * @param {MOTOR_PARAM_S *} motor  电机实时参数
  * @param {float} dt  控制周期 (s)
  * @return {*}
  * @author: lkc
  */
+void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
+                                  motor_sensorless_effects_t *effects)
+{
+    Motor_Sensorless_UpdateStateInternal(rt, motor, dt, effects, NULL);
+}
+
+/** 默认实例控制拍入口，dt单位秒；落地副作用，仅显式武装时记录诊断。 */
 void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
 {
+    static float previous_ia, previous_ib, previous_ic, previous_dt;
+    motor_observer_step_sample_t step;
+    bool step_active = Motor_Timing_ObserverStepActive();
+    bool step_due = step_active && Motor_Timing_ObserverStepDue();
     motor_sensorless_effects_t effects;
+    float pll_before = s_sensorless.pll_angle;
+    float speed_before = s_sensorless.pll_speed_electrical;
     bool profile = Motor_Timing_ProfileIsActive();
     uint32_t start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
     bool blending = s_sensorless.state == MOTOR_SENSORLESS_CLOSED && s_sensorless.blend < 1.0f;
     bool closed = s_sensorless.state == MOTOR_SENSORLESS_CLOSED;
 
-    Motor_Sensorless_UpdateState(&s_sensorless, motor, dt, &effects);
+    step.dt = 0.0f;
+    Motor_Sensorless_UpdateStateInternal(&s_sensorless, motor, dt, &effects, step_due ? &step : NULL);
     Motor_Sensorless_ApplyEffects(motor, &effects);
+    if (step_due && step.dt > 0.0f) {
+        clarke_transform(previous_ia, previous_ib, previous_ic, &step.i_before_alpha, &step.i_before_beta);
+        step.previous_dt = previous_dt;
+        step.blend = s_sensorless.blend; step.control_angle = s_sensorless.control_angle;
+        Motor_Timing_ObserverStepPush(&step);
+    }
+    if (step_active && motor != NULL && s_sensorless.initialized) {
+        previous_ia = motor->ia; previous_ib = motor->ib; previous_ic = motor->ic;
+        previous_dt = dt;
+    } else previous_dt = 0.0f;
+    if (Motor_Timing_PhaseDue(!(closed && !blending) && Motor_Sensorless_IsTakeoverCompleteState(&s_sensorless))) {
+        motor_phase_sample_t sample;
+        memset(&sample, 0, sizeof(sample));
+        sample.observer = s_sensorless.observer_angle;
+        sample.pll_before = pll_before; sample.pll_after = s_sensorless.pll_angle;
+        sample.phase_error = utils_angle_difference_rad(sample.observer, pll_before);
+        sample.speed_before = speed_before; sample.speed_after = s_sensorless.pll_speed_electrical;
+        sample.rpm = s_sensorless.filtered_rpm; sample.flux = s_sensorless.flux_magnitude;
+        sample.x_alpha = s_sensorless.x_alpha; sample.x_beta = s_sensorless.x_beta;
+        sample.v_alpha = s_sensorless.applied_v_alpha; sample.v_beta = s_sensorless.applied_v_beta;
+        clarke_transform(motor->ia, motor->ib, motor->ic, &sample.i_alpha, &sample.i_beta);
+        sample.dt = dt; sample.kp = motor->sensorless_pll_kp; sample.ki = motor->sensorless_pll_ki;
+        sample.resistance = motor->sensorless_motor_r; sample.inductance = motor->sensorless_motor_l;
+        sample.flux_nominal = motor->sensorless_flux_linkage; sample.phase_offset = motor->sensorless_phase_offset;
+        sample.blend = s_sensorless.blend; sample.control_angle = s_sensorless.control_angle;
+        Motor_Timing_PhasePush(&sample);
+    }
     if (profile) {
         Motor_Timing_ProfileRecord(MOTOR_TIMING_OBSERVER, start);
         if (closed) Motor_Timing_ProfileRecord(blending ? MOTOR_TIMING_OBSERVER_BLEND :

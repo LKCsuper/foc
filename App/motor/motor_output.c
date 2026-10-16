@@ -17,6 +17,9 @@ extern "C" {
 #include "motor_math.h"
 #include "motor_sensorless.h"
 #include "hal_motor.h"
+#if defined(__CC_ARM)
+#pragma O2
+#endif
 
 /* 仅诊断RAM参数：有效死区秒数×PWM频率，不修改硬件死区或PWM命令。 */
 static float s_observer_deadtime_fraction;
@@ -53,31 +56,7 @@ float Motor_OutputGetObserverDeadtime(void)
     return s_observer_deadtime_fraction;
 }
 
-/**
- * @description: 按电流符号从 α/β 电压估计中减去死区压降。
- * @detail: fraction 为有效死区秒数乘 PWM 频率。电流为正、负、零时符号分别是 +1、-1、0，零电流不产生补偿。
- *          α 用 (2*sa-sb-sc)/3，β 用 (sb-sc)/√3，再乘 (2/3)·Vbus·fraction。输出单位 V。
- * @param {float} ia       A 相电流 (A)
- * @param {float} ib       B 相电流 (A)
- * @param {float} ic       C 相电流 (A)
- * @param {float} v_bus    母线电压 (V)
- * @param {float} fraction 死区补偿比例，无量纲
- * @param {float *} alpha  输入/输出 α 轴电压 (V)
- * @param {float *} beta   输入/输出 β 轴电压 (V)
- * @return {void} 无
- * @author: lkc
- */
-static void Motor_OutputSubtractDeadtime(float ia, float ib, float ic, float v_bus,
-                                         float fraction, float *alpha, float *beta)
-{
-    int sa = (ia > 0.0f) - (ia < 0.0f);
-    int sb = (ib > 0.0f) - (ib < 0.0f);
-    int sc = (ic > 0.0f) - (ic < 0.0f);
-    float scale = (2.0f / 3.0f) * v_bus * fraction;
-    /* 符号组合只有小整数；合并后再转换，固定除数改为倒数乘法。 */
-    *alpha -= (float)(2 * sa - sb - sc) * (1.0f / 3.0f) * scale;
-    *beta -= (float)(sb - sc) * 0.577350269f * scale;
-}
+
 
 /**
  * @description: 由逻辑相序的 ABC 比较值估计平均 α/β 电压。
@@ -96,30 +75,13 @@ static void Motor_OutputSubtractDeadtime(float ia, float ib, float ic, float v_b
 bool Motor_OutputEstimateVoltage(const MOTOR_PARAM_S *motor, uint32_t period, float v_bus,
                                  float deadtime_fraction, float *v_alpha, float *v_beta)
 {
-    float scale;
-
-    if (v_alpha != NULL) *v_alpha = 0.0f;
-    if (v_beta != NULL) *v_beta = 0.0f;
-    if (motor == NULL || v_alpha == NULL || v_beta == NULL || period == 0U ||
-        !isfinite(v_bus) || v_bus <= 0.0f || !isfinite(deadtime_fraction) ||
-        deadtime_fraction < 0.0f || deadtime_fraction >= 0.5f ||
-        motor->duty1 > period || motor->duty2 > period || motor->duty3 > period) {
-        return false;
+    motor_output_sample_t sample;
+    if (motor == NULL) {
+        return Motor_OutputCore_EstimateVoltage(NULL, period, v_bus, deadtime_fraction, v_alpha, v_beta);
     }
-    if (deadtime_fraction > 0.0f &&
-        (!isfinite(motor->ia) || !isfinite(motor->ib) || !isfinite(motor->ic))) {
-        return false;
-    }
-    scale = v_bus / (float)period;
-    *v_alpha = (2.0f * motor->duty1 - motor->duty2 - motor->duty3) * (1.0f / 3.0f) * scale;
-    *v_beta = ((float)motor->duty2 - motor->duty3) * 0.577350269f * scale;
-    if (deadtime_fraction > 0.0f) {
-        /* VESC调制以1.5/Vbus归一化；补偿转回SI电压须乘2/3*Vbus。
-         * 零流方向不可判定，按0处理，避免静止零电流凭空生成补偿。 */
-        Motor_OutputSubtractDeadtime(motor->ia, motor->ib, motor->ic, v_bus,
-                                     deadtime_fraction, v_alpha, v_beta);
-    }
-    return true;
+    sample.duty1 = motor->duty1; sample.duty2 = motor->duty2; sample.duty3 = motor->duty3;
+    sample.ia = motor->ia; sample.ib = motor->ib; sample.ic = motor->ic;
+    return Motor_OutputCore_EstimateVoltage(&sample, period, v_bus, deadtime_fraction, v_alpha, v_beta);
 }
 
 /**
@@ -209,7 +171,7 @@ static void Motor_OutputVoltageInternal(MOTOR_PARAM_S *motor, float vd, float vq
             s_observer_current_a += 0.01f * (motor->ia - s_observer_current_a);
             s_observer_current_b += 0.01f * (motor->ib - s_observer_current_b);
             s_observer_current_c += 0.01f * (motor->ic - s_observer_current_c);
-            Motor_OutputSubtractDeadtime(s_observer_current_a, s_observer_current_b,
+            Motor_OutputCore_SubtractDeadtime(s_observer_current_a, s_observer_current_b,
                                          s_observer_current_c, v_bus, s_observer_deadtime_fraction,
                                          &reconstructed_a, &reconstructed_b);
         }

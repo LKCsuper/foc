@@ -4,6 +4,60 @@
 #include <string.h>
 #include "motor_sensorless.h"
 #include "motor_param.h"
+#include "motor_timing.h"
+
+extern bool host_observer_step_active;
+extern motor_observer_step_sample_t host_observer_step;
+extern unsigned host_observer_step_count;
+
+static void check_observer_step_capture(void)
+{
+    MOTOR_PARAM_S captured_motor = {0}, reference_motor;
+    motor_sensorless_runtime_t reference;
+    motor_sensorless_effects_t effects;
+    unsigned index;
+    float previous_alpha = 0.0f, previous_beta = 0.0f;
+    captured_motor.ol_mode = MOTOR_OL_MODE_IF; captured_motor.ol_enable = true;
+    captured_motor.sensorless_enable = true; captured_motor.sensorless_motor_r = 0.6f;
+    captured_motor.sensorless_motor_l = 0.00013f; captured_motor.sensorless_flux_linkage = 0.0023f;
+    captured_motor.sensorless_observer_gain = 12000000.0f;
+    captured_motor.sensorless_pll_kp = 2000.0f; captured_motor.sensorless_pll_ki = 30000.0f;
+    captured_motor.ol_max_rpm = 6000.0f; captured_motor.ol_pole_pairs = 7.0f;
+    Motor_Sensorless_Init(); Motor_Sensorless_InitState(&reference);
+    host_observer_step_active = true; host_observer_step_count = 0U;
+    for (index = 0U; index < 300U; index++) {
+        float magnitude_error, rotor_alpha, rotor_beta;
+        const float dt = 0.000067f;
+        motor_observer_step_sample_t *step = &host_observer_step;
+        captured_motor.ia = 0.3f * sinf(index * 0.03f);
+        captured_motor.ib = 0.2f * cosf(index * 0.03f);
+        captured_motor.ic = -captured_motor.ia - captured_motor.ib;
+        reference_motor = captured_motor;
+        Motor_Sensorless_SetAppliedVoltage(0.8f, 0.5f);
+        Motor_Sensorless_SetAppliedVoltageState(&reference, 0.8f, 0.5f);
+        Motor_Sensorless_Update(&captured_motor, dt);
+        Motor_Sensorless_UpdateState(&reference, &reference_motor, dt, &effects);
+        assert(host_observer_step_count == index + 1U);
+        assert(fabsf(step->x_after_alpha - reference.x_alpha) < 1e-9f);
+        assert(fabsf(step->x_after_beta - reference.x_beta) < 1e-9f);
+        assert(step->observer == reference.observer_angle);
+        rotor_alpha = step->x_before_alpha - step->inductance * step->i_alpha;
+        rotor_beta = step->x_before_beta - step->inductance * step->i_beta;
+        magnitude_error = fminf(0.0f, step->flux_nominal * step->flux_nominal - rotor_alpha * rotor_alpha - rotor_beta * rotor_beta);
+        assert(fabsf(step->correction_alpha - 0.5f * step->gain * rotor_alpha * magnitude_error) < 1e-6f);
+        assert(fabsf(step->x_after_alpha - step->x_before_alpha -
+                     (step->v_alpha - step->resistance * step->i_alpha + step->correction_alpha) * dt) < 1e-9f);
+        if (index > 0U) {
+            assert(step->previous_dt == dt);
+            assert(step->i_before_alpha == previous_alpha && step->i_before_beta == previous_beta);
+        } else assert(step->previous_dt == 0.0f);
+        previous_alpha = step->i_alpha; previous_beta = step->i_beta;
+    }
+    host_observer_step_active = false;
+    Motor_Sensorless_Update(&captured_motor, 0.000067f);
+    assert(host_observer_step_count == 300U);
+    Motor_Sensorless_Init();
+}
 
 /* 静止角差隔离角度过渡：半程应消除一半角差，不能几毫秒就贴到PLL。 */
 static void check_blend_duration(float start, float target, float omega)
@@ -71,6 +125,8 @@ int main(void)
     MOTOR_PARAM_S motor;
     float angle_a;
     float angle_b;
+
+    check_observer_step_capture();
 
     memset(&motor, 0, sizeof(motor));
     motor.ol_mode = MOTOR_OL_MODE_IF;
@@ -228,6 +284,22 @@ int main(void)
     check_blend_duration(-2.8f, 2.3f, 0.0f);
     check_blend_duration(2.8f, -2.3f, 439.82297f);
     check_blend_duration(-2.8f, 2.3f, -439.82297f);
+    {
+        motor_sensorless_light_snapshot_t snapshot;
+        a.pll_angle = 0.3f; a.flux_magnitude = 0.002f; a.filtered_rpm = 600.0f;
+        a.blend = 0.25f; a.loss_timer = 0.001f;
+        a.applied_v_alpha = 0.8f; a.applied_v_beta = -0.9f;
+        a.state = MOTOR_SENSORLESS_CLOSED; a.flux_ok = true; a.direction_ok = false;
+        b = a;
+        Motor_Sensorless_GetLightSnapshotState(&a, &snapshot);
+        assert(snapshot.state == a.state && snapshot.flux_ok && !snapshot.direction_ok);
+        assert(snapshot.pll == a.pll_angle && snapshot.flux == a.flux_magnitude && snapshot.rpm == a.filtered_rpm);
+        assert(snapshot.blend == a.blend && snapshot.loss == a.loss_timer);
+        assert(snapshot.v_alpha == a.applied_v_alpha && snapshot.v_beta == a.applied_v_beta);
+        assert(memcmp(&a, &b, sizeof(a)) == 0);
+        Motor_Sensorless_GetLightSnapshotState(&a, NULL);
+        assert(memcmp(&a, &b, sizeof(a)) == 0);
+    }
     printf("test_motor_sensorless: pass\n");
     return 0;
 }

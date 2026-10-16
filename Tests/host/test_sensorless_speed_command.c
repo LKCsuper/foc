@@ -36,7 +36,8 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *m, const motor_command_t *c)
     if (c->enable && c->target_rpm > 800)
         assert(config.sensorless_takeover && c->speed_enable);
     if (c->enable)
-        assert(fabsf(config.speed_iq_limit - (c->target_rpm > 1800 ? .30f : .15f)) < 1e-6f);
+        assert(fabsf(config.speed_iq_limit - (motor.v_bus > 22.0f ? 1.0f :
+                    (c->target_rpm > 1800 ? .30f : .15f))) < 1e-6f);
     command = *c;
     motor.ol_enable = c->enable;
     return MOTOR_OK;
@@ -51,8 +52,14 @@ bool Motor_Detect_IsActive(void) { return false; }
 bool Motor_Protect_IsFaultLatched(void) { return fault; }
 static bool Motor_Position_Enable(bool x) { (void)x;return true; }
 static bool Motor_Joint_Enable(bool x) { (void)x;return true; }
-void Motor_Timing_TraceArmEntry(void) {}
+static int trace_mode;
+void Motor_Timing_TraceArm(void) { trace_mode=0; }
+void Motor_Timing_TraceArmEntry(void) { trace_mode=1; }
+void Motor_Timing_TraceArmEntryFast(void) { trace_mode=2; }
+void Motor_Timing_TraceArmLight(void) { trace_mode=3; }
+void Motor_Timing_TraceArmFlight(void) { trace_mode=4; }
 void Motor_Timing_TraceStop(void) {}
+void Motor_Timing_CadenceStop(void) {}
 motor_sensorless_state_t Motor_Sensorless_GetState(void) { return config.sensorless_takeover && !never_lock && !(lose_lock && clock_us>12000000U) ? MOTOR_SENSORLESS_CLOSED : MOTOR_SENSORLESS_LOCKING; }
 float Motor_Sensorless_GetMechanicalRpm(void) { return underspeed && command.target_rpm>=2200 ? .87f*command.target_rpm : command.target_rpm; }
 bool Motor_SpeedLoop_IsFeedbackValid(void) { return command.speed_enable && Motor_Sensorless_GetState()==MOTOR_SENSORLESS_CLOSED; }
@@ -91,5 +98,31 @@ int main(void) {
  init();config.ol_max_rpm=6000;saved=config;underspeed=true;
  assert(Cmd_SensorlessTest(8,high)==-1 && stops==1 && !command.enable);
  assert(strstr(output,"speed not tracking") && memcmp(&saved,&config,sizeof(saved))==0);
+ {
+  char *off[]={"sltest","--trace=off","2","600"};
+  char *entry[]={"sltest","--trace=entry","2","600"};
+  char *entryfast[]={"sltest","--trace=entryfast","2","600"};
+  char *invalid[]={"sltest","--trace=bad","2","600"};
+  init();saved=config;assert(Cmd_SensorlessTest(4,off)==0 && trace_mode==0 && !command.enable);
+  assert(memcmp(&saved,&config,sizeof(saved))==0);
+  init();assert(Cmd_SensorlessTest(4,entry)==0 && trace_mode==1 && !command.enable);
+  init();assert(Cmd_SensorlessTest(4,entryfast)==0 && trace_mode==2 && !command.enable);
+  init();char *lite[]={"sltest","--trace=lite","2","600"};
+  assert(Cmd_SensorlessTest(4,lite)==0 && trace_mode==3 && !command.enable);
+  init();char *flight[]={"sltest","--trace=flight","2","600"};
+  assert(Cmd_SensorlessTest(4,flight)==0 && trace_mode==4 && !command.enable);
+  init();assert(Cmd_SensorlessTest(1,args)==0 && trace_mode==3 && !command.enable);
+  init();assert(Cmd_SensorlessTest(4,invalid)==-1 && stops==0);
+  {
+   char *m3508[]={"sltest","--3508","--trace=off","2","600"};
+   char *m3508high[]={"sltest","--3508","2","800"};
+   init();motor.v_bus=24.0f;saved=config;
+   assert(Cmd_SensorlessTest(5,m3508)==0 && !command.enable && trace_mode==0);
+   assert(memcmp(&saved,&config,sizeof(saved))==0);
+   init();motor.v_bus=16.0f;assert(Cmd_SensorlessTest(5,m3508)==-1 && stops==0);
+   init();motor.v_bus=24.0f;assert(Cmd_SensorlessTest(4,m3508high)==-1 && stops==0);
+   init();motor.v_bus=24.0f;assert(Cmd_SensorlessTest(1,args)==-1 && stops==0);
+  }
+ }
  puts("sensorless speed command: pass");return 0;
 }

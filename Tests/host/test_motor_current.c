@@ -202,6 +202,40 @@ int main(void)
         assert(fabsf(va.vd - (1.06f + 0.12f * 0.30f)) < 1e-5f);
         assert(a.iq_target == 0.15f);
     }
+    {
+        unsigned direction;
+        for (direction = 0U; direction < 2U; direction++) {
+            float angle = direction == 0U ? 3.10f : -3.10f;
+            float delta = direction == 0U ? 0.007f : -0.007f;
+            float feedback_d = 0.23f, feedback_q = -0.11f;
+            float target_q = 0.5f;
+            float before_d, before_q, expected_alpha, expected_beta;
+            unsigned step;
+            memset(&a, 0, sizeof(a));
+            a.ol_current_kp = 0.12f;
+            a.ol_vd_int = -0.8f;
+            a.ol_vq_int = 1.1f;
+            before_d = a.ol_vd_int - a.ol_current_kp * feedback_d;
+            before_q = a.ol_vq_int + a.ol_current_kp * (target_q - feedback_q);
+            expected_alpha = cosf(angle) * before_d - sinf(angle) * before_q;
+            expected_beta = sinf(angle) * before_d + cosf(angle) * before_q;
+            for (step = 0U; step < 300U; step++) {
+                float next_target_q = step < 150U ? 0.5f : 0.0f;
+                float rotated_d = cosf(delta) * feedback_d + sinf(delta) * feedback_q;
+                float rotated_q = -sinf(delta) * feedback_d + cosf(delta) * feedback_q;
+                float after_d, after_q;
+                Motor_Current_TransportPi(&a, delta, 0.0f, target_q, 0.0f, next_target_q);
+                angle = remainderf(angle + delta, 6.283185307f);
+                feedback_d = rotated_d;
+                feedback_q = rotated_q;
+                target_q = next_target_q;
+                after_d = a.ol_vd_int - a.ol_current_kp * feedback_d;
+                after_q = a.ol_vq_int + a.ol_current_kp * (target_q - feedback_q);
+                assert(fabsf(cosf(angle) * after_d - sinf(angle) * after_q - expected_alpha) < 1e-4f);
+                assert(fabsf(sinf(angle) * after_d + cosf(angle) * after_q - expected_beta) < 1e-4f);
+            }
+        }
+    }
     printf("test_motor_current: pass\n");
     return 0;
 }

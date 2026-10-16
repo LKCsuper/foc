@@ -37,6 +37,7 @@ extern "C" {
 /* cmd_openloop.c     */ extern int Cmd_OlRpm(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_SensorlessStats(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_SensorlessTrace(int argc, char *argv[]);
+/* cmd_openloop.c     */ extern int Cmd_SensorlessHandoff(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_SensorlessCadence(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlSnap(int argc, char *argv[]);
 /* cmd_openloop.c     */ extern int Cmd_OlCurrentDiag(int argc, char *argv[]);
@@ -88,9 +89,10 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olstatus",   Cmd_OlStatus,           "show openloop current and fault status" },
     { "olrpm",      Cmd_OlRpm,              "one-line rpm/current while running" },
     { "slstats",    Cmd_SensorlessStats,    "sensorless steady-window counters retained after stop" },
-    { "sltest",     Cmd_SensorlessTest,     "sensorless speeds [hold_s [rpm1 ... rpm6]], stopped only" },
-    { "sltrace",    Cmd_SensorlessTrace,    "RAM event trace arm|show (stopped only)" },
-    { "slcadence",  Cmd_SensorlessCadence,  "measured control entry intervals reset|stop|show" },
+    { "sltest",     Cmd_SensorlessTest,     "[--3508] [--trace=off|lite|flight|entry|entryfast] [hold_s [rpm...]], stopped only" },
+    { "sltrace",    Cmd_SensorlessTrace,    "RAM trace compact|lite|flight|arm|entry|entryfast|show (stopped only)" },
+    { "slhandoff",  Cmd_SensorlessHandoff,  "capture arm|phase|phaselong|step|pair|show (stopped only)" },
+    { "slcadence",  Cmd_SensorlessCadence,  "timing reset|lean|task|probe|stop|show" },
     { "olsnap",     Cmd_OlSnap,             "short Id/Iq/RPM/fault snapshot while running" },
     { "olcurdiag",  Cmd_OlCurrentDiag,      "Hall current errors by sector since last start" },
     { "curtest",    Cmd_CurrentTest,        "static D-axis current-loop test [A] [ms]" },

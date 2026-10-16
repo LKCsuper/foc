@@ -189,12 +189,20 @@ int main(void)
     assert(speed_reset_calls == 0);
     assert(pwm_start_calls == 1);
     assert(pwm_safe_calls == 0);
+    /* 连续运行时重复命令/改速不得再次启动PWM。 */
+    assert(Motor_SetCommand(&motor, &cmd) == MOTOR_OK);
+    cmd.target_rpm = 600.0f;
+    assert(Motor_SetCommand(&motor, &cmd) == MOTOR_OK);
+    assert(pwm_start_calls == 1 && pwm_stop_calls == 1);
+    cmd.target_rpm = 500.0f;
+    assert(Motor_SetCommand(&motor, &cmd) == MOTOR_OK);
 
     /* 在线可改 V_boost；极对数运行中禁止。 */
     cfg = settings.config;
     cfg.ol_v_boost = 1.25f;
     assert(Motor_SetConfig(&motor, &cfg) == MOTOR_OK);
     assert(motor.ol_v_boost == 1.25f);
+    assert(pwm_start_calls == 1);
     cfg.ol_pole_pairs = 4.0f;
     assert(Motor_SetConfig(&motor, &cfg) == MOTOR_ERR_BUSY);
     assert(motor.ol_pole_pairs == settings.config.ol_pole_pairs);

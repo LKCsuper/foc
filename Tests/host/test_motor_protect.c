@@ -5,6 +5,7 @@
 #include "motor_protect.h"
 #include "motor_param.h"
 #include "motor_types.h"
+extern unsigned protect_diagnostic_reads;
 
 int main(void)
 {
@@ -17,6 +18,41 @@ int main(void)
     motor_protect_config_t cfg;
     float dt = 0.001f;
     unsigned i;
+    {
+        motor_protect_state_t combined, separate;
+        motor_protect_input_t input;
+        unsigned step;
+        memset(&input, 0, sizeof(input));
+        Motor_Protect_InitState(&combined, NULL);
+        Motor_Protect_InitState(&separate, NULL);
+        for (step = 0U; step < 10000U; step++) {
+            mc_fault_code expected = FAULT_CODE_NONE;
+            float interval = step % 3U == 0U ? 0.0005f : 0.001f;
+            input.ia = (float)((int)(step % 41U) - 20);
+            input.ib = (float)((int)(step % 17U) - 8);
+            input.ic = -input.ia - input.ib;
+            input.v_bus = step % 89U < 40U ? 7.0f : 24.0f;
+            input.ol_enable = step % 71U != 0U;
+            input.ol_target_rpm = step % 2U ? 600.0f : -600.0f;
+            input.ol_current_rpm = step % 31U ? input.ol_target_rpm : 0.0f;
+            Motor_Protect_SetSpeedFeedbackState(&combined, (float)(step % 700U), step % 23U != 0U);
+            Motor_Protect_SetSpeedFeedbackState(&separate, (float)(step % 700U), step % 23U != 0U);
+            if (Motor_Protect_CheckOverCurrentInputState(&separate, &input, interval))
+                expected = FAULT_CODE_ABS_OVER_CURRENT;
+            else if (Motor_Protect_CheckUnderVoltageInputState(&separate, &input, interval))
+                expected = FAULT_CODE_UNDER_VOLTAGE;
+            else if (Motor_Protect_CheckStallInputState(&separate, &input, interval))
+                expected = FAULT_CODE_MOTOR_STALL;
+            else if (Motor_Protect_CheckSpeedLossInputState(&separate, &input, interval))
+                expected = FAULT_CODE_MOTOR_SPEED_LOSS;
+            assert(Motor_Protect_EvaluateInputState(&combined, &input, interval) == expected);
+            assert(combined.over_current_timer == separate.over_current_timer);
+            assert(combined.under_voltage_timer == separate.under_voltage_timer);
+            assert(combined.stall_timer == separate.stall_timer);
+            assert(combined.speed_loss_timer == separate.speed_loss_timer);
+            assert(combined.speed_was_reached == separate.speed_was_reached);
+        }
+    }
 
     memset(&motor_a, 0, sizeof(motor_a));
     memset(&motor_b, 0, sizeof(motor_b));
@@ -124,6 +160,35 @@ int main(void)
         assert(lost);
     }
 
+    memset(&motor_a, 0, sizeof(motor_a));
+    motor_a.ol_enable = true;
+    motor_a.v_bus = 24.0f;
+    motor_a.ol_iq_set = 0.5f;
+    Motor_Protect_Init(NULL);
+    protect_diagnostic_reads = 0U;
+    for (i = 0U; i < 100U; i++) assert(!Motor_Protect_Run(&motor_a, 0.001f));
+    assert(protect_diagnostic_reads == 0U);
+    motor_a.ia = 20.0f;
+    assert(!Motor_Protect_Run(&motor_a, 0.0005f));
+    assert(protect_diagnostic_reads == 0U);
+    assert(Motor_Protect_Run(&motor_a, 0.0005f));
+    assert(protect_diagnostic_reads == 1U);
+    Motor_Protect_GetSnapshot(&snap);
+    assert(Motor_Protect_GetFault() == FAULT_CODE_ABS_OVER_CURRENT);
+    assert(snap.applied_voltage == 7.0f && snap.blend == 0.75f && snap.flux_ok);
+    assert(snap.iq_command == 0.5f);
+    motor_a.v_bus = 0.0f;
+    motor_a.ol_iq_set = 9.0f;
+    assert(Motor_Protect_Run(&motor_a, 1.0f));
+    Motor_Protect_GetSnapshot(&snap);
+    assert(protect_diagnostic_reads == 1U && snap.iq_command == 0.5f);
+    assert(Motor_Protect_GetFault() == FAULT_CODE_ABS_OVER_CURRENT);
+    Motor_Protect_ClearFault();
+    motor_a.ia = 0.0f;
+    motor_a.v_bus = 24.0f;
+    assert(!Motor_Protect_Run(&motor_a, 0.001f));
+    assert(protect_diagnostic_reads == 1U);
+    assert(!Motor_Protect_Run(NULL, 0.001f));
     printf("test_motor_protect: pass\n");
     return 0;
 }

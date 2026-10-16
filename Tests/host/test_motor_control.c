@@ -6,6 +6,17 @@
 #include "motor_param.h"
 #include "motor_current.h"
 #include "motor_feedback.h"
+#include "motor_timing.h"
+
+/* 控制行为测试不采集平台耗时；计时与逐拍记录由独立timing测试覆盖。 */
+bool Motor_Timing_ProfileIsActive(void) { return false; }
+bool Motor_Timing_ProfileDetailedIsActive(void) { return false; }
+uint32_t Motor_Timing_ProfileTimeUs(void) { return 0U; }
+void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start_us)
+{
+    (void)stage;
+    (void)start_us;
+}
 
 static float s_last_current_theta;
 static int s_current_step_calls;
@@ -21,6 +32,9 @@ static float s_last_if_iq_scale;
 static float s_speed_prime_iq;
 static float s_sensorless_correction;
 static bool s_takeover_complete;
+static bool s_complete_during_update;
+static unsigned s_handoff_marks;
+void Motor_Timing_HandoffMark(void) { s_handoff_marks++; }
 static float s_last_frame_correction;
 
 float utils_angle_difference_rad(float a, float b)
@@ -53,6 +67,7 @@ void Motor_SpeedLoop_PrimeIq(float iq)
 void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
 {
     motor->ol_theta += s_sensorless_correction;
+    if (s_complete_during_update) s_takeover_complete = true;
     (void)dt;
     s_sensorless_updates++;
 }
@@ -399,9 +414,26 @@ int main(void)
 
     motor.ol_pole_pairs = 0.0f;
     motor.sensorless_phase_tolerance = 3.0f;
+    motor.ol_align_current = -1.0f;
+    motor.ol_align_time = -2.0f;
+    motor.hfi_start_voltage = -1.0f;
+    motor.hfi_start_cycles = 1U;
+    motor.hfi_start_min_confidence = 2.0f;
     Motor_Control_NormalizeConfig(&motor);
     assert(motor.ol_pole_pairs >= 1.0f);
     assert(motor.sensorless_phase_tolerance <= 1.50f);
+    assert(motor.ol_align_current == 0.0f && motor.ol_align_time == 0.0f);
+    assert(motor.hfi_start_voltage == 0.0f && motor.hfi_start_cycles == 2U);
+    assert(motor.hfi_start_min_confidence == 1.0f);
+    motor.ol_align_current = 0.5f;
+    motor.ol_align_time = 0.1f;
+    motor.hfi_start_voltage = 0.2f;
+    motor.hfi_start_cycles = 40U;
+    motor.hfi_start_min_confidence = -1.0f;
+    Motor_Control_NormalizeConfig(&motor);
+    assert(motor.ol_align_current == 0.5f && motor.ol_align_time == 0.1f);
+    assert(motor.hfi_start_voltage == 0.2f && motor.hfi_start_cycles == 32U);
+    assert(motor.hfi_start_min_confidence == 0.0f);
 
     /* 故障仲裁：锁存时强制 SAFE，未锁存保留 DQ。 */
     {
@@ -767,6 +799,13 @@ int main(void)
         s_sensorless_correction = 0.05f; s_takeover_complete = false;
         Motor_Control_Step(&ctrl, &m, 16.0f, 0.001f, false);
         assert(fabsf(s_last_frame_correction - 0.05f) < 1e-5f);
+        s_complete_during_update = true;
+        s_handoff_marks = 0U;
+        Motor_Control_Step(&ctrl, &m, 16.0f, 0.001f, false);
+        assert(s_takeover_complete);
+        assert(s_handoff_marks == 1U);
+        assert(fabsf(s_last_frame_correction - 0.05f) < 1e-5f);
+        s_complete_during_update = false;
         /* 完成接管后，即使观测角继续旋转，也不能再迁移积分。 */
         s_takeover_complete = true;
         Motor_Control_Step(&ctrl, &m, 16.0f, 0.001f, false);

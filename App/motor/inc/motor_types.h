@@ -49,6 +49,7 @@ typedef enum {
     FAULT_CODE_LV_OUTPUT_FAULT,
     FAULT_CODE_MOTOR_STALL,
     FAULT_CODE_MOTOR_SPEED_LOSS,
+    FAULT_CODE_CONTROL_TIMING,
 } mc_fault_code;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
