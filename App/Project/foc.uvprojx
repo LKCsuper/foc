@@ -726,6 +726,11 @@
               <FilePath>..\Cmd\cmd_duty.c</FilePath>
             </File>
             <File>
+              <FileName>cmd_autotune.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_autotune.c</FilePath>
+            </File>
+            <File>
               <FileName>cmd_detect.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Cmd\cmd_detect.c</FilePath>
@@ -1052,6 +1057,11 @@
               <FileName>motor_sense.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_sense.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_autotune.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\motor_autotune.c</FilePath>
             </File>
             <File>
               <FileName>motor_pid.c</FileName>

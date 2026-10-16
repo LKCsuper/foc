@@ -21,6 +21,7 @@ extern "C" {
 /* -- 前向声明：所有命令函数统一签名 int func(int argc, char *argv[]) ----------*/
 
 /* cmd_detect.c       */ extern int Cmd_Detect(int argc, char *argv[]);
+/* cmd_autotune.c     */ extern int Cmd_Autotune(int argc, char *argv[]);
 /* cmd_env.c          */ extern int Cmd_Saveparam(int argc, char *argv[]);
 /* cmd_misc.c         */ extern int CMD_Reset(int argc, char *argv[]);
 /* cmd_show_param.c   */ extern int Cmd_Show(int argc, char *argv[]);
@@ -81,6 +82,7 @@ extern int Cmd_SensorlessTest(int argc, char *argv[]);
 static const cmd_entry_t s_cmd_table[] = {
     /* 偏移校准 / 霍尔检测 */
     { "detect",     Cmd_Detect,             "detect offset/hall/phase or motor R/L" },
+    { "pitune",     Cmd_Autotune,           "preview PI: <bandwidth_Hz> <total_delay_us> [margin_deg]" },
     { "bldc",       Cmd_Bldc,               "BLDC: start/open | stop | exit | status" },
     /* Flash 存储 */
     { "saveparam",  Cmd_Saveparam,          "save motor params to Flash" },
