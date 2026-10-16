@@ -1,0 +1,21 @@
+{
+    "C_Cpp.intelliSenseEngine": "default",
+    "C_Cpp.default.configurationProvider": "",
+    "C_Cpp.files.exclude": {
+        "**/.vscode": true,
+        "**/.vs": true,
+        "ThirtyLibrary/bldc/**": true,
+        "ThirtyLibrary/am32/**": true,
+        "ThirtyLibrary/MESC_Firmware/**": true,
+        "ThirtyLibrary/moteus/**": true,
+        "ThirtyLibrary/hoverboard-firmware-hack-FOC/**": true,
+        "ThirtyLibrary/Arduino-FOC/**": true,
+        "ThirtyLibrary/ODrive/**": true,
+        "Boot/**": true,
+        "Tests/**": true,
+        "Test/**": true,
+        "Examples/**": true,
+        "build/**": true,
+        ".build/**": true
+    }
+}

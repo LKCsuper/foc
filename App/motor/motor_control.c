@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <math.h>
+#include "common_assert.h"
 #include <string.h>
 #include <stddef.h>
 
@@ -112,9 +113,7 @@ static float Motor_Control_EncoderCoggingAssist(const MOTOR_PARAM_S *motor, floa
     measured_rpm = Motor_SpeedLoop_GetMeasuredRpm();
     directional_rpm = direction * measured_rpm;
     speed_error = motor->ol_target_rpm - measured_rpm;
-    if (direction * speed_error <= 0.0f || directional_rpm >= MOTOR_ENCODER_COGGING_ASSIST_RELEASE_RPM) {
-        return pi_iq;
-    }
+    if (direction * speed_error <= 0.0f || directional_rpm >= MOTOR_ENCODER_COGGING_ASSIST_RELEASE_RPM) return pi_iq;
 
     assist = MOTOR_ENCODER_START_IQ_A;
     if (directional_rpm > MOTOR_ENCODER_COGGING_ASSIST_FULL_RPM &&
@@ -127,12 +126,8 @@ static float Motor_Control_EncoderCoggingAssist(const MOTOR_PARAM_S *motor, floa
         assist = iq_limit;
     }
 
-    if (direction > 0.0f && pi_iq < assist) {
-        return assist;
-    }
-    if (direction < 0.0f && pi_iq > -assist) {
-        return -assist;
-    }
+    if (direction > 0.0f && pi_iq < assist) return assist;
+    if (direction < 0.0f && pi_iq > -assist) return -assist;
     return pi_iq;
 }
 
@@ -144,9 +139,7 @@ static float Motor_Control_EncoderCoggingAssist(const MOTOR_PARAM_S *motor, floa
  */
 void Motor_Control_Init(motor_control_t *ctrl)
 {
-    if (ctrl == NULL) {
-        return;
-    }
+    COMMON_ASSERT(ctrl != NULL);
     memset(ctrl, 0, sizeof(*ctrl));
     ctrl->startup.alignment.stopped = true;
     ctrl->startup.if_start.first_cycle = true;
@@ -164,9 +157,7 @@ void Motor_Control_Init(motor_control_t *ctrl)
  */
 void Motor_Control_ResetRuntime(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
 {
-    if (motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL);
     /* 与 Motor_ClearRuntimeControl 一致：清斜坡与 d/q 积分，保留命令目标。 */
     motor->ol_current_rpm = 0.0f;
     motor->ol_vd_int = 0.0f;
@@ -201,9 +192,7 @@ float Motor_Control_GetVoltageLimit(const MOTOR_PARAM_S *motor, float v_bus)
 {
     float limit;
 
-    if (motor == NULL) {
-        return 0.0f;
-    }
+    if (motor == NULL) return 0.0f;
     limit = motor->ol_vq_limit;
     if (limit < 0.0f) {
         limit = 0.0f;
@@ -225,12 +214,8 @@ float Motor_Control_GetVoltageLimit(const MOTOR_PARAM_S *motor, float v_bus)
  */
 bool Motor_Control_IsReady(const MOTOR_PARAM_S *motor, float v_bus, bool hall_detect_active)
 {
-    if (motor == NULL) {
-        return false;
-    }
-    if (hall_detect_active) {
-        return motor->ol_enable && v_bus >= 1.0f;
-    }
+    if (motor == NULL) return false;
+    if (hall_detect_active) return motor->ol_enable && v_bus >= 1.0f;
     /* 零速可作为已启用速度环的有效命令；普通开环目标为零仍不得起动。 */
     return motor->ol_enable && (motor->ol_target_rpm != 0.0f || motor->speed_enable) && v_bus >= 1.0f;
 }
@@ -246,9 +231,7 @@ void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor)
     motor_alignment_config_t alignment_config;
     motor_hfi_start_config_t hfi_config;
 
-    if (motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL);
 
     if (motor->ol_pole_pairs < 1.0f) {
         motor->ol_pole_pairs = 1.0f;
@@ -392,9 +375,7 @@ void Motor_Control_UpdateSpeed(MOTOR_PARAM_S *motor, float dt, bool sensorless_t
     float step;
     float pole_pairs;
 
-    if (motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL);
 
     target = motor->ol_target_rpm;
     if (motor->speed_enable) {
@@ -444,9 +425,7 @@ void Motor_Control_UpdateSpeed(MOTOR_PARAM_S *motor, float dt, bool sensorless_t
  */
 void Motor_Control_UpdateTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float dt)
 {
-    if (ctrl == NULL || motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(ctrl != NULL && motor != NULL);
     motor->ol_theta += RPM2RADPS_f(ctrl->startup.if_start.angle_rpm) * motor->ol_pole_pairs * dt;
     utils_norm_angle_rad(&motor->ol_theta);
 }
@@ -537,9 +516,7 @@ static float Motor_Control_GetCurrentTheta(motor_control_t *ctrl, MOTOR_PARAM_S 
     float theta = motor->ol_theta + ctrl->startup.if_start.phase_boost;
     motor_feedback_sample_t feedback;
 
-    if (sample != NULL) {
-        return sample->elec_angle_rad;
-    }
+    if (sample != NULL) return sample->elec_angle_rad;
 
     utils_norm_angle_rad(&theta);
     /*
@@ -624,12 +601,8 @@ static bool Motor_Control_SpeedLoopReady(motor_control_t *ctrl, const MOTOR_PARA
  */
 static bool Motor_Control_EncoderSpeedUsesVoltage(float command_rpm)
 {
-    if (MOTOR_ENCODER_SPEED_VOLTAGE_MODE == 1U) {
-        return true;
-    }
-    if (MOTOR_ENCODER_SPEED_VOLTAGE_MODE == 2U) {
-        return fabsf(command_rpm) <= MOTOR_ENCODER_SPEED_VOLTAGE_MAX_RPM;
-    }
+    if (MOTOR_ENCODER_SPEED_VOLTAGE_MODE == 1U) return true;
+    if (MOTOR_ENCODER_SPEED_VOLTAGE_MODE == 2U) return fabsf(command_rpm) <= MOTOR_ENCODER_SPEED_VOLTAGE_MAX_RPM;
     return false;
 }
 
@@ -637,9 +610,7 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
 {
     bool dragging;
 
-    if (ctrl == NULL || motor == NULL || ctx == NULL) {
-        return;
-    }
+    COMMON_ASSERT(ctrl != NULL && motor != NULL && ctx != NULL);
     dragging = ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP;
     memset(ctx, 0, sizeof(*ctx));
     ctx->frame_correction = ctrl->current_frame_correction;
@@ -697,16 +668,12 @@ static void Motor_Control_UpdateSoftCurrent(motor_control_t *ctrl, const MOTOR_P
 {
     const float soft_time_s = 0.8f;
 
-    if (ctrl == NULL || motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(ctrl != NULL && motor != NULL);
     if (!motor->ol_enable) {
         ctrl->startup.soft_current_scale = 0.0f;
         return;
     }
-    if (dt <= 0.0f) {
-        return;
-    }
+    if (dt <= 0.0f) return;
     ctrl->startup.soft_current_scale += dt / soft_time_s;
     if (ctrl->startup.soft_current_scale > 1.0f) {
         ctrl->startup.soft_current_scale = 1.0f;
@@ -723,9 +690,8 @@ static void Motor_Control_UpdateDragCurrent(motor_control_t *ctrl, float dt)
 {
     const float transition_time_s = 0.25f;
 
-    if (ctrl == NULL || dt <= 0.0f) {
-        return;
-    }
+    COMMON_ASSERT(ctrl != NULL);
+    if (dt <= 0.0f) return;
     ctrl->startup.drag_current_scale += dt / transition_time_s;
     if (ctrl->startup.drag_current_scale > 1.0f) {
         ctrl->startup.drag_current_scale = 1.0f;
@@ -983,9 +949,7 @@ static bool Motor_Control_RunHfi(motor_control_t *ctrl, MOTOR_PARAM_S *motor, fl
     motor_hfi_start_result_t hfi_result;
     bool starting;
 
-    if (!config.enabled || config.voltage <= 0.0f || ctrl->startup.hfi_start.attempted) {
-        return false;
-    }
+    if (!config.enabled || config.voltage <= 0.0f || ctrl->startup.hfi_start.attempted) return false;
     starting = !ctrl->startup.hfi_start.running;
 
     if (starting) {
@@ -1034,9 +998,7 @@ static void Motor_Control_AdvanceIfStartup(motor_control_t *ctrl, MOTOR_PARAM_S 
         Motor_Control_UpdateSoftCurrent(ctrl, motor, dt);
         motor->ol_current_rpm = 0.0f;
         MotorIfStart_SetNeutral(&ctrl->startup.if_start);
-        if (ctrl->startup.soft_current_scale < 1.0f) {
-            return;
-        }
+        if (ctrl->startup.soft_current_scale < 1.0f) return;
         if (motor->ol_align_enable && !ctrl->startup.alignment.complete) {
             ctrl->startup.phase = MOTOR_STARTUP_ANGLE_HOLD;
         } else {
@@ -1064,9 +1026,7 @@ static float Motor_Control_GetSpeedPrimeIq(const MOTOR_PARAM_S *motor)
     if (fabsf(ref_rpm) < 1.0f) {
         ref_rpm = motor->ol_target_rpm;
     }
-    if (Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER) {
-        return SIGN(ref_rpm) * fminf(fabsf(motor->ol_iq_set), fabsf(motor->speed_iq_limit));
-    }
+    if (Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER) return SIGN(ref_rpm) * fminf(fabsf(motor->ol_iq_set), fabsf(motor->speed_iq_limit));
 
     {
         float command_rpm = motor->ol_target_rpm;
@@ -1178,9 +1138,7 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
     memset(&result, 0, sizeof(result));
     result.action = MOTOR_CONTROL_ACTION_NONE;
 
-    if (ctrl == NULL || motor == NULL) {
-        return Motor_Control_ResultSafe();
-    }
+    if (ctrl == NULL || motor == NULL) return Motor_Control_ResultSafe();
 
     /* 模式变化由控制实例自己识别，确保内部启动上下文也被完整复位。 */
     if (ctrl->last_mode >= 0 && ctrl->last_mode != motor->ol_mode) {
@@ -1213,9 +1171,7 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
 
     if (motor->ol_mode == MOTOR_OL_MODE_IF) {
         stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
-        if (Motor_Control_RunHfi(ctrl, motor, v_bus, &hfi_result)) {
-            return Motor_Control_PublishTheta(motor, hfi_result);
-        }
+        if (Motor_Control_RunHfi(ctrl, motor, v_bus, &hfi_result)) return Motor_Control_PublishTheta(motor, hfi_result);
         Motor_Control_AdvanceIfStartup(ctrl, motor, dt);
         if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_STARTUP, stage_start);
         if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {

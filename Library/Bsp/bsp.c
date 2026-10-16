@@ -1,7 +1,7 @@
 /*
  * @Description: bsp初始化
  * @Date: 2023-02-18 23:29:37
- * @LastEditTime: 2023-10-06 20:14:07
+ * @LastEditTime: 2026-10-16 16:15:25
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
  */
 #ifdef __cplusplus
@@ -96,16 +96,16 @@ extern "C" {
 VOID Bsp_RTOS_Init(VOID)
 {
 #ifdef HSE_USE
-	/* HSE 外部晶振模式：8MHz 晶振 → PLL → SYSCLK 168MHz */
-	Bsp_Rcu_Init(8, 336, 2, 4);
+    /* HSE 外部晶振模式：8MHz 晶振 → PLL → SYSCLK 168MHz */
+    Bsp_Rcu_Init(8, 336, 2, 4);
 #else
-	/* HSI 内部振荡器模式：16MHz HSI → PLL → SYSCLK 168MHz */
-	HSI_SetSysClock(8, 168, 2, 4);
+    /* HSI 内部振荡器模式：16MHz HSI → PLL → SYSCLK 168MHz */
+    HSI_SetSysClock(8, 168, 2, 4);
 #endif
-	/* SysTick 1ms 中断 + NVIC 优先级分组4（FreeRTOS 要求） */
-	Bsp_Sys_Init(10000);
+    /* SysTick 1ms 中断 + NVIC 优先级分组4（FreeRTOS 要求） */
+    Bsp_Sys_Init(10000);
 
-	return;
+    return;
 }
 
 /**
@@ -122,28 +122,21 @@ VOID Bsp_RTOS_Init(VOID)
  */
 VOID Bsp_Init(VOID)
 {
-	/* gpio 初始化 */
-	Bsp_Gpio_Init();
+    /* gpio 初始化 */
+    Bsp_Gpio_Init();
 
-	/* 串口初始化 */
-	Bsp_Usart_DebugInit(DEBUG_USART_BAUD);
-	/*
-	 * 开机第一条日志必须早于 ADC、DMA、PWM、传感器和任务初始化。
-	 * 此时 TX DMA 尚未启用，PRINTF 自动走轮询发送，便于定位后续初始化卡点。
-	 */
-	PRINTF("\r\nFOC boot, UART4=%lu 8N1\r\n", (unsigned long)DEBUG_USART_BAUD);
-	PRINTF("Firmware built: %s %s\r\n", __DATE__, __TIME__);
+    /* 串口初始化 */
+    Bsp_Usart_DebugInit(DEBUG_USART_BAUD);
 
-	/* 初始化定时器1 pwm */
-	// TODO 注意: 如果初始化顺序 Tim Adc Dma 如果tim和dma中断中间没有加打印,串口就会死掉
-	// TODO 更改初始化顺序 或者 中间加打印 串口正常
-	Bsp_Adc_Init();
-	Bsp_Dma_Init();
-	Bsp_Tim_Init();
+    /* 初始化定时器1 pwm */
+    // TODO 注意: 如果初始化顺序 Tim Adc Dma 如果tim和dma中断中间没有加打印,串口就会死掉 更改初始化顺序 或者 中间加打印 串口正常
+    Bsp_Adc_Init();
+    Bsp_Dma_Init();
+    Bsp_Tim_Init();
 
-	PRINTF("Hardware Init Success\r\n");
+    PRINTF("Hardware Init Success\r\n");
 
-	return;
+    return;
 }
 
 #ifdef __cplusplus

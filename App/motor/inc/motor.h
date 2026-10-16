@@ -146,14 +146,6 @@ motor_result_t Motor_ApplyProfileSensor(void);
  * @author: lkc
  */
 motor_feedback_source_t Motor_GetFeedbackSource(void);
-
-/**
- * @description: 通过串口打印当前电机偏移等参数。
- * @return {*}
- * @author: lkc
- */
-void MOTOR_ShowParam(void);
-
 #ifdef __cplusplus
 }
 #endif

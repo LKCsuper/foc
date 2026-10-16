@@ -4,6 +4,7 @@
  */
 /* Includes ------------------------------------------------------------------*/
 #include "motor_timing.h"
+#include "common_assert.h"
 
 #include <stddef.h>
 #include <math.h>
@@ -60,6 +61,7 @@ typedef char motor_phase_fits_handoff[(sizeof(motor_phase_sample_t) <= sizeof(mo
 typedef char motor_step_fits_handoff[(sizeof(motor_observer_step_sample_t) <= sizeof(motor_handoff_sample_t)) ? 1 : -1];
 typedef char motor_pair_fits_handoff[(sizeof(motor_pair_sample_t) <= sizeof(motor_handoff_sample_t)) ? 1 : -1];
 static bool s_pair_mode, s_pair_previous_valid;
+static bool s_pair_half;
 static motor_pair_frame_t s_pair_previous, s_pair_current;
 static bool s_phase_mode;
 static bool s_phase_long;
@@ -76,6 +78,7 @@ void Motor_Timing_HandoffArm(void)
     s_phase_long = false;
     s_step_mode = false;
     s_pair_mode = s_pair_previous_valid = false;
+    s_pair_half = false;
     Motor_Crit_Exit(key);
 }
 void Motor_Timing_HandoffStop(void)
@@ -94,7 +97,7 @@ static bool Motor_Timing_CaptureDue(void)
     if (s_handoff_marked) {
         s_handoff_triggered = true;
         s_handoff_post = s_phase_long ? 28U : 16U;
-    } else if (++s_handoff_divider < (s_phase_long ? 450U : 15U)) return false;
+    } else if (++s_handoff_divider < (s_pair_half ? 901U : (s_phase_long ? 450U : 15U))) return false;
     s_handoff_divider = 0U;
     return true;
 }
@@ -156,6 +159,14 @@ void Motor_Timing_PairArm(void)
     Motor_Crit_Exit(key);
 }
 bool Motor_Timing_PairMode(void) { return s_pair_mode; }
+void Motor_Timing_PairHalfArm(void)
+{
+    uint32_t key = Motor_Crit_Enter();
+    Motor_Timing_PairArm();
+    s_pair_half = true;
+    Motor_Crit_Exit(key);
+}
+bool Motor_Timing_PairHalfMode(void) { return s_pair_half; }
 bool Motor_Timing_PairActive(void) { return s_pair_mode && s_handoff_active; }
 bool Motor_Timing_PairFrame(const motor_pair_frame_t *frame)
 {
@@ -315,7 +326,8 @@ void Motor_Timing_IrqNote(unsigned kind, uint32_t start_us, uint32_t end_us, uns
 void Motor_Timing_IrqGet(unsigned kind, motor_irq_diag_t *out)
 {
     uint32_t key;
-    if (kind >= 2U || out == NULL) return;
+    COMMON_ASSERT(out != NULL);
+    if (kind >= 2U) return;
     key = Motor_Crit_Enter();
     *out = s_irq_diag[kind];
     Motor_Crit_Exit(key);
@@ -449,7 +461,7 @@ void Motor_Timing_SpeedTaskNote(uint32_t time_us, bool allowed, float target, fl
 void Motor_Timing_SpeedTaskGet(motor_speed_task_diag_t *out)
 {
     uint32_t key;
-    if (out == NULL) return;
+    COMMON_ASSERT(out != NULL);
     key = Motor_Crit_Enter();
     *out = s_speed_task;
     Motor_Crit_Exit(key);
@@ -541,7 +553,7 @@ void Motor_Timing_CallbackEnd(uint32_t time_us, bool pending)
 void Motor_Timing_CallbackGet(motor_callback_t *out)
 {
     uint32_t key;
-    if (out == NULL) return;
+    COMMON_ASSERT(out != NULL);
     key = Motor_Crit_Enter();
     *out = s_callback;
     Motor_Crit_Exit(key);
@@ -666,7 +678,7 @@ void Motor_Timing_CadenceNote(uint32_t time_us, bool upward)
 void Motor_Timing_CadenceGet(motor_cadence_t *out)
 {
     uint32_t key;
-    if (out == NULL) return;
+    COMMON_ASSERT(out != NULL);
     key = Motor_Crit_Enter();
     *out = s_cadence;
     Motor_Crit_Exit(key);
@@ -743,7 +755,8 @@ bool Motor_Timing_TraceCompactDue(uint32_t time_us, unsigned state, unsigned fau
 void Motor_Timing_TracePushCompact(const motor_trace_compact_sample_t *sample)
 {
     motor_trace_compact_sample_t *destination;
-    if (!Motor_Timing_TraceCompactIsActive() || sample == NULL) return;
+    COMMON_ASSERT(sample != NULL);
+    if (!Motor_Timing_TraceCompactIsActive()) return;
     destination = &s_trace_storage.compact[s_trace_head];
     *destination = *sample;
     destination->flags = s_compact_flags;
@@ -861,7 +874,8 @@ bool Motor_Timing_TraceDue(unsigned state)
 void Motor_Timing_TracePush(const motor_trace_sample_t *sample)
 {
     motor_trace_sample_t *destination;
-    if (!s_trace_active || s_trace_light || s_trace_compact || sample == NULL) return;
+    COMMON_ASSERT(sample != NULL);
+    if (!s_trace_active || s_trace_light || s_trace_compact) return;
     destination = &s_trace[s_trace_head];
     *destination = *sample;
     destination->gap_max_us = s_trace_gap_max;
@@ -896,7 +910,8 @@ bool Motor_Timing_TraceGet(unsigned index, motor_trace_sample_t *sample)
 void Motor_Timing_TracePushLight(const motor_trace_light_sample_t *sample)
 {
     motor_trace_light_sample_t *destination;
-    if (!s_trace_active || !s_trace_light || sample == NULL) return;
+    COMMON_ASSERT(sample != NULL);
+    if (!s_trace_active || !s_trace_light) return;
     if (s_trace_flight) {
         if (s_trace_entry_trigger && s_flight_entry_count < MOTOR_TRACE_FLIGHT_ENTRY) {
             destination = &s_trace_storage.light[s_flight_entry_count++];
@@ -1022,7 +1037,8 @@ void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start_us)
 void Motor_Timing_ProfileDetail(motor_timing_stage_t stage, uint32_t *count, uint32_t *maximum)
 {
     uint32_t key;
-    if ((unsigned)stage >= MOTOR_TIMING_STAGE_COUNT || count == NULL || maximum == NULL) return;
+    COMMON_ASSERT(count != NULL && maximum != NULL);
+    if ((unsigned)stage >= MOTOR_TIMING_STAGE_COUNT) return;
     key = Motor_Crit_Enter();
     *count = s_profile_count[stage];
     *maximum = s_profile_max[stage];
@@ -1032,7 +1048,7 @@ void Motor_Timing_ProfileSnapshot(motor_profile_snapshot_t *out)
 {
     unsigned index;
     uint32_t key;
-    if (out == NULL) return;
+    COMMON_ASSERT(out != NULL);
     key = Motor_Crit_Enter();
     for (index = 0U; index < MOTOR_TIMING_STAGE_COUNT; index++) {
         out->count[index] = s_profile_count[index];
@@ -1053,7 +1069,7 @@ void Motor_Timing_ProfileSnapshot(motor_profile_snapshot_t *out)
 void Motor_Timing_ProfileGet(float average_us[MOTOR_TIMING_STAGE_COUNT], uint32_t *samples)
 {
     unsigned i;
-    if (average_us == NULL) return;
+    COMMON_ASSERT(average_us != NULL);
     for (i = 0U; i < MOTOR_TIMING_STAGE_COUNT; ++i) {
         uint32_t count = s_profile_count[i];
         average_us[i] = count ? (float)s_profile_sum[i] / (float)count : 0.0f;
@@ -1076,9 +1092,7 @@ void Motor_Timing_RecordRuntime(uint32_t start_time_us)
     uint32_t elapsed_q16;
     if (!s_performance_enabled) return;
     elapsed_us = Hal_Motor_TimeUs() - start_time_us;
-    if (elapsed_us > 1000U) {
-        return;
-    }
+    if (elapsed_us > 1000U) return;
     elapsed_q16 = elapsed_us << 16;
     if (s_runtime_average_q16 == 0U) {
         s_runtime_average_q16 = elapsed_q16;
@@ -1101,9 +1115,7 @@ void Motor_Timing_RecordRuntime(uint32_t start_time_us)
 float Motor_Timing_GetAdcDt(MOTOR_PARAM_S *motor)
 {
     float adc_hz;
-    if (motor == NULL) {
-        return 1.0f;
-    }
+    if (motor == NULL) return 1.0f;
     adc_hz = Hal_Motor_AdcSampleRateHz();
     if (adc_hz > 1.0f) {
         motor->ol_foc_freq = adc_hz;

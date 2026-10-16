@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "motor_smo.h"
+#include "common_assert.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -133,9 +134,7 @@ void Motor_Smo_Reset(motor_smo_t *obs)
  */
 void Motor_Smo_NormalizeConfig(motor_smo_config_t *config)
 {
-    if (config == NULL) {
-        return;
-    }
+    COMMON_ASSERT(config != NULL);
     if (!(config->resistance >= 0.0f) || !isfinite(config->resistance)) {
         config->resistance = 0.0f;
     }
@@ -181,12 +180,8 @@ void Motor_Smo_Seed(motor_smo_t *obs, const motor_smo_config_t *config, float an
     float s;
     float c;
 
-    if (obs == NULL || config == NULL) {
-        return;
-    }
-    if (!isfinite(angle) || !isfinite(omega_e) || !isfinite(i_alpha) || !isfinite(i_beta)) {
-        return;
-    }
+    COMMON_ASSERT(obs != NULL && config != NULL);
+    if (!isfinite(angle) || !isfinite(omega_e) || !isfinite(i_alpha) || !isfinite(i_beta)) return;
 
     flux = config->flux_linkage >= MOTOR_SMO_MIN_LINKAGE ? config->flux_linkage : MOTOR_SMO_MIN_LINKAGE;
     wrapped = Motor_Smo_WrapPi(angle);
@@ -234,9 +229,7 @@ bool Motor_Smo_Step(motor_smo_t *obs, const motor_smo_config_t *config, float v_
     float rot_s;
 
     Motor_Smo_ClearOutput(output);
-    if (obs == NULL || config == NULL || output == NULL) {
-        return false;
-    }
+    if (obs == NULL || config == NULL || output == NULL) return false;
     if (!config->enabled || !(dt > 0.0f) || !isfinite(dt) || !isfinite(v_alpha) || !isfinite(v_beta) ||
         !isfinite(i_alpha) || !isfinite(i_beta) || !(config->inductance >= MOTOR_SMO_MIN_INDUCTANCE)) {
         Motor_Smo_Reset(obs);

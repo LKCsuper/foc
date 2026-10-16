@@ -50,7 +50,7 @@ bool Motor_OutputEstimateVoltage(const MOTOR_PARAM_S *motor, uint32_t period, fl
 
 /**
  * @description: 输出三相中点占空比并提交 PWM。
- * @detail: 中点不等于关桥，也不保证无转矩。同时清零无感本拍应用电压记录。为空则直接返回。
+ * @detail: 中点不等于关桥，也不保证无转矩。同时清零无感本拍应用电压记录。电机对象不可为空，违反约定触发 COMMON_ASSERT。
  * @param {MOTOR_PARAM_S *} motor 电机对象，写入 duty1/2/3
  * @return {void} 无
  * @author: lkc
@@ -60,7 +60,7 @@ void Motor_OutputSafe(MOTOR_PARAM_S *motor);
 /**
  * @description: 反 Park 加调制，将 vd/vq 落到三相 PWM。
  * @detail: 有感 I/F 保持已验证的 VESC SVM。无感 I/F 使用同一套电压换算。V/F 仍用 svm_hqd。
- *          比较值按当前板 A-C-B 相序提交。为空则直接返回。
+ *          比较值按当前板 A-C-B 相序提交。电机对象不可为空，违反约定触发 COMMON_ASSERT。
  * @param {MOTOR_PARAM_S *} motor     电机对象，写入 duty1/2/3
  * @param {float} vd                  D 轴电压 (V)
  * @param {float} vq                  Q 轴电压 (V)
@@ -88,7 +88,7 @@ void Motor_OutputVoltageLinear(MOTOR_PARAM_S *motor, float vd, float vq, float t
 /**
  * @description: 将已经仲裁的控制结果应用到 PWM。
  * @detail: 调用前须已经过 Motor_Control_ArbitrateOutput。SAFE 走中点，OUTPUT_DQ 走反 Park。
- *          故障锁存时不得传入 OUTPUT_DQ。motor 或 result 为空则直接返回。
+ *          故障锁存时不得传入 OUTPUT_DQ。motor 和 result 不可为空，违反约定触发 COMMON_ASSERT。
  * @param {MOTOR_PARAM_S *} motor                  电机对象
  * @param {float} v_bus                            母线电压 (V)
  * @param {const motor_control_result_t *} result  仲裁后的输出请求

@@ -4,6 +4,7 @@
  */
 /* Includes ------------------------------------------------------------------*/
 #include "motor_detect_isr.h"
+#include "common_assert.h"
 
 #include <stddef.h>
 
@@ -25,9 +26,7 @@
  */
 void Motor_DetectIsr_Step(MOTOR_PARAM_S *motor, bool pwm_down)
 {
-    if (motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL);
 
     Motor_Sense_Update(motor);
     Motor_Detect_IsrFeed(pwm_down);

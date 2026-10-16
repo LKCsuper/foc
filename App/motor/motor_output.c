@@ -7,6 +7,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include "common_assert.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <math.h>
@@ -37,9 +38,7 @@ static float s_observer_current_c;
  */
 bool Motor_OutputSetObserverDeadtime(float fraction)
 {
-    if (!isfinite(fraction) || fraction < 0.0f || fraction > 0.02f) {
-        return false;
-    }
+    if (!isfinite(fraction) || fraction < 0.0f || fraction > 0.02f) return false;
     s_observer_deadtime_fraction = fraction;
     s_observer_current_a = s_observer_current_b = s_observer_current_c = 0.0f;
     return true;
@@ -76,9 +75,7 @@ bool Motor_OutputEstimateVoltage(const MOTOR_PARAM_S *motor, uint32_t period, fl
                                  float deadtime_fraction, float *v_alpha, float *v_beta)
 {
     motor_output_sample_t sample;
-    if (motor == NULL) {
-        return Motor_OutputCore_EstimateVoltage(NULL, period, v_bus, deadtime_fraction, v_alpha, v_beta);
-    }
+    if (motor == NULL) return Motor_OutputCore_EstimateVoltage(NULL, period, v_bus, deadtime_fraction, v_alpha, v_beta);
     sample.duty1 = motor->duty1; sample.duty2 = motor->duty2; sample.duty3 = motor->duty3;
     sample.ia = motor->ia; sample.ib = motor->ib; sample.ic = motor->ic;
     return Motor_OutputCore_EstimateVoltage(&sample, period, v_bus, deadtime_fraction, v_alpha, v_beta);
@@ -95,9 +92,7 @@ void Motor_OutputSafe(MOTOR_PARAM_S *motor)
 {
     uint32_t mid;
 
-    if (motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL);
     mid = Hal_Motor_PwmPeriodCounts() / 2U;
     motor->duty1 = mid;
     motor->duty2 = mid;
@@ -131,9 +126,7 @@ static void Motor_OutputVoltageInternal(MOTOR_PARAM_S *motor, float vd, float vq
     bool sensored_if;
     bool sensorless_if;
 
-    if (motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL);
     period = Hal_Motor_PwmPeriodCounts();
     inverse_park(vd, vq, theta_rad, &v_alpha, &v_beta);
     feedback_source = Motor_Feedback_GetSourceDefault();
@@ -228,9 +221,7 @@ void Motor_OutputVoltageLinear(MOTOR_PARAM_S *motor, float vd, float vq, float t
  */
 void Motor_OutputApplyControlResult(MOTOR_PARAM_S *motor, float v_bus, const motor_control_result_t *result)
 {
-    if (motor == NULL || result == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL && result != NULL);
     if (result->action == MOTOR_CONTROL_ACTION_SAFE) {
         Motor_OutputSafe(motor);
     } else if (result->action == MOTOR_CONTROL_ACTION_OUTPUT_DQ) {

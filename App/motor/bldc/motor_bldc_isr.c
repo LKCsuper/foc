@@ -3,6 +3,7 @@
  * @Author: lkc
  */
 #include <stddef.h>
+#include "common_assert.h"
 #include "motor_bldc_isr.h"
 #include "motor_protect.h"
 #include "motor_sense.h"
@@ -26,9 +27,7 @@ void Motor_BldcIsr_Step(motor_bldc_sensorless_t *sensorless, MOTOR_PARAM_S *moto
     float dt;
     float phase_voltage[3];
 
-    if (sensorless == NULL || motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(sensorless != NULL && motor != NULL);
     runtime_start = Hal_Motor_TimeUs();
     Motor_Sense_Update(motor);
     dt = Motor_Timing_GetAdcDt(motor);

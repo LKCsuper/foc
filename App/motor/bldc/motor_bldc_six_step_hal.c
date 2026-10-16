@@ -24,12 +24,8 @@ static hal_motor_bldc_phase_mode_t Motor_BldcSixStep_ToHal(motor_bldc_phase_mode
  */
 static hal_motor_bldc_phase_mode_t Motor_BldcSixStep_ToHal(motor_bldc_phase_mode_t mode)
 {
-    if (mode == MOTOR_BLDC_PHASE_PWM) {
-        return HAL_MOTOR_BLDC_PHASE_PWM;
-    }
-    if (mode == MOTOR_BLDC_PHASE_LOW) {
-        return HAL_MOTOR_BLDC_PHASE_LOW;
-    }
+    if (mode == MOTOR_BLDC_PHASE_PWM) return HAL_MOTOR_BLDC_PHASE_PWM;
+    if (mode == MOTOR_BLDC_PHASE_LOW) return HAL_MOTOR_BLDC_PHASE_LOW;
     return HAL_MOTOR_BLDC_PHASE_FLOAT;
 }
 

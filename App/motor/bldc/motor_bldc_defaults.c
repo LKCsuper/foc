@@ -27,15 +27,11 @@ bool Motor_BldcDefaults_Init(motor_bldc_six_step_t *commutator, motor_bldc_senso
     motor_bldc_six_step_config_t six_config;
     motor_bldc_sensorless_config_t sensorless_config;
 
-    if (commutator == NULL || sensorless == NULL) {
-        return false;
-    }
+    if (commutator == NULL || sensorless == NULL) return false;
     Motor_BldcSixStep_DefaultConfig(&six_config);
     six_config.apply_output = Motor_BldcSixStep_HalApply;
     six_config.output_user = NULL;
-    if (!Motor_BldcSixStep_Init(commutator, &six_config)) {
-        return false;
-    }
+    if (!Motor_BldcSixStep_Init(commutator, &six_config)) return false;
 
     Motor_BldcSensorless_DefaultConfig(&sensorless_config);
     /* 24 V 实测 8%/12ms 基本同步，14ms 明显抖动。 */

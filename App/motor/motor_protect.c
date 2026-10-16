@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <math.h>
+#include "common_assert.h"
 #include <string.h>
 #include <stdbool.h>
 
@@ -109,7 +110,7 @@ void Motor_Protect_TriggerFaultState(motor_protect_state_t *state, mc_fault_code
                                      const MOTOR_PARAM_S *motor, const motor_protect_aux_t *aux)
 {
     motor_protect_input_t input;
-    if (state == NULL || motor == NULL) { return; }
+    COMMON_ASSERT(state != NULL && motor != NULL);
     Motor_Protect_MapInput(&input, motor);
     Motor_Protect_TriggerFaultInputState(state, fault, &input, aux);
 }
@@ -129,9 +130,7 @@ static void Motor_Protect_FillAuxDefault(motor_protect_aux_t *aux, const MOTOR_P
 {
     motor_sensorless_diagnostics_t sensorless_diagnostics;
 
-    if (aux == NULL || motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(aux != NULL && motor != NULL);
 
     memset(aux, 0, sizeof(*aux));
     Motor_Sensorless_GetDiagnostics(&sensorless_diagnostics);
@@ -208,9 +207,8 @@ void Motor_Protect_TriggerFault(mc_fault_code fault, const MOTOR_PARAM_S *motor)
 {
     motor_protect_aux_t aux;
 
-    if (fault == FAULT_CODE_NONE || motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL);
+    if (fault == FAULT_CODE_NONE) return;
     Motor_Protect_FillAuxDefault(&aux, motor);
     Motor_Protect_TriggerFaultState(&s_protect, fault, motor, &aux);
 }

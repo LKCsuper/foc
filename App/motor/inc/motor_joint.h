@@ -197,7 +197,7 @@ void Motor_Joint_Run(float dt);
 
 /**
  * @description: 复制关节阻抗状态。
- * @param {motor_joint_state_t *} state  输出，为空则忽略
+ * @param {motor_joint_state_t *} state  输出，不可为空，违反约定触发 COMMON_ASSERT
  * @return {void} 无
  * @author: lkc
  */

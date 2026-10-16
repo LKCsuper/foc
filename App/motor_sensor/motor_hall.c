@@ -203,9 +203,7 @@ bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad,
 {
     (void)m;
 
-    if (!s_hall_detect.active || s_hall_detect.abort) {
-        return false;
-    }
+    if (!s_hall_detect.active || s_hall_detect.abort) return false;
 
     *theta_rad = s_hall_detect.theta_rad;
     *id_target = s_hall_detect.id_target;
@@ -240,9 +238,7 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
     uint32_t step;
     bool stopped = false;
 
-    if (hall_table == NULL || result == NULL || current <= 0.0f) {
-        return FAULT_CODE_NONE;
-    }
+    if (hall_table == NULL || result == NULL || current <= 0.0f) return FAULT_CODE_NONE;
 
     printf("HALL DETECT I/F align+Iq=%.2fA slow crawl\r\n", (double)current);
     memset(sin_hall, 0, sizeof(sin_hall));

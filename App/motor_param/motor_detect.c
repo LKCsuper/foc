@@ -17,7 +17,6 @@ extern "C" {
 #include "cmsis_os2.h"
 #include "motor_detect.h"
 #include "motor_detect_offset.h"
-#include "motor_detect_rl_fit.h"
 #include "flash_storage.h"
 #include "motor_param.h"
 #include "motor_sensorless.h"
@@ -138,6 +137,10 @@ typedef struct {
     float r_v_alpha_sum;
     float r_v_beta_sum;
     float r_current_sum;
+    float r_phase_sum[3];
+    uint32_t r_phase_negative[3];
+    uint32_t r_phase_near_zero[3];
+    float r_bus_sum;
     float r_window_i[2];
     float r_window_v[2];
     uint32_t r_window_n[2];
@@ -149,7 +152,6 @@ typedef struct {
     uint32_t pulse_count;
     uint32_t valid_pulses;
     float pulse_start_current;
-    float pulse_current[MOTOR_DETECT_INDUCTANCE_HALF_CYCLES];
     float injection_theta;
     float theta;
     float electrical_rpm_target;
@@ -251,12 +253,8 @@ static void Detect_PrintEdgeMeans(const char *tag, const motor_detect_offset_t *
 
 static float Detect_Clamp(float value, float minimum, float maximum)
 {
-    if (value < minimum) {
-        return minimum;
-    }
-    if (value > maximum) {
-        return maximum;
-    }
+    if (value < minimum) return minimum;
+    if (value > maximum) return maximum;
     return value;
 }
 
@@ -278,18 +276,14 @@ static bool Detect_FitResistance(const float *current, const float *voltage, uin
         return false;
     }
     for (i = 0U; i < count; i++) {
-        if (!isfinite(current[i]) || !isfinite(voltage[i])) {
-            return false;
-        }
+        if (!isfinite(current[i]) || !isfinite(voltage[i])) return false;
         sum_i += current[i];
         sum_v += voltage[i];
         sum_ii += current[i] * current[i];
         sum_iv += current[i] * voltage[i];
     }
     denominator = (float)count * sum_ii - sum_i * sum_i;
-    if (fabsf(denominator) < 1.0e-6f) {
-        return false;
-    }
+    if (fabsf(denominator) < 1.0e-6f) return false;
     *resistance = ((float)count * sum_iv - sum_i * sum_v) / denominator;
     *voltage_offset = (sum_v - *resistance * sum_i) / (float)count;
     mean_v = sum_v / (float)count;
@@ -321,9 +315,7 @@ static bool Detect_CurrentTooHigh(const MOTOR_PARAM_S *motor_param, float dt)
     if (peak > s_detect_control.max_phase_current) {
         s_detect_control.max_phase_current = peak;
     }
-    if (peak >= MOTOR_DETECT_CURRENT_HARD_LIMIT_A) {
-        return true;
-    }
+    if (peak >= MOTOR_DETECT_CURRENT_HARD_LIMIT_A) return true;
     if (peak > MOTOR_DETECT_CURRENT_LIMIT_A) {
         s_detect_control.overcurrent_elapsed += dt;
     } else {
@@ -430,6 +422,21 @@ static void Detect_RunResistanceStep(MOTOR_PARAM_S *motor_param, float dt)
             s_detect_control.r_v_alpha_sum += v_alpha;
             s_detect_control.r_v_beta_sum += v_beta;
             s_detect_control.r_current_sum += motor_param->ia + motor_param->ib + motor_param->ic;
+            {
+                float phase[3] = {motor_param->ia, motor_param->ib, motor_param->ic};
+                uint32_t channel;
+                for (channel = 0U; channel < 3U; channel++) {
+                    s_detect_control.r_phase_sum[channel] += phase[channel];
+                    if (phase[channel] < 0.0f) {
+                        s_detect_control.r_phase_negative[channel]++;
+                    }
+                    /* 仅诊断阈值，不用于滤除样本、控制或质量验收。 */
+                    if (fabsf(phase[channel]) < 0.1f) {
+                        s_detect_control.r_phase_near_zero[channel]++;
+                    }
+                }
+                s_detect_control.r_bus_sum += motor_param->v_bus;
+            }
             s_detect_control.samples++;
         }
     }
@@ -483,18 +490,16 @@ static void Detect_RunInductanceStep(MOTOR_PARAM_S *motor_param, float dt)
         if (s_detect_control.pulse_position == 0U) {
             s_detect_control.pulse_start_current = motor_param->Id;
         }
-        s_detect_control.pulse_current[s_detect_control.pulse_position] = motor_param->Id;
         if (s_detect_control.pulse_position >= MOTOR_DETECT_INDUCTANCE_HALF_CYCLES - 1U) {
             float current_end = motor_param->Id;
+            float current_mid = 0.5f * (s_detect_control.pulse_start_current + current_end);
             float slope_dt = (float)(MOTOR_DETECT_INDUCTANCE_HALF_CYCLES - 1U) * dt;
             float slope = (current_end - s_detect_control.pulse_start_current) / slope_dt;
-            float inductance;
-            /* 保留原首尾斜率激励门槛；用全窗口磁链积分拟合替代两点相除。
-             * 此处仍为指令电压，未标定的输出延时/压降不能由拟合自动消除。 */
-            if (isfinite(slope) && fabsf(slope) > MOTOR_DETECT_INDUCTANCE_MIN_SLOPE &&
-                Motor_Detect_FitPulse(s_detect_control.pulse_current, MOTOR_DETECT_INDUCTANCE_HALF_CYCLES,
-                                     dt, voltage * MOTOR_DETECT_APPLIED_VOLTAGE_SCALE,
-                                     s_detect_control.measured_resistance, &inductance)) {
+            float effective_voltage = voltage * MOTOR_DETECT_APPLIED_VOLTAGE_SCALE -
+                                      s_detect_control.measured_resistance * current_mid;
+            /* 恢复旧首尾两点法；指令电压与真实端电压的误差仍需独立核验。 */
+            if (fabsf(slope) > MOTOR_DETECT_INDUCTANCE_MIN_SLOPE) {
+                float inductance = effective_voltage / slope;
                 if (inductance > MOTOR_DETECT_INDUCTANCE_MIN_H && inductance < MOTOR_DETECT_INDUCTANCE_MAX_H) {
                     s_detect_control.inductance_sum[direction] += inductance;
                     s_detect_control.inductance_valid[direction]++;
@@ -928,9 +933,7 @@ void Motor_Detect_IsrFeed(bool pwm_down)
         float dt;
 
         /* R/L 检测与正常有感 FOC 一样只使用 PWM 向下计数侧。 */
-        if (!pwm_down) {
-            return;
-        }
+        if (!pwm_down) return;
         dt = Motor_Timing_GetControlDt(&motor);
         if (s_detect_abort_requested) {
             Detect_FinishFromIsr(false, MOTOR_DETECT_ERROR_USER_ABORT);
@@ -963,9 +966,7 @@ void Motor_Detect_IsrFeed(bool pwm_down)
         return;
     }
 
-    if (!s_offset_isr_enable) {
-        return;
-    }
+    if (!s_offset_isr_enable) return;
     if (pwm_down) {
         st = &s_offset_down;
         count_vis = &s_offset_down_n;
@@ -973,9 +974,7 @@ void Motor_Detect_IsrFeed(bool pwm_down)
         st = &s_offset_up;
         count_vis = &s_offset_up_n;
     }
-    if (st->count >= st->samples_per_phase) {
-        return;
-    }
+    if (st->count >= st->samples_per_phase) return;
     (void)Motor_Detect_OffsetFeedDrivenTriple(st, (float)Hal_Motor_CurrentAdc(0U), (float)Hal_Motor_CurrentAdc(1U),
                                               (float)Hal_Motor_CurrentAdc(2U), Hal_Motor_SenseVolts(0U),
                                               Hal_Motor_SenseVolts(1U), Hal_Motor_SenseVolts(2U));
@@ -1012,6 +1011,10 @@ static bool Detect_RunStage(motor_detect_stage_t stage, float current_a, uint32_
     s_detect_control.r_v_alpha_sum = 0.0f;
     s_detect_control.r_v_beta_sum = 0.0f;
     s_detect_control.r_current_sum = 0.0f;
+    memset(s_detect_control.r_phase_sum, 0, sizeof(s_detect_control.r_phase_sum));
+    memset(s_detect_control.r_phase_negative, 0, sizeof(s_detect_control.r_phase_negative));
+    memset(s_detect_control.r_phase_near_zero, 0, sizeof(s_detect_control.r_phase_near_zero));
+    s_detect_control.r_bus_sum = 0.0f;
     memset(s_detect_control.r_window_i, 0, sizeof(s_detect_control.r_window_i));
     memset(s_detect_control.r_window_v, 0, sizeof(s_detect_control.r_window_v));
     memset(s_detect_control.r_window_n, 0, sizeof(s_detect_control.r_window_n));
@@ -1142,6 +1145,22 @@ static bool Detect_MotorRlInternal(float current_a, motor_detect_result_t *resul
             v_drift = fabsf(v1 - v0) / fmaxf(fabsf(signed_voltage[point]), 0.01f);
             PRINTF("  R stability: Id drift=%.2f%% Vd drift=%.2f%%\r\n",
                    (double)(i_drift * 100.0f), (double)(v_drift * 100.0f));
+            {
+                float count = (float)s_detect_control.samples;
+                PRINTF("  R windows: I=%.5f/%.5f A V=%.5f/%.5f V down-only bus=%.3f V\r\n",
+                       (double)i0, (double)i1, (double)v0, (double)v1,
+                       (double)(s_detect_control.r_bus_sum / count));
+                PRINTF("  R phases: mean=%.4f/%.4f/%.4f A neg=%.1f/%.1f/%.1f%% near0=%.1f/%.1f/%.1f%%\r\n",
+                       (double)(s_detect_control.r_phase_sum[0] / count),
+                       (double)(s_detect_control.r_phase_sum[1] / count),
+                       (double)(s_detect_control.r_phase_sum[2] / count),
+                       (double)(100.0f * s_detect_control.r_phase_negative[0] / count),
+                       (double)(100.0f * s_detect_control.r_phase_negative[1] / count),
+                       (double)(100.0f * s_detect_control.r_phase_negative[2] / count),
+                       (double)(100.0f * s_detect_control.r_phase_near_zero[0] / count),
+                       (double)(100.0f * s_detect_control.r_phase_near_zero[1] / count),
+                       (double)(100.0f * s_detect_control.r_phase_near_zero[2] / count));
+            }
             if (!isfinite(i_drift) || !isfinite(v_drift) ||
                 i_drift > MOTOR_DETECT_RESISTANCE_MAX_DRIFT_RATIO ||
                 v_drift > MOTOR_DETECT_RESISTANCE_MAX_DRIFT_RATIO) {
@@ -1282,9 +1301,7 @@ static bool Detect_MotorParametersInternal(float current_a, float electrical_rpm
     }
     /* R/L 到磁链之间继续占用功率桥，失败不能解除其他检测的占用。 */
     success = Detect_MotorRlInternal(current_a, result, true);
-    if (!success) {
-        return false;
-    }
+    if (!success) return false;
     electrical_rpm = Detect_Clamp(fabsf(electrical_rpm), MOTOR_DETECT_MIN_ELECTRICAL_RPM,
                                   MOTOR_DETECT_MAX_ELECTRICAL_RPM);
     flux_current = Detect_Clamp(fabsf(flux_current_a), MOTOR_DETECT_MIN_CURRENT_A, MOTOR_DETECT_MAX_CURRENT_A);
@@ -1467,6 +1484,8 @@ bool DETECT_Hall(void)
 /**
  * @description: 上电偏移校准：已有 Flash 电流零点则跳过，否则检测并写入 Flash。
  * @detail: 校准期间 ISR 仍采样+软件保护，但不跑 FOC；失败时 fault 保持锁存。
+ * 开机偏移：Flash 已有有效电流零点则直接使用；否则校准约 5 秒并自动存 Flash。
+ * 会撤销运行命令，结束后保持停机，需要转动时由 olspeed/olstart 明确启动。
  * @return {void} 无
  * @author: lkc
  */

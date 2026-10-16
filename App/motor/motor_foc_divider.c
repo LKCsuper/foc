@@ -11,6 +11,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "motor_foc_divider.h"
+#include "common_assert.h"
 #include <stddef.h>
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
@@ -28,9 +29,7 @@ extern "C" {
  */
 void Motor_FocDivider_Init(motor_foc_divider_t *state, int divider)
 {
-    if (state == NULL) {
-        return;
-    }
+    COMMON_ASSERT(state != NULL);
     state->skip = 0;
     state->divider = (divider > 0) ? divider : 1;
 }
@@ -46,9 +45,7 @@ bool Motor_FocDivider_ShouldRun(motor_foc_divider_t *state)
 {
     int divider;
 
-    if (state == NULL) {
-        return true;
-    }
+    if (state == NULL) return true;
 
     divider = state->divider;
     if (divider <= 0) {

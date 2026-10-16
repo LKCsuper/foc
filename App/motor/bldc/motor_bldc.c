@@ -80,15 +80,11 @@ static bool Motor_Bldc_StartInternal(motor_bldc_direction_t direction, float dut
 
     if (!s_initialized) {
         s_initialized = Motor_BldcDefaults_Init(&s_commutator, &s_sensorless);
-        if (!s_initialized) {
-            return false;
-        }
+        if (!s_initialized) return false;
     }
     if (s_sensorless.fault != MOTOR_BLDC_SENSORLESS_FAULT_NONE ||
         Motor_BldcSixStep_GetFault(&s_commutator) != MOTOR_BLDC_FAULT_NONE) {
-        if (!Motor_BldcDefaults_Init(&s_commutator, &s_sensorless)) {
-            return false;
-        }
+        if (!Motor_BldcDefaults_Init(&s_commutator, &s_sensorless)) return false;
     }
 
     s_selected = true;
@@ -138,9 +134,7 @@ bool Motor_Bldc_SetSampleSide(bool upward)
 {
     uint32_t primask;
 
-    if (s_initialized && Motor_BldcSixStep_IsRunning(&s_commutator)) {
-        return false;
-    }
+    if (s_initialized && Motor_BldcSixStep_IsRunning(&s_commutator)) return false;
     primask = Motor_Bldc_StatusLock();
     s_sample_upward = upward;
     Motor_Bldc_StatusUnlock(primask);
@@ -163,13 +157,9 @@ bool Motor_Bldc_SetTuning(float integral_threshold_vs, float minimum_period_s)
     }
     if (!s_initialized) {
         s_initialized = Motor_BldcDefaults_Init(&s_commutator, &s_sensorless);
-        if (!s_initialized) {
-            return false;
-        }
+        if (!s_initialized) return false;
     }
-    if (Motor_BldcSixStep_IsRunning(&s_commutator)) {
-        return false;
-    }
+    if (Motor_BldcSixStep_IsRunning(&s_commutator)) return false;
     primask = Motor_Bldc_StatusLock();
     s_sensorless.config.bemf_integral_threshold_vs = integral_threshold_vs;
     s_sensorless.config.closed_loop_min_period_s = minimum_period_s;
@@ -224,9 +214,7 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status)
     uint32_t primask;
     bool result;
 
-    if (status == NULL) {
-        return false;
-    }
+    if (status == NULL) return false;
     primask = Motor_Bldc_StatusLock();
     if (s_initialized) {
         result = Motor_BldcStatus_Fill(status, s_selected, s_sample_upward, &s_commutator,

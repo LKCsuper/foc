@@ -90,9 +90,7 @@ bool Motor_Encoder_DetectIsActive(void)
  */
 bool Motor_Encoder_DetectGetTargets(float *theta_rad, float *id_target, float *iq_target)
 {
-    if (!s_encoder_detect.active || theta_rad == NULL || id_target == NULL || iq_target == NULL) {
-        return false;
-    }
+    if (!s_encoder_detect.active || theta_rad == NULL || id_target == NULL || iq_target == NULL) return false;
     *theta_rad = s_encoder_detect.theta_rad;
     *id_target = s_encoder_detect.id_target;
     *iq_target = 0.0f;

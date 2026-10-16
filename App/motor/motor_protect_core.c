@@ -1,5 +1,6 @@
 /* 独立保护判据与故障锁存，无硬件或全局控制依赖。 */
 #include <math.h>
+#include "common_assert.h"
 #include <string.h>
 #include "motor_protect_core.h"
 
@@ -73,9 +74,8 @@ static bool Motor_Protect_CheckOverCurrentPeak(motor_protect_state_t *state, flo
 static void Motor_Protect_LatchFaultInputState(motor_protect_state_t *state, mc_fault_code fault, const motor_protect_input_t *motor,
                                           const motor_protect_aux_t *aux)
 {
-    if (state == NULL || motor == NULL || state->fault_latched) {
-        return;
-    }
+    COMMON_ASSERT(state != NULL && motor != NULL);
+    if (state->fault_latched) return;
 
     /* 电机本体量：电流/母线/斜坡/积分，与保护侧速度反馈。 */
     state->snapshot.current_peak = Motor_Protect_CurrentPeak(motor);
@@ -133,9 +133,7 @@ static void Motor_Protect_LatchFaultInputState(motor_protect_state_t *state, mc_
  */
 void Motor_Protect_InitState(motor_protect_state_t *state, const motor_protect_config_t *config)
 {
-    if (state == NULL) {
-        return;
-    }
+    COMMON_ASSERT(state != NULL);
     memset(state, 0, sizeof(*state));
     state->config = (config != NULL) ? *config : s_default_config;
     state->fault = FAULT_CODE_NONE;
@@ -151,9 +149,7 @@ void Motor_Protect_ClearFaultState(motor_protect_state_t *state)
 {
     motor_protect_config_t cfg;
 
-    if (state == NULL) {
-        return;
-    }
+    COMMON_ASSERT(state != NULL);
     cfg = state->config;
     memset(state, 0, sizeof(*state));
     state->config = cfg;
@@ -171,9 +167,7 @@ void Motor_Protect_ClearFaultState(motor_protect_state_t *state)
  */
 void Motor_Protect_SetSpeedFeedbackState(motor_protect_state_t *state, float rpm, bool valid)
 {
-    if (state == NULL) {
-        return;
-    }
+    COMMON_ASSERT(state != NULL);
     state->speed_rpm = rpm;
     state->speed_valid = valid;
     if (!valid) {
@@ -193,9 +187,7 @@ void Motor_Protect_SetSpeedFeedbackState(motor_protect_state_t *state, float rpm
  */
 bool Motor_Protect_CheckOverCurrentInputState(motor_protect_state_t *state, const motor_protect_input_t *motor, float dt)
 {
-    if (state == NULL || motor == NULL) {
-        return false;
-    }
+    if (state == NULL || motor == NULL) return false;
     return Motor_Protect_CheckOverCurrentPeak(state, Motor_Protect_CurrentPeak(motor), dt);
 }
 
@@ -212,9 +204,7 @@ bool Motor_Protect_CheckUnderVoltageInputState(motor_protect_state_t *state, con
     bool running;
     bool under_voltage;
 
-    if (state == NULL || motor == NULL) {
-        return false;
-    }
+    if (state == NULL || motor == NULL) return false;
     running = motor->ol_enable && fabsf(motor->ol_target_rpm) > 0.0f;
     under_voltage = running && motor->v_bus < state->config.under_voltage;
     return Motor_Protect_Debounce(under_voltage, dt, state->config.under_voltage_time, &state->under_voltage_timer);
@@ -235,9 +225,7 @@ static bool Motor_Protect_CheckStallPeak(motor_protect_state_t *state, const mot
     bool stopped;
     bool loaded;
 
-    if (state == NULL || motor == NULL) {
-        return false;
-    }
+    if (state == NULL || motor == NULL) return false;
     if (!state->speed_valid) {
         state->stall_timer = 0.0f;
         return false;
@@ -272,9 +260,7 @@ bool Motor_Protect_CheckSpeedLossInputState(motor_protect_state_t *state, const 
     float speed_abs;
     bool speed_lost;
 
-    if (state == NULL || motor == NULL) {
-        return false;
-    }
+    if (state == NULL || motor == NULL) return false;
     if (!state->speed_valid) {
         state->speed_was_reached = false;
         state->speed_loss_timer = 0.0f;
@@ -315,16 +301,12 @@ mc_fault_code Motor_Protect_EvaluateInputState(motor_protect_state_t *state, con
                                               float dt)
 {
     float peak;
-    if (state == NULL || motor == NULL) {
-        return FAULT_CODE_NONE;
-    }
+    if (state == NULL || motor == NULL) return FAULT_CODE_NONE;
     /* 自愈：只有锁存标志、无故障码时清掉脏状态，避免误拦校准/启动 */
     if (state->fault_latched && state->fault == FAULT_CODE_NONE) {
         state->fault_latched = false;
     }
-    if (state->fault_latched) {
-        return state->fault;
-    }
+    if (state->fault_latched) return state->fault;
 
     peak = Motor_Protect_CurrentPeak(motor);
     if (Motor_Protect_CheckOverCurrentPeak(state, peak, dt)) {
@@ -361,9 +343,8 @@ bool Motor_Protect_RunInputState(motor_protect_state_t *state, const motor_prote
 void Motor_Protect_TriggerFaultInputState(motor_protect_state_t *state, mc_fault_code fault, const motor_protect_input_t *motor,
                                      const motor_protect_aux_t *aux)
 {
-    if (fault == FAULT_CODE_NONE || state == NULL || motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(state != NULL && motor != NULL);
+    if (fault == FAULT_CODE_NONE) return;
     Motor_Protect_LatchFaultInputState(state, fault, motor, aux);
 }
 
@@ -375,9 +356,7 @@ void Motor_Protect_TriggerFaultInputState(motor_protect_state_t *state, mc_fault
  */
 bool Motor_Protect_IsFaultLatchedState(const motor_protect_state_t *state)
 {
-    if (state == NULL) {
-        return false;
-    }
+    if (state == NULL) return false;
     /* 仅当锁存且有有效故障码才算故障；latched+NONE 视为脏状态（未锁存） */
     return state->fault_latched && state->fault != FAULT_CODE_NONE;
 }

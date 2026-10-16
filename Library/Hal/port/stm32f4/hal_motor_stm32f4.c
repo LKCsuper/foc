@@ -10,6 +10,7 @@ extern "C" {
 #define HAL_INTERNAL
 #endif
 #include "includes.h"
+#include "common_assert.h"
 #include "hal_motor.h"
 #include "hal_sensor.h"
 /* Private typedef -----------------------------------------------------------*/
@@ -131,9 +132,7 @@ float Hal_Motor_AdcSampleRateHz(void)
     uint32_t arr = (uint32_t)TIM1->ARR;
     uint32_t psc = (uint32_t)TIM1->PSC + 1U;
 
-    if (arr == 0U || psc == 0U) {
-        return 0.0f;
-    }
+    if (arr == 0U || psc == 0U) return 0.0f;
 
     /* 中心对齐：计数顶部与底部各产生一次 ADC 触发 */
     return (float)SYSTEM_CORE_CLOCK / ((float)arr * (float)psc);
@@ -168,9 +167,7 @@ float Hal_Motor_TimeElapsedSec(uint32_t start_us)
  */
 bool Hal_Motor_SampleCapture(hal_motor_sample_t *out)
 {
-    if (out == NULL) {
-        return false;
-    }
+    if (out == NULL) return false;
 
     out->current_adc[0] = Hal_Motor_CurrentAdc(0U);
     out->current_adc[1] = Hal_Motor_CurrentAdc(1U);
@@ -193,9 +190,7 @@ bool Hal_Motor_SampleCapture(hal_motor_sample_t *out)
  */
 uint16_t Hal_Motor_AdcRaw(uint8_t channel)
 {
-    if (channel >= (uint8_t)(HW_ADC_CHANNELS + HW_ADC_CHANNELS_EXTRA)) {
-        return 0U;
-    }
+    if (channel >= (uint8_t)(HW_ADC_CHANNELS + HW_ADC_CHANNELS_EXTRA)) return 0U;
     return ADC_Value[channel];
 }
 
@@ -212,9 +207,7 @@ void Hal_Motor_AdcGetRaw(uint16_t *dst, uint32_t len)
     uint32_t i;
     uint32_t n;
 
-    if (dst == NULL) {
-        return;
-    }
+    COMMON_ASSERT(dst != NULL);
     n = (len < max_ch) ? len : max_ch;
     for (i = 0U; i < n; i++) {
         dst[i] = ADC_Value[i];

@@ -34,9 +34,24 @@ extern "C" {
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-static motor_encoder_runtime_t s_encoder;
-static volatile bool s_encoder_compare_enabled;
-static motor_encoder_sampling_diagnostics_t s_sampling_diagnostics;
+static motor_encoder_runtime_t s_encoder;                      /* 默认实例：零点、方向、PLL 与速度历史 */
+static volatile bool s_encoder_compare_enabled;                /* 编码器对照采集开关（诊断用，不影响控制反馈） */
+static motor_encoder_sampling_diagnostics_t s_sampling_diagnostics; /* 累计采样诊断：帧数、最大间隔、过期重置次数 */
+static uint32_t s_encoder_sample_sequence;                     /* 最近一次已消费帧的序号，用于判断是否为新帧 */
+static uint32_t s_encoder_sample_time_us;                      /* 最近一次已消费帧的时间戳 (us) */
+static bool s_encoder_have_sequence;                           /* 是否已消费过至少一帧；false 时按首次采样处理 */
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: 查询编码器对照采集是否打开。
+ * @return {bool} true=对照采集已打开
+ * @author: lkc
+ */
+bool Motor_Encoder_IsCompareEnabled(void)
+{
+    return s_encoder_compare_enabled;
+}
 
 /**
  * @description: 拷贝编码器采样累计诊断。
@@ -66,21 +81,6 @@ void Motor_Encoder_SetCompareEnabled(bool enabled)
 {
     s_encoder_compare_enabled = enabled;
 }
-
-/**
- * @description: 查询编码器对照采集是否打开。
- * @return {bool} true=对照采集已打开
- * @author: lkc
- */
-bool Motor_Encoder_IsCompareEnabled(void)
-{
-    return s_encoder_compare_enabled;
-}
-static uint32_t s_encoder_sample_sequence;
-static uint32_t s_encoder_sample_time_us;
-static bool s_encoder_have_sequence;
-/* Private function prototypes -----------------------------------------------*/
-/* Private functions ---------------------------------------------------------*/
 
 /** 项目兼容初始化；独立复用请使用InitState显式传入配置。 */
 void Motor_Encoder_RuntimeInit(motor_encoder_runtime_t *rt, uint32_t counts_per_rev, bool inverted)

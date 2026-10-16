@@ -10,6 +10,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
+#include "common_assert.h"
 #include <stddef.h>
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
@@ -59,7 +60,7 @@ void MotorAlignment_NormalizeConfig(motor_alignment_config_t *config);
 /** 热路径共享实现；与NormalizeConfig保持同一套规则，不缓存配置。 */
 static inline void MotorAlignment_NormalizeConfigInline(motor_alignment_config_t *config)
 {
-    if (config == NULL) return;
+    COMMON_ASSERT(config != NULL);
     if (config->current < 0.0f) config->current = 0.0f;
     if (config->duration < 0.0f) config->duration = 0.0f;
 }

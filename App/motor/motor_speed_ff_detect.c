@@ -3,11 +3,12 @@
 extern "C" {
 #endif
 #include "motor_speed_ff_detect.h"
+#include "common_assert.h"
 #include <math.h>
 #include <stddef.h>
 void Motor_SpeedFfFit_Init(motor_speed_ff_fit_t *fit)
 {
-    if (fit == NULL) return;
+    COMMON_ASSERT(fit != NULL);
     fit->count = 0U;
     fit->sum_x = fit->sum_y = fit->sum_xx = fit->sum_xy = fit->sum_yy = 0.0f;
 }

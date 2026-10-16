@@ -1,3 +1,4 @@
+#include "test_common_assert.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -178,8 +179,8 @@ int main(void)
     }
 
     Motor_Smo_Reset(NULL);
-    Motor_Smo_NormalizeConfig(NULL);
-    Motor_Smo_Seed(NULL, &cfg, 1.0f, 1.0f, 0.0f, 0.0f);
+    EXPECT_COMMON_ASSERT(Motor_Smo_NormalizeConfig(NULL));
+    EXPECT_COMMON_ASSERT(Motor_Smo_Seed(NULL, &cfg, 1.0f, 1.0f, 0.0f, 0.0f));
     assert(fabsf(Motor_Smo_GetAngle(NULL)) < 1e-9f);
     assert(fabsf(Motor_Smo_GetMagnitude(NULL)) < 1e-9f);
     assert(fabsf(Motor_Smo_GetSpeedE(NULL)) < 1e-9f);

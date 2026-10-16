@@ -21,9 +21,7 @@ static inline bool Motor_Detect_FitPulse(const float *current, uint32_t count, f
     }
     for (k = 0U; k < count; k++) {
         float di, df, sample;
-        if (!isfinite(current[k])) {
-            return false;
-        }
+        if (!isfinite(current[k])) return false;
         if (k > 0U) {
             flux += (voltage - resistance * (0.5f * current[k - 1U] + 0.5f * current[k])) * dt;
         }
@@ -35,14 +33,10 @@ static inline bool Motor_Detect_FitPulse(const float *current, uint32_t count, f
         variance += di * (sample - mean_i);
         covariance += di * (flux - mean_flux);
     }
-    if (!isfinite(variance) || variance <= 1.0e-12f || !isfinite(covariance)) {
-        return false;
-    }
+    if (!isfinite(variance) || variance <= 1.0e-12f || !isfinite(covariance)) return false;
     {
         float value = covariance / variance;
-        if (!isfinite(value) || value <= 0.0f) {
-            return false;
-        }
+        if (!isfinite(value) || value <= 0.0f) return false;
         *inductance = value;
     }
     return true;

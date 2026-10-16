@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <math.h>
+#include "common_assert.h"
 #include <stddef.h>
 #include <string.h>
 #include "motor_joint_control.h"
@@ -28,12 +29,8 @@ static bool Motor_JointControl_ConfigValid(const motor_joint_control_config_t *c
  */
 static float Motor_JointControl_Clamp(float value, float limit)
 {
-    if (value > limit) {
-        return limit;
-    }
-    if (value < -limit) {
-        return -limit;
-    }
+    if (value > limit) return limit;
+    if (value < -limit) return -limit;
     return value;
 }
 
@@ -69,9 +66,7 @@ static bool Motor_JointControl_ConfigValid(const motor_joint_control_config_t *c
  */
 bool Motor_JointControl_Init(motor_joint_control_t *control, const motor_joint_control_config_t *config)
 {
-    if (control == NULL || !Motor_JointControl_ConfigValid(config)) {
-        return false;
-    }
+    if (control == NULL || !Motor_JointControl_ConfigValid(config)) return false;
     memset(control, 0, sizeof(*control));
     control->config = *config;
     return true;
@@ -86,9 +81,7 @@ bool Motor_JointControl_Init(motor_joint_control_t *control, const motor_joint_c
  */
 bool Motor_JointControl_Configure(motor_joint_control_t *control, const motor_joint_control_config_t *config)
 {
-    if (control == NULL || !Motor_JointControl_ConfigValid(config)) {
-        return false;
-    }
+    if (control == NULL || !Motor_JointControl_ConfigValid(config)) return false;
     control->config = *config;
     control->integral_output = Motor_JointControl_Clamp(control->integral_output, config->integral_limit);
     control->output = Motor_JointControl_Clamp(control->output, config->output_limit);
@@ -191,9 +184,7 @@ float Motor_JointControl_Step(motor_joint_control_t *control,
  */
 void Motor_JointControl_Reset(motor_joint_control_t *control)
 {
-    if (control == NULL) {
-        return;
-    }
+    COMMON_ASSERT(control != NULL);
     control->position_error_rad = 0.0f;
     control->velocity_error_rad_s = 0.0f;
     control->integral_output = 0.0f;

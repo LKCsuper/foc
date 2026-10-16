@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
+#include "common_assert.h"
 #include <math.h>
 #include "motor_hall_angle.h"
 #include "motor_math.h"
@@ -37,9 +38,7 @@ static bool Motor_Hall_NeighborHalfWidths(const int8_t *table, float sector_cent
  */
 static float Motor_Hall_WrapPi(float x)
 {
-    if (!(x > -1.0e6f) || !(x < 1.0e6f)) {
-        return 0.0f;
-    }
+    if (!(x > -1.0e6f) || !(x < 1.0e6f)) return 0.0f;
     while (x > (float)M_PI) {
         x -= 2.0f * (float)M_PI;
     }
@@ -66,9 +65,7 @@ static bool Motor_Hall_NeighborHalfWidths(const int8_t *table, float sector_cent
     bool have_neg = false;
     int i;
 
-    if (table == NULL || half_neg == NULL || half_pos == NULL) {
-        return false;
-    }
+    if (table == NULL || half_neg == NULL || half_pos == NULL) return false;
     for (i = 0; i < (int)MOTOR_HALL_TABLE_SIZE; i++) {
         float other;
         float delta;
@@ -85,9 +82,7 @@ static bool Motor_Hall_NeighborHalfWidths(const int8_t *table, float sector_cent
             have_neg = true;
         }
     }
-    if (!have_pos || !have_neg) {
-        return false;
-    }
+    if (!have_pos || !have_neg) return false;
     *half_pos = 0.5f * min_pos;
     *half_neg = 0.5f * (-min_neg);
     return true;
@@ -111,14 +106,11 @@ static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, const int8_t *ta
     float half_back;
     float half_fwd;
 
-    if (st == NULL || st->direction == 0 || !st->speed_valid || fabsf(st->mech_rpm_fast) < 1.0f) {
-        return;
-    }
+    COMMON_ASSERT(st != NULL);
+    if (st->direction == 0 || !st->speed_valid || fabsf(st->mech_rpm_fast) < 1.0f) return;
 
     rpm_abs = fabsf(st->mech_rpm_fast);
-    if (rpm_abs <= MOTOR_HALL_INTERP_START_RPM) {
-        return;
-    }
+    if (rpm_abs <= MOTOR_HALL_INTERP_START_RPM) return;
     blend = (rpm_abs - MOTOR_HALL_INTERP_START_RPM) /
             (MOTOR_HALL_INTERP_FULL_RPM - MOTOR_HALL_INTERP_START_RPM);
     if (blend > 1.0f) {
@@ -155,9 +147,7 @@ static float Motor_Hall_WrapCpr(float x)
     float n;
 
     /* Inf/NaN 或超大值不能用 while 回绕：30 kHz ISR 里会卡死，UART 随之饿死。 */
-    if (!(x > -1.0e6f) || !(x < 1.0e6f)) {
-        return 0.0f;
-    }
+    if (!(x > -1.0e6f) || !(x < 1.0e6f)) return 0.0f;
     n = (float)(int)(x / MOTOR_HALL_PLL_CPR);
     x -= MOTOR_HALL_PLL_CPR * n;
     if (x < 0.0f) {
@@ -180,9 +170,7 @@ static float Motor_Hall_WrapDelta(float x)
     const float half = 0.5f * MOTOR_HALL_PLL_CPR;
     float n;
 
-    if (!(x > -1.0e6f) || !(x < 1.0e6f)) {
-        return 0.0f;
-    }
+    if (!(x > -1.0e6f) || !(x < 1.0e6f)) return 0.0f;
     n = (float)(int)(x / MOTOR_HALL_PLL_CPR);
     x -= MOTOR_HALL_PLL_CPR * n;
     if (x > half) {
@@ -292,9 +280,7 @@ bool Motor_Hall_TableReady(const int8_t *table)
     int valid = 0;
     int invalid = 0;
 
-    if (table == NULL) {
-        return false;
-    }
+    if (table == NULL) return false;
     for (i = 0; i < (int)MOTOR_HALL_TABLE_SIZE; i++) {
         uint8_t raw = (uint8_t)table[i];
 
@@ -307,9 +293,7 @@ bool Motor_Hall_TableReady(const int8_t *table)
             return false;
         }
     }
-    if ((valid != 6) || (invalid != 2)) {
-        return false;
-    }
+    if ((valid != 6) || (invalid != 2)) return false;
 
     /*
      * 六个有效扇区不能是同一个（或几乎同一个）电角。
@@ -335,9 +319,7 @@ bool Motor_Hall_TableReady(const int8_t *table)
             if (distance > 100) {
                 distance = 200 - distance;
             }
-            if (distance < 10) {
-                return false;
-            }
+            if (distance < 10) return false;
         }
     }
     return true;
@@ -355,13 +337,9 @@ bool Motor_Hall_DecodeAngle(const int8_t *table, int hall_state, float *theta_ra
 {
     uint8_t raw;
 
-    if (table == NULL || theta_rad == NULL || hall_state < 0 || hall_state > 7) {
-        return false;
-    }
+    if (table == NULL || theta_rad == NULL || hall_state < 0 || hall_state > 7) return false;
     raw = (uint8_t)table[hall_state];
-    if (raw == 255U || raw > 200U) {
-        return false;
-    }
+    if (raw == 255U || raw > 200U) return false;
     /* raw = deg * 200 / 360 → rad = raw / 200 * 2π */
     *theta_rad = ((float)raw / 200.0f) * 2.0f * (float)M_PI;
     utils_norm_angle_rad(theta_rad);
@@ -378,9 +356,7 @@ void Motor_Hall_AngleReset(motor_hall_angle_t *st)
 {
     int i;
 
-    if (st == NULL) {
-        return;
-    }
+    COMMON_ASSERT(st != NULL);
     st->last_state = -1;
     st->have_state = false;
     st->theta_rad = 0.0f;
@@ -419,9 +395,7 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
     float d_theta;
     float elec_rps;
 
-    if (st == NULL) {
-        return;
-    }
+    COMMON_ASSERT(st != NULL);
     if (dt_s < 0.0f) {
         dt_s = 0.0f;
     }

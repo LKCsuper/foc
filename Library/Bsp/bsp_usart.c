@@ -46,9 +46,7 @@ STATIC VOID Bsp_Usart_YieldToIsr(VOID);
  */
 STATIC VOID Bsp_Usart_YieldToIsr(VOID)
 {
-	if ((__get_IPSR() != 0U) || (osKernelGetState() != osKernelRunning)) {
-		return;
-	}
+	if ((__get_IPSR() != 0U) || (osKernelGetState() != osKernelRunning)) return;
 	(void)osDelay(1U);
 }
 
@@ -75,19 +73,13 @@ STATIC VOID Bsp_Usart_TxDmaStartLocked(VOID)
 	const uint8_t *pucData;
 	uint32_t ulContinuousLen;
 
-	if (!sgbUsartTxDmaReady || sgbUsartTxDmaBusy) {
-		return;
-	}
+	if (!sgbUsartTxDmaReady || sgbUsartTxDmaBusy) return;
 
 	/* 正常模式 DMA 在计数归零后会自动关闭；只有关闭状态才能改地址和长度。 */
-	if (DMA_GetCmdStatus(DEBUG_USART_TX_DMA_STREAM) != DISABLE) {
-		return;
-	}
+	if (DMA_GetCmdStatus(DEBUG_USART_TX_DMA_STREAM) != DISABLE) return;
 
 	ulContinuousLen = ringbuf_peek_contig(&s_usart_tx, &pucData);
-	if ((ulContinuousLen == 0U) || (pucData == NULL)) {
-		return;
-	}
+	if ((ulContinuousLen == 0U) || (pucData == NULL)) return;
 
 	sgulUsartTxDmaLen = ulContinuousLen;
 	sgbUsartTxDmaBusy = true;
@@ -276,9 +268,7 @@ VOID Bsp_Usart_TxDmaInit(VOID)
 	volatile uint32_t ulTimeout = 100000U;
 	uint32_t ulPrimask;
 
-	if (sgbUsartTxDmaReady) {
-		return;
-	}
+	if (sgbUsartTxDmaReady) return;
 
 	IS_TIME_OUT(USART_GetFlagStatus(DEBUG_USART, USART_FLAG_TC) == RESET);
 	DEBUG_USART_TX_DMA_CLK_EN();
@@ -373,9 +363,7 @@ VOID Bsp_Usart_TxDmaPoll(VOID)
 {
 	uint32_t ulPrimask;
 
-	if (!sgbUsartTxDmaReady) {
-		return;
-	}
+	if (!sgbUsartTxDmaReady) return;
 
 	ulPrimask = __get_PRIMASK();
 	__disable_irq();
@@ -481,9 +469,7 @@ ULONG Bsp_Usart_Write(const UCHAR *data, ULONG len)
 {
 	ULONG written = 0U;
 
-	if (data == NULL || len == 0U) {
-		return 0U;
-	}
+	if (data == NULL || len == 0U) return 0U;
 	if (!sgbUsartTxDmaReady) {
 		while (written < len) {
 			Bsp_Usart_PollingPutChar(data[written++]);

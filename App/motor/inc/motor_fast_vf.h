@@ -18,7 +18,7 @@ extern "C" {
 /**
  * @description: 推进一次简化 V/F 诊断控制拍并提交电压。
  * @detail: 仅供历史实机基线验证，不代替正常 Motor_Control_Step 路径。
- *          在控制拍调用。频率或极对数无效时改走中点输出。motor 为空则直接返回。
+ *          在控制拍调用。频率或极对数无效时改走中点输出。motor 不可为空，违反约定触发 COMMON_ASSERT。
  * @param {MOTOR_PARAM_S *} motor 电机实例，不可为空
  * @param {float} control_hz 实际控制频率 (Hz)
  * @return {void} 无

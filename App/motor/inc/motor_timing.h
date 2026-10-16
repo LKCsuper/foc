@@ -57,6 +57,9 @@ typedef struct {
 } motor_pair_sample_t;
 /** 停机武装；复用32条缓冲，每450拍抽取连续两帧。回调寄存器不是ADC触发锁存值。 */
 void Motor_Timing_PairArm(void);
+/** 仅停机原始半周期回调配对；901回调抽样。起转时停止诊断，不阻止控制；状态位复用reconstructed。 */
+void Motor_Timing_PairHalfArm(void);
+bool Motor_Timing_PairHalfMode(void);
 bool Motor_Timing_PairMode(void);
 bool Motor_Timing_PairActive(void);
 /** 每个选中FOC拍一次，写入重构后电流；返回true时同拍调用PairPush。 */
@@ -184,7 +187,7 @@ void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start_us);
 
 /**
  * @description: 读出一个阶段当前窗口的样本数和峰值。
- * @detail: 本函数进入临界区。stage 非法或输出指针为空则直接返回。CadenceReset 会清这些数组。
+ * @detail: 本函数进入临界区。输出指针不可为空并由 COMMON_ASSERT 检查，stage 非法则直接返回。CadenceReset 会清这些数组。
  * @param {motor_timing_stage_t} stage 阶段编号
  * @param {uint32_t *} count           输出样本数，不可为空
  * @param {uint32_t *} maximum         输出峰值 (us)，不可为空
@@ -253,7 +256,7 @@ void Motor_Timing_CadenceNote(uint32_t time_us, bool upward);
 
 /**
  * @description: 拷贝控制入口节拍统计。
- * @detail: 本函数进入临界区。out 为空则直接返回。
+ * @detail: 本函数进入临界区。out 不可为空，违反约定触发 COMMON_ASSERT。
  * @param {motor_cadence_t *} out 输出，不可为空
  * @return {void} 无
  * @author: lkc
@@ -307,7 +310,7 @@ void Motor_Timing_CallbackEnd(uint32_t time_us, bool pending);
 
 /**
  * @description: 拷贝 DMA 回调耗时统计。
- * @detail: 本函数进入临界区。out 为空则直接返回。
+ * @detail: 本函数进入临界区。out 不可为空，违反约定触发 COMMON_ASSERT。
  * @param {motor_callback_t *} out 输出，不可为空
  * @return {void} 无
  * @author: lkc
@@ -494,9 +497,9 @@ bool Motor_Timing_TraceDue(unsigned state);
 
 /**
  * @description: 写入一条环形诊断，并附上当前窗口的间隔统计。
- * @detail: active 为 false 或 sample 为空则直接返回。写入后用窗口里的 gap/full/pending/up 覆盖样本对应字段并清窗口。
+ * @detail: sample 不可为空并由 COMMON_ASSERT 检查，active 为 false 时直接返回。写入后用窗口里的 gap/full/pending/up 覆盖样本对应字段并清窗口。
  *          失锁触发给 flags 加 bit7(128)，接管触发加 bit8(256)。配额减到 0 时清除 active。
- * @param {const motor_trace_sample_t *} sample 本拍样本；空指针直接返回
+ * @param {const motor_trace_sample_t *} sample 本拍样本；不可为空，违反约定触发 COMMON_ASSERT
  * @return {void} 无
  * @author: lkc
  */

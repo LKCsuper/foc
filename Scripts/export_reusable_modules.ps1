@@ -18,6 +18,7 @@ $taskInclude = Join-Path $Destination 'include'
 $taskSrc = Join-Path $Destination 'src'
 New-Item -ItemType Directory -Force $taskInclude, $taskSrc | Out-Null
 $taskHeaders = @{}
+$taskHeaders['common_assert.h'] = Join-Path $taskRoot 'Library/Common/inc/common_assert.h'
 foreach ($taskDir in @('App/motor/inc', 'App/motor_sensor/inc')) {
     Get-ChildItem (Join-Path $taskRoot $taskDir) -Filter '*.h' | ForEach-Object {
         if ($taskHeaders.ContainsKey($_.Name)) { throw "Duplicate header: $($_.Name)" }

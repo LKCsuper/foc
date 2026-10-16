@@ -354,6 +354,11 @@ int main(void)
     return 0;
 #endif
 
+    motor.ol_vq_limit = 4.0f;
+    limit = Motor_Control_GetVoltageLimit(&motor, 24.0f);
+    assert(fabsf(limit - 4.0f) < 1e-4f);
+    limit = Motor_Control_GetVoltageLimit(&motor, 3.0f);
+    assert(fabsf(limit - 3.0f / sqrtf(3.0f)) < 1e-4f);
     motor.ol_vq_limit = 20.0f;
     limit = Motor_Control_GetVoltageLimit(&motor, 24.0f);
     assert(fabsf(limit - 24.0f / sqrtf(3.0f)) < 1e-4f);

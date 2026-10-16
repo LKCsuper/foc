@@ -11,9 +11,7 @@ motor_autotune_status_t Motor_Autotune_CurrentPi(const motor_autotune_config_t *
     motor_autotune_result_t candidate = {0};
     float omega, phase_loss, l_shared;
 
-    if (result == NULL) {
-        return MOTOR_AUTOTUNE_INVALID_INPUT;
-    }
+    if (result == NULL) return MOTOR_AUTOTUNE_INVALID_INPUT;
     *result = candidate;
     if (config == NULL || !isfinite(config->resistance_ohm) || config->resistance_ohm <= 0.0f ||
         !isfinite(config->ld_h) || config->ld_h <= 0.0f || !isfinite(config->lq_h) || config->lq_h <= 0.0f ||
@@ -26,15 +24,9 @@ motor_autotune_status_t Motor_Autotune_CurrentPi(const motor_autotune_config_t *
     }
     omega = 2.0f * AUTOTUNE_PI * config->bandwidth_hz;
     phase_loss = omega * config->total_delay_s * (180.0f / AUTOTUNE_PI);
-    if (!isfinite(omega) || !isfinite(phase_loss)) {
-        return MOTOR_AUTOTUNE_NUMERIC_ERROR;
-    }
-    if (omega * config->control_dt_s > AUTOTUNE_MAX_W_DT) {
-        return MOTOR_AUTOTUNE_SAMPLE_LIMIT;
-    }
-    if (phase_loss > 90.0f - config->min_phase_margin_deg) {
-        return MOTOR_AUTOTUNE_DELAY_LIMIT;
-    }
+    if (!isfinite(omega) || !isfinite(phase_loss)) return MOTOR_AUTOTUNE_NUMERIC_ERROR;
+    if (omega * config->control_dt_s > AUTOTUNE_MAX_W_DT) return MOTOR_AUTOTUNE_SAMPLE_LIMIT;
+    if (phase_loss > 90.0f - config->min_phase_margin_deg) return MOTOR_AUTOTUNE_DELAY_LIMIT;
     candidate.d.kp = config->ld_h * omega;
     candidate.q.kp = config->lq_h * omega;
     candidate.d.ki = candidate.q.ki = config->resistance_ohm * omega;

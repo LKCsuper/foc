@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
+#include "common_assert.h"
 #include <math.h>
 #include <string.h>
 #include "motor_detect_offset.h"
@@ -50,9 +51,7 @@ bool Motor_Detect_OffsetSetCurrentRam(MOTOR_PARAM_S *motor, const float values[3
 void Motor_Detect_OffsetReset(motor_detect_offset_t *st, bool cal_undriven, uint32_t samples_per_phase,
                               float adc_full_scale)
 {
-    if (st == NULL) {
-        return;
-    }
+    COMMON_ASSERT(st != NULL);
     memset(st, 0, sizeof(*st));
     st->cal_undriven = cal_undriven;
     st->samples_per_phase =
@@ -73,9 +72,7 @@ bool Motor_Detect_OffsetFeedDriven(motor_detect_offset_t *st, float i_adc, float
 {
     uint8_t p;
 
-    if (st == NULL || st->phase > 2U) {
-        return false;
-    }
+    if (st == NULL || st->phase > 2U) return false;
     p = st->phase;
     st->i_sum[p] += i_adc;
     st->v_sum[p] += v_sense;
@@ -99,9 +96,7 @@ bool Motor_Detect_OffsetFeedDrivenTriple(motor_detect_offset_t *st, float i0, fl
 {
     float sum;
 
-    if (st == NULL) {
-        return false;
-    }
+    if (st == NULL) return false;
     sum = i0 + i1 + i2;
     if (st->count == 0U) {
         st->i_min[0] = i0;
@@ -156,12 +151,8 @@ bool Motor_Detect_OffsetFeedDrivenTriple(motor_detect_offset_t *st, float i0, fl
  */
 bool Motor_Detect_OffsetNextPhase(motor_detect_offset_t *st)
 {
-    if (st == NULL) {
-        return false;
-    }
-    if (st->phase >= 2U) {
-        return false;
-    }
+    if (st == NULL) return false;
+    if (st->phase >= 2U) return false;
     st->phase++;
     st->count = 0U;
     return true;
@@ -181,9 +172,8 @@ void Motor_Detect_OffsetFinalizeDriven(motor_detect_offset_t *st)
     float abs_max;
     uint8_t i;
 
-    if (st == NULL || st->samples_per_phase == 0U) {
-        return;
-    }
+    COMMON_ASSERT(st != NULL);
+    if (st->samples_per_phase == 0U) return;
 
     n = (float)st->samples_per_phase;
     for (i = 0U; i < 3U; i++) {
@@ -219,9 +209,7 @@ bool Motor_Detect_OffsetFeedUndriven(motor_detect_offset_t *st, float v0, float 
 {
     float v_avg;
 
-    if (st == NULL) {
-        return false;
-    }
+    if (st == NULL) return false;
     v_avg = (v0 + v1 + v2) / 3.0f;
     st->u_sum[0] += v0 - v_avg;
     st->u_sum[1] += v1 - v_avg;
@@ -241,9 +229,8 @@ void Motor_Detect_OffsetFinalizeUndriven(motor_detect_offset_t *st)
     float n;
     uint8_t i;
 
-    if (st == NULL || st->samples_per_phase == 0U) {
-        return;
-    }
+    COMMON_ASSERT(st != NULL);
+    if (st->samples_per_phase == 0U) return;
     n = (float)st->samples_per_phase;
     for (i = 0U; i < 3U; i++) {
         st->volt_undriven_offset[i] = st->u_sum[i] / n;
@@ -262,9 +249,7 @@ void Motor_Detect_OffsetApply(const motor_detect_offset_t *st, MOTOR_PARAM_S *mo
 {
     uint8_t i;
 
-    if (st == NULL || motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(st != NULL && motor != NULL);
     for (i = 0U; i < 3U; i++) {
         motor->currentOffset[i] = st->current_offset[i];
         motor->voltOffset[i] = st->volt_offset[i];
@@ -284,9 +269,7 @@ bool Motor_Detect_OffsetIsStored(const MOTOR_PARAM_S *motor)
 {
     uint8_t i;
 
-    if (motor == NULL) {
-        return false;
-    }
+    if (motor == NULL) return false;
     for (i = 0U; i < 3U; i++) {
         if (motor->currentOffset[i] < MOTOR_DETECT_OFFSET_STORED_MIN ||
             motor->currentOffset[i] > MOTOR_DETECT_OFFSET_STORED_MAX) {

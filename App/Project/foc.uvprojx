@@ -1404,6 +1404,11 @@
               <FilePath>..\motor_sensor\motor_feedback.c</FilePath>
             </File>
             <File>
+              <FileName>motor_sensor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_sensor\motor_sensor.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_sensor_update.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor_sensor\motor_sensor_update.c</FilePath>

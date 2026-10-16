@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
+#include "common_assert.h"
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
@@ -54,9 +55,7 @@ static void motor_current_account_recon(uint8_t phase)
     if (s_recon_samples < UINT32_MAX) {
         s_recon_samples++;
     }
-    if (phase == 0U) {
-        return;
-    }
+    if (phase == 0U) return;
     if (s_recon_hits < UINT32_MAX) {
         s_recon_hits++;
     }
@@ -127,9 +126,7 @@ void Motor_Current_GetReconstructDiag(int *last_phase, uint32_t *samples, uint32
  */
 void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
 {
-    if (motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL);
     clarke_transform(motor->ia, motor->ib, motor->ic, &motor->Ialpha, &motor->Ibeta);
     park_transform(motor->Ialpha, motor->Ibeta, theta, &motor->Id, &motor->Iq);
 }
@@ -156,9 +153,7 @@ bool Motor_Current_ReconstructLongestZero(float *ia, float *ib, float *ic, uint3
     uint32_t limit;
     uint8_t phase = 0U;
 
-    if (ia == NULL || ib == NULL || ic == NULL) {
-        return false;
-    }
+    if (ia == NULL || ib == NULL || ic == NULL) return false;
     if (pwm_period <= MOTOR_CURRENT_SHUNT_PICK_COUNTS) {
         motor_current_account_recon(0U);
         return false;
@@ -199,9 +194,7 @@ void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_ta
 {
     motor_current_target_ctx_t local;
 
-    if (motor == NULL || id_target == NULL || iq_target == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL && id_target != NULL && iq_target != NULL);
 
     if (ctx == NULL) {
         memset(&local, 0, sizeof(local));
@@ -247,9 +240,7 @@ void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_ta
  */
 void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, float id_err, float iq_err, float v_limit)
 {
-    if (motor == NULL || v == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL && v != NULL);
 
     /*
      * 单独限制 vd/vq 不够，合成矢量可能超限。
@@ -282,9 +273,7 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
     bool profile;
     uint32_t stage_start;
 
-    if (motor == NULL) {
-        return v;
-    }
+    if (motor == NULL) return v;
 
     iq_err = iq_target - motor->Iq;
     vq_int_before = motor->ol_vq_int;
@@ -327,9 +316,7 @@ void Motor_Current_TakePiDiag(motor_current_pi_diag_t *diag)
 {
     uint32_t primask;
 
-    if (diag == NULL) {
-        return;
-    }
+    COMMON_ASSERT(diag != NULL);
     primask = Motor_Crit_Enter();
     diag->samples = s_pi_samples;
     diag->clamp_samples = s_pi_clamp_samples;
@@ -363,7 +350,8 @@ void Motor_Current_TransportPi(MOTOR_PARAM_S *motor, float delta, float old_id, 
                                float new_id, float new_iq)
 {
     float c, s, vd, vq;
-    if (motor == NULL || !isfinite(delta)) return;
+    COMMON_ASSERT(motor != NULL);
+    if (!isfinite(delta)) return;
     c = cos_f32(delta);
     s = sin_f32(delta);
     vd = motor->ol_vd_int;
@@ -397,9 +385,7 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
     bool capture;
     uint32_t stage_start;
 
-    if (motor == NULL) {
-        return voltage;
-    }
+    if (motor == NULL) return voltage;
 
     profile = Motor_Timing_ProfileDetailedIsActive();
     stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
@@ -445,12 +431,8 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
 void Motor_Current_ApplySpeedFeedforward(motor_dq_voltage_t *v, float omega_e, float inductance, float flux,
                                          float id_ref, float iq_ref, float v_limit)
 {
-    if (v == NULL) {
-        return;
-    }
-    if (!isfinite(omega_e) || !isfinite(inductance) || !isfinite(flux) || !isfinite(id_ref) || !isfinite(iq_ref)) {
-        return;
-    }
+    COMMON_ASSERT(v != NULL);
+    if (!isfinite(omega_e) || !isfinite(inductance) || !isfinite(flux) || !isfinite(id_ref) || !isfinite(iq_ref)) return;
     if (inductance < 0.0f) {
         inductance = 0.0f;
     }

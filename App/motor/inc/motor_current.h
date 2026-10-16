@@ -75,7 +75,7 @@ void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta);
 /**
  * @description: 坐标交接时旋转电流 PI 积分，并补偿目标变化的 P 项。
  * @detail: 只用于无感渐变等坐标交接。delta 为新电角减旧电角 (rad)，不得传入正常转速积分角。
- *          由电流环在矢量限幅前调用，不改 PWM。motor 为空或 delta 非有限值时直接返回。
+ *          由电流环在矢量限幅前调用，不改 PWM。motor 不可为空并由 COMMON_ASSERT 检查；delta 非有限值时直接返回。
  * @param {MOTOR_PARAM_S *} motor 电机对象，读写 ol_vd_int/ol_vq_int (V)
  * @param {float} delta           交接附加角 (rad)
  * @param {float} old_id          旧坐标 Id 目标 (A)

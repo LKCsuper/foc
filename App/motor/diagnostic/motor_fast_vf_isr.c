@@ -4,6 +4,7 @@
  */
 /* Includes ------------------------------------------------------------------*/
 #include "motor_fast_vf.h"
+#include "common_assert.h"
 
 #include <stddef.h>
 
@@ -28,9 +29,7 @@ void Motor_FastVf_RunIsr(MOTOR_PARAM_S *motor)
 {
     uint32_t runtime_start;
 
-    if (motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL);
 
     runtime_start = Hal_Motor_TimeUs();
     if (!Motor_FocIsr_ShouldRun()) {

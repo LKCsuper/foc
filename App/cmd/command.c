@@ -12,6 +12,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#include "common_assert.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define CMD_BUF_SIZE        160U        /* 单行输入缓冲 */
@@ -93,7 +94,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "slstats",    Cmd_SensorlessStats,    "sensorless steady-window counters retained after stop" },
     { "sltest",     Cmd_SensorlessTest,     "[--3508] [--trace=off|lite|flight|entry|entryfast] [hold_s [rpm...]], stopped only" },
     { "sltrace",    Cmd_SensorlessTrace,    "RAM trace compact|lite|flight|arm|entry|entryfast|show (stopped only)" },
-    { "slhandoff",  Cmd_SensorlessHandoff,  "capture arm|phase|phaselong|step|pair|show (stopped only)" },
+    { "slhandoff",  Cmd_SensorlessHandoff,  "arm|phase|phaselong|step|pair|half|show; half capture STOPPED ONLY" },
     { "slcadence",  Cmd_SensorlessCadence,  "timing reset|lean|task|probe|stop|show" },
     { "olsnap",     Cmd_OlSnap,             "short Id/Iq/RPM/fault snapshot while running" },
     { "olcurdiag",  Cmd_OlCurrentDiag,      "Hall current errors by sector since last start" },
@@ -162,6 +163,16 @@ const osThreadAttr_t taskCmdAttr = {
 QueueHandle_t queueCmdHandle;
 #define CMD_QUEUE_LENGTH    8
 #define CMD_QUEUE_SIZE      sizeof(CMD_QUEUE_ITEM)
+/* 初始化任务退出前其动态栈仍占堆；固定容量命令队列使用静态存储，避免创建失败后失去串口入口。 */
+static StaticQueue_t s_cmd_queue_cb;
+static uint32_t s_cmd_queue_storage[(CMD_QUEUE_LENGTH * CMD_QUEUE_SIZE + 3U) / 4U];
+static const osMessageQueueAttr_t s_cmd_queue_attr = {
+    .name = "Command Queue",
+    .cb_mem = &s_cmd_queue_cb,
+    .cb_size = sizeof(s_cmd_queue_cb),
+    .mq_mem = s_cmd_queue_storage,
+    .mq_size = sizeof(s_cmd_queue_storage),
+};
 
 /**
  * @description: 按空格拆分一行命令并调用命令表。
@@ -216,9 +227,8 @@ void Cmd_FormatUptime(char *buf, unsigned buf_size)
     unsigned sec;
     unsigned ms;
 
-    if ((buf == NULL) || (buf_size == 0U)) {
-        return;
-    }
+    COMMON_ASSERT(buf != NULL);
+    if ((buf_size == 0U)) return;
 
     us = Hal_Motor_TimeUs();
     sec = (unsigned)(us / 1000000UL);
@@ -299,9 +309,7 @@ static void cmd_history_add(const char *line)
 
     if (s_cmd_history_count > 0U) {
         latest = (uint8_t)((s_cmd_history_head + CMD_HISTORY_COUNT - 1U) % CMD_HISTORY_COUNT);
-        if (strcmp(line, s_cmd_history[latest]) == 0) {
-            return;
-        }
+        if (strcmp(line, s_cmd_history[latest]) == 0) return;
     }
 
     strncpy(s_cmd_history[s_cmd_history_head], line, CMD_BUF_SIZE - 1U);
@@ -322,9 +330,7 @@ static void cmd_history_up(void)
 {
     uint8_t index;
 
-    if ((s_cmd_history_count == 0U) || (s_cmd_history_depth >= s_cmd_history_count)) {
-        return;
-    }
+    if ((s_cmd_history_count == 0U) || (s_cmd_history_depth >= s_cmd_history_count)) return;
 
     if (s_cmd_history_depth == 0U) {
         memcpy(s_cmd_draft, s_cmd_buf, s_cmd_len);
@@ -346,9 +352,7 @@ static void cmd_history_down(void)
 {
     uint8_t index;
 
-    if (s_cmd_history_depth == 0U) {
-        return;
-    }
+    if (s_cmd_history_depth == 0U) return;
 
     s_cmd_history_depth--;
     if (s_cmd_history_depth == 0U) {
@@ -460,10 +464,10 @@ void Cmd_Task(void *argument)
 void Command_Init(void)
 {
     if (queueCmdHandle == NULL) {
-        queueCmdHandle = osMessageQueueNew(CMD_QUEUE_LENGTH, CMD_QUEUE_SIZE, NULL);
+        queueCmdHandle = osMessageQueueNew(CMD_QUEUE_LENGTH, CMD_QUEUE_SIZE, &s_cmd_queue_attr);
     }
-
-    osThreadNew(Cmd_Task, NULL, &taskCmdAttr);
+    COMMON_ASSERT(queueCmdHandle != NULL);
+    COMMON_ASSERT(osThreadNew(Cmd_Task, NULL, &taskCmdAttr) != NULL);
 }
 
 #ifdef __cplusplus

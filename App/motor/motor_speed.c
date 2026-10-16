@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
+#include "common_assert.h"
 #include <stddef.h>
 
 #include "motor_param.h"
@@ -28,7 +29,7 @@ bool Motor_SpeedLoop_IsRunAllowed(void) { return s_pi_run_allowed; }
 static void Motor_SpeedLoop_RunInternal(motor_speed_state_t *state, MOTOR_PARAM_S *motor, float dt, bool scheduled)
 {
     motor_speed_input_t input;
-    if (state == NULL || motor == NULL) { return; }
+    COMMON_ASSERT(state != NULL && motor != NULL);
     input.enabled = motor->speed_enable && motor->ol_mode == MOTOR_OL_MODE_IF && motor->ol_enable;
     input.inhibited = motor->position_voltage_hold || motor->joint_voltage_hold || motor->joint_current_hold;
     input.allow_braking = motor->speed_allow_braking;
@@ -127,9 +128,7 @@ void Motor_SpeedLoop_PrimeIq(float iq)
  */
 void Motor_SpeedLoop_Run(MOTOR_PARAM_S *motor, float dt)
 {
-    if (!s_pi_run_allowed) {
-        return;
-    }
+    if (!s_pi_run_allowed) return;
     Motor_SpeedLoop_RunState(&s_speed, motor, dt);
 }
 
@@ -181,9 +180,7 @@ bool Motor_SpeedLoop_IsFeedbackValid(void)
  */
 bool Motor_SpeedLoop_GetSnapshot(motor_speed_snapshot_t *snapshot)
 {
-    if (snapshot == NULL) {
-        return false;
-    }
+    if (snapshot == NULL) return false;
 
     snapshot->target_rpm = s_speed.control_target_rpm;
     snapshot->update_count = s_speed.update_count;

@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
+#include "common_assert.h"
 #include <stdbool.h>
 #include <string.h>
 #include <math.h>
@@ -63,9 +64,7 @@ void Motor_Hall_DiagGetSectors(motor_hall_current_diag_sector_t sectors[8])
 {
     uint32_t primask;
 
-    if (sectors == NULL) {
-        return;
-    }
+    COMMON_ASSERT(sectors != NULL);
     primask = __get_PRIMASK();
     __disable_irq();
     memcpy(sectors, s_hall_current_diag, sizeof(s_hall_current_diag));
@@ -84,9 +83,7 @@ void Motor_Hall_DiagGetWorst(motor_hall_current_worst_t *out)
 {
     uint32_t primask;
 
-    if (out == NULL) {
-        return;
-    }
+    COMMON_ASSERT(out != NULL);
     primask = __get_PRIMASK();
     __disable_irq();
     *out = s_hall_current_worst;
@@ -105,9 +102,7 @@ void Motor_Hall_DiagGetWorstId(motor_hall_current_worst_t *out)
 {
     uint32_t primask;
 
-    if (out == NULL) {
-        return;
-    }
+    COMMON_ASSERT(out != NULL);
     primask = __get_PRIMASK();
     __disable_irq();
     *out = s_hall_current_worst_id;
@@ -126,9 +121,7 @@ void Motor_Hall_DiagGetEdge(motor_hall_current_edge_diag_t *out)
 {
     uint32_t primask;
 
-    if (out == NULL) {
-        return;
-    }
+    COMMON_ASSERT(out != NULL);
     primask = __get_PRIMASK();
     __disable_irq();
     *out = s_hall_edge_diag;
@@ -290,26 +283,18 @@ void Motor_Hall_DiagUpdate(void)
         s_hall_diag_running = true;
         s_hall_diag_target_rpm = motor.ol_target_rpm;
     }
-    if (!Motor_Hall_AngleIsSpeedValid() || fabsf(motor.ol_current_rpm - motor.ol_target_rpm) > 1.0f) {
-        return;
-    }
+    if (!Motor_Hall_AngleIsSpeedValid() || fabsf(motor.ol_current_rpm - motor.ol_target_rpm) > 1.0f) return;
     hall_state = Motor_Hall_AngleGetState();
     signed_phase_sum = motor.ia + motor.ib + motor.ic;
     phase_sum = fabsf(signed_phase_sum);
     if (isfinite(phase_sum)) {
         Motor_Hall_DiagCaptureBeat(signed_phase_sum, phase_sum, hall_state);
     }
-    if (++s_hall_diag_div < MOTOR_HALL_DIAG_DIVIDER) {
-        return;
-    }
+    if (++s_hall_diag_div < MOTOR_HALL_DIAG_DIVIDER) return;
     s_hall_diag_div = 0U;
-    if (hall_state < 1 || hall_state > 6) {
-        return;
-    }
+    if (hall_state < 1 || hall_state > 6) return;
     id_error = fabsf(motor.Id - motor.id_target);
-    if (!isfinite(phase_sum) || !isfinite(id_error)) {
-        return;
-    }
+    if (!isfinite(phase_sum) || !isfinite(id_error)) return;
     sector = &s_hall_current_diag[hall_state];
     sector->samples++;
     sector->signed_phase_sum_milliamps += (int32_t)(signed_phase_sum * 1000.0f);

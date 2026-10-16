@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
+#include "common_assert.h"
 #include "motor.h"
 #include "motor_feedback.h"
 #include "motor_speed.h"
@@ -67,9 +68,7 @@ void Motor_StatusSnapshotPublishFromIsr(const MOTOR_PARAM_S *motor)
 {
     motor_status_t snap;
 
-    if (motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL);
     if (!s_motor_status_initialized) {
         SEQLOCK_INIT(&s_motor_status_channel);
         s_motor_status_initialized = true;
@@ -92,9 +91,7 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
     uint32_t primask;
     motor_status_t snap;
 
-    if (motor == NULL || status == NULL) {
-        return MOTOR_ERR_NULL;
-    }
+    if (motor == NULL || status == NULL) return MOTOR_ERR_NULL;
 
     if (s_motor_status_initialized &&
         SEQLOCK_TRY_READ(&s_motor_status_channel, &snap, 3U)) {

@@ -13,12 +13,13 @@ def clarke(currents):
             (currents[1] - currents[2]) / math.sqrt(3))
 
 
-def analyze(rows, offsets, scale):
+def analyze(rows, offsets, scale, require_event=True):
     if not rows or len(offsets) != 3 or not all(map(math.isfinite, offsets)) or not math.isfinite(scale) or scale <= 0:
         raise ValueError('Nonempty capture, finite offsets and positive scale required')
     events = [row for row in rows if row['flags'] == 1]
-    if len(events) != 1:
+    if len(events) > 1 or (require_event and len(events) != 1):
         raise ValueError('Exactly one event required')
+    reference = events[0] if events else rows[0]
     samples = []
     for row in rows:
         conversions, currents, raw = [], [], []
@@ -52,7 +53,7 @@ def analyze(rows, offsets, scale):
         delta_alpha, delta_beta = clarke(delta_abc)
         samples.append({
             'seq': int(row['seq']),
-            'relative_ms': ((int(row['time_us']) - int(events[0]['time_us']) + 2**31) % 2**32 - 2**31) / 1000,
+            'relative_ms': ((int(row['time_us']) - int(reference['time_us']) + 2**31) % 2**32 - 2**31) / 1000,
             'paired_interval_us': elapsed,
             'sample_sequence_delta': (int(row['sample']) - int(row['prev_sample'])) % 2**32,
             'software_pwm_sequence_delta': (int(row['pwm']) - int(row['prev_pwm'])) % 2**32,
@@ -65,6 +66,7 @@ def analyze(rows, offsets, scale):
             'previous_callback_down': bool(int(row['prev_cr1']) & 16),
             'reconstructed': int(row['recon']), 'previous_reconstructed': int(row['prev_recon'])})
     return {'rows': len(rows), 'offsets_adc': offsets, 'scale_A_per_count': scale,
+            'time_reference': 'completion_event' if events else 'first_sample_no_event',
             'paired_interval_range_us': [min(sample['paired_interval_us'] for sample in samples), max(sample['paired_interval_us'] for sample in samples)],
             'sample_sequence_deltas': sorted(set(sample['sample_sequence_delta'] for sample in samples)),
             'software_pwm_sequence_deltas': sorted(set(sample['software_pwm_sequence_delta'] for sample in samples)),

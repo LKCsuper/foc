@@ -222,7 +222,8 @@ float angleOpenloop(float target_angle)
 /******************************************************************************/
 
 /**
- * @description: 初始化简易 BLDC 开环默认参数（电压、极对数、控制模式等）。
+ * @description: 初始化旧 SimpleFOC 学习实现的独立开环默认参数（电压、极对数、控制模式等）。
+ * @detail: 不初始化主控制链的 motor；主固件使用 MOTOR_Param_Init，不调用本函数。
  * @return {*}
  * @author: lkc
  */

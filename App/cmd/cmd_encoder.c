@@ -400,9 +400,7 @@ int Cmd_Motor_Encoder(int argc, char *argv[])
         Encoder_Watch(duration_s);
         return 0;
     }
-    if (strcmp(argv[1], "cog") == 0) {
-        return Encoder_CoggingCommand(argc, argv);
-    }
+    if (strcmp(argv[1], "cog") == 0) return Encoder_CoggingCommand(argc, argv);
 
     PRINTF("usage: encoder [show|reset|detect|watch [seconds]|cog ...]\r\n");
     return -1;

@@ -15,7 +15,7 @@ extern "C" {
  * @description: 按当前反馈源更新编码器或霍尔运行状态。
  * @detail: 在 FOC 控制拍调用，不写 PWM。编码器失联时按现有条件请求故障。
  *          霍尔按 MOTOR_HALL_ADC_DIVIDER 分频，dt 累加后交给角度估计；切走霍尔源时清累计。
- *          motor 为空则直接返回。
+ *          motor 不可为空，违反约定触发 COMMON_ASSERT。
  * @param {MOTOR_PARAM_S *} motor           电机实例，不可为空
  * @param {motor_feedback_source_t} source  当前请求的反馈源
  * @param {float} dt_s                      本控制拍时间 (s)

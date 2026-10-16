@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "motor_ekf.h"
+#include "common_assert.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -63,12 +64,8 @@ static float Motor_Ekf_WrapPi(float angle)
  */
 static float Motor_Ekf_Clamp(float value, float minimum, float maximum)
 {
-    if (value > maximum) {
-        return maximum;
-    }
-    if (value < minimum) {
-        return minimum;
-    }
+    if (value > maximum) return maximum;
+    if (value < minimum) return minimum;
     return value;
 }
 
@@ -219,9 +216,7 @@ void Motor_Ekf_Reset(motor_ekf_t *obs)
  */
 void Motor_Ekf_NormalizeConfig(motor_ekf_config_t *config)
 {
-    if (config == NULL) {
-        return;
-    }
+    COMMON_ASSERT(config != NULL);
     if (!(config->resistance >= 0.0f) || !isfinite(config->resistance)) {
         config->resistance = 0.0f;
     }
@@ -264,12 +259,8 @@ void Motor_Ekf_Seed(motor_ekf_t *obs, const motor_ekf_config_t *config, float an
 {
     float wrapped;
 
-    if (obs == NULL || config == NULL) {
-        return;
-    }
-    if (!isfinite(angle) || !isfinite(omega_e) || !isfinite(i_alpha) || !isfinite(i_beta)) {
-        return;
-    }
+    COMMON_ASSERT(obs != NULL && config != NULL);
+    if (!isfinite(angle) || !isfinite(omega_e) || !isfinite(i_alpha) || !isfinite(i_beta)) return;
 
     wrapped = Motor_Ekf_WrapPi(angle);
     Motor_Ekf_Reset(obs);
@@ -327,9 +318,7 @@ bool Motor_Ekf_Step(motor_ekf_t *obs, const motor_ekf_config_t *config, float v_
     int j;
 
     Motor_Ekf_ClearOutput(output);
-    if (obs == NULL || config == NULL || output == NULL) {
-        return false;
-    }
+    if (obs == NULL || config == NULL || output == NULL) return false;
     if (!config->enabled || !(dt > 0.0f) || !isfinite(dt) || !isfinite(v_alpha) || !isfinite(v_beta) ||
         !isfinite(i_alpha) || !isfinite(i_beta) || !(config->inductance >= MOTOR_EKF_MIN_INDUCTANCE)) {
         Motor_Ekf_Reset(obs);

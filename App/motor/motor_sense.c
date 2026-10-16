@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
+#include "common_assert.h"
 #include "motor_sense.h"
 #include "motor_math.h"
 #if defined(__CC_ARM)
@@ -30,9 +31,7 @@ extern "C" {
  */
 static float Motor_Sense_CurrentOffsetValid(float offset)
 {
-    if (offset < MOTOR_CURRENT_OFFSET_MIN || offset > MOTOR_CURRENT_OFFSET_MAX) {
-        return MOTOR_CURRENT_OFFSET_DEFAULT;
-    }
+    if (offset < MOTOR_CURRENT_OFFSET_MIN || offset > MOTOR_CURRENT_OFFSET_MAX) return MOTOR_CURRENT_OFFSET_DEFAULT;
     return offset;
 }
 
@@ -53,9 +52,7 @@ void Motor_Sense_ApplyFrame(MOTOR_PARAM_S *m, const hal_motor_sample_t *sample, 
     float current_offset1;
     float current_offset2;
 
-    if (m == NULL || sample == NULL) {
-        return;
-    }
+    COMMON_ASSERT(m != NULL && sample != NULL);
 
     m->currentAdc[0] = sample->current_adc[0];
     m->currentAdc[1] = sample->current_adc[1];
@@ -109,12 +106,8 @@ void Motor_Sense_Update(MOTOR_PARAM_S *m)
 {
     hal_motor_sample_t sample;
 
-    if (m == NULL) {
-        return;
-    }
-    if (!Hal_Motor_SampleCapture(&sample)) {
-        return;
-    }
+    COMMON_ASSERT(m != NULL);
+    if (!Hal_Motor_SampleCapture(&sample)) return;
     Motor_Sense_ApplyFrame(m, &sample, Hal_Motor_CurrentScale(), Hal_Motor_PhaseVoltageGain());
 }
 

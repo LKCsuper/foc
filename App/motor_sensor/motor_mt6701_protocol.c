@@ -14,9 +14,7 @@ static uint8_t Motor_MT6701_Crc6(uint32_t data)
 
 motor_mt6701_frame_result_t Motor_MT6701_DecodeSsi(uint32_t frame, motor_mt6701_frame_t *decoded)
 {
-    if (Motor_MT6701_Crc6((frame >> 6U) & 0x3FFFFU) != (uint8_t)(frame & 0x3FU)) {
-        return MOTOR_MT6701_FRAME_CRC_ERROR;
-    }
+    if (Motor_MT6701_Crc6((frame >> 6U) & 0x3FFFFU) != (uint8_t)(frame & 0x3FU)) return MOTOR_MT6701_FRAME_CRC_ERROR;
     decoded->angle = (uint16_t)((frame >> 10U) & 0x3FFFU);
     decoded->magnetic_status = (uint8_t)((frame >> 6U) & 0x0FU);
     decoded->overspeed_warning = (decoded->magnetic_status & 0x08U) != 0U;

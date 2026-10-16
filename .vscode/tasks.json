@@ -1,0 +1,16 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "同步 Keil 代码跳转配置",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/Scripts/update_vscode.ps1"
+            ],
+            "problemMatcher": []
+        }
+    ]
+}

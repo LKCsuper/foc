@@ -93,7 +93,7 @@ float Motor_JointControl_Step(motor_joint_control_t *control,
 
 /**
  * @description: 清除积分、误差和输出，配置与命令保持不变。
- * @param {motor_joint_control_t *} control  控制实例，为空则忽略
+ * @param {motor_joint_control_t *} control  控制实例，不可为空，违反约定触发 COMMON_ASSERT
  * @return {void} 无
  * @author: lkc
  */

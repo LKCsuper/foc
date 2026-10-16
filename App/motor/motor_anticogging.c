@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <math.h>
+#include "common_assert.h"
 #include <string.h>
 #include "motor_anticogging.h"
 /* Private define ------------------------------------------------------------*/
@@ -39,8 +40,10 @@ static float wrap_2pi(float angle);
 static float wrap_2pi(float angle)
 {
     const float two_pi = 2.0f * (float)M_PI;
-    while (angle < 0.0f) angle += two_pi;
-    while (angle >= two_pi) angle -= two_pi;
+    while (angle < 0.0f)
+        angle += two_pi;
+    while (angle >= two_pi)
+        angle -= two_pi;
     return angle;
 }
 
@@ -49,7 +52,10 @@ static float wrap_2pi(float angle)
  * @return {void} 无
  * @author: lkc
  */
-void Motor_Anticogging_Init(void) { Motor_Anticogging_Clear(); }
+void Motor_Anticogging_Init(void)
+{
+    Motor_Anticogging_Clear();
+}
 
 /**
  * @description: 开始一轮齿槽位置扫描。
@@ -60,7 +66,8 @@ void Motor_Anticogging_Init(void) { Motor_Anticogging_Clear(); }
  */
 bool Motor_Anticogging_Start(uint16_t samples_per_bin)
 {
-    if (samples_per_bin == 0U || samples_per_bin > 5U) return false;
+    if (samples_per_bin == 0U || samples_per_bin > 5U)
+        return false;
     memset(s_table, 0, sizeof(s_table));
     memset(s_sum, 0, sizeof(s_sum));
     memset(s_samples, 0, sizeof(s_samples));
@@ -114,7 +121,8 @@ void Motor_Anticogging_Clear(void)
  */
 bool Motor_Anticogging_SetEnabled(bool enabled)
 {
-    if (enabled && !s_calibrated) return false;
+    if (enabled && !s_calibrated)
+        return false;
     s_enabled = enabled;
     return true;
 }
@@ -124,7 +132,10 @@ bool Motor_Anticogging_SetEnabled(bool enabled)
  * @return {bool} true=学习中，控制输出改由学习目标决定
  * @author: lkc
  */
-bool Motor_Anticogging_IsLearning(void) { return s_learning; }
+bool Motor_Anticogging_IsLearning(void)
+{
+    return s_learning;
+}
 
 /**
  * @description: 写入本拍学习用的电角和保持电压。
@@ -136,7 +147,8 @@ bool Motor_Anticogging_IsLearning(void) { return s_learning; }
  */
 void Motor_Anticogging_SetLearnTarget(float encoder_elec_angle_rad, float vq_target)
 {
-    if (!s_learning || !isfinite(encoder_elec_angle_rad) || !isfinite(vq_target)) return;
+    if (!s_learning || !isfinite(encoder_elec_angle_rad) || !isfinite(vq_target))
+        return;
     s_theta = wrap_2pi(encoder_elec_angle_rad);
     s_vq = vq_target;
 }
@@ -152,7 +164,8 @@ void Motor_Anticogging_SetLearnTarget(float encoder_elec_angle_rad, float vq_tar
  */
 bool Motor_Anticogging_GetLearnTargets(float *theta_rad, float *vd_target, float *vq_target)
 {
-    if (!s_learning || theta_rad == NULL || vd_target == NULL || vq_target == NULL) return false;
+    if (!s_learning || theta_rad == NULL || vd_target == NULL || vq_target == NULL)
+        return false;
     *theta_rad = s_theta;
     *vd_target = 0.0f;
     *vq_target = s_vq;
@@ -169,8 +182,8 @@ bool Motor_Anticogging_GetLearnTargets(float *theta_rad, float *vd_target, float
  */
 bool Motor_Anticogging_Record(uint16_t bin, float holding_vq)
 {
-    if (!s_learning || bin >= MOTOR_ANTICOGGING_BINS || !isfinite(holding_vq) ||
-        s_samples[bin] >= s_target_samples) return false;
+    if (!s_learning || bin >= MOTOR_ANTICOGGING_BINS || !isfinite(holding_vq) || s_samples[bin] >= s_target_samples)
+        return false;
     s_sum[bin] += holding_vq;
     s_samples[bin]++;
     s_total_samples++;
@@ -189,15 +202,19 @@ bool Motor_Anticogging_Finish(void)
     float mean = 0.0f;
     uint16_t i;
     for (i = 0U; i < MOTOR_ANTICOGGING_BINS; i++) {
-        if (s_samples[i] < s_target_samples) return false;
+        if (s_samples[i] < s_target_samples)
+            return false;
         raw[i] = s_sum[i] / (float)s_samples[i];
     }
-    for (i = 0U; i < MOTOR_ANTICOGGING_BINS; i++) mean += raw[i];
+    for (i = 0U; i < MOTOR_ANTICOGGING_BINS; i++)
+        mean += raw[i];
     mean /= (float)MOTOR_ANTICOGGING_BINS;
     for (i = 0U; i < MOTOR_ANTICOGGING_BINS; i++) {
         float value = raw[i] - mean;
-        if (value > MOTOR_ANTICOGGING_MAX_VOLTAGE) value = MOTOR_ANTICOGGING_MAX_VOLTAGE;
-        if (value < -MOTOR_ANTICOGGING_MAX_VOLTAGE) value = -MOTOR_ANTICOGGING_MAX_VOLTAGE;
+        if (value > MOTOR_ANTICOGGING_MAX_VOLTAGE)
+            value = MOTOR_ANTICOGGING_MAX_VOLTAGE;
+        if (value < -MOTOR_ANTICOGGING_MAX_VOLTAGE)
+            value = -MOTOR_ANTICOGGING_MAX_VOLTAGE;
         s_table[i] = value;
     }
     s_learning = false;
@@ -220,9 +237,11 @@ float Motor_Anticogging_GetVoltage(float mech_angle_rad)
     float fraction;
     uint16_t bin0;
     uint16_t bin1;
-    if (!s_enabled || !s_calibrated || !isfinite(mech_angle_rad)) return 0.0f;
+    if (!s_enabled || !s_calibrated || !isfinite(mech_angle_rad))
+        return 0.0f;
     position = wrap_2pi(mech_angle_rad) * (float)MOTOR_ANTICOGGING_BINS / (2.0f * (float)M_PI) - 0.5f;
-    if (position < 0.0f) position += (float)MOTOR_ANTICOGGING_BINS;
+    if (position < 0.0f)
+        position += (float)MOTOR_ANTICOGGING_BINS;
     bin0 = (uint16_t)position;
     bin1 = (uint16_t)((bin0 + 1U) % MOTOR_ANTICOGGING_BINS);
     fraction = position - (float)bin0;
@@ -238,7 +257,7 @@ float Motor_Anticogging_GetVoltage(float mech_angle_rad)
 void Motor_Anticogging_GetStatus(motor_anticogging_status_t *status)
 {
     uint16_t i;
-    if (status == NULL) return;
+    COMMON_ASSERT(status != NULL);
     status->learning = s_learning;
     status->calibrated = s_calibrated;
     status->enabled = s_enabled;
@@ -248,9 +267,12 @@ void Motor_Anticogging_GetStatus(motor_anticogging_status_t *status)
     status->min_voltage = s_table[0];
     status->max_voltage = s_table[0];
     for (i = 1U; i < MOTOR_ANTICOGGING_BINS; i++) {
-        if (s_samples[i] < status->min_samples) status->min_samples = s_samples[i];
-        if (s_table[i] < status->min_voltage) status->min_voltage = s_table[i];
-        if (s_table[i] > status->max_voltage) status->max_voltage = s_table[i];
+        if (s_samples[i] < status->min_samples)
+            status->min_samples = s_samples[i];
+        if (s_table[i] < status->min_voltage)
+            status->min_voltage = s_table[i];
+        if (s_table[i] > status->max_voltage)
+            status->max_voltage = s_table[i];
     }
 }
 
@@ -265,9 +287,7 @@ void Motor_Anticogging_GetStatus(motor_anticogging_status_t *status)
  */
 bool Motor_Anticogging_Export(float *table, uint16_t bins, bool *enabled)
 {
-    if (table == NULL || enabled == NULL || bins != MOTOR_ANTICOGGING_BINS || !s_calibrated || s_learning) {
-        return false;
-    }
+    if (table == NULL || enabled == NULL || bins != MOTOR_ANTICOGGING_BINS || !s_calibrated || s_learning) return false;
     memcpy(table, s_table, sizeof(s_table));
     *enabled = s_enabled;
     return true;
@@ -285,7 +305,8 @@ bool Motor_Anticogging_Export(float *table, uint16_t bins, bool *enabled)
 bool Motor_Anticogging_Import(const float *table, uint16_t bins, bool enabled)
 {
     uint16_t i;
-    if (table == NULL || bins != MOTOR_ANTICOGGING_BINS) return false;
+    if (table == NULL || bins != MOTOR_ANTICOGGING_BINS)
+        return false;
     for (i = 0U; i < MOTOR_ANTICOGGING_BINS; i++) {
         if (!isfinite(table[i]) || table[i] < -MOTOR_ANTICOGGING_MAX_VOLTAGE ||
             table[i] > MOTOR_ANTICOGGING_MAX_VOLTAGE) {

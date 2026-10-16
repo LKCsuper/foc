@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
+#include "common_assert.h"
 #include <string.h>
 #include "motor_bldc_six_step.h"
 /* Private define ------------------------------------------------------------*/
@@ -37,12 +38,8 @@ static bool Motor_BldcSixStep_ConfigValid(const motor_bldc_six_step_config_t *co
 static float Motor_BldcSixStep_ClampDuty(float duty)
 {
     /* 该写法同时把 NaN 变成 0，避免 NaN 进入硬件比较值换算。 */
-    if (!(duty >= 0.0f)) {
-        return 0.0f;
-    }
-    if (duty > 1.0f) {
-        return 1.0f;
-    }
+    if (!(duty >= 0.0f)) return 0.0f;
+    if (duty > 1.0f) return 1.0f;
     return duty;
 }
 
@@ -110,13 +107,9 @@ static bool Motor_BldcSixStep_ConfigValid(const motor_bldc_six_step_config_t *co
         uint8_t step = config->hall_to_step[hall];
         uint8_t bit;
 
-        if (step >= 6U) {
-            return false;
-        }
+        if (step >= 6U) return false;
         bit = (uint8_t)(1U << step);
-        if ((used & bit) != 0U) {
-            return false;
-        }
+        if ((used & bit) != 0U) return false;
         used = (uint8_t)(used | bit);
     }
     return used == 0x3FU;
@@ -134,9 +127,7 @@ void Motor_BldcSixStep_DefaultConfig(motor_bldc_six_step_config_t *config)
         MOTOR_BLDC_SIX_STEP_INVALID, 0U, 4U, 5U, 2U, 1U, 3U, MOTOR_BLDC_SIX_STEP_INVALID,
     };
 
-    if (config == NULL) {
-        return;
-    }
+    COMMON_ASSERT(config != NULL);
     memset(config, 0, sizeof(*config));
     memcpy(config->hall_to_step, hall_to_step, sizeof(hall_to_step));
     config->commutation_timeout_s = 0.5f;
@@ -152,9 +143,7 @@ void Motor_BldcSixStep_DefaultConfig(motor_bldc_six_step_config_t *config)
 bool Motor_BldcSixStep_Init(motor_bldc_six_step_t *control,
                             const motor_bldc_six_step_config_t *config)
 {
-    if (control == NULL) {
-        return false;
-    }
+    if (control == NULL) return false;
     memset(control, 0, sizeof(*control));
     control->last_hall = MOTOR_BLDC_SIX_STEP_INVALID;
     control->output.step = MOTOR_BLDC_SIX_STEP_INVALID;
@@ -200,9 +189,7 @@ bool Motor_BldcSixStep_Start(motor_bldc_six_step_t *control,
  */
 void Motor_BldcSixStep_Stop(motor_bldc_six_step_t *control)
 {
-    if (control == NULL) {
-        return;
-    }
+    COMMON_ASSERT(control != NULL);
     control->running = false;
     control->edge_elapsed_s = 0.0f;
     Motor_BldcSixStep_SetFloating(control);
@@ -216,9 +203,7 @@ void Motor_BldcSixStep_Stop(motor_bldc_six_step_t *control)
  */
 bool Motor_BldcSixStep_ClearFault(motor_bldc_six_step_t *control)
 {
-    if (control == NULL || control->running) {
-        return false;
-    }
+    if (control == NULL || control->running) return false;
     control->fault = MOTOR_BLDC_FAULT_NONE;
     control->edge_elapsed_s = 0.0f;
     control->last_hall = MOTOR_BLDC_SIX_STEP_INVALID;
@@ -234,9 +219,7 @@ bool Motor_BldcSixStep_ClearFault(motor_bldc_six_step_t *control)
  */
 void Motor_BldcSixStep_SetDuty(motor_bldc_six_step_t *control, float duty)
 {
-    if (control == NULL) {
-        return;
-    }
+    COMMON_ASSERT(control != NULL);
     control->duty = Motor_BldcSixStep_ClampDuty(duty);
     if (control->running && control->output.step < 6U) {
         control->output.duty = control->duty;
@@ -256,9 +239,7 @@ bool Motor_BldcSixStep_Step(motor_bldc_six_step_t *control, uint8_t hall, float 
 {
     uint8_t step;
 
-    if (control == NULL || !control->initialized || !control->running) {
-        return false;
-    }
+    if (control == NULL || !control->initialized || !control->running) return false;
     if (hall > 7U || (step = control->config.hall_to_step[hall]) >= 6U) {
         control->last_hall = hall;
         Motor_BldcSixStep_Trip(control, MOTOR_BLDC_FAULT_INVALID_HALL);
@@ -292,9 +273,7 @@ bool Motor_BldcSixStep_CommutateStep(motor_bldc_six_step_t *control, uint8_t ste
 {
     uint8_t phase;
 
-    if (control == NULL || !control->initialized || !control->running || step >= 6U) {
-        return false;
-    }
+    if (control == NULL || !control->initialized || !control->running || step >= 6U) return false;
 
     control->output.step = step;
     control->output.duty = control->duty;

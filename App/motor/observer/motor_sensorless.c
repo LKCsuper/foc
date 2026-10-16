@@ -10,6 +10,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <math.h>
+#include "common_assert.h"
 #include <string.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -79,9 +80,7 @@ static motor_sensorless_runtime_t s_sensorless;
  */
 static void Motor_Sensorless_ApplyEffects(MOTOR_PARAM_S *motor, const motor_sensorless_effects_t *effects)
 {
-    if (effects == NULL) {
-        return;
-    }
+    COMMON_ASSERT(effects != NULL);
     if (effects->request_speed_loss_fault && motor != NULL) {
         Motor_Protect_TriggerFault(FAULT_CODE_MOTOR_SPEED_LOSS, motor);
     }
@@ -99,9 +98,7 @@ static void Motor_Sensorless_ApplyEffects(MOTOR_PARAM_S *motor, const motor_sens
  */
 static void Motor_Sensorless_ClearEffects(motor_sensorless_effects_t *effects)
 {
-    if (effects == NULL) {
-        return;
-    }
+    COMMON_ASSERT(effects != NULL);
     memset(effects, 0, sizeof(*effects));
 }
 
@@ -115,12 +112,8 @@ static void Motor_Sensorless_ClearEffects(motor_sensorless_effects_t *effects)
  */
 static float Motor_Sensorless_Clamp(float value, float minimum, float maximum)
 {
-    if (value > maximum) {
-        return maximum;
-    }
-    if (value < minimum) {
-        return minimum;
-    }
+    if (value > maximum) return maximum;
+    if (value < minimum) return minimum;
     return value;
 }
 
@@ -215,9 +208,7 @@ static void Motor_Sensorless_RunPll(motor_sensorless_runtime_t *rt, const MOTOR_
  */
 void Motor_Sensorless_InitState(motor_sensorless_runtime_t *rt)
 {
-    if (rt == NULL) {
-        return;
-    }
+    COMMON_ASSERT(rt != NULL);
     memset(rt, 0, sizeof(*rt));
     rt->state = MOTOR_SENSORLESS_OPEN_LOOP;
 }
@@ -230,9 +221,7 @@ void Motor_Sensorless_InitState(motor_sensorless_runtime_t *rt)
  */
 void Motor_Sensorless_ResetState(motor_sensorless_runtime_t *rt)
 {
-    if (rt == NULL) {
-        return;
-    }
+    COMMON_ASSERT(rt != NULL);
     /*
      * 停机、切换到 V/F、关闭无感或数值异常时调用。
      * 清零后必须重新经过 Seed、LOCKING 和接管流程，不能沿用旧角度。
@@ -259,9 +248,7 @@ void Motor_Sensorless_SetAppliedVoltageState(motor_sensorless_runtime_t *rt, flo
      * 周期与新采样电流配对使用。当前尚未补偿死区、管压降和母线纹波，
      * 因此它是实际电机端电压的近似值，而不是额外生成的测试电压。
      */
-    if (rt == NULL) {
-        return;
-    }
+    COMMON_ASSERT(rt != NULL);
     rt->applied_v_alpha = v_alpha;
     rt->applied_v_beta = v_beta;
 }
@@ -324,9 +311,7 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
      *   - ol_enable=false 表示电机已停机。
      * 任一条件不满足都清空历史状态，防止下次启动沿用旧磁链和旧角度。
      */
-    if (rt == NULL || motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(rt != NULL && motor != NULL);
     Motor_Sensorless_ClearEffects(effects);
 
     if (dt <= 0.0f || !motor->sensorless_enable || motor->ol_mode != MOTOR_OL_MODE_IF || !motor->ol_enable) {
@@ -707,9 +692,7 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
  */
 float Motor_Sensorless_GetControlAngleState(const motor_sensorless_runtime_t *rt, float open_loop_angle)
 {
-    if (rt == NULL || rt->state != MOTOR_SENSORLESS_CLOSED) {
-        return open_loop_angle;
-    }
+    if (rt == NULL || rt->state != MOTOR_SENSORLESS_CLOSED) return open_loop_angle;
     return rt->control_angle;
 }
 
@@ -778,9 +761,7 @@ float Motor_Sensorless_GetPhaseErrorState(const motor_sensorless_runtime_t *rt)
 void Motor_Sensorless_GetDiagnosticsState(const motor_sensorless_runtime_t *rt,
                                           motor_sensorless_diagnostics_t *diagnostics)
 {
-    if (rt == NULL || diagnostics == NULL) {
-        return;
-    }
+    COMMON_ASSERT(rt != NULL && diagnostics != NULL);
     diagnostics->flux_ok = rt->flux_ok;
     diagnostics->speed_ok = rt->speed_ok;
     diagnostics->direction_ok = rt->direction_ok;
@@ -804,7 +785,7 @@ void Motor_Sensorless_GetDiagnosticsState(const motor_sensorless_runtime_t *rt,
 void Motor_Sensorless_GetLightSnapshotState(const motor_sensorless_runtime_t *rt,
                                            motor_sensorless_light_snapshot_t *out)
 {
-    if (rt == NULL || out == NULL) return;
+    COMMON_ASSERT(rt != NULL && out != NULL);
     out->state = rt->state;
     out->flux_ok = rt->flux_ok;
     out->direction_ok = rt->direction_ok;
@@ -1015,9 +996,7 @@ void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_t *diagnostics
 {
     uint32_t primask;
 
-    if (diagnostics == NULL) {
-        return;
-    }
+    COMMON_ASSERT(diagnostics != NULL);
     primask = Motor_Crit_Enter();
     /* 保护路径也在ADC ISR调用；只拷贝诊断字段，不把统计数组搬到中断栈。 */
     Motor_Sensorless_GetDiagnosticsState(&s_sensorless, diagnostics);
@@ -1050,9 +1029,7 @@ void Motor_Sensorless_SetModulatedVoltage(float v_alpha, float v_beta)
 void Motor_Sensorless_GetStats(motor_sensorless_stats_t *stats)
 {
     uint32_t primask;
-    if (stats == NULL) {
-        return;
-    }
+    COMMON_ASSERT(stats != NULL);
     primask = Motor_Crit_Enter();
     *stats = s_sensorless.stats;
     Motor_Crit_Exit(primask);

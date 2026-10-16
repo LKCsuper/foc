@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "motor_flux.h"
+#include "common_assert.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -104,9 +105,7 @@ void Motor_Flux_Reset(motor_flux_t *obs)
  */
 void Motor_Flux_NormalizeConfig(motor_flux_config_t *config)
 {
-    if (config == NULL) {
-        return;
-    }
+    COMMON_ASSERT(config != NULL);
     if (!(config->resistance >= 0.0f) || !isfinite(config->resistance)) {
         config->resistance = 0.0f;
     }
@@ -140,12 +139,8 @@ void Motor_Flux_Seed(motor_flux_t *obs, const motor_flux_config_t *config, float
     float inductance;
     float wrapped;
 
-    if (obs == NULL || config == NULL) {
-        return;
-    }
-    if (!isfinite(angle) || !isfinite(i_alpha) || !isfinite(i_beta)) {
-        return;
-    }
+    COMMON_ASSERT(obs != NULL && config != NULL);
+    if (!isfinite(angle) || !isfinite(i_alpha) || !isfinite(i_beta)) return;
 
     flux = config->flux_linkage >= MOTOR_FLUX_MIN_LINKAGE ? config->flux_linkage : MOTOR_FLUX_MIN_LINKAGE;
     inductance = config->inductance >= 0.0f ? config->inductance : 0.0f;
@@ -188,9 +183,7 @@ bool Motor_Flux_Step(motor_flux_t *obs, const motor_flux_config_t *config, float
     float x_beta_dot;
 
     Motor_Flux_ClearOutput(output);
-    if (obs == NULL || config == NULL || output == NULL) {
-        return false;
-    }
+    if (obs == NULL || config == NULL || output == NULL) return false;
     if (!config->enabled || !(dt > 0.0f) || !isfinite(dt) || !isfinite(v_alpha) || !isfinite(v_beta) ||
         !isfinite(i_alpha) || !isfinite(i_beta)) {
         Motor_Flux_Reset(obs);

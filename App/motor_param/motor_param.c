@@ -44,10 +44,7 @@ void MOTOR_Param_Init(void)
     /* 一、电机固定参数：铭牌见 motor_nameplate.h */
     gpstMotorDefault->ol_pole_pairs = MOTOR_FIXED_POLE_PAIRS;
 
-    /* 二、运行给定值：属于控制指令，不是电机固有参数 */
-    gpstMotorDefault->e_iq_set = 1.5f;
-
-    /* 三、开环控制参数 */
+    /* 二、开环控制参数 */
     /*
      * 调试阶段上电后保持停机，避免刚烧录新算法就自动冲到高转速。
      * 需要转动时由 Shell 的 olspeed/olstart 明确启动。
@@ -55,38 +52,56 @@ void MOTOR_Param_Init(void)
     gpstMotorDefault->ol_enable = false;
     /* 默认 I/F：低阻电机用电流限幅拖转；V/F 高压易过流。 */
     gpstMotorDefault->ol_mode = MOTOR_OL_MODE_IF;
-    gpstMotorDefault->ol_target_rpm = 72.0f;              /* 对齐已上板成功的旧开环等效转速 */
+    gpstMotorDefault->ol_target_rpm = 72.0f;              /* 默认开环目标转速 RPM */
     gpstMotorDefault->ol_max_rpm = MOTOR_FIXED_RATED_RPM; /* 不超过额定转速 */
     /*
-     * 旧开环基线 3e5d564 在当前 24 V 电机/功率板上以固定 Vq=5 V、约 72 RPM
-     * 能稳定旋转。1.5 V 实测只能令转子往返摆动，因此先恢复已验证的启动强度；
-     * 仍由 ol_vq_limit 与 Vbus/sqrt(3) 统一限幅，后续上板再向下寻找最低可靠值。
+     * V/F 启动补偿电压按所选电机配置取默认值；运行电压由补偿电压与 V/F 斜率
+     * 共同计算，并经过软启动及电压限幅，不等同于固定 Vq 拖转。
+     * ol_vq_limit 同时用于控制输出限幅，运行时还受 Vbus/sqrt(3) 限制。
      */
     gpstMotorDefault->ol_v_boost = MOTOR_OPEN_LOOP_VBOOST_DEFAULT;
     gpstMotorDefault->ol_kv_f = 0.057f;                   /* V/Hz */
-    gpstMotorDefault->ol_ramp_rpm_s = 10.0f;              /* 软启动速率 — 越慢越稳 */
+    gpstMotorDefault->ol_ramp_rpm_s = 10.0f;              /* I/F、V/F 开环转速斜坡 RPM/s */
     gpstMotorDefault->ol_vq_limit = MOTOR_OPEN_LOOP_VQ_LIMIT_DEFAULT; /* 运行时再受 Vbus/sqrt(3) 限制 */
-    gpstMotorDefault->ol_foc_freq = 30000.0f;             /* ADC-DMA 基准频率；实际 FOC 频率还要除以分频系数 */
-    gpstMotorDefault->ol_min_rpm = 72.0f;                 /* HD75 实机验证的最低稳定开环拖动转速 */
+    gpstMotorDefault->ol_foc_freq = 30000.0f;             /* ADC-DMA 基准频率回退值；优先读取 HAL，实际 FOC 频率还需除以分频系数 */
+    gpstMotorDefault->ol_min_rpm = 72.0f;                 /* olstart 在目标为零时的默认转速；正常平滑启动不作转速地板 */
     /* 开环电流模式参数 */
     gpstMotorDefault->ol_iq_set = MOTOR_OPEN_LOOP_IQ_DEFAULT;
     gpstMotorDefault->ol_id_set = 0.0f;                   /* 目标 Id 电流 A */
     /*
-     * 线性 SVPWM 下 Vlim≈Vbus/√3。本电机 3000 RPM 时 ωeλ≈16.2 V，Id=0 会顶满电压。
-     * 台架电源只有 3 A；2026-09-16 实测 1.5 A 弱磁未能跟上 1500 RPM，且 Id 有过冲。
-     * 默认关闭，待排查 Hall 角度/电流跟踪后再通过 fw 命令受控启用。
+     * 弱磁原理：转速升高时，q 轴反电势项约为 ωe*(ψf + Ld*Id)。所需电压接近
+     * 逆变器输出上限后，电流环的调节余量减小；施加负 Id 可减小 d 轴等效磁链，
+     * 降低该反电势项，为电压受限时继续提速留出余量。
+     * 负 Id 会增加铜耗，并占用电流圆中供 Iq 产生转矩的额度，还受永磁体退磁
+     * 限制；允许的弱磁电流必须按具体电机确定，因此默认电流上限为 0，即关闭。
+     * 当前按电压利用率 sqrt(Vd²+Vq²)/Vlim 触发，不按固定转速触发；Vlim 同时
+     * 受配置限幅与母线电压约束。Vbus/√3 来自线性 SVPWM 的电压矢量几何关系：
+     * 在幅值不变的 Clarke/Park 定义下，两电平逆变器的六个有效电压矢量长度均为
+     * 2*Vbus/3，构成正六边形；要让旋转电压矢量在所有角度都能线性合成，其轨迹
+     * 必须位于六边形内切圆内，因此最大幅值为 (2*Vbus/3)*cos(30°)=Vbus/√3。
+     * 这里的幅值指 sqrt(Vd²+Vq²)，对应平衡正弦相电压的峰值，并非线电压有效值；
+     * 超过内切圆后，部分角度无法合成所需电压，进入过调制，电流环调节会受限。
+     * 利用率达到 fw_duty_start 时，Id 向负电流上限爬升；降至门槛以下 0.05 时
+     * 向 0 恢复，中间区间保持，形成滞环以避免反复切换。fw_ramp_a_s 限制 Id
+     * 变化速度，减轻电流与转矩突变；门槛和斜坡需结合具体电机及电流环响应调试。
      */
-    gpstMotorDefault->fw_current_max = 0.0f;
-    gpstMotorDefault->fw_duty_start = 0.80f;
-    gpstMotorDefault->fw_ramp_a_s = 8.0f;
+    gpstMotorDefault->fw_current_max = 0.0f;             /* 弱磁 |Id| 上限 A，0=关闭 */
+    gpstMotorDefault->fw_duty_start = 0.80f;             /* 进入弱磁的电压利用率门槛 */
+    gpstMotorDefault->fw_ramp_a_s = 8.0f;                /* 弱磁 Id 变化速率 A/s */
     /*
-     * foc_svm 把同一 Vd/Vq 的实际相电压从约 1/3 拉到满幅。
-     * Kp/Ki 按 Hall CCR 1.70 时的电流带宽折算（0.2×1.70/3、30×1.70/3），
-     * 150 RPM 上 olkp 0.2 会过冲到约 210 RPM。
+     * 电流环将采样电流变换到旋转 d/q 坐标系，分别比较目标与实测 Id/Iq，
+     * 由两轴 PI 输出 Vd/Vq，再经逆变换和 SVPWM 驱动电机，使电流跟随目标。
+     * Kp 按当前电流误差立即修正电压，Ki 累积误差以消除稳态偏差；增益过大
+     * 会降低稳定裕量，引起过冲或振荡，过小则跟踪迟缓。
+     * 忽略轴间耦合与反电势时，单轴电流对象近似为 1/(L*s+R)，可按目标带宽
+     * ωc 估算 Kp≈L*ωc、Ki≈R*ωc（连续 PI：Kp*e + Ki*∫e dt）。实际参数还需
+     * 结合采样/控制周期、滤波与计算延迟、调制增益及电压限幅验证。
+     * 默认增益由所选电机配置提供，不以某台电机的速度过冲或历史倍率统一折算。
      */
     gpstMotorDefault->ol_current_kp = MOTOR_CURRENT_KP_DEFAULT;
     gpstMotorDefault->ol_current_ki = MOTOR_CURRENT_KI_DEFAULT;
-    gpstMotorDefault->ol_start_phase_boost = M_PI / 2.0f; /* 仅 ol_align_enable=false 时兼容旧启动方式 */
+    /* 旧开环启动角度偏置，与电流 PI 增益无关；仅 ol_align_enable=false 时使用。 */
+    gpstMotorDefault->ol_start_phase_boost = M_PI / 2.0f; /* 90° 电角度 */
     /*
      * 默认关对齐/HFI：开环先拖转；切 I/F 后再按需 olalign / hfistart。
      */
@@ -163,7 +178,7 @@ void MOTOR_Param_Init(void)
     Motor_Speed_Init();
     Motor_Sensorless_Init();
 
-    PRINTF("Motor iq set [%f]\r\n", gpstMotor->e_iq_set);
+    PRINTF("Motor iq set [%f]\r\n", gpstMotor->ol_iq_set);
 
     return;
 }

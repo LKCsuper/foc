@@ -28,9 +28,7 @@ static bool Bsp_I2c2_WaitEvent(uint32_t event)
     uint32_t timeout = BSP_I2C2_TIMEOUT_LOOPS;
 
     while (I2C_CheckEvent(I2C2, event) == ERROR) {
-        if (timeout == 0U) {
-            return false;
-        }
+        if (timeout == 0U) return false;
         timeout--;
     }
     return true;
@@ -41,9 +39,7 @@ static bool Bsp_I2c2_WaitFlag(uint32_t flag, FlagStatus status)
     uint32_t timeout = BSP_I2C2_TIMEOUT_LOOPS;
 
     while (I2C_GetFlagStatus(I2C2, flag) != status) {
-        if (timeout == 0U) {
-            return false;
-        }
+        if (timeout == 0U) return false;
         timeout--;
     }
     return true;
@@ -106,9 +102,7 @@ bool Bsp_I2c2_ReadRegister(uint8_t address_7bit, uint8_t reg, uint8_t *value)
     uint32_t timeout = BSP_I2C2_TIMEOUT_LOOPS;
     uint32_t primask;
 
-    if (value == NULL) {
-        return false;
-    }
+    if (value == NULL) return false;
 
     while (I2C_GetFlagStatus(I2C2, I2C_FLAG_BUSY) == SET) {
         if (timeout == 0U) {

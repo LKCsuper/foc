@@ -50,9 +50,7 @@ uint8_t Hal_Flash_SlotCount(void)
  */
 bool Hal_Flash_GetSlot(uint8_t index, hal_flash_slot_t *out)
 {
-    if (out == NULL || index >= HAL_FLASH_SLOT_COUNT) {
-        return false;
-    }
+    if (out == NULL || index >= HAL_FLASH_SLOT_COUNT) return false;
     out->base = (uintptr_t)s_hal_flash_slots[index].addr;
     out->size = HAL_FLASH_SLOT_SIZE;
     return true;
@@ -68,9 +66,7 @@ bool Hal_Flash_EraseSlot(uint8_t index)
 {
     FLASH_Status status;
 
-    if (index >= HAL_FLASH_SLOT_COUNT) {
-        return false;
-    }
+    if (index >= HAL_FLASH_SLOT_COUNT) return false;
 
     FLASH_Unlock();
     FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR | FLASH_FLAG_PGPERR |
@@ -94,12 +90,8 @@ bool Hal_Flash_Program(uintptr_t addr, const uint8_t *data, uint32_t size)
     FLASH_Status status;
     uint32_t a = (uint32_t)addr;
 
-    if (size == 0U) {
-        return true;
-    }
-    if (data == NULL) {
-        return false;
-    }
+    if (size == 0U) return true;
+    if (data == NULL) return false;
 
     FLASH_Unlock();
     FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR | FLASH_FLAG_PGPERR |

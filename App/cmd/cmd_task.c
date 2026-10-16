@@ -8,6 +8,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#include "common_assert.h"
 /* Private define ------------------------------------------------------------*/
 #define TASK_STAT_SLOTS     20U
 #define TASK_WATCH_MIN_MS   200U
@@ -51,9 +52,8 @@ static void task_watch(uint32_t period_ms);
  */
 static void task_emit(const char *buf, uint32_t len)
 {
-    if ((buf == NULL) || (len == 0U)) {
-        return;
-    }
+    COMMON_ASSERT(buf != NULL);
+    if ((len == 0U)) return;
     (void)Bsp_Usart_Write((const UCHAR *)buf, len);
 }
 
@@ -64,9 +64,7 @@ static void task_emit(const char *buf, uint32_t len)
  */
 static void task_emit_str(const char *text)
 {
-    if (text == NULL) {
-        return;
-    }
+    COMMON_ASSERT(text != NULL);
     task_emit(text, (uint32_t)strlen(text));
 }
 
@@ -77,12 +75,8 @@ static void task_emit_str(const char *text)
  */
 static bool task_stop_key(void)
 {
-    if (queueCmdHandle == NULL) {
-        return false;
-    }
-    if (osMessageQueueGet(queueCmdHandle, &s_task_key, NULL, 0) != osOK) {
-        return false;
-    }
+    if (queueCmdHandle == NULL) return false;
+    if (osMessageQueueGet(queueCmdHandle, &s_task_key, NULL, 0) != osOK) return false;
     while (osMessageQueueGet(queueCmdHandle, &s_task_key, NULL, 0) == osOK) {
     }
     return true;
@@ -105,9 +99,7 @@ static bool task_wait_or_key(uint32_t period_ms)
         }
         osDelay(pdMS_TO_TICKS(step_ms));
         waited_ms += step_ms;
-        if (task_stop_key()) {
-            return true;
-        }
+        if (task_stop_key()) return true;
     }
     return false;
 }
@@ -148,9 +140,7 @@ static uint32_t task_run_delta(const TaskStatus_t *prev, UBaseType_t nprev, UBas
     UBaseType_t i;
 
     for (i = 0U; i < nprev; i++) {
-        if (prev[i].xTaskNumber == number) {
-            return now - prev[i].ulRunTimeCounter;
-        }
+        if (prev[i].xTaskNumber == number) return now - prev[i].ulRunTimeCounter;
     }
     return 0U;
 }
@@ -163,9 +153,7 @@ static uint32_t task_run_delta(const TaskStatus_t *prev, UBaseType_t nprev, UBas
  */
 static uint32_t task_percent_tenths(uint32_t part, uint32_t total)
 {
-    if (total == 0U) {
-        return 0U;
-    }
+    if (total == 0U) return 0U;
     return (uint32_t)(((uint64_t)part * 1000ULL) / (uint64_t)total);
 }
 

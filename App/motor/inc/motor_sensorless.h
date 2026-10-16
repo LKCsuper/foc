@@ -155,7 +155,7 @@ void Motor_Sensorless_GetLightSnapshot(motor_sensorless_light_snapshot_t *out);
 
 /**
  * @description: 拷贝默认实例最近一次启动的观测统计。
- * @detail: 临界区内拷贝默认实例。stats 为空则直接返回。Reset 后统计仍在；
+ * @detail: 临界区内拷贝默认实例。stats 不可为空并由 COMMON_ASSERT 检查。Reset 后统计仍在；
  *          下次从未初始化进入 Update 时，会在 Seed 之前被清掉。本函数不改变控制状态。
  * @param {motor_sensorless_stats_t *} stats 输出统计，不可为空
  * @return {void} 无

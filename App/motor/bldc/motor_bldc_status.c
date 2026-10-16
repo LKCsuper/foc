@@ -31,15 +31,11 @@ bool Motor_BldcStatus_Fill(motor_bldc_status_t *status, bool selected, bool samp
                            const motor_bldc_sensorless_t *sensorless, mc_fault_code motor_fault,
                            uint32_t bemf_sample_count)
 {
-    if (status == NULL) {
-        return false;
-    }
+    if (status == NULL) return false;
 
     memset(status, 0, sizeof(*status));
     status->selected = selected;
-    if (commutator == NULL || sensorless == NULL) {
-        return true;
-    }
+    if (commutator == NULL || sensorless == NULL) return true;
 
     status->running = Motor_BldcSixStep_IsRunning(commutator);
     status->duty = commutator->duty;

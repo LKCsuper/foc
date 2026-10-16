@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#include "common_assert.h"
 /* Private define ------------------------------------------------------------*/
 #define POS_TEST_DWELL_DEFAULT_MS 2000U
 #define POS_TEST_DWELL_MIN_MS     500U
@@ -43,9 +44,8 @@ static void pos_test_run(uint32_t dwell_ms);
  */
 static void pos_emit_buf(const char *buf, uint32_t len)
 {
-    if ((buf == NULL) || (len == 0U)) {
-        return;
-    }
+    COMMON_ASSERT(buf != NULL);
+    if ((len == 0U)) return;
     (void)Bsp_Usart_Write((const UCHAR *)buf, (ULONG)len);
 }
 
@@ -56,9 +56,7 @@ static void pos_emit_buf(const char *buf, uint32_t len)
  */
 static void pos_emit_str(const char *text)
 {
-    if (text == NULL) {
-        return;
-    }
+    COMMON_ASSERT(text != NULL);
     pos_emit_buf(text, (uint32_t)strlen(text));
 }
 
@@ -69,12 +67,8 @@ static void pos_emit_str(const char *text)
  */
 static bool pos_stop_key(void)
 {
-    if (queueCmdHandle == NULL) {
-        return false;
-    }
-    if (osMessageQueueGet(queueCmdHandle, &s_pos_key, NULL, 0) != osOK) {
-        return false;
-    }
+    if (queueCmdHandle == NULL) return false;
+    if (osMessageQueueGet(queueCmdHandle, &s_pos_key, NULL, 0) != osOK) return false;
     while (osMessageQueueGet(queueCmdHandle, &s_pos_key, NULL, 0) == osOK) {
     }
     return true;
@@ -97,9 +91,7 @@ static bool pos_wait_or_key(uint32_t period_ms)
         }
         osDelay(pdMS_TO_TICKS(step_ms));
         waited_ms += step_ms;
-        if (pos_stop_key()) {
-            return true;
-        }
+        if (pos_stop_key()) return true;
     }
     return false;
 }

@@ -92,9 +92,7 @@ int Cmd_Motor_Duty(int argc, char *argv[])
     }
 
     if (strcmp(argv[1], "create") == 0) {
-        if (!Duty_AllowManualPwm()) {
-            return -1;
-        }
+        if (!Duty_AllowManualPwm()) return -1;
         PRINTF("duty task create (debug)\r\n");
         taskPlotHandle = osThreadNew(Duty_ControlTask, NULL, &taskDutyAttr);
     } else if (strcmp(argv[1], "destory") == 0) {
@@ -110,9 +108,7 @@ int Cmd_Motor_Duty(int argc, char *argv[])
             PRINTF("usage: duty set <0..100>\r\n");
             return -1;
         }
-        if (!Duty_AllowManualPwm()) {
-            return -1;
-        }
+        if (!Duty_AllowManualPwm()) return -1;
         pct = atoi(argv[2]);
         if (pct < 0 || pct > 100) {
             PRINTF("duty percent must be 0..100\r\n");
@@ -127,9 +123,7 @@ int Cmd_Motor_Duty(int argc, char *argv[])
             Hal_Motor_PwmCommit();
         }
     } else if (strcmp(argv[1], "start") == 0) {
-        if (!Duty_AllowManualPwm()) {
-            return -1;
-        }
+        if (!Duty_AllowManualPwm()) return -1;
         PRINTF("duty start (debug)\r\n");
         {
             uint32_t duty = Hal_Motor_PwmPeriodCounts() / 5U;

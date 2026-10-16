@@ -1,3 +1,4 @@
+#include "test_common_assert.h"
 #include <assert.h>
 #include <stdio.h>
 #include <math.h>
@@ -13,6 +14,30 @@ int main(void)
     float average[MOTOR_TIMING_STAGE_COUNT];
     uint32_t samples;
     unsigned i, n;
+    {
+        motor_pair_frame_t frame = {0};
+        motor_pair_sample_t out;
+        Motor_Timing_PairHalfArm();
+        assert(Motor_Timing_PairHalfMode());
+        for (i = 0U; i < 40000U; i++) {
+            now_us = 1000U + i * 33U;
+            frame.entry_us = now_us;
+            frame.callback_cr1 = i % 2U ? 16U : 0U;
+            frame.reconstructed = 4U;
+            if (i == 14401U) Motor_Timing_HandoffMark();
+            if (Motor_Timing_PairFrame(&frame)) Motor_Timing_PairPush(0.0f, 0.0f);
+        }
+        assert(Motor_Timing_HandoffCount() == 32U && !Motor_Timing_PairActive());
+        assert(Motor_Timing_PairGet(4U, &out) && out.flags == 1U);
+        assert(out.current.entry_us == 1000U + 14401U * 33U);
+        assert(out.current.entry_us - out.previous.entry_us == 33U);
+        assert(out.current.callback_cr1 != out.previous.callback_cr1 && out.current.reconstructed == 4U);
+        assert(Motor_Timing_PairGet(5U, &out) && out.current.callback_cr1 == 0U);
+        assert(Motor_Timing_PairGet(6U, &out) && out.current.callback_cr1 == 16U);
+        Motor_Timing_PairArm();
+        assert(!Motor_Timing_PairHalfMode());
+        Motor_Timing_HandoffStop();
+    }
     {
         motor_pair_frame_t frame = {0};
         motor_pair_sample_t out;
@@ -167,7 +192,7 @@ int main(void)
         Motor_Timing_ProfileSnapshot(&snapshot);
         assert(snapshot.count[MOTOR_TIMING_PROTECTION] == 1U);
         assert(snapshot.max_us[MOTOR_TIMING_PROTECTION] == 2U);
-        Motor_Timing_ProfileSnapshot(NULL);
+        EXPECT_COMMON_ASSERT(Motor_Timing_ProfileSnapshot(NULL));
         Motor_Timing_CadenceReset();
         Motor_Timing_ProfileSnapshot(&snapshot);
         assert(snapshot.count[MOTOR_TIMING_PROTECTION] == 0U);
@@ -384,7 +409,7 @@ int main(void)
         Motor_Timing_IrqGet(1U, &irq);
         assert(irq.count == 1U);
         Motor_Timing_IrqNote(2U, 0U, 999U, 3U);
-        Motor_Timing_IrqGet(0U, NULL);
+        EXPECT_COMMON_ASSERT(Motor_Timing_IrqGet(0U, NULL));
         Motor_Timing_CadenceReset();
         Motor_Timing_IrqGet(0U, &irq);
         assert(irq.count == 0U);
@@ -407,7 +432,7 @@ int main(void)
         Motor_Timing_CadenceReset();
         Motor_Timing_SpeedTaskGet(&task);
         assert(task.count == 0U && task.max_gap_us == 0U);
-        Motor_Timing_SpeedTaskGet(NULL);
+        EXPECT_COMMON_ASSERT(Motor_Timing_SpeedTaskGet(NULL));
     }
     {
         motor_control_clock_t clock = {0};
@@ -464,7 +489,7 @@ int main(void)
         Motor_Timing_CallbackEnd(t + 270U, true);
         Motor_Timing_CallbackGet(&cb);
         assert(cb.count == 3U && cb.pending == 2U);
-        Motor_Timing_CallbackGet(NULL);
+        EXPECT_COMMON_ASSERT(Motor_Timing_CallbackGet(NULL));
     }
     {
         motor_cadence_t c;
@@ -480,7 +505,7 @@ int main(void)
         assert(c.count == 6U && c.sum_us == 682U && c.min_us == 66U && c.max_us == 250U);
         assert(c.gaps == 1U && c.up == 2U && c.down == 4U);
         assert(c.bins[2] == 3U && c.bins[4] == 1U && c.bins[5] == 1U && c.bins[6] == 1U);
-        Motor_Timing_CadenceGet(NULL);
+        EXPECT_COMMON_ASSERT(Motor_Timing_CadenceGet(NULL));
         Motor_Timing_CadenceReset();
         Motor_Timing_CadenceGet(&c);
         assert(c.count == 0U && c.gaps == 0U);

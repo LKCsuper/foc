@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
+#include "common_assert.h"
 #include <stddef.h>
 #include <math.h>
 #include "motor_foc.h"
@@ -422,9 +423,7 @@ void foc_svm_from_voltage(float v_alpha, float v_beta, float v_bus, float max_du
     float mod_beta;
     uint32_t mid;
 
-    if (tAout == NULL || tBout == NULL || tCout == NULL || svm_sector == NULL) {
-        return;
-    }
+    COMMON_ASSERT(tAout != NULL && tBout != NULL && tCout != NULL && svm_sector != NULL);
 
     mid = period / 2U;
     if (v_bus <= 0.0f || period == 0U) {
@@ -479,9 +478,7 @@ void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcm
     float T1 = 0.0f;
     float T2 = 0.0f;
 
-    if (pTcmp1 == NULL || pTcmp2 == NULL || pTcmp3 == NULL || pSector == NULL) {
-        return;
-    }
+    COMMON_ASSERT(pTcmp1 != NULL && pTcmp2 != NULL && pTcmp3 != NULL && pSector != NULL);
     if (Udc <= 0.0f || Tpwm == 0U) {
         *pTcmp1 = 0U;
         *pTcmp2 = 0U;

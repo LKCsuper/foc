@@ -1,3 +1,4 @@
+#include "test_common_assert.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -37,7 +38,7 @@ int main(void)
     MOTOR_PARAM_S motor;
 
     memset(&motor, 0, sizeof(motor));
-    Motor_FastVf_RunIsr(NULL);
+    EXPECT_COMMON_ASSERT(Motor_FastVf_RunIsr(NULL));
     assert(s_runtime_calls == 0U);
 
     s_time_us = 77U;

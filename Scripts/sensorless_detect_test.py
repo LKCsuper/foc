@@ -9,6 +9,7 @@ from ol_verify_serial import REPO_ROOT, Shell, decode
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--port", default="COM5")
     parser.add_argument("command")
     args = parser.parse_args()
     fields = args.command.split()
@@ -24,7 +25,7 @@ def main():
     args.command = " ".join(fields)
     path = REPO_ROOT / "Doc/verify" / ("sensorless_detect_3508_" + datetime.now().strftime("%Y%m%d_%H%M%S") + ".log")
     path.parent.mkdir(parents=True, exist_ok=True)
-    shell = Shell("COM5", 2_000_000)
+    shell = Shell(args.port, 2_000_000)
     with path.open("w", encoding="utf-8") as log:
         def emit(text):
             print(text, flush=True)
@@ -57,6 +58,8 @@ def main():
                 run("detect abort")
                 raise RuntimeError("参数检测超时")
             run("detect show")
+            if "Detect motor finished: SUCCESS" not in captured:
+                raise RuntimeError("参数检测未通过质量检查；结果未应用")
         finally:
             try:
                 run("olstop")

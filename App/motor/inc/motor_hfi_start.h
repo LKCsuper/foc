@@ -10,6 +10,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
+#include "common_assert.h"
 #include <stddef.h>
 #include <stdint.h>
 /* Private define ------------------------------------------------------------*/
@@ -70,7 +71,7 @@ void MotorHfiStart_NormalizeConfig(motor_hfi_start_config_t *config);
 /** 热路径共享实现；与NormalizeConfig保持同一套规则，不缓存配置。 */
 static inline void MotorHfiStart_NormalizeConfigInline(motor_hfi_start_config_t *config)
 {
-    if (config == NULL) return;
+    COMMON_ASSERT(config != NULL);
     if (config->voltage < 0.0f) config->voltage = 0.0f;
     if (config->cycles_per_axis < 2U) config->cycles_per_axis = 2U;
     if (config->cycles_per_axis > 32U) config->cycles_per_axis = 32U;

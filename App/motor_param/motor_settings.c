@@ -33,198 +33,70 @@ static bool settings_valid(const motor_settings_t *s)
 {
     unsigned i;
     const motor_config_t *c = &s->config;
-    if (!isfinite(c->ol_max_rpm)) {
-        return false;
-    }
-    if (!isfinite(c->ol_v_boost)) {
-        return false;
-    }
-    if (!isfinite(c->ol_kv_f)) {
-        return false;
-    }
-    if (!isfinite(c->ol_ramp_rpm_s)) {
-        return false;
-    }
-    if (!isfinite(c->ol_vq_limit)) {
-        return false;
-    }
-    if (!isfinite(c->ol_foc_freq)) {
-        return false;
-    }
-    if (!isfinite(c->ol_pole_pairs)) {
-        return false;
-    }
-    if (!isfinite(c->ol_min_rpm)) {
-        return false;
-    }
-    if (!isfinite(c->ol_current_kp)) {
-        return false;
-    }
-    if (!isfinite(c->ol_current_ki)) {
-        return false;
-    }
-    if (!isfinite(c->ol_start_phase_boost)) {
-        return false;
-    }
-    if (!isfinite(c->ol_align_current)) {
-        return false;
-    }
-    if (!isfinite(c->ol_align_time)) {
-        return false;
-    }
-    if (!isfinite(c->ol_align_angle)) {
-        return false;
-    }
-    if (!isfinite(c->hfi_start_voltage)) {
-        return false;
-    }
-    if (!isfinite(c->hfi_start_min_confidence)) {
-        return false;
-    }
-    if (!isfinite(c->speed_kp)) {
-        return false;
-    }
-    if (!isfinite(c->speed_ki)) {
-        return false;
-    }
-    if (!isfinite(c->speed_iq_limit)) {
-        return false;
-    }
-    if (!isfinite(c->speed_loop_hz)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_motor_r)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_motor_l)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_flux_linkage)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_observer_gain)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_pll_kp)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_pll_ki)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_transition_rpm)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_fallback_rpm)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_openloop_max_rpm)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_lock_time)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_loss_time)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_blend_time)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_phase_tolerance)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_phase_offset)) {
-        return false;
-    }
-    if (!isfinite(c->sensorless_speed_filter)) {
-        return false;
-    }
-    if (c->ol_v_boost < 0.0f) {
-        return false;
-    }
-    if (c->ol_kv_f < 0.0f) {
-        return false;
-    }
-    if (c->ol_ramp_rpm_s < 0.0f) {
-        return false;
-    }
-    if (c->ol_vq_limit < 0.0f) {
-        return false;
-    }
-    if (c->ol_min_rpm < 0.0f) {
-        return false;
-    }
-    if (c->ol_current_kp < 0.0f) {
-        return false;
-    }
-    if (c->ol_current_ki < 0.0f) {
-        return false;
-    }
-    if (c->ol_start_phase_boost < 0.0f) {
-        return false;
-    }
-    if (c->ol_align_current < 0.0f) {
-        return false;
-    }
-    if (c->ol_align_time < 0.0f) {
-        return false;
-    }
-    if (c->hfi_start_voltage < 0.0f) {
-        return false;
-    }
-    if (c->hfi_start_min_confidence < 0.0f) {
-        return false;
-    }
-    if (c->speed_kp < 0.0f) {
-        return false;
-    }
-    if (c->speed_ki < 0.0f) {
-        return false;
-    }
-    if (c->speed_iq_limit < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_motor_r < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_motor_l < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_flux_linkage < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_observer_gain < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_pll_kp < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_pll_ki < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_transition_rpm < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_fallback_rpm < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_openloop_max_rpm < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_lock_time < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_loss_time < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_blend_time < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_phase_tolerance < 0.0f) {
-        return false;
-    }
-    if (c->sensorless_speed_filter < 0.0f) {
-        return false;
-    }
+    if (!isfinite(c->ol_max_rpm)) return false;
+    if (!isfinite(c->ol_v_boost)) return false;
+    if (!isfinite(c->ol_kv_f)) return false;
+    if (!isfinite(c->ol_ramp_rpm_s)) return false;
+    if (!isfinite(c->ol_vq_limit)) return false;
+    if (!isfinite(c->ol_foc_freq)) return false;
+    if (!isfinite(c->ol_pole_pairs)) return false;
+    if (!isfinite(c->ol_min_rpm)) return false;
+    if (!isfinite(c->ol_current_kp)) return false;
+    if (!isfinite(c->ol_current_ki)) return false;
+    if (!isfinite(c->ol_start_phase_boost)) return false;
+    if (!isfinite(c->ol_align_current)) return false;
+    if (!isfinite(c->ol_align_time)) return false;
+    if (!isfinite(c->ol_align_angle)) return false;
+    if (!isfinite(c->hfi_start_voltage)) return false;
+    if (!isfinite(c->hfi_start_min_confidence)) return false;
+    if (!isfinite(c->speed_kp)) return false;
+    if (!isfinite(c->speed_ki)) return false;
+    if (!isfinite(c->speed_iq_limit)) return false;
+    if (!isfinite(c->speed_loop_hz)) return false;
+    if (!isfinite(c->sensorless_motor_r)) return false;
+    if (!isfinite(c->sensorless_motor_l)) return false;
+    if (!isfinite(c->sensorless_flux_linkage)) return false;
+    if (!isfinite(c->sensorless_observer_gain)) return false;
+    if (!isfinite(c->sensorless_pll_kp)) return false;
+    if (!isfinite(c->sensorless_pll_ki)) return false;
+    if (!isfinite(c->sensorless_transition_rpm)) return false;
+    if (!isfinite(c->sensorless_fallback_rpm)) return false;
+    if (!isfinite(c->sensorless_openloop_max_rpm)) return false;
+    if (!isfinite(c->sensorless_lock_time)) return false;
+    if (!isfinite(c->sensorless_loss_time)) return false;
+    if (!isfinite(c->sensorless_blend_time)) return false;
+    if (!isfinite(c->sensorless_phase_tolerance)) return false;
+    if (!isfinite(c->sensorless_phase_offset)) return false;
+    if (!isfinite(c->sensorless_speed_filter)) return false;
+    if (c->ol_v_boost < 0.0f) return false;
+    if (c->ol_kv_f < 0.0f) return false;
+    if (c->ol_ramp_rpm_s < 0.0f) return false;
+    if (c->ol_vq_limit < 0.0f) return false;
+    if (c->ol_min_rpm < 0.0f) return false;
+    if (c->ol_current_kp < 0.0f) return false;
+    if (c->ol_current_ki < 0.0f) return false;
+    if (c->ol_start_phase_boost < 0.0f) return false;
+    if (c->ol_align_current < 0.0f) return false;
+    if (c->ol_align_time < 0.0f) return false;
+    if (c->hfi_start_voltage < 0.0f) return false;
+    if (c->hfi_start_min_confidence < 0.0f) return false;
+    if (c->speed_kp < 0.0f) return false;
+    if (c->speed_ki < 0.0f) return false;
+    if (c->speed_iq_limit < 0.0f) return false;
+    if (c->sensorless_motor_r < 0.0f) return false;
+    if (c->sensorless_motor_l < 0.0f) return false;
+    if (c->sensorless_flux_linkage < 0.0f) return false;
+    if (c->sensorless_observer_gain < 0.0f) return false;
+    if (c->sensorless_pll_kp < 0.0f) return false;
+    if (c->sensorless_pll_ki < 0.0f) return false;
+    if (c->sensorless_transition_rpm < 0.0f) return false;
+    if (c->sensorless_fallback_rpm < 0.0f) return false;
+    if (c->sensorless_openloop_max_rpm < 0.0f) return false;
+    if (c->sensorless_lock_time < 0.0f) return false;
+    if (c->sensorless_loss_time < 0.0f) return false;
+    if (c->sensorless_blend_time < 0.0f) return false;
+    if (c->sensorless_phase_tolerance < 0.0f) return false;
+    if (c->sensorless_speed_filter < 0.0f) return false;
     if (c->ol_pole_pairs < 1.0f || c->ol_pole_pairs > 255.0f || floorf(c->ol_pole_pairs) != c->ol_pole_pairs ||
         c->ol_max_rpm <= 0.0f || c->ol_foc_freq < 1.0f || c->speed_loop_hz < 1.0f ||
         c->speed_loop_hz > c->ol_foc_freq || c->ol_min_rpm > c->ol_max_rpm ||
@@ -242,9 +114,7 @@ static bool settings_valid(const motor_settings_t *s)
         }
     }
     for (i = 0; i < MOTOR_HALL_TABLE_SIZE; ++i) {
-        if (s->calibration.hall_table[i] > 200U && s->calibration.hall_table[i] != 255U) {
-            return false;
-        }
+        if (s->calibration.hall_table[i] > 200U && s->calibration.hall_table[i] != 255U) return false;
     }
     if (!isfinite(s->calibration.encoder_offset_rad) || s->calibration.encoder_offset_rad < 0.0f ||
         s->calibration.encoder_offset_rad >= 6.28318530718f) {
@@ -264,9 +134,7 @@ static bool settings_valid(const motor_settings_t *s)
 bool Motor_Settings_Capture(const MOTOR_PARAM_S *motor, motor_settings_t *settings)
 {
     motor_settings_t candidate;
-    if (motor == NULL || settings == NULL) {
-        return false;
-    }
+    if (motor == NULL || settings == NULL) return false;
     memset(&candidate, 0, sizeof(candidate));
     candidate.config.ol_max_rpm = motor->ol_max_rpm;
     candidate.config.ol_v_boost = motor->ol_v_boost;
@@ -319,9 +187,7 @@ bool Motor_Settings_Capture(const MOTOR_PARAM_S *motor, motor_settings_t *settin
     candidate.calibration.encoder_offset_rad = motor->encoder_offset_rad;
     candidate.calibration.encoder_inverted = motor->encoder_inverted;
     candidate.calibration.encoder_calibrated = motor->encoder_calibrated;
-    if (!settings_valid(&candidate)) {
-        return false;
-    }
+    if (!settings_valid(&candidate)) return false;
     *settings = candidate;
     return true;
 }
@@ -390,9 +256,7 @@ static void settings_write_config(MOTOR_PARAM_S *motor, const motor_config_t *co
  */
 bool Motor_Settings_Apply(MOTOR_PARAM_S *motor, const motor_settings_t *settings)
 {
-    if (motor == NULL || settings == NULL || motor->ol_enable || !settings_valid(settings)) {
-        return false;
-    }
+    if (motor == NULL || settings == NULL || motor->ol_enable || !settings_valid(settings)) return false;
     settings_write_config(motor, &settings->config);
     memcpy(motor->currentOffset, settings->calibration.current_offset, sizeof(motor->currentOffset));
     memcpy(motor->voltOffset, settings->calibration.voltage_offset, sizeof(motor->voltOffset));
@@ -414,9 +278,7 @@ bool Motor_Settings_Apply(MOTOR_PARAM_S *motor, const motor_settings_t *settings
  */
 bool Motor_Settings_ConfigRequiresStop(const motor_config_t *from, const motor_config_t *to)
 {
-    if (from == NULL || to == NULL) {
-        return true;
-    }
+    if (from == NULL || to == NULL) return true;
 
     if (from->ol_pole_pairs != to->ol_pole_pairs || from->ol_foc_freq != to->ol_foc_freq ||
         from->speed_loop_hz != to->speed_loop_hz || from->hall_extra_samples != to->hall_extra_samples) {
@@ -458,19 +320,11 @@ bool Motor_Settings_ApplyConfig(MOTOR_PARAM_S *motor, const motor_config_t *conf
 {
     motor_settings_t candidate;
 
-    if (motor == NULL || config == NULL) {
-        return false;
-    }
-    if (!Motor_Settings_Capture(motor, &candidate)) {
-        return false;
-    }
-    if (motor->ol_enable && Motor_Settings_ConfigRequiresStop(&candidate.config, config)) {
-        return false;
-    }
+    if (motor == NULL || config == NULL) return false;
+    if (!Motor_Settings_Capture(motor, &candidate)) return false;
+    if (motor->ol_enable && Motor_Settings_ConfigRequiresStop(&candidate.config, config)) return false;
     candidate.config = *config;
-    if (!settings_valid(&candidate)) {
-        return false;
-    }
+    if (!settings_valid(&candidate)) return false;
     settings_write_config(motor, config);
     return true;
 }
@@ -547,9 +401,7 @@ bool Motor_Settings_Encode(const motor_settings_t *settings, uint8_t *data, uint
 {
     uint8_t *p = data;
     unsigned i;
-    if (settings == NULL || data == NULL || size != MOTOR_SETTINGS_WIRE_SIZE || !settings_valid(settings)) {
-        return false;
-    }
+    if (settings == NULL || data == NULL || size != MOTOR_SETTINGS_WIRE_SIZE || !settings_valid(settings)) return false;
     put_float(&p, settings->config.ol_max_rpm);
     put_float(&p, settings->config.ol_v_boost);
     put_float(&p, settings->config.ol_kv_f);
@@ -625,9 +477,7 @@ bool Motor_Settings_Decode(const uint8_t *data, uint32_t size, motor_settings_t 
     motor_settings_t candidate;
     uint32_t word;
     unsigned i;
-    if (data == NULL || settings == NULL || (size != MOTOR_SETTINGS_WIRE_SIZE && size != MOTOR_SETTINGS_WIRE_SIZE_V2)) {
-        return false;
-    }
+    if (data == NULL || settings == NULL || (size != MOTOR_SETTINGS_WIRE_SIZE && size != MOTOR_SETTINGS_WIRE_SIZE_V2)) return false;
     memset(&candidate, 0, sizeof(candidate));
     candidate.config.ol_max_rpm = get_float(&p);
     candidate.config.ol_v_boost = get_float(&p);
@@ -641,48 +491,34 @@ bool Motor_Settings_Decode(const uint8_t *data, uint32_t size, motor_settings_t 
     candidate.config.ol_current_ki = get_float(&p);
     candidate.config.ol_start_phase_boost = get_float(&p);
     word = get_word(&p);
-    if (word > 1U) {
-        return false;
-    }
+    if (word > 1U) return false;
     candidate.config.ol_align_enable = (bool)word;
     candidate.config.ol_align_current = get_float(&p);
     candidate.config.ol_align_time = get_float(&p);
     candidate.config.ol_align_angle = get_float(&p);
     word = get_word(&p);
-    if (word > 1U) {
-        return false;
-    }
+    if (word > 1U) return false;
     candidate.config.hfi_start_enable = (bool)word;
     candidate.config.hfi_start_voltage = get_float(&p);
     word = get_word(&p);
-    if (word > 65535U) {
-        return false;
-    }
+    if (word > 65535U) return false;
     candidate.config.hfi_start_cycles = (uint16_t)word;
     candidate.config.hfi_start_min_confidence = get_float(&p);
     word = get_word(&p);
-    if (word > 1U) {
-        return false;
-    }
+    if (word > 1U) return false;
     candidate.config.speed_enable = (bool)word;
     word = get_word(&p);
-    if (word > 1U) {
-        return false;
-    }
+    if (word > 1U) return false;
     candidate.config.speed_allow_braking = (bool)word;
     candidate.config.speed_kp = get_float(&p);
     candidate.config.speed_ki = get_float(&p);
     candidate.config.speed_iq_limit = get_float(&p);
     candidate.config.speed_loop_hz = get_float(&p);
     word = get_word(&p);
-    if (word > 1U) {
-        return false;
-    }
+    if (word > 1U) return false;
     candidate.config.sensorless_enable = (bool)word;
     word = get_word(&p);
-    if (word > 1U) {
-        return false;
-    }
+    if (word > 1U) return false;
     candidate.config.sensorless_takeover = (bool)word;
     candidate.config.sensorless_motor_r = get_float(&p);
     candidate.config.sensorless_motor_l = get_float(&p);
@@ -700,9 +536,7 @@ bool Motor_Settings_Decode(const uint8_t *data, uint32_t size, motor_settings_t 
     candidate.config.sensorless_phase_offset = get_float(&p);
     candidate.config.sensorless_speed_filter = get_float(&p);
     word = get_word(&p);
-    if (word > 32U) {
-        return false;
-    }
+    if (word > 32U) return false;
     candidate.config.hall_extra_samples = (int)word;
     for (i = 0; i < 3; ++i) {
         candidate.calibration.current_offset[i] = get_float(&p);
@@ -724,9 +558,7 @@ bool Motor_Settings_Decode(const uint8_t *data, uint32_t size, motor_settings_t 
         if (word > 1U) return false;
         candidate.calibration.encoder_calibrated = (bool)word;
     }
-    if (!settings_valid(&candidate)) {
-        return false;
-    }
+    if (!settings_valid(&candidate)) return false;
     *settings = candidate;
     return true;
 }

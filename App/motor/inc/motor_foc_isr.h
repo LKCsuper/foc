@@ -12,7 +12,7 @@ extern "C" {
 
 #include "motor_param.h"
 #include "motor_timing.h"
-/** 读取默认实例完整诊断字段；不改控制/PWM。用于ISR采集及停机基准。 */
+/** 读取默认实例完整诊断字段；不改控制/PWM。motor_param/sample 必须非空，否则断言停住。 */
 void Motor_FocIsr_CaptureTraceSample(const MOTOR_PARAM_S *motor_param, float vd, float vq,
                                     motor_trace_sample_t *sample);
 /* Private define ------------------------------------------------------------*/
@@ -23,7 +23,7 @@ void Motor_FocIsr_CaptureTraceSample(const MOTOR_PARAM_S *motor_param, float vd,
 
 /**
  * @description: 推进一次正常 FOC ADC 中断路径，并按约 100 Hz 发布状态快照。
- * @detail: 在 ADC-DMA 中断调用，不阻塞。motor_param 为空则直接返回。
+ * @detail: 在 ADC-DMA 中断调用，正常路径不阻塞；motor_param 为空表示调用错误，触发断言停住。
  * @param {MOTOR_PARAM_S *} motor_param 电机采样与保护对象，不可为空
  * @return {void} 无
  */

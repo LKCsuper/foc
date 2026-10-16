@@ -46,7 +46,8 @@ void move(float new_target);
  */
 void setPhaseVoltage(float Uq, float Ud, float angle_el);
 /**
- * @description: 初始化简易 BLDC 开环默认参数。
+ * @description: 初始化旧 SimpleFOC 学习实现的独立开环默认参数。
+ * @detail: 仅供旧学习代码调用，不初始化主控制链的 motor；主固件使用 MOTOR_Param_Init。
  * @return {*}
  * @author: lkc
  */

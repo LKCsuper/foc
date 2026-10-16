@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#include "common_assert.h"
 /* Private define ------------------------------------------------------------*/
 #define JOINT_TEST_DWELL_DEFAULT_MS 2000U
 #define JOINT_TEST_DWELL_MIN_MS     500U
@@ -64,9 +65,8 @@ static void joint_hybrid_test_run(float rpm);
  */
 static void joint_emit_buf(const char *buf, uint32_t len)
 {
-    if ((buf == NULL) || (len == 0U)) {
-        return;
-    }
+    COMMON_ASSERT(buf != NULL);
+    if ((len == 0U)) return;
     (void)Bsp_Usart_Write((const UCHAR *)buf, (ULONG)len);
 }
 
@@ -78,9 +78,7 @@ static void joint_emit_buf(const char *buf, uint32_t len)
  */
 static void joint_emit_str(const char *text)
 {
-    if (text == NULL) {
-        return;
-    }
+    COMMON_ASSERT(text != NULL);
     joint_emit_buf(text, (uint32_t)strlen(text));
 }
 
@@ -92,12 +90,8 @@ static void joint_emit_str(const char *text)
  */
 static bool joint_stop_key(void)
 {
-    if (queueCmdHandle == NULL) {
-        return false;
-    }
-    if (osMessageQueueGet(queueCmdHandle, &s_joint_key, NULL, 0) != osOK) {
-        return false;
-    }
+    if (queueCmdHandle == NULL) return false;
+    if (osMessageQueueGet(queueCmdHandle, &s_joint_key, NULL, 0) != osOK) return false;
     while (osMessageQueueGet(queueCmdHandle, &s_joint_key, NULL, 0) == osOK) {
     }
     return true;
@@ -121,9 +115,7 @@ static bool joint_wait_or_key(uint32_t period_ms)
         }
         osDelay(pdMS_TO_TICKS(step_ms));
         waited_ms += step_ms;
-        if (joint_stop_key()) {
-            return true;
-        }
+        if (joint_stop_key()) return true;
     }
     return false;
 }
@@ -415,9 +407,7 @@ static uint32_t joint_hybrid_move_timeout_ms(float distance_deg, float rpm)
     float vel_deg_s = rpm * 6.0f;
     float seconds;
 
-    if (!(vel_deg_s > 0.0f) || !isfinite(vel_deg_s) || !isfinite(distance_deg)) {
-        return JOINT_HYBRID_TEST_DWELL_MS + 2000U;
-    }
+    if (!(vel_deg_s > 0.0f) || !isfinite(vel_deg_s) || !isfinite(distance_deg)) return JOINT_HYBRID_TEST_DWELL_MS + 2000U;
     seconds = fabsf(distance_deg) / vel_deg_s + 0.5f + (JOINT_HYBRID_TEST_DWELL_MS / 1000.0f) + 2.0f;
     if (!isfinite(seconds) || seconds < 1.0f) {
         seconds = 1.0f;
@@ -450,9 +440,7 @@ static int joint_hybrid_poll(float goal_deg, bool require_switch, uint32_t timeo
         motor_joint_state_t state;
         bool switch_ready;
 
-        if (joint_wait_or_key(JOINT_TEST_POLL_MS)) {
-            return JOINT_HYBRID_POLL_STOPPED;
-        }
+        if (joint_wait_or_key(JOINT_TEST_POLL_MS)) return JOINT_HYBRID_POLL_STOPPED;
         waited_ms += JOINT_TEST_POLL_MS;
         Motor_Joint_GetState(&state);
         joint_hybrid_note_switch(&state, enter0, exit0, saw_iq, saw_vq);
@@ -460,9 +448,7 @@ static int joint_hybrid_poll(float goal_deg, bool require_switch, uint32_t timeo
 
         if (fabsf(state.position_deg - goal_deg) <= JOINT_HYBRID_TEST_TOL_DEG && switch_ready) {
             settled_ms += JOINT_TEST_POLL_MS;
-            if (settled_ms >= JOINT_HYBRID_TEST_DWELL_MS) {
-                return JOINT_HYBRID_POLL_SETTLED;
-            }
+            if (settled_ms >= JOINT_HYBRID_TEST_DWELL_MS) return JOINT_HYBRID_POLL_SETTLED;
         } else {
             settled_ms = 0U;
         }
@@ -708,15 +694,11 @@ static int Cmd_JointArm(void)
 {
     motor_command_t cmd;
 
-    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
-        return -1;
-    }
+    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) return -1;
     cmd.mode = MOTOR_OL_MODE_IF;
     cmd.speed_enable = true;
     cmd.target_rpm = 0.0f;
-    if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) {
-        return -1;
-    }
+    if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) return -1;
     return 0;
 }
 
@@ -885,36 +867,26 @@ int Cmd_Joint(int argc, char *argv[])
         }
         run_hybrid_test = true;
     } else if (strcmp(argv[1], "kp") == 0 && argc >= 3) {
-        if (!Motor_Joint_SetKp((float)atof(argv[2]))) {
-            return -1;
-        }
+        if (!Motor_Joint_SetKp((float)atof(argv[2]))) return -1;
         Cmd_JointPrint();
         return 0;
     } else if (strcmp(argv[1], "kd") == 0 && argc >= 3) {
-        if (!Motor_Joint_SetKd((float)atof(argv[2]))) {
-            return -1;
-        }
+        if (!Motor_Joint_SetKd((float)atof(argv[2]))) return -1;
         Cmd_JointPrint();
         return 0;
     } else if (strcmp(argv[1], "ki") == 0 && argc >= 3) {
-        if (!Motor_Joint_SetKi((float)atof(argv[2]))) {
-            return -1;
-        }
+        if (!Motor_Joint_SetKi((float)atof(argv[2]))) return -1;
         Cmd_JointPrint();
         return 0;
     } else if (strcmp(argv[1], "lim") == 0 && argc >= 3) {
-        if (!Motor_Joint_SetVoltageLimit((float)atof(argv[2]))) {
-            return -1;
-        }
+        if (!Motor_Joint_SetVoltageLimit((float)atof(argv[2]))) return -1;
         Cmd_JointPrint();
         return 0;
     } else {
         PRINTF("usage: joint zero|on|off|set <deg> [rpm] [A]|test [ms]|slow [deg/s]|hybridtest [rpm]|iqtest <A> [ms]|timeouttest <A> [ms]|kp <V/deg>|kd <V/RPM>|ki <V/deg/s>|lim <V>\r\n");
         return -1;
     }
-    if (Cmd_JointArm() != 0) {
-        return -1;
-    }
+    if (Cmd_JointArm() != 0) return -1;
     Cmd_JointPrint();
     if (!motor.ol_enable) {
         PRINTF("Use olstart to energize joint impedance\r\n");

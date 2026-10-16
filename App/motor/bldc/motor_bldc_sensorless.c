@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
+#include "common_assert.h"
 #include <string.h>
 #include "motor_bldc_sensorless.h"
 /* Private define ------------------------------------------------------------*/
@@ -73,9 +74,7 @@ static bool Motor_BldcSensorless_ConfigValid(const motor_bldc_sensorless_config_
 {
     bool duty_period_valid;
 
-    if (config == NULL) {
-        return false;
-    }
+    if (config == NULL) return false;
     duty_period_valid = !config->duty_period_enabled ||
                         (config->duty_period_low_duty >= 0.0f &&
                          config->duty_period_high_duty > config->duty_period_low_duty &&
@@ -112,16 +111,10 @@ static float Motor_BldcSensorless_GetMinimumPeriod(const motor_bldc_sensorless_t
     float duty;
     float ratio;
 
-    if (!control->config.duty_period_enabled) {
-        return control->config.closed_loop_min_period_s;
-    }
+    if (!control->config.duty_period_enabled) return control->config.closed_loop_min_period_s;
     duty = control->commutator->duty;
-    if (duty <= control->config.duty_period_low_duty) {
-        return control->config.duty_period_low_s;
-    }
-    if (duty >= control->config.duty_period_high_duty) {
-        return control->config.duty_period_high_s;
-    }
+    if (duty <= control->config.duty_period_low_duty) return control->config.duty_period_low_s;
+    if (duty >= control->config.duty_period_high_duty) return control->config.duty_period_high_s;
     ratio = (duty - control->config.duty_period_low_duty) /
             (control->config.duty_period_high_duty - control->config.duty_period_low_duty);
     return control->config.duty_period_low_s +
@@ -313,9 +306,7 @@ static bool Motor_BldcSensorless_Commutate(motor_bldc_sensorless_t *control, uin
  */
 static uint8_t Motor_BldcSensorless_NextStep(const motor_bldc_sensorless_t *control)
 {
-    if (control->direction == MOTOR_BLDC_DIRECTION_CCW) {
-        return control->step == 0U ? 5U : (uint8_t)(control->step - 1U);
-    }
+    if (control->direction == MOTOR_BLDC_DIRECTION_CCW) return control->step == 0U ? 5U : (uint8_t)(control->step - 1U);
     return (uint8_t)((control->step + 1U) % 6U);
 }
 
@@ -436,15 +427,11 @@ static void Motor_BldcSensorless_UpdateZeroCandidate(motor_bldc_sensorless_t *co
 
     if (control->mode == MOTOR_BLDC_SENSORLESS_OPEN_LOOP_FIXED) {
         period_s = control->fixed_open_loop_period_s;
-        if (control->filtered_commutation_period_s > period_s * 1.02f) {
-            return;
-        }
+        if (control->filtered_commutation_period_s > period_s * 1.02f) return;
     } else if (control->mode == MOTOR_BLDC_SENSORLESS_CLOSED_LOOP) {
         period_s = control->filtered_commutation_period_s;
     }
-    if (period_s <= 0.0f) {
-        return;
-    }
+    if (period_s <= 0.0f) return;
     bin = (uint8_t)(control->sector_elapsed_s * (float)MOTOR_BLDC_BEMF_BIN_COUNT / period_s);
     if (bin >= MOTOR_BLDC_BEMF_BIN_COUNT) {
         bin = MOTOR_BLDC_BEMF_BIN_COUNT - 1U;
@@ -478,17 +465,13 @@ static void Motor_BldcSensorless_RecordWaveform(motor_bldc_sensorless_t *control
 
     if (control->mode == MOTOR_BLDC_SENSORLESS_OPEN_LOOP_FIXED) {
         period_s = control->fixed_open_loop_period_s;
-        if (period_s <= 0.0f || control->filtered_commutation_period_s > period_s * 1.02f) {
-            return;
-        }
+        if (period_s <= 0.0f || control->filtered_commutation_period_s > period_s * 1.02f) return;
     } else if (control->mode == MOTOR_BLDC_SENSORLESS_CLOSED_LOOP) {
         period_s = control->filtered_commutation_period_s;
     } else {
         return;
     }
-    if (period_s <= 0.0f) {
-        return;
-    }
+    if (period_s <= 0.0f) return;
     bin = (uint8_t)(control->sector_elapsed_s * (float)MOTOR_BLDC_BEMF_BIN_COUNT / period_s);
     if (bin >= MOTOR_BLDC_BEMF_BIN_COUNT) {
         bin = MOTOR_BLDC_BEMF_BIN_COUNT - 1U;
@@ -572,9 +555,7 @@ static bool Motor_BldcSensorless_IntegralSampleValid(motor_bldc_sensorless_t *co
  */
 void Motor_BldcSensorless_DefaultConfig(motor_bldc_sensorless_config_t *config)
 {
-    if (config == NULL) {
-        return;
-    }
+    COMMON_ASSERT(config != NULL);
     memset(config, 0, sizeof(*config));
     config->align_time_s = 0.20f;
     config->startup_duty = 0.08f;
@@ -613,9 +594,7 @@ bool Motor_BldcSensorless_Init(motor_bldc_sensorless_t *control,
                                motor_bldc_six_step_t *commutator,
                                const motor_bldc_sensorless_config_t *config)
 {
-    if (control == NULL) {
-        return false;
-    }
+    if (control == NULL) return false;
     memset(control, 0, sizeof(*control));
     control->commutator = commutator;
     if (commutator == NULL || !Motor_BldcSensorless_ConfigValid(config)) {
@@ -716,9 +695,7 @@ bool Motor_BldcSensorless_StartOpenLoop(motor_bldc_sensorless_t *control,
         sector_period_s < 0.0005f || sector_period_s > 0.5f) {
         return false;
     }
-    if (!Motor_BldcSensorless_Start(control, direction, duty)) {
-        return false;
-    }
+    if (!Motor_BldcSensorless_Start(control, direction, duty)) return false;
     control->fixed_open_loop_period_s = sector_period_s;
     control->filtered_commutation_period_s = control->config.startup_initial_period_s;
     control->fixed_open_loop_enabled = true;
@@ -734,9 +711,7 @@ bool Motor_BldcSensorless_StartOpenLoop(motor_bldc_sensorless_t *control,
  */
 void Motor_BldcSensorless_Stop(motor_bldc_sensorless_t *control)
 {
-    if (control == NULL) {
-        return;
-    }
+    COMMON_ASSERT(control != NULL);
     if (control->commutator != NULL) {
         Motor_BldcSixStep_Stop(control->commutator);
     }
@@ -804,9 +779,7 @@ bool Motor_BldcSensorless_Step(motor_bldc_sensorless_t *control,
             Motor_BldcSensorless_UpdateZeroCandidate(control, phase_voltage, bus_voltage);
             Motor_BldcSensorless_AccumulateIntegral(control, phase_voltage, dt_s);
         }
-        if (control->sector_elapsed_s >= period) {
-            return Motor_BldcSensorless_Commutate(control, Motor_BldcSensorless_NextStep(control));
-        }
+        if (control->sector_elapsed_s >= period) return Motor_BldcSensorless_Commutate(control, Motor_BldcSensorless_NextStep(control));
         return true;
     }
 

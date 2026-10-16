@@ -7,6 +7,7 @@ extern "C" {
 #endif
 
 #include <stddef.h>
+#include "common_assert.h"
 #include <stdint.h>
 #include "motor_sensor_update.h"
 #include "motor_anticogging.h"
@@ -31,9 +32,7 @@ static float s_reference_dt_acc_s;
  */
 void Motor_SensorUpdate_Step(MOTOR_PARAM_S *motor, motor_feedback_source_t source, float dt_s)
 {
-    if (motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL);
 
     if (source == MOTOR_FEEDBACK_SRC_ENCODER || Motor_Encoder_IsCompareEnabled()) {
         if (source == MOTOR_FEEDBACK_SRC_ENCODER) {

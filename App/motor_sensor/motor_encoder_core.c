@@ -1,5 +1,6 @@
 /* 编码器纯算法：绝对计数、回绕、PLL、零点；不访问硬件或全局电机。 */
 #include "motor_encoder_core.h"
+#include "common_assert.h"
 #include <math.h>
 #include <stddef.h>
 #ifndef M_PI
@@ -33,9 +34,7 @@ static float Motor_Encoder_Wrap2Pi(float angle)
 
 void Motor_Encoder_ApplyCalibrationState(motor_encoder_runtime_t *rt, float offset_rad, bool inverted, bool valid)
 {
-    if (rt == NULL) {
-        return;
-    }
+    COMMON_ASSERT(rt != NULL);
     rt->inverted = inverted;
     rt->elec_offset_rad = valid ? Motor_Encoder_Wrap2Pi(offset_rad) : 0.0f;
     rt->zero_valid = valid;
@@ -70,9 +69,7 @@ static int32_t Motor_Encoder_DeltaCounts(uint16_t now, uint16_t last, uint32_t c
  */
 static float Motor_Encoder_WrapCpr(float pos, float cpr)
 {
-    if (cpr <= 0.0f) {
-        return 0.0f;
-    }
+    if (cpr <= 0.0f) return 0.0f;
     while (pos >= cpr) {
         pos -= cpr;
     }
@@ -273,9 +270,7 @@ bool Motor_Encoder_InitState(motor_encoder_runtime_t *rt, uint32_t counts_per_re
  */
 void Motor_Encoder_UpdateState(motor_encoder_runtime_t *rt, uint16_t count, float dt_s)
 {
-    if (rt == NULL) {
-        return;
-    }
+    COMMON_ASSERT(rt != NULL);
 
     if (!rt->have_last || rt->pll_inverted != rt->inverted || dt_s < MOTOR_ENCODER_DT_MIN_S ||
         dt_s > MOTOR_ENCODER_DT_MAX_S || (dt_s * 2.0f * rt->config.pll_bandwidth_rad_s) >= 1.0f) {
@@ -344,12 +339,9 @@ void Motor_Encoder_PredictWithTimeoutState(motor_encoder_runtime_t *rt, float dt
 {
     float cpr;
 
-    if (rt == NULL || !rt->have_last || dt_s < MOTOR_ENCODER_DT_MIN_S || dt_s > MOTOR_ENCODER_DT_MAX_S) {
-        return;
-    }
-    if (!Motor_Encoder_PllPredict(rt, dt_s)) {
-        return;
-    }
+    COMMON_ASSERT(rt != NULL);
+    if (!rt->have_last || dt_s < MOTOR_ENCODER_DT_MIN_S || dt_s > MOTOR_ENCODER_DT_MAX_S) return;
+    if (!Motor_Encoder_PllPredict(rt, dt_s)) return;
 
     rt->edge_age_s += dt_s;
     rt->sample_age_s += dt_s;
@@ -379,9 +371,7 @@ float Motor_Encoder_GetMechAngleState(const motor_encoder_runtime_t *rt, uint16_
     float turns;
     uint32_t cpr;
 
-    if (rt == NULL) {
-        return 0.0f;
-    }
+    if (rt == NULL) return 0.0f;
     cpr = rt->counts_per_rev;
     if (cpr == 0U) {
         cpr = 1U;
@@ -406,9 +396,7 @@ float Motor_Encoder_GetElecAngleState(const motor_encoder_runtime_t *rt, uint16_
 {
     float pp = pole_pairs;
 
-    if (rt == NULL) {
-        return 0.0f;
-    }
+    if (rt == NULL) return 0.0f;
     if (pp < 1.0f) {
         pp = 1.0f;
     }
@@ -514,9 +502,7 @@ bool Motor_Encoder_IsZeroValidState(const motor_encoder_runtime_t *rt)
  */
 void Motor_Encoder_MarkZeroState(motor_encoder_runtime_t *rt, uint16_t count, float pole_pairs)
 {
-    if (rt == NULL) {
-        return;
-    }
+    COMMON_ASSERT(rt != NULL);
     rt->elec_offset_rad = 0.0f;
     rt->elec_offset_rad = Motor_Encoder_GetElecAngleState(rt, count, pole_pairs);
     rt->zero_valid = true;
@@ -530,9 +516,7 @@ void Motor_Encoder_MarkZeroState(motor_encoder_runtime_t *rt, uint16_t count, fl
  */
 void Motor_Encoder_ClearZeroState(motor_encoder_runtime_t *rt)
 {
-    if (rt == NULL) {
-        return;
-    }
+    COMMON_ASSERT(rt != NULL);
     rt->elec_offset_rad = 0.0f;
     rt->zero_valid = false;
     rt->have_last = false;

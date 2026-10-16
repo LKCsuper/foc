@@ -1,3 +1,4 @@
+#include "test_common_assert.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -183,8 +184,8 @@ int main(void)
     }
 
     Motor_Luenberger_Reset(NULL);
-    Motor_Luenberger_NormalizeConfig(NULL);
-    Motor_Luenberger_Seed(NULL, &cfg, 1.0f, 1.0f, 0.0f, 0.0f);
+    EXPECT_COMMON_ASSERT(Motor_Luenberger_NormalizeConfig(NULL));
+    EXPECT_COMMON_ASSERT(Motor_Luenberger_Seed(NULL, &cfg, 1.0f, 1.0f, 0.0f, 0.0f));
     assert(fabsf(Motor_Luenberger_GetAngle(NULL)) < 1e-9f);
     assert(fabsf(Motor_Luenberger_GetMagnitude(NULL)) < 1e-9f);
     assert(fabsf(Motor_Luenberger_GetSpeedE(NULL)) < 1e-9f);

@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
+#include "common_assert.h"
 #include "motor_feedback.h"
 #include "motor_sensorless.h"
 #include "motor_encoder.h"
@@ -29,9 +30,7 @@ static motor_feedback_t s_feedback = {
  */
 void Motor_Feedback_Reset(motor_feedback_t *fb)
 {
-    if (fb == NULL) {
-        return;
-    }
+    COMMON_ASSERT(fb != NULL);
     fb->source = MOTOR_FEEDBACK_SRC_SENSORLESS;
 }
 
@@ -44,9 +43,7 @@ void Motor_Feedback_Reset(motor_feedback_t *fb)
  */
 void Motor_Feedback_SetSource(motor_feedback_t *fb, motor_feedback_source_t source)
 {
-    if (fb == NULL) {
-        return;
-    }
+    COMMON_ASSERT(fb != NULL);
     fb->source = source;
 }
 
@@ -77,9 +74,7 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
     motor_feedback_source_t src;
     bool encoder_fault;
 
-    if (out == NULL) {
-        return;
-    }
+    COMMON_ASSERT(out != NULL);
 
     out->elec_angle_rad = open_loop_theta;
     out->mech_rpm = 0.0f;

@@ -18,6 +18,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#include "common_assert.h"
 #include "motor_control.h"
 #include "motor_foc_isr.h"
 #include "motor_timing.h"
@@ -67,9 +68,7 @@ static bool ol_capture_config(motor_config_t *cfg)
 {
     motor_settings_t settings;
 
-    if (cfg == NULL || !Motor_Settings_Capture(&motor, &settings)) {
-        return false;
-    }
+    if (cfg == NULL || !Motor_Settings_Capture(&motor, &settings)) return false;
     *cfg = settings.config;
     return true;
 }
@@ -172,18 +171,14 @@ static void ol_status_append(size_t *used, const char *format, ...)
     int written;
     va_list arguments;
 
-    if (*used >= (OL_STATUS_BUFFER_SIZE - 1U)) {
-        return;
-    }
+    if (*used >= (OL_STATUS_BUFFER_SIZE - 1U)) return;
 
     remaining = OL_STATUS_BUFFER_SIZE - *used;
     va_start(arguments, format);
     written = vsnprintf(&sgcOlStatusBuffer[*used], remaining, format, arguments);
     va_end(arguments);
 
-    if (written < 0) {
-        return;
-    }
+    if (written < 0) return;
 
     if ((size_t)written >= remaining) {
         /* 保留字符串结尾，避免异常参数导致后续发送越过缓冲区。 */
@@ -225,9 +220,7 @@ static void ol_print_high_speed_guard_notice(float target_rpm)
                               fabsf(target_rpm) > motor.sensorless_openloop_max_rpm &&
                               !Motor_Feedback_IsSensoredSource(Motor_Feedback_GetSourceDefault());
 
-    if (!high_speed_request) {
-        return;
-    }
+    if (!high_speed_request) return;
 
     PRINTF("I/F safety hold: %.0f RPM until sensorless takeover is 100%% complete\n",
            motor.sensorless_openloop_max_rpm);
@@ -439,9 +432,7 @@ int Cmd_OlSpeed(int argc, char *argv[])
     }
 
     rpm = atof(argv[1]);
-    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
-        return -1;
-    }
+    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) return -1;
     /* 运行中禁止直接过零反转：零速附近 Iq 仍在，轴会顿一下。 */
     if (cmd.enable) {
         float ref_rpm = (fabsf(motor.ol_current_rpm) > 1.0f) ? motor.ol_current_rpm : cmd.target_rpm;
@@ -688,9 +679,7 @@ int Cmd_OlStart(int argc, char *argv[])
     (void)argc;
     (void)argv;
 
-    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
-        return -1;
-    }
+    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) return -1;
     if (cmd.target_rpm == 0.0f && !Motor_Position_IsEnabled() && !Motor_Joint_IsEnabled()) {
         cmd.target_rpm = motor.ol_min_rpm;
     }
@@ -731,9 +720,7 @@ int Cmd_OlStop(int argc, char *argv[])
     DETECT_Abort();
     Motor_Hall_DetectAbort();
     (void)Motor_Position_Enable(false);
-    if (Motor_RequestStop(&motor) != MOTOR_OK) {
-        return -1;
-    }
+    if (Motor_RequestStop(&motor) != MOTOR_OK) return -1;
     PRINTF("Open-loop stopped\n");
     return 0;
 }
@@ -1012,10 +999,14 @@ int Cmd_SensorlessHandoff(int argc, char *argv[])
         return -1;
     }
     Hal_Motor_PwmDiagnosticEnable(false);
-    if (argc > 1 && strcmp(argv[1], "pair") == 0) {
-        Motor_Timing_PairArm();
+    if (argc > 1 && (strcmp(argv[1], "pair") == 0 || strcmp(argv[1], "half") == 0)) {
+        bool half = strcmp(argv[1], "half") == 0;
+        if (half) Motor_Timing_PairHalfArm();
+        else Motor_Timing_PairArm();
         Hal_Motor_PwmDiagnosticEnable(true);
-        PRINTF("ADC pair armed: stride=450, software PWM sequence only; callback phase is not trigger phase\n");
+        PRINTF("ADC pair armed: stride=%u, software PWM sequence only; callback phase is not trigger phase\n",
+               half ? 901U : 450U);
+        if (half) PRINTF("Half mode is STOPPED ONLY; starting motor cancels capture\n");
         return 0;
     }
     if (argc > 1 && strcmp(argv[1], "arm") == 0) {
@@ -1039,8 +1030,12 @@ int Cmd_SensorlessHandoff(int argc, char *argv[])
     Motor_Timing_HandoffStop();
     if (Motor_Timing_PairMode()) {
         motor_pair_sample_t pair;
-        PRINTF("pair samples=%u\n", Motor_Timing_HandoffCount());
-        PRINTF("seq,time_us,flags,prev_sample,prev_pwm,prev_entry_us,prev_ia,prev_ib,prev_ic,prev_adc0,prev_adc1,prev_adc2,prev_ccr0,prev_ccr1,prev_ccr2,prev_count,prev_cr1,prev_recon,prev_period,sample,pwm,entry_us,ia,ib,ic,adc0,adc1,adc2,ccr0,ccr1,ccr2,count,cr1,recon,period,v_alpha,v_beta,crc32\n");
+        PRINTF("%s samples=%u\n", Motor_Timing_PairHalfMode() ? "half" : "pair", Motor_Timing_HandoffCount());
+        if (Motor_Timing_PairHalfMode()) {
+            PRINTF("seq,time_us,flags,prev_sample,prev_pwm,prev_entry_us,prev_ia,prev_ib,prev_ic,prev_adc0,prev_adc1,prev_adc2,prev_ccr0,prev_ccr1,prev_ccr2,prev_count,prev_cr1,prev_capture_flags,prev_period,sample,pwm,entry_us,ia,ib,ic,adc0,adc1,adc2,ccr0,ccr1,ccr2,count,cr1,capture_flags,period,v_alpha,v_beta,crc32\n");
+        } else {
+            PRINTF("seq,time_us,flags,prev_sample,prev_pwm,prev_entry_us,prev_ia,prev_ib,prev_ic,prev_adc0,prev_adc1,prev_adc2,prev_ccr0,prev_ccr1,prev_ccr2,prev_count,prev_cr1,prev_recon,prev_period,sample,pwm,entry_us,ia,ib,ic,adc0,adc1,adc2,ccr0,ccr1,ccr2,count,cr1,recon,period,v_alpha,v_beta,crc32\n");
+        }
         for (index = 0U; index < Motor_Timing_HandoffCount(); index++) {
             unsigned frame_index;
             int length;
@@ -1878,9 +1873,7 @@ int Cmd_OlFault(int argc, char *argv[])
 
     /* 先撤销运行命令并清空 PI，防止解除锁存后立即带载重启。 */
     Motor_Hall_DetectAbort();
-    if (Motor_RequestStop(&motor) != MOTOR_OK) {
-        return -1;
-    }
+    if (Motor_RequestStop(&motor) != MOTOR_OK) return -1;
     Motor_Protect_ClearFault();
     PRINTF("Motor fault cleared; use olstart to restart\n");
     return 0;
@@ -1913,9 +1906,7 @@ int Cmd_OlMode(int argc, char *argv[])
         return -1;
     }
 
-    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
-        return -1;
-    }
+    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) return -1;
     if (mode != MOTOR_OL_MODE_IF) {
         (void)Motor_Position_Enable(false);
     }
@@ -2007,9 +1998,7 @@ int Cmd_OlIq(int argc, char *argv[])
         return 0;
     }
     iq = atof(argv[1]);
-    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
-        return -1;
-    }
+    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) return -1;
     cmd.iq_set = iq;
     if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) {
         PRINTF("Invalid Iq command\n");
@@ -2034,9 +2023,7 @@ int Cmd_OlId(int argc, char *argv[])
         PRINTF("Id set = %.2f A  (usage: olid <amps>)\n", motor.ol_id_set);
         return 0;
     }
-    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
-        return -1;
-    }
+    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) return -1;
     cmd.id_set = atof(argv[1]);
     if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) {
         PRINTF("Invalid Id command\n");
@@ -2424,9 +2411,8 @@ static CMD_QUEUE_ITEM s_speed_key;
  */
 static void speed_emit_buf(const char *buf, uint32_t len)
 {
-    if ((buf == NULL) || (len == 0U)) {
-        return;
-    }
+    COMMON_ASSERT(buf != NULL);
+    if ((len == 0U)) return;
     (void)Bsp_Usart_Write((const UCHAR *)buf, (ULONG)len);
 }
 
@@ -2437,9 +2423,7 @@ static void speed_emit_buf(const char *buf, uint32_t len)
  */
 static void speed_emit_str(const char *text)
 {
-    if (text == NULL) {
-        return;
-    }
+    COMMON_ASSERT(text != NULL);
     speed_emit_buf(text, (uint32_t)strlen(text));
 }
 
@@ -2450,12 +2434,8 @@ static void speed_emit_str(const char *text)
  */
 static bool speed_stop_key(void)
 {
-    if (queueCmdHandle == NULL) {
-        return false;
-    }
-    if (osMessageQueueGet(queueCmdHandle, &s_speed_key, NULL, 0) != osOK) {
-        return false;
-    }
+    if (queueCmdHandle == NULL) return false;
+    if (osMessageQueueGet(queueCmdHandle, &s_speed_key, NULL, 0) != osOK) return false;
     while (osMessageQueueGet(queueCmdHandle, &s_speed_key, NULL, 0) == osOK) {
     }
     return true;
@@ -2478,9 +2458,7 @@ static bool speed_wait_or_key(uint32_t period_ms)
         }
         osDelay(pdMS_TO_TICKS(step_ms));
         waited_ms += step_ms;
-        if (speed_stop_key()) {
-            return true;
-        }
+        if (speed_stop_key()) return true;
     }
     return false;
 }
@@ -2801,9 +2779,7 @@ static bool speed_test_set_rpm(float rpm)
     motor_command_t cmd;
     float ref_rpm;
 
-    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
-        return false;
-    }
+    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) return false;
     if (cmd.enable) {
         ref_rpm = (fabsf(motor.ol_current_rpm) > 1.0f) ? motor.ol_current_rpm : cmd.target_rpm;
         if ((rpm != 0.0f) && (ref_rpm != 0.0f) && ((rpm > 0.0f) != (ref_rpm > 0.0f))) {
@@ -2846,9 +2822,7 @@ static void speed_test_run(uint32_t dwell_ms)
         float measured_rpm;
         float error_rpm;
 
-        if (!speed_test_set_rpm(s_speed_test_rpm[i])) {
-            return;
-        }
+        if (!speed_test_set_rpm(s_speed_test_rpm[i])) return;
         textbuf_init(&tb, line, sizeof(line));
         (void)textbuf_append_u32(&tb, (uint32_t)(i + 1U));
         (void)textbuf_append_char(&tb, '/');
@@ -2921,9 +2895,7 @@ int Cmd_SpeedStatus(int argc, char *argv[])
         PRINTF("Need speed feedback: slenable 1, or olfb encoder|hall\n");
         return -1;
     }
-    if (!speed_test_set_rpm(s_speed_test_rpm[0])) {
-        return -1;
-    }
+    if (!speed_test_set_rpm(s_speed_test_rpm[0])) return -1;
     if (!motor.ol_enable) {
         PRINTF("Target RPM set to 150 (stopped, use olstart)\n");
         return 0;
@@ -2971,9 +2943,7 @@ int Cmd_SpeedEnable(int argc, char *argv[])
     }
 
     (void)Motor_Joint_Enable(false);
-    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) {
-        return -1;
-    }
+    if (Motor_GetCommand(&motor, &cmd) != MOTOR_OK) return -1;
     cmd.speed_enable = (enable != 0);
     if (Motor_SetCommand(&motor, &cmd) != MOTOR_OK) {
         PRINTF("Invalid speed-loop command\n");

@@ -228,6 +228,7 @@ static void Motor_Task_Encoder(void *argument)
  */
 void Motor_Task_Start(void)
 {
+    // 创建PDI任务
     if (s_pid_thread == NULL) {
         Motor_Position_Init();
         Motor_Joint_Init();
@@ -236,6 +237,8 @@ void Motor_Task_Start(void)
             PRINTF("foc pid task create failed\r\n");
         }
     }
+
+    // 创建编码器任务
     if (s_encoder_thread == NULL) {
         s_encoder_thread = osThreadNew(Motor_Task_Encoder, NULL, &s_encoder_attr);
         if (s_encoder_thread == NULL) {

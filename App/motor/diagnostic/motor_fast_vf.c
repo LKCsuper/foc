@@ -4,6 +4,7 @@
  */
 /* Includes ------------------------------------------------------------------*/
 #include "motor_fast_vf.h"
+#include "common_assert.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -33,9 +34,7 @@ void Motor_FastVf_Step(MOTOR_PARAM_S *motor, float control_hz)
     float theta_step;
     float vq;
 
-    if (motor == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor != NULL);
     rpm = motor->ol_target_rpm;
     rpm_abs = fabsf(rpm);
     vq = motor->ol_v_boost;

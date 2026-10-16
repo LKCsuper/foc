@@ -11,9 +11,7 @@
 static bool Autotune_ParsePositive(const char *text, float *value)
 {
     char *end;
-    if (text == NULL) {
-        return false;
-    }
+    if (text == NULL) return false;
     *value = strtof(text, &end);
     return end != text && *end == '\0' && isfinite(*value) && *value > 0.0f;
 }

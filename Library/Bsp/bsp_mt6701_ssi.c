@@ -32,17 +32,13 @@ static bool Bsp_MT6701_SsiTransferByte(uint8_t tx, uint8_t *rx)
     uint32_t timeout = BSP_MT6701_SSI_TIMEOUT_LOOPS;
 
     while (SPI_I2S_GetFlagStatus(BSP_MT6701_SSI_SPI, SPI_I2S_FLAG_TXE) == RESET) {
-        if (timeout-- == 0U) {
-            return false;
-        }
+        if (timeout-- == 0U) return false;
     }
     SPI_I2S_SendData(BSP_MT6701_SSI_SPI, tx);
 
     timeout = BSP_MT6701_SSI_TIMEOUT_LOOPS;
     while (SPI_I2S_GetFlagStatus(BSP_MT6701_SSI_SPI, SPI_I2S_FLAG_RXNE) == RESET) {
-        if (timeout-- == 0U) {
-            return false;
-        }
+        if (timeout-- == 0U) return false;
     }
     *rx = (uint8_t)SPI_I2S_ReceiveData(BSP_MT6701_SSI_SPI);
     return true;
@@ -108,9 +104,7 @@ bool Bsp_MT6701_SsiReadFrame(uint32_t *frame)
     uint8_t rx[3];
     uint32_t timeout;
 
-    if (frame == NULL) {
-        return false;
-    }
+    if (frame == NULL) return false;
 
     GPIO_ResetBits(BSP_MT6701_SSI_CSN_GPIO, BSP_MT6701_SSI_CSN_PIN);
     __NOP();

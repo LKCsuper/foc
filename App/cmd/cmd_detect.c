@@ -134,31 +134,15 @@ static void Detect_MotorTask(void *argument)
  */
 static DETECT_TYPE Detect_ParseType(int argc, char *argv[])
 {
-    if (argc < 2) {
-        return DETECT_OFFSET;
-    }
-    if (strcmp(argv[1], "1") == 0 || strcmp(argv[1], "offset") == 0) {
-        return DETECT_OFFSET;
-    }
-    if (strcmp(argv[1], "2") == 0 || strcmp(argv[1], "hall") == 0) {
-        return DETECT_HALL;
-    }
-    if (strcmp(argv[1], "3") == 0 || strcmp(argv[1], "phase") == 0) {
-        return DETECT_PHASE;
-    }
+    if (argc < 2) return DETECT_OFFSET;
+    if (strcmp(argv[1], "1") == 0 || strcmp(argv[1], "offset") == 0) return DETECT_OFFSET;
+    if (strcmp(argv[1], "2") == 0 || strcmp(argv[1], "hall") == 0) return DETECT_HALL;
+    if (strcmp(argv[1], "3") == 0 || strcmp(argv[1], "phase") == 0) return DETECT_PHASE;
     if (strcmp(argv[1], "fluxscan") == 0) return DETECT_FLUX_SCAN;
-    if (strcmp(argv[1], "motor") == 0) {
-        return DETECT_MOTOR;
-    }
-    if (strcmp(argv[1], "rl") == 0) {
-        return DETECT_RL;
-    }
-    if (strcmp(argv[1], "show") == 0) {
-        return DETECT_SHOW;
-    }
-    if (strcmp(argv[1], "abort") == 0) {
-        return DETECT_ABORT;
-    }
+    if (strcmp(argv[1], "motor") == 0) return DETECT_MOTOR;
+    if (strcmp(argv[1], "rl") == 0) return DETECT_RL;
+    if (strcmp(argv[1], "show") == 0) return DETECT_SHOW;
+    if (strcmp(argv[1], "abort") == 0) return DETECT_ABORT;
     return DETECT_NONE;
 }
 

@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#include "common_assert.h"
 /* Private typedef -----------------------------------------------------------*/
 typedef enum {
     PLOT_MODE_NONE = 0,
@@ -41,9 +42,8 @@ static const osThreadAttr_t s_plot_attr = {
  */
 static void Vofa_SendJustFloat(const float *ch, uint32_t n)
 {
-    if (ch == NULL || n == 0U || n > PLOT_MAX_CH) {
-        return;
-    }
+    COMMON_ASSERT(ch != NULL);
+    if (n == 0U || n > PLOT_MAX_CH) return;
     Bsp_Usart_PutBuf((const UCHAR *)ch, n * (ULONG)sizeof(float));
     Bsp_Usart_PutBuf(s_justfloat_tail, 4U);
 }
@@ -143,18 +143,10 @@ static void Plot_PrintHelp(void)
  */
 static plot_mode_t Plot_ParseMode(const char *name)
 {
-    if (strcmp(name, "current") == 0) {
-        return PLOT_MODE_CURRENT;
-    }
-    if (strcmp(name, "speed") == 0) {
-        return PLOT_MODE_SPEED;
-    }
-    if (strcmp(name, "pos") == 0) {
-        return PLOT_MODE_POS;
-    }
-    if (strcmp(name, "sine") == 0 || strcmp(name, "sin") == 0) {
-        return PLOT_MODE_SINE;
-    }
+    if (strcmp(name, "current") == 0) return PLOT_MODE_CURRENT;
+    if (strcmp(name, "speed") == 0) return PLOT_MODE_SPEED;
+    if (strcmp(name, "pos") == 0) return PLOT_MODE_POS;
+    if (strcmp(name, "sine") == 0 || strcmp(name, "sin") == 0) return PLOT_MODE_SINE;
     return PLOT_MODE_NONE;
 }
 

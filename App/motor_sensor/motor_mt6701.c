@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
+#include "common_assert.h"
 #include "motor_mt6701.h"
 #include "motor_mt6701_protocol.h"
 #include "hal_sensor.h"
@@ -163,9 +164,7 @@ bool Motor_MT6701_Poll(void)
  */
 void Motor_MT6701_GetStatus(motor_mt6701_status_t *status)
 {
-    if (status == NULL) {
-        return;
-    }
+    COMMON_ASSERT(status != NULL);
     status->raw_angle = s_mt6701.raw_angle;
     status->magnetic_status = s_mt6701.magnetic_status;
     status->success_count = s_mt6701.success_count;

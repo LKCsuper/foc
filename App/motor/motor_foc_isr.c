@@ -4,6 +4,7 @@
  */
 /* Includes ------------------------------------------------------------------*/
 #include "motor_foc_isr.h"
+#include "common.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -59,7 +60,7 @@ static void Motor_FocIsr_ArbitrateAndApply(MOTOR_PARAM_S *motor, motor_control_r
 void Motor_FocIsr_CaptureTraceSample(const MOTOR_PARAM_S *motor_param, float vd, float vq, motor_trace_sample_t *sample)
 {
     motor_sensorless_diagnostics_t d;
-    if (motor_param == NULL || sample == NULL) return;
+    COMMON_ASSERT(motor_param != NULL && sample != NULL);
     Motor_Sensorless_GetDiagnostics(&d);
     sample->time_us = Hal_Motor_TimeUs();
     sample->flags = (unsigned)d.state | (d.flux_ok ? 4U : 0U) | (d.direction_ok ? 8U : 0U) |
@@ -110,9 +111,7 @@ static void Motor_FocIsr_RecordCompact(const MOTOR_PARAM_S *motor_param, uint32_
  */
 static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t feedback_source)
 {
-    if (feedback_source == MOTOR_FEEDBACK_SRC_HALL || feedback_source == MOTOR_FEEDBACK_SRC_ENCODER) {
-        return (TIM1->CR1 & TIM_CR1_DIR) != 0U;
-    }
+    if (feedback_source == MOTOR_FEEDBACK_SRC_HALL || feedback_source == MOTOR_FEEDBACK_SRC_ENCODER) return (TIM1->CR1 & TIM_CR1_DIR) != 0U;
     return Motor_FocIsr_ShouldRun();
 }
 
@@ -152,9 +151,7 @@ static bool Motor_FocIsr_SampleAndProtect(MOTOR_PARAM_S *motor, motor_feedback_s
     stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
     faulted = Motor_Protect_Run(motor, *control_dt);
     if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_PROTECTION, stage_start);
-    if (!faulted) {
-        return true;
-    }
+    if (!faulted) return true;
 
     Motor_Control_ResetRuntime(&s_control, motor);
     Motor_OutputSafe(motor);
@@ -310,7 +307,7 @@ static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor_param)
     if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_SAMPLE, stage_start);
     stage_start = profile ? Hal_Motor_TimeUs() : 0U;
     Motor_FocIsr_PrepareCurrentFeedback(motor_param);
-    if (Motor_Timing_PairActive()) {
+    if (Motor_Timing_PairActive() && !Motor_Timing_PairHalfMode()) {
         motor_pair_frame_t frame;
         int reconstructed;
         frame.sample_sequence = 0U;
@@ -382,9 +379,7 @@ static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor_param)
  */
 void Motor_FocIsr_Step(MOTOR_PARAM_S *motor_param)
 {
-    if (motor_param == NULL) {
-        return;
-    }
+    COMMON_ASSERT(motor_param != NULL);
 
     Motor_FocIsr_Run(motor_param);
     s_status_publish_divider++;

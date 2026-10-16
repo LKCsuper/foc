@@ -162,9 +162,7 @@ static bool flash_storage_valid(const flash_storage_t *storage)
     expected_size = storage->format_version == FLASH_STORAGE_FORMAT_VERSION ? FLASH_STORAGE_PAYLOAD_SIZE :
                     storage->format_version == FLASH_STORAGE_FORMAT_VERSION_V3 ? MOTOR_SETTINGS_WIRE_SIZE :
                     storage->format_version == FLASH_STORAGE_FORMAT_VERSION_V2 ? MOTOR_SETTINGS_WIRE_SIZE_V2 : 0U;
-    if (storage->magic != FLASH_STORAGE_MAGIC || storage->payload_size != expected_size || expected_size == 0U) {
-        return false;
-    }
+    if (storage->magic != FLASH_STORAGE_MAGIC || storage->payload_size != expected_size || expected_size == 0U) return false;
     memcpy(&committed, storage->payload + storage->payload_size, sizeof(committed));
     if (committed != FLASH_STORAGE_COMMITTED) return false;
 
@@ -195,9 +193,7 @@ static const flash_storage_t *flash_storage_current(uint8_t *out_index)
     bool a_valid;
     bool b_valid;
 
-    if (!flash_storage_get_slot(0U, &slot_a) || !flash_storage_get_slot(1U, &slot_b)) {
-        return NULL;
-    }
+    if (!flash_storage_get_slot(0U, &slot_a) || !flash_storage_get_slot(1U, &slot_b)) return NULL;
 
     a = (const flash_storage_t *)(uintptr_t)slot_a.base;
     b = (const flash_storage_t *)(uintptr_t)slot_b.base;
@@ -243,9 +239,7 @@ bool FlashStorage_Load(MOTOR_PARAM_S *motor)
     const flash_storage_t *storage;
     motor_settings_t settings;
 
-    if (motor == NULL || motor->ol_enable) {
-        return false;
-    }
+    if (motor == NULL || motor->ol_enable) return false;
     storage = flash_storage_current(NULL);
     if (storage == NULL) {
         FLASH_STORAGE_PRINTF("FlashStorage: no valid slot, using defaults\r\n");
@@ -263,9 +257,7 @@ bool FlashStorage_Load(MOTOR_PARAM_S *motor)
     if (storage->format_version == FLASH_STORAGE_FORMAT_VERSION) {
         bool enabled;
         bool calibrated;
-        if (!flash_storage_anticog_decode(storage->payload, s_anticogging_table, &enabled, &calibrated)) {
-            return false;
-        }
+        if (!flash_storage_anticog_decode(storage->payload, s_anticogging_table, &enabled, &calibrated)) return false;
         if (calibrated && !Motor_Anticogging_Import(s_anticogging_table, MOTOR_ANTICOGGING_BINS, enabled)) return false;
     }
     FLASH_STORAGE_PRINTF("FlashStorage: loaded slot sequence %u\r\n", storage->sequence);
@@ -291,24 +283,14 @@ bool FlashStorage_Save(const MOTOR_PARAM_S *motor)
     uint32_t committed_offset = (uint32_t)offsetof(flash_storage_t, payload) + FLASH_STORAGE_PAYLOAD_SIZE;
     const uint32_t committed = FLASH_STORAGE_COMMITTED;
 
-    if (motor == NULL || motor->ol_enable || Motor_Detect_IsActive() || Motor_Hall_DetectIsActive()) {
-        return false;
-    }
-    if (Hal_Flash_SlotCount() < 2U) {
-        return false;
-    }
-    if (!Hal_Flash_GetSlot(0U, &target_slot) || committed_offset + sizeof(uint32_t) > target_slot.size) {
-        return false;
-    }
+    if (motor == NULL || motor->ol_enable || Motor_Detect_IsActive() || Motor_Hall_DetectIsActive()) return false;
+    if (Hal_Flash_SlotCount() < 2U) return false;
+    if (!Hal_Flash_GetSlot(0U, &target_slot) || committed_offset + sizeof(uint32_t) > target_slot.size) return false;
 
     /* 先验证并编码，非法参数不能触发擦除。调用方必须串行调用存储接口。 */
-    if (!Motor_Settings_Capture(motor, &settings)) {
-        return false;
-    }
+    if (!Motor_Settings_Capture(motor, &settings)) return false;
     memset(storage, 0xFF, sizeof(*storage));
-    if (!Motor_Settings_Encode(&settings, storage->payload, MOTOR_SETTINGS_WIRE_SIZE)) {
-        return false;
-    }
+    if (!Motor_Settings_Encode(&settings, storage->payload, MOTOR_SETTINGS_WIRE_SIZE)) return false;
     {
         uint8_t *p = storage->payload + MOTOR_SETTINGS_WIRE_SIZE;
         bool enabled = false;
@@ -336,9 +318,7 @@ bool FlashStorage_Save(const MOTOR_PARAM_S *motor)
     } else {
         target_index = 0U;
     }
-    if (!Hal_Flash_GetSlot(target_index, &target_slot)) {
-        return false;
-    }
+    if (!Hal_Flash_GetSlot(target_index, &target_slot)) return false;
     target_addr = (uint32_t)target_slot.base;
 
     storage->magic = FLASH_STORAGE_MAGIC;

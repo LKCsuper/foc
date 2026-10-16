@@ -1,3 +1,4 @@
+#include "test_common_assert.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -26,7 +27,7 @@ int main(void)
     MOTOR_PARAM_S motor;
 
     memset(&motor, 0, sizeof(motor));
-    Motor_DetectIsr_Step(NULL, true);
+    EXPECT_COMMON_ASSERT(Motor_DetectIsr_Step(NULL, true));
     assert(s_sample_calls == 0U && s_feed_calls == 0U);
 
     Motor_DetectIsr_Step(&motor, false);

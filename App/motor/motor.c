@@ -52,17 +52,11 @@ static bool motor_command_valid(const MOTOR_PARAM_S *motor, const motor_command_
 {
     motor_command_t out;
 
-    if (motor == NULL || cmd == NULL || normalized == NULL) {
-        return false;
-    }
+    if (motor == NULL || cmd == NULL || normalized == NULL) return false;
 
     out = *cmd;
-    if (out.mode != MOTOR_OL_MODE_VF && out.mode != MOTOR_OL_MODE_IF) {
-        return false;
-    }
-    if (!motor_is_finite(out.target_rpm) || !motor_is_finite(out.iq_set) || !motor_is_finite(out.id_set)) {
-        return false;
-    }
+    if (out.mode != MOTOR_OL_MODE_VF && out.mode != MOTOR_OL_MODE_IF) return false;
+    if (!motor_is_finite(out.target_rpm) || !motor_is_finite(out.iq_set) || !motor_is_finite(out.id_set)) return false;
     if (motor->ol_max_rpm > 0.0f && motor_is_finite(motor->ol_max_rpm)) {
         if (out.target_rpm > motor->ol_max_rpm) {
             out.target_rpm = motor->ol_max_rpm;
@@ -87,9 +81,7 @@ motor_result_t Motor_GetCommand(const MOTOR_PARAM_S *motor, motor_command_t *cmd
 {
     uint32_t primask;
 
-    if (motor == NULL || cmd == NULL) {
-        return MOTOR_ERR_NULL;
-    }
+    if (motor == NULL || cmd == NULL) return MOTOR_ERR_NULL;
 
     primask = Motor_Crit_Enter();
     cmd->enable = motor->ol_enable;
@@ -123,15 +115,9 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
     bool speed_changed;
     bool was_enabled;
 
-    if (motor == NULL || cmd == NULL) {
-        return MOTOR_ERR_NULL;
-    }
-    if (!motor_command_valid(motor, cmd, &normalized)) {
-        return MOTOR_ERR_INVALID;
-    }
-    if (normalized.enable && (Motor_Bldc_IsSelected() || Motor_Detect_IsActive())) {
-        return MOTOR_ERR_BUSY;
-    }
+    if (motor == NULL || cmd == NULL) return MOTOR_ERR_NULL;
+    if (!motor_command_valid(motor, cmd, &normalized)) return MOTOR_ERR_INVALID;
+    if (normalized.enable && (Motor_Bldc_IsSelected() || Motor_Detect_IsActive())) return MOTOR_ERR_BUSY;
 
     primask = Motor_Crit_Enter();
     was_enabled = motor->ol_enable;
@@ -180,9 +166,7 @@ motor_result_t Motor_RequestStop(MOTOR_PARAM_S *motor)
     motor_result_t result;
 
     result = Motor_GetCommand(motor, &cmd);
-    if (result != MOTOR_OK) {
-        return result;
-    }
+    if (result != MOTOR_OK) return result;
     cmd.enable = false;
     if (Motor_Detect_IsActive()) {
         DETECT_Abort();
@@ -203,9 +187,7 @@ motor_result_t Motor_GetRuntime(const MOTOR_PARAM_S *motor, motor_runtime_t *run
 {
     uint32_t primask;
 
-    if (motor == NULL || runtime == NULL) {
-        return MOTOR_ERR_NULL;
-    }
+    if (motor == NULL || runtime == NULL) return MOTOR_ERR_NULL;
 
     primask = Motor_Crit_Enter();
     memcpy(runtime->currentAdc, motor->currentAdc, sizeof(runtime->currentAdc));
@@ -222,9 +204,6 @@ motor_result_t Motor_GetRuntime(const MOTOR_PARAM_S *motor, motor_runtime_t *run
     runtime->Id = motor->Id;
     runtime->Iq = motor->Iq;
     runtime->theta = motor->theta;
-    runtime->e_err_ki_sum = motor->e_err_ki_sum;
-    runtime->e_iq_out = motor->e_iq_out;
-    runtime->e_id_out = motor->e_id_out;
     runtime->modD = motor->modD;
     runtime->modQ = motor->modQ;
     runtime->modAlpha = motor->modAlpha;
@@ -253,9 +232,7 @@ motor_result_t Motor_ClearRuntimeControl(MOTOR_PARAM_S *motor)
 {
     uint32_t primask;
 
-    if (motor == NULL) {
-        return MOTOR_ERR_NULL;
-    }
+    if (motor == NULL) return MOTOR_ERR_NULL;
 
     primask = Motor_Crit_Enter();
     motor->ol_current_rpm = 0.0f;
@@ -279,21 +256,11 @@ motor_result_t Motor_SetConfig(MOTOR_PARAM_S *motor, const motor_config_t *confi
     motor_settings_t current;
     motor_command_t cmd;
 
-    if (motor == NULL || config == NULL) {
-        return MOTOR_ERR_NULL;
-    }
-    if (Motor_Detect_IsActive()) {
-        return MOTOR_ERR_BUSY;
-    }
-    if (!Motor_Settings_Capture(motor, &current)) {
-        return MOTOR_ERR_INVALID;
-    }
-    if (motor->ol_enable && Motor_Settings_ConfigRequiresStop(&current.config, config)) {
-        return MOTOR_ERR_BUSY;
-    }
-    if (!Motor_Settings_ApplyConfig(motor, config)) {
-        return MOTOR_ERR_INVALID;
-    }
+    if (motor == NULL || config == NULL) return MOTOR_ERR_NULL;
+    if (Motor_Detect_IsActive()) return MOTOR_ERR_BUSY;
+    if (!Motor_Settings_Capture(motor, &current)) return MOTOR_ERR_INVALID;
+    if (motor->ol_enable && Motor_Settings_ConfigRequiresStop(&current.config, config)) return MOTOR_ERR_BUSY;
+    if (!Motor_Settings_ApplyConfig(motor, config)) return MOTOR_ERR_INVALID;
 
     /* 配置限幅变化后，用 SetCommand 再次整体提交以夹紧目标转速。 */
     if (Motor_GetCommand(motor, &cmd) == MOTOR_OK) {
@@ -352,24 +319,6 @@ motor_result_t Motor_ApplyProfileSensor(void)
 motor_feedback_source_t Motor_GetFeedbackSource(void)
 {
     return Motor_Feedback_GetSourceDefault();
-}
-
-/**
- * @description: 显示电机参数
- * @detail:
- * @return {*}
- * @author: lkc
- */
-void MOTOR_ShowParam(void)
-{
-    MOTOR_PARAM_S *stMotorNow = &motor;
-
-    printf("Current Offset [%f] [%f] [%f]\r\n", stMotorNow->currentOffset[0], stMotorNow->currentOffset[1],
-           stMotorNow->currentOffset[2]);
-    printf("Voltage Offset [%f] [%f] [%f]\r\n", stMotorNow->voltOffset[0], stMotorNow->voltOffset[1],
-           stMotorNow->voltOffset[2]);
-    printf("Volt Un Offset [%f] [%f] [%f]\r\n", stMotorNow->voltundrivenOffset[0], stMotorNow->voltundrivenOffset[1],
-           stMotorNow->voltundrivenOffset[2]);
 }
 #ifdef __cplusplus
 }

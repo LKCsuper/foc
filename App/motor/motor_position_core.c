@@ -1,5 +1,6 @@
 /* 位置命令、多圈零点与混合控制状态；不访问硬件或全局电机。 */
 #include <math.h>
+#include "common_assert.h"
 #include <stddef.h>
 #include <string.h>
 #include "motor_position_core.h"
@@ -39,14 +40,14 @@ bool Motor_PositionCore_Init(motor_position_runtime_t *runtime, const motor_posi
 
 void Motor_PositionCore_ClearHold(motor_position_runtime_t *runtime)
 {
-    if (runtime == NULL) return;
+    COMMON_ASSERT(runtime != NULL);
     Motor_PositionControl_Reset(&runtime->control);
     runtime->state.voltage_hold_mode = true;
 }
 
 void Motor_PositionCore_Zero(motor_position_runtime_t *runtime, uint32_t count)
 {
-    if (runtime == NULL) return;
+    COMMON_ASSERT(runtime != NULL);
     runtime->state.origin_count = SignedCount(count);
     runtime->state.position_deg = 0.0f;
     runtime->state.target_deg = 0.0f;
@@ -149,7 +150,8 @@ bool Motor_PositionCore_Step(motor_position_runtime_t *runtime, const motor_posi
 void Motor_PositionCore_Snapshot(const motor_position_runtime_t *runtime, const motor_position_config_t *config,
                                  uint32_t count, bool feedback_valid, motor_position_state_t *snapshot)
 {
-    if (runtime == NULL || config == NULL || snapshot == NULL || config->counts_per_rev == 0U) return;
+    COMMON_ASSERT(runtime != NULL && config != NULL && snapshot != NULL);
+    if (config->counts_per_rev == 0U) return;
     *snapshot = runtime->state;
     snapshot->position_deg = PositionDeg(runtime, config, count);
     snapshot->error_deg = snapshot->target_deg - snapshot->position_deg;

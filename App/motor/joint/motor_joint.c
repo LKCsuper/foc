@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <math.h>
+#include "common_assert.h"
 #include <stddef.h>
 #include <string.h>
 #include "motor_joint.h"
@@ -108,9 +109,7 @@ static bool Motor_Joint_ApplyControlConfig(void)
     motor_joint_control_config_t config;
     float volts_per_amp = MOTOR_ENCODER_SPEED_VOLT_PER_AMP;
 
-    if (!(volts_per_amp > 0.0f)) {
-        return false;
-    }
+    if (!(volts_per_amp > 0.0f)) return false;
 
     /* 保持原Shell调参刻度不变，但外环输出由等效电压换算成Iq。 */
     config.kp_output_per_rad = s_joint.kp_v_per_deg * MOTOR_JOINT_RAD_TO_DEG / volts_per_amp;
@@ -154,12 +153,8 @@ static bool Motor_Joint_ApplyControlSetpoint(float position_deg, float velocity_
  */
 static float Motor_Joint_LimitOutput(float value, float limit)
 {
-    if (value > limit) {
-        return limit;
-    }
-    if (value < -limit) {
-        return -limit;
-    }
+    if (value > limit) return limit;
+    if (value < -limit) return -limit;
     return value;
 }
 
@@ -255,9 +250,7 @@ bool Motor_Joint_Enable(bool enable)
 {
     uint32_t primask;
 
-    if (enable && (!Motor_Encoder_IsZeroValid() || Motor_Encoder_IsSignalFault())) {
-        return false;
-    }
+    if (enable && (!Motor_Encoder_IsZeroValid() || Motor_Encoder_IsSignalFault())) return false;
     primask = Motor_Crit_Enter();
     s_joint.enabled = enable;
     s_joint_last_command_us = Hal_Motor_TimeUs();
@@ -284,12 +277,8 @@ bool Motor_Joint_SetTarget(float target_deg, float target_rpm, float torque_ff_a
     float old_torque_ff_a;
     uint32_t primask;
 
-    if (!isfinite(target_deg) || !isfinite(target_rpm) || !isfinite(torque_ff_a)) {
-        return false;
-    }
-    if (fabsf(torque_ff_a) > MOTOR_JOINT_TORQUE_FF_MAX_A) {
-        return false;
-    }
+    if (!isfinite(target_deg) || !isfinite(target_rpm) || !isfinite(torque_ff_a)) return false;
+    if (fabsf(torque_ff_a) > MOTOR_JOINT_TORQUE_FF_MAX_A) return false;
     primask = Motor_Crit_Enter();
     old_target_deg = s_joint.target_deg;
     old_target_rpm = s_joint.target_rpm;
@@ -365,9 +354,7 @@ bool Motor_Joint_SubmitCommand(const motor_joint_command_si_t *command)
         (command->timeout_us < MOTOR_JOINT_TIMEOUT_MIN_US || command->timeout_us > MOTOR_JOINT_TIMEOUT_MAX_US)) {
         return false;
     }
-    if (command->enable && (!Motor_Encoder_IsZeroValid() || Motor_Encoder_IsSignalFault())) {
-        return false;
-    }
+    if (command->enable && (!Motor_Encoder_IsZeroValid() || Motor_Encoder_IsSignalFault())) return false;
 
     now_us = Hal_Motor_TimeUs();
     primask = Motor_Crit_Enter();
@@ -443,13 +430,9 @@ bool Motor_Joint_SubmitTorqueCommand(const motor_joint_torque_command_t *command
         (command->timeout_us < MOTOR_JOINT_TIMEOUT_MIN_US || command->timeout_us > MOTOR_JOINT_TIMEOUT_MAX_US)) {
         return false;
     }
-    if (command->enable && (!Motor_Encoder_IsZeroValid() || Motor_Encoder_IsSignalFault())) {
-        return false;
-    }
+    if (command->enable && (!Motor_Encoder_IsZeroValid() || Motor_Encoder_IsSignalFault())) return false;
     effective_kt = command->torque_constant_nm_per_a * command->gear_ratio * command->efficiency;
-    if (!isfinite(effective_kt) || effective_kt <= 0.0f) {
-        return false;
-    }
+    if (!isfinite(effective_kt) || effective_kt <= 0.0f) return false;
 
     config.kp_output_per_rad = command->kp_nm_per_rad;
     config.kd_output_per_rad_s = command->kd_nm_per_rad_s;
@@ -519,9 +502,7 @@ bool Motor_Joint_SubmitCurrentCommand(const motor_joint_current_command_t *comma
         (command->timeout_us < MOTOR_JOINT_TIMEOUT_MIN_US || command->timeout_us > MOTOR_JOINT_TIMEOUT_MAX_US)) {
         return false;
     }
-    if (command->enable && (!Motor_Encoder_IsZeroValid() || Motor_Encoder_IsSignalFault())) {
-        return false;
-    }
+    if (command->enable && (!Motor_Encoder_IsZeroValid() || Motor_Encoder_IsSignalFault())) return false;
 
     memset(&config, 0, sizeof(config));
     config.output_limit = command->current_limit_a;
@@ -570,9 +551,7 @@ bool Motor_Joint_SetKp(float kp_v_per_deg)
     uint32_t primask;
     bool result;
 
-    if (!isfinite(kp_v_per_deg) || kp_v_per_deg <= 0.0f || kp_v_per_deg > MOTOR_JOINT_KP_MAX_V_PER_DEG) {
-        return false;
-    }
+    if (!isfinite(kp_v_per_deg) || kp_v_per_deg <= 0.0f || kp_v_per_deg > MOTOR_JOINT_KP_MAX_V_PER_DEG) return false;
     primask = Motor_Crit_Enter();
     s_joint.backend = MOTOR_JOINT_BACKEND_POSITION_CURRENT;
     s_joint.kp_v_per_deg = kp_v_per_deg;
@@ -592,9 +571,7 @@ bool Motor_Joint_SetKd(float kd_v_per_rpm)
     uint32_t primask;
     bool result;
 
-    if (!isfinite(kd_v_per_rpm) || kd_v_per_rpm < 0.0f || kd_v_per_rpm > MOTOR_JOINT_KD_MAX_V_PER_RPM) {
-        return false;
-    }
+    if (!isfinite(kd_v_per_rpm) || kd_v_per_rpm < 0.0f || kd_v_per_rpm > MOTOR_JOINT_KD_MAX_V_PER_RPM) return false;
     primask = Motor_Crit_Enter();
     s_joint.backend = MOTOR_JOINT_BACKEND_POSITION_CURRENT;
     s_joint.kd_v_per_rpm = kd_v_per_rpm;
@@ -614,9 +591,7 @@ bool Motor_Joint_SetKi(float ki_v_per_deg_s)
     uint32_t primask;
     bool result;
 
-    if (!isfinite(ki_v_per_deg_s) || ki_v_per_deg_s < 0.0f || ki_v_per_deg_s > MOTOR_JOINT_KI_MAX_V_PER_DEG_S) {
-        return false;
-    }
+    if (!isfinite(ki_v_per_deg_s) || ki_v_per_deg_s < 0.0f || ki_v_per_deg_s > MOTOR_JOINT_KI_MAX_V_PER_DEG_S) return false;
     primask = Motor_Crit_Enter();
     s_joint.backend = MOTOR_JOINT_BACKEND_POSITION_CURRENT;
     s_joint.ki_v_per_deg_s = ki_v_per_deg_s;
@@ -640,9 +615,7 @@ bool Motor_Joint_SetVoltageLimit(float limit_v)
     uint32_t primask;
     bool result;
 
-    if (!isfinite(limit_v) || limit_v < MOTOR_JOINT_V_LIMIT_MIN_V || limit_v > MOTOR_JOINT_V_LIMIT_MAX_V) {
-        return false;
-    }
+    if (!isfinite(limit_v) || limit_v < MOTOR_JOINT_V_LIMIT_MIN_V || limit_v > MOTOR_JOINT_V_LIMIT_MAX_V) return false;
     primask = Motor_Crit_Enter();
     s_joint.backend = MOTOR_JOINT_BACKEND_POSITION_CURRENT;
     s_joint.v_limit_v = limit_v;
@@ -682,9 +655,7 @@ float Motor_Joint_GetTrajectoryRpm(void)
 {
     float rpm = s_joint_trajectory_rpm;
 
-    if (rpm > 0.0f) {
-        return rpm;
-    }
+    if (rpm > 0.0f) return rpm;
     return MOTOR_JOINT_TRAJECTORY_VEL_DEG_S / 6.0f;
 }
 
@@ -888,9 +859,7 @@ void Motor_Joint_GetState(motor_joint_state_t *state)
     uint32_t primask;
     uint32_t last_command_us;
 
-    if (state == NULL) {
-        return;
-    }
+    COMMON_ASSERT(state != NULL);
     primask = Motor_Crit_Enter();
     *state = s_joint;
     last_command_us = s_joint_last_command_us;

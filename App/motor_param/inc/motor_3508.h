@@ -42,16 +42,21 @@ extern "C" {
 #define MOTOR_3508_FLUX_LINKAGE_WB      (0.002390f) /* 磁链 Wb，即 2.3900 mWb */
 
 /*
+ * KV 未确认，开环转速上限先取偏低的 KV400 与 4S 测试电压相乘。
+ * 该值低于 KV400@22.2 V 和 KV590@14.8 V 两种配置的空载转速，作保守上限。
+ */
+#define MOTOR_3508_CONSERVATIVE_RPM_CAP (MOTOR_3508_KV400_RPM_PER_V * MOTOR_3508_KV590_TEST_VOLTAGE_V)
+
+/*
  * motor_param 只认下面这组名字。
- * 开环转速上限先用 400 RPM/V × 14.8 V = 5920 RPM，低于 590 KV 在 14.8 V 的空载。
- * 确认 KV 后只改这里的电压和转速。
+ * 确认 KV 后只改上面的 KV 与测试电压两个宏。
  */
 #define MOTOR_FIXED_MODEL              MOTOR_3508_MODEL
 #define MOTOR_FIXED_POLE_COUNT         MOTOR_3508_POLE_COUNT
 #define MOTOR_FIXED_POLE_PAIRS         MOTOR_3508_POLE_PAIRS
 #define MOTOR_FIXED_PHASE_COUNT        (3U)
 #define MOTOR_FIXED_RATED_VOLTAGE      MOTOR_3508_KV590_TEST_VOLTAGE_V
-#define MOTOR_FIXED_RATED_RPM          (5920.0f) /* 400 RPM/V × 14.8 V */
+#define MOTOR_FIXED_RATED_RPM          MOTOR_3508_CONSERVATIVE_RPM_CAP
 #define MOTOR_FIXED_RATED_CURRENT      MOTOR_3508_MAX_CURRENT_A
 #define MOTOR_FIXED_OUTPUT_POWER       MOTOR_3508_MAX_POWER_W
 #define MOTOR_FIXED_PEAK_CURRENT       MOTOR_3508_MAX_CURRENT_A

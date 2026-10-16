@@ -1,3 +1,4 @@
+#include "test_common_assert.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -297,7 +298,7 @@ int main(void)
         assert(snapshot.blend == a.blend && snapshot.loss == a.loss_timer);
         assert(snapshot.v_alpha == a.applied_v_alpha && snapshot.v_beta == a.applied_v_beta);
         assert(memcmp(&a, &b, sizeof(a)) == 0);
-        Motor_Sensorless_GetLightSnapshotState(&a, NULL);
+        EXPECT_COMMON_ASSERT(Motor_Sensorless_GetLightSnapshotState(&a, NULL));
         assert(memcmp(&a, &b, sizeof(a)) == 0);
     }
     printf("test_motor_sensorless: pass\n");

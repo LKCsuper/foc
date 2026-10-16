@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "motor_alignment.h"
+#include "common_assert.h"
 #include <stddef.h>
 #include <string.h>
 /* Private define ------------------------------------------------------------*/
@@ -25,7 +26,7 @@ extern "C" {
  */
 void MotorAlignment_Reset(motor_alignment_t *state)
 {
-    if (state == NULL) return;
+    COMMON_ASSERT(state != NULL);
     memset(state, 0, sizeof(*state));
     state->stopped = true;
 }
@@ -51,7 +52,7 @@ void MotorAlignment_NormalizeConfig(motor_alignment_config_t *config)
  */
 void MotorAlignment_MarkComplete(motor_alignment_t *state)
 {
-    if (state == NULL) return;
+    COMMON_ASSERT(state != NULL);
     state->stopped = false;
     state->running = false;
     state->complete = true;
@@ -67,7 +68,7 @@ void MotorAlignment_MarkComplete(motor_alignment_t *state)
  */
 void MotorAlignment_MarkSkipped(motor_alignment_t *state)
 {
-    if (state == NULL) return;
+    COMMON_ASSERT(state != NULL);
     state->stopped = false;
     state->running = false;
     state->complete = false;
@@ -94,9 +95,7 @@ motor_alignment_result_t MotorAlignment_Step(
     bool started = false;
 
     if (output != NULL) memset(output, 0, sizeof(*output));
-    if (state == NULL || config == NULL || output == NULL) {
-        return MOTOR_ALIGNMENT_SKIPPED;
-    }
+    if (state == NULL || config == NULL || output == NULL) return MOTOR_ALIGNMENT_SKIPPED;
 
     if (state->stopped && config->enabled && config->current > 0.0f &&
         config->duration > 0.0f) {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import time
 from pathlib import Path
@@ -58,6 +59,16 @@ def main() -> int:
     missing = [item for item in required if item not in output]
     if missing:
         print("FAIL: missing " + ", ".join(missing), file=sys.stderr)
+        return 1
+    currents = re.search(r"Current test result: n=(\d+) Id_avg=([-+0-9.]+) A Iq_avg=([-+0-9.]+) A", output)
+    errors = re.search(r"mean \|Id error\|=([-+0-9.]+) A, mean \|Iq\|=([-+0-9.]+) A", output)
+    if not currents or not errors or int(currents[1]) < 10:
+        print("FAIL: missing current tracking measurements", file=sys.stderr)
+        return 1
+    # BM75低电流量化噪声允许0.10A或目标30%，但零电流不能算闭环通过。
+    tolerance = max(0.10, args.current * 0.30)
+    if abs(float(currents[2]) - args.current) > tolerance or float(errors[1]) > tolerance or float(errors[2]) > tolerance:
+        print(f"FAIL: current tracking exceeds {tolerance:.3f} A tolerance", file=sys.stderr)
         return 1
     print("PASS: bounded D-axis current-loop test completed", flush=True)
     return 0

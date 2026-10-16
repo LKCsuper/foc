@@ -62,14 +62,10 @@ int32_t Motor_PhaseOrder_HallStep(int prev_hall, int curr_hall)
     int8_t b;
     int diff;
 
-    if (prev_hall < 0 || prev_hall > 7 || curr_hall < 0 || curr_hall > 7) {
-        return 0;
-    }
+    if (prev_hall < 0 || prev_hall > 7 || curr_hall < 0 || curr_hall > 7) return 0;
     a = s_hall_to_sector[prev_hall];
     b = s_hall_to_sector[curr_hall];
-    if (a < 0 || b < 0 || a == b) {
-        return 0;
-    }
+    if (a < 0 || b < 0 || a == b) return 0;
     diff = (int)b - (int)a;
     if (diff > 3) {
         diff -= 6;
@@ -78,9 +74,7 @@ int32_t Motor_PhaseOrder_HallStep(int prev_hall, int curr_hall)
         diff += 6;
     }
     /* 只认单扇区步进，跳步当作噪声丢掉 */
-    if (diff == 1 || diff == -1) {
-        return (int32_t)diff;
-    }
+    if (diff == 1 || diff == -1) return (int32_t)diff;
     return 0;
 }
 
@@ -97,18 +91,12 @@ motor_phase_order_result_t Motor_PhaseOrder_Judge(int32_t dir_delta, float comma
     int32_t abs_delta;
     int32_t gate;
 
-    if (!isfinite(commanded_rpm) || commanded_rpm == 0.0f) {
-        return MOTOR_PHASE_ORDER_INVALID;
-    }
+    if (!isfinite(commanded_rpm) || commanded_rpm == 0.0f) return MOTOR_PHASE_ORDER_INVALID;
     gate = (min_steps < 1) ? 1 : min_steps;
     abs_delta = (dir_delta >= 0) ? dir_delta : -dir_delta;
-    if (abs_delta < gate) {
-        return MOTOR_PHASE_ORDER_NO_MOTION;
-    }
+    if (abs_delta < gate) return MOTOR_PHASE_ORDER_NO_MOTION;
     /* 正转命令期望霍尔正序步进；反向则 U/V 与软件正方向相反 */
-    if ((commanded_rpm > 0.0f && dir_delta > 0) || (commanded_rpm < 0.0f && dir_delta < 0)) {
-        return MOTOR_PHASE_ORDER_OK;
-    }
+    if ((commanded_rpm > 0.0f && dir_delta > 0) || (commanded_rpm < 0.0f && dir_delta < 0)) return MOTOR_PHASE_ORDER_OK;
     return MOTOR_PHASE_ORDER_SWAP_UV;
 }
 
@@ -161,9 +149,7 @@ motor_phase_order_result_t Motor_PhaseOrder_Detect(motor_phase_order_report_t *r
     bool hfi_saved;
     motor_phase_order_result_t result;
 
-    if (report == NULL) {
-        return MOTOR_PHASE_ORDER_INVALID;
-    }
+    if (report == NULL) return MOTOR_PHASE_ORDER_INVALID;
     memset(report, 0, sizeof(*report));
     report->commanded_rpm = MOTOR_PHASE_ORDER_RPM;
     report->duration_s = (float)MOTOR_PHASE_ORDER_DURATION_MS / 1000.0f;

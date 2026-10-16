@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "motor_fw.h"
+#include "common_assert.h"
 #include <math.h>
 #include <stddef.h>
 /* Private define ------------------------------------------------------------*/
@@ -24,9 +25,7 @@ extern "C" {
  */
 void Motor_Fw_Reset(motor_fw_t *fw)
 {
-    if (fw == NULL) {
-        return;
-    }
+    COMMON_ASSERT(fw != NULL);
     fw->id = 0.0f;
     fw->last_vd = 0.0f;
     fw->last_vq = 0.0f;
@@ -43,13 +42,9 @@ float Motor_Fw_IdRoom(float iq, float i_budget)
 {
     float iq_abs;
 
-    if (i_budget <= 0.0f) {
-        return 0.0f;
-    }
+    if (i_budget <= 0.0f) return 0.0f;
     iq_abs = fabsf(iq);
-    if (iq_abs >= i_budget) {
-        return 0.0f;
-    }
+    if (iq_abs >= i_budget) return 0.0f;
     return sqrtf(i_budget * i_budget - iq_abs * iq_abs);
 }
 
@@ -75,9 +70,7 @@ float Motor_Fw_Step(motor_fw_t *fw, float current_max, float duty_start, float r
     float step;
     float id;
 
-    if (fw == NULL) {
-        return 0.0f;
-    }
+    if (fw == NULL) return 0.0f;
     if (current_max <= 0.0f || v_limit <= 0.0f) {
         fw->id = 0.0f;
         return 0.0f;

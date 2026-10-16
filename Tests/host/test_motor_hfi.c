@@ -1,3 +1,4 @@
+#include "test_common_assert.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -115,8 +116,8 @@ int main(void)
 
     /* 空指针安全 */
     Motor_Hfi_Reset(NULL);
-    Motor_Hfi_NormalizeConfig(NULL);
-    Motor_Hfi_SeedAngle(NULL, 1.0f);
+    EXPECT_COMMON_ASSERT(Motor_Hfi_NormalizeConfig(NULL));
+    EXPECT_COMMON_ASSERT(Motor_Hfi_SeedAngle(NULL, 1.0f));
     assert(fabsf(Motor_Hfi_GetAngle(NULL)) < 1e-6f);
     assert(fabsf(Motor_Hfi_GetSpeedE(NULL)) < 1e-6f);
     assert(!Motor_Hfi_Step(NULL, &cfg, 0.0f, 0.0f, 24.0f, dt, &out));

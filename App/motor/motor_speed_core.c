@@ -1,5 +1,6 @@
 /* 速度控制核心：标准C，无硬件或全局电机依赖。 */
 #include <math.h>
+#include "common_assert.h"
 #include <string.h>
 #include "motor_speed_core.h"
 #define MOTOR_SPEED_LIMIT_DECAY_S 0.100f
@@ -14,12 +15,8 @@
  */
 static float Motor_Speed_Clamp(float value, float minimum, float maximum)
 {
-    if (value > maximum) {
-        return maximum;
-    }
-    if (value < minimum) {
-        return minimum;
-    }
+    if (value > maximum) return maximum;
+    if (value < minimum) return minimum;
     return value;
 }
 
@@ -45,9 +42,7 @@ static void Motor_Speed_ClearPi(motor_speed_state_t *state)
  */
 void Motor_Speed_InitState(motor_speed_state_t *state)
 {
-    if (state == NULL) {
-        return;
-    }
+    COMMON_ASSERT(state != NULL);
     memset(state, 0, sizeof(*state));
 }
 
@@ -62,9 +57,7 @@ void Motor_Speed_InitState(motor_speed_state_t *state)
  */
 void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool valid)
 {
-    if (state == NULL) {
-        return;
-    }
+    COMMON_ASSERT(state != NULL);
     state->measured_rpm = valid ? rpm : 0.0f;
     state->feedback_valid = valid;
     if (!valid) {
@@ -80,9 +73,7 @@ void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool va
  */
 void Motor_SpeedLoop_ResetState(motor_speed_state_t *state)
 {
-    if (state == NULL) {
-        return;
-    }
+    COMMON_ASSERT(state != NULL);
     Motor_Speed_ClearPi(state);
     state->zero_brake_active = false;
     state->zero_brake_released = false;
@@ -98,9 +89,7 @@ void Motor_SpeedLoop_ResetState(motor_speed_state_t *state)
  */
 void Motor_SpeedLoop_PrimeIqState(motor_speed_state_t *state, float iq)
 {
-    if (state == NULL) {
-        return;
-    }
+    COMMON_ASSERT(state != NULL);
     state->integral = iq;
     state->iq_target = iq;
     state->loop_time = 0.0f;
@@ -128,9 +117,7 @@ static bool Motor_SpeedLoop_StepInternal(motor_speed_state_t *state, const motor
     float unsaturated_output;
     float output;
 
-    if (state == NULL || input == NULL) {
-        return false;
-    }
+    if (state == NULL || input == NULL) return false;
 
     if (!input->enabled || !state->feedback_valid) {
         Motor_SpeedLoop_ResetState(state);
@@ -180,9 +167,7 @@ static bool Motor_SpeedLoop_StepInternal(motor_speed_state_t *state, const motor
     state->loop_time += dt;
     if (!scheduled) {
         loop_period = 1.0f / (input->loop_hz < 1.0f ? 1.0f : input->loop_hz);
-        if (state->loop_time < loop_period) {
-            return true;
-        }
+        if (state->loop_time < loop_period) return true;
     }
 
     control_dt = state->loop_time;
@@ -236,15 +221,9 @@ bool Motor_SpeedLoop_StepScheduledState(motor_speed_state_t *state, const motor_
  */
 float Motor_Speed_LimitNoBrakeOutput(float command_rpm, float output, bool allow_braking)
 {
-    if (allow_braking) {
-        return output;
-    }
-    if (command_rpm > 0.0f && output < 0.0f) {
-        return 0.0f;
-    }
-    if (command_rpm < 0.0f && output > 0.0f) {
-        return 0.0f;
-    }
+    if (allow_braking) return output;
+    if (command_rpm > 0.0f && output < 0.0f) return 0.0f;
+    if (command_rpm < 0.0f && output > 0.0f) return 0.0f;
     return output;
 }
 

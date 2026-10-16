@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "motor_hfi.h"
+#include "common_assert.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -78,9 +79,7 @@ void Motor_Hfi_Reset(motor_hfi_t *hfi)
  */
 void Motor_Hfi_NormalizeConfig(motor_hfi_config_t *config)
 {
-    if (config == NULL) {
-        return;
-    }
+    COMMON_ASSERT(config != NULL);
     if (config->voltage < 0.0f) {
         config->voltage = 0.0f;
     }
@@ -107,9 +106,7 @@ void Motor_Hfi_NormalizeConfig(motor_hfi_config_t *config)
  */
 void Motor_Hfi_SeedAngle(motor_hfi_t *hfi, float angle)
 {
-    if (hfi == NULL) {
-        return;
-    }
+    COMMON_ASSERT(hfi != NULL);
     hfi->angle = Motor_Hfi_WrapTwoPi(angle);
 }
 

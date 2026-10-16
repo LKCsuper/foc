@@ -39,9 +39,6 @@ typedef struct {
     float id_target; /* 本拍电流环 Id 目标 A */
     float iq_target; /* 本拍电流环 Iq 目标 A */
     float theta; /* 电角度 rad */
-    float e_err_ki_sum;
-    float e_iq_out;
-    float e_id_out;
     float modD;
     float modQ;
     float modAlpha;
@@ -64,7 +61,6 @@ typedef struct {
  *   command      — enable/mode/目标电流与转速、speed_enable
  *   config       — 增益、限幅、模型、对齐/HFI 等（见 motor_config_t）
  *   calibration  — 偏移与霍尔表
- *   legacy       — 旧电流环字段，主路径优先 ol_*
  */
 typedef struct motor_param {
     /* ---- runtime: 采样与变换 ---- */
@@ -90,21 +86,6 @@ typedef struct motor_param {
     float iq_target; /* 本拍电流环 Iq 目标 (A)，不持久化 */
 
     float theta; /* 电角度 (rad) */
-
-    /* ---- legacy: 旧电流环（主路径优先用 ol_* command/config） ---- */
-    float e_id_set;
-    float e_iq_set;
-    float e_err_ki_sum; /* 积分累加 */
-    float e_ki_windup;  /* 积分抗饱和 */
-    float e_iq_ki;      /* q 轴电流环 ki */
-    float e_iq_kp;      /* q 轴电流环 kp */
-    float e_id_ki;      /* d 轴电流环 ki */
-    float e_id_kp;      /* d 轴电流环 kp */
-    float e_iq_limit;   /* q 轴限制 */
-    float e_id_limit;   /* d 轴限制 */
-
-    float e_iq_out; /* q 轴实际输出 */
-    float e_id_out; /* d 轴实际输出 */
 
     /* ---- runtime: 调制与占空 ---- */
     float modD;
