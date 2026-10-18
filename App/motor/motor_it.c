@@ -32,6 +32,16 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 停机时抓取半周期回调寄存器，供连续两帧配对。
+ * @detail: running 为 true 时只停止采集并返回，不阻止后续控制。
+ *          停机时记录 DMA 剩余计数、TIM1 计数、方向、比较值和三相电流 ADC。
+ *          这些是回调时刻的寄存器，不是 ADC 触发锁存值。
+ *          reconstructed 的 bit0～bit3 分别标记读取期间 ADC、计数方向、DMA 剩余计数、PWM 序号发生变化。
+ *          PairFrame 返回 true 时，同拍推入观测器的 α/β 电压 (V)。
+ * @param {bool} running 开环已使能时为 true
+ * @return {void} 无
+ */
 static void Motor_DmaInt_CaptureHalf(bool running)
 {
     motor_pair_frame_t frame;
@@ -73,7 +83,12 @@ static void Motor_DmaInt_CaptureHalf(bool running)
     }
 }
 
-/** 半周期诊断入口：模式与采集开关的判断集中在此。 */
+/**
+ * @description: 半周期诊断入口，集中判断模式与采集开关。
+ * @detail: 仅在半周期配对模式且采集仍有效时抓取一帧。
+ * @param {bool} running 开环已使能时为 true，传给抓取函数
+ * @return {void} 无
+ */
 static void Motor_DmaInt_DiagnosticStep(bool running)
 {
     if (Motor_Timing_PairHalfMode() && Motor_Timing_PairActive()) {
@@ -81,7 +96,11 @@ static void Motor_DmaInt_DiagnosticStep(bool running)
     }
 }
 
-/* 返回 true 表示校准已占用本次中断，后续控制路径不得继续执行。 */
+/**
+ * @description: 校准占用本次中断时执行检测步进。
+ * @detail: 返回 true 表示本次中断已由校准占用，后续控制路径不得继续执行。
+ * @return {bool} 校准进行中返回 true
+ */
 static bool Motor_DmaInt_HandleDetect(void)
 {
     if (!Motor_Detect_IsActive()) return false;
@@ -89,7 +108,11 @@ static bool Motor_DmaInt_HandleDetect(void)
     return true;
 }
 
-/* 返回 true 表示已交给 BLDC 处理，避免同一拍再执行 FOC。 */
+/**
+ * @description: BLDC 模式占用本次中断时执行六步控制。
+ * @detail: 返回 true 表示已交给 BLDC，同一拍不再执行 FOC。
+ * @return {bool} 当前为 BLDC 模式返回 true
+ */
 static bool Motor_DmaInt_HandleBldc(void)
 {
     if (!Motor_Bldc_IsSelected()) return false;
@@ -112,8 +135,8 @@ void Motor_DmaInt(void *p, uint32_t flags)
     if (Motor_DmaInt_HandleDetect()) return;
     if (Motor_DmaInt_HandleBldc()) return;
 
-    Motor_DmaInt_DiagnosticStep(motor.ol_enable); // 诊断函数
-    Motor_FocIsr_Step(&motor);                  // foc中断
+    Motor_DmaInt_DiagnosticStep(motor.ol_enable);
+    Motor_FocIsr_Step(&motor);
 
     return;
 }

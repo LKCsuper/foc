@@ -812,6 +812,41 @@ int Cmd_SensorlessCadence(int argc, char *argv[])
         PRINTF("Synthetic independent instance, 600RPM 7pp; IRQ isolated per update; PWM unchanged\n");
         return 0;
     }
+    if (argc > 1 && strcmp(argv[1], "faultbench") == 0) {
+        motor_fault_trace_sample_t sample;
+        unsigned mode, batch, index;
+        if (motor.ol_enable) {
+            PRINTF("Invalid: faultbench requires stopped motor\n");
+            return -1;
+        }
+        for (mode = 0U; mode < 2U; mode++) {
+            uint32_t total = 0U, maximum = 0U;
+            unsigned writes = 0U;
+            for (batch = 0U; batch < 256U; batch += 4U) {
+                uint32_t key = Motor_Crit_Enter();
+                uint32_t begin, elapsed;
+                Motor_Timing_FaultTraceArm();
+                begin = Hal_Motor_TimeUs();
+                for (index = 0U; index < 4U; index++) {
+                    uint32_t stamp = batch + index;
+                    if (Motor_Timing_FaultTraceDue(stamp, true, mode == 0U)) {
+                        Motor_FocIsr_CaptureFaultTraceSample(&motor, stamp, 1.0f / 15000.0f, &sample);
+                        Motor_Timing_FaultTracePush(&sample);
+                        writes++;
+                    }
+                }
+                elapsed = Hal_Motor_TimeUs() - begin;
+                Motor_Timing_FaultTraceFreeze(0U);
+                Motor_Crit_Exit(key);
+                total += elapsed;
+                if (elapsed > maximum) maximum = elapsed;
+            }
+            PRINTF("Fault bench mode=%u n=256 writes=%u total=%lu us avg=%.3f us max_batch=%lu us\n",
+                   mode, writes, (unsigned long)total, (float)total / 256.0f, (unsigned long)maximum);
+        }
+        PRINTF("Stopped only; mode0=force each call mode1=stride4; IRQ isolated batch4; PWM unchanged; synthetic trace replaces RAM; performance counters paused\n");
+        return 0;
+    }
     if (argc > 1 && strcmp(argv[1], "bench") == 0) {
         static MOTOR_PARAM_S bench_motor;
         motor_trace_sample_t sample = {0};
@@ -1131,6 +1166,43 @@ int Cmd_SensorlessTrace(int argc, char *argv[])
         PRINTF("sltrace requires stopped motor\n");
         return -1;
     }
+    if (argc > 1 && (strcmp(argv[1], "tracking") == 0 || strcmp(argv[1], "tracking-clear") == 0 ||
+                     strcmp(argv[1], "tracking-arm") == 0 || strcmp(argv[1], "tracking-off") == 0)) {
+        motor_current_tracking_diag_t diag;
+        bool clear = strcmp(argv[1], "tracking-clear") == 0;
+        if (strcmp(argv[1], "tracking-arm") == 0 && !Motor_FocIsr_EnableTracking(true)) return -1;
+        if (strcmp(argv[1], "tracking-off") == 0 && !Motor_FocIsr_EnableTracking(false)) return -1;
+        if (!Motor_FocIsr_ReadTracking(&diag, clear)) return -1;
+        PRINTF("Tracking observe-only: threshold=2A hold=2ms; no stop, no fault action; enabled=%u clear=%u\n",
+               Motor_FocIsr_TrackingIsEnabled() ? 1U : 0U, clear ? 1U : 0U);
+        PRINTF("Tracking samples=%lu events=%lu latched=%u max_error=%.3fA first_entry_us=%lu\n",
+               (unsigned long)diag.eligible_samples, (unsigned long)diag.events, diag.event_latched ? 1U : 0U,
+               sqrtf(diag.max_error_squared), (unsigned long)diag.first_entry_us);
+        PRINTF("Tracking first id/iq=%.3f/%.3f target=%.3f/%.3f A; stopped read, retained across stop/fault\n",
+               diag.first_id, diag.first_iq, diag.first_id_cmd, diag.first_iq_cmd);
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "debug") == 0) {
+        if (!Motor_Timing_TraceIsFault()) {
+            PRINTF("Invalid: debug export requires fault RAM trace\n");
+            return -1;
+        }
+        Motor_Timing_TraceStop();
+        PRINTF("Fault RAM frozen: descriptor=0x%08lx bytes=%u samples=%lu; read via J-Link, no UART rows\n",
+               (unsigned long)(uintptr_t)&g_motor_fault_debug, (unsigned)sizeof(g_motor_fault_debug),
+               (unsigned long)g_motor_fault_debug.count);
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "fault") == 0) {
+        if (Motor_Protect_IsFaultLatched()) {
+            PRINTF("Fault trace refused: preserve latched fault; no automatic clear\n");
+            return -1;
+        }
+        Motor_Timing_FaultTraceArm();
+        PRINTF("Fault RAM trace armed: stride=%u, capacity=%u; force fault entry; previous-control fields\n",
+               (unsigned)MOTOR_FAULT_TRACE_STRIDE, (unsigned)MOTOR_TRACE_CAPACITY);
+        return 0;
+    }
     if (argc > 1 && strcmp(argv[1], "arm") == 0) {
         Motor_Timing_TraceArm();
         PRINTF("RAM trace armed; 2ms samples, freeze after CLOSED exit\n");
@@ -1166,6 +1238,28 @@ int Cmd_SensorlessTrace(int argc, char *argv[])
     Motor_Timing_TraceStop();
     count = Motor_Timing_TraceCount();
     PRINTF("trace samples=%u\n", count);
+    if (Motor_Timing_TraceIsFault()) {
+        motor_fault_trace_sample_t sample;
+        PRINTF("trace format=fault stride=%u; ADC/abc/vbus/dt=current entry, other fields=previous control; no trigger-time latch\n",
+               (unsigned)MOTOR_FAULT_TRACE_STRIDE);
+        PRINTF("seq,time_us,flags,adc0,adc1,adc2,ia,ib,ic,prev_theta,prev_pll,prev_flux,prev_rpm,prev_v_alpha,prev_v_beta,prev_vd_int,prev_vq_int,prev_id,prev_iq,prev_id_cmd,prev_iq_cmd,vbus,dt,crc32\n");
+        for (i = 0U; i < count; i++) {
+            char row[512];
+            int length;
+            if (!Motor_Timing_FaultTraceGet(i, &sample)) return -1;
+            length = snprintf(row, sizeof(row),
+                "%u,%lu,%lu,%u,%u,%u,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g",
+                i, (unsigned long)sample.time_us, (unsigned long)sample.flags,
+                (unsigned)sample.adc[0], (unsigned)sample.adc[1], (unsigned)sample.adc[2],
+                sample.ia, sample.ib, sample.ic, sample.theta, sample.pll, sample.flux, sample.rpm,
+                sample.v_alpha, sample.v_beta, sample.vd_int, sample.vq_int, sample.id, sample.iq,
+                sample.id_cmd, sample.iq_cmd, sample.v_bus, sample.dt);
+            if (length < 0 || (unsigned)length >= sizeof(row)) return -1;
+            PRINTF("%s,%08lx\n", row, (unsigned long)crc32((const uint8_t *)row, (uint32_t)length));
+            Bsp_Usart_Flush();
+        }
+        return 0;
+    }
     if (Motor_Timing_TraceIsCompact()) {
         motor_trace_compact_sample_t compact;
         PRINTF("trace format=compact sample_bytes=%u stride=%u capacity=%u\n",
@@ -1233,6 +1327,7 @@ int Cmd_SensorlessTrace(int argc, char *argv[])
 int Cmd_OlRpm(int argc, char *argv[])
 {
     char reply[640];
+    int length;
     float profile_us[MOTOR_TIMING_STAGE_COUNT];
     uint32_t profile_samples;
     motor_sensorless_diagnostics_t diag;
@@ -1267,12 +1362,12 @@ int Cmd_OlRpm(int argc, char *argv[])
     encoder_zero = Motor_Encoder_IsZeroValid();
     Motor_Timing_ProfileGet(profile_us, &profile_samples);
     Motor_Crit_Exit(primask);
-    snprintf(reply, sizeof(reply),
-           "rpm obs=%.1f meas=%.1f tgt=%.0f iq=%.3f %s tk=%d fb=%s fault=%d\n"
-           "chk F=%d S=%d D=%d P=%d lock=%.3f flux=%.5f ph=%.3f lockph=%.3f\n"
-           "ang if=%.3f raw=%.3f pll=%.3f blend=%.2f\n"
-           "enc mech=%.4f elec=%.4f rpm=%.1f valid=%d zero=%d age=%.6fs\n"
-           "prof n=%lu sample=%.1f current=%.1f control=%.1f observer=%.1f output=%.1f us\n",
+    length = snprintf(reply, sizeof(reply),
+           "rpm obs=%.1f meas=%.1f tgt=%.0f iq=%.3f %s tk=%d fb=%s fault=%d\r\n"
+           "chk F=%d S=%d D=%d P=%d lock=%.3f flux=%.5f ph=%.3f lockph=%.3f\r\n"
+           "ang if=%.3f raw=%.3f pll=%.3f blend=%.2f\r\n"
+           "enc mech=%.4f elec=%.4f rpm=%.1f valid=%d zero=%d age=%.6fs\r\n"
+           "prof n=%lu sample=%.1f current=%.1f control=%.1f observer=%.1f output=%.1f us\r\n",
            diag.mechanical_rpm, measured_rpm, target_rpm, iq, ol_sensorless_state_name(diag.state), takeover ? 1 : 0,
            feedback_valid ? "valid" : "invalid", (int)fault, diag.flux_ok ? 1 : 0, diag.speed_ok ? 1 : 0,
            diag.direction_ok ? 1 : 0, diag.phase_ok ? 1 : 0, diag.lock_timer, diag.flux_magnitude, diag.phase_error,
@@ -1282,7 +1377,8 @@ int Cmd_OlRpm(int argc, char *argv[])
            encoder_mech, encoder_angle, encoder_rpm, encoder_valid ? 1 : 0, encoder_zero ? 1 : 0, encoder_age,
            (unsigned long)profile_samples, profile_us[MOTOR_TIMING_SAMPLE], profile_us[MOTOR_TIMING_CURRENT],
            profile_us[MOTOR_TIMING_CONTROL], profile_us[MOTOR_TIMING_OBSERVER], profile_us[MOTOR_TIMING_OUTPUT]);
-    PRINTF("%s", reply);
+    if (length < 0 || (unsigned)length >= sizeof(reply)) return -1;
+    (void)Bsp_Usart_Write((const UCHAR *)reply, (ULONG)length);
     Bsp_Usart_Flush();
     return 0;
 }
@@ -1866,6 +1962,28 @@ int Cmd_OlFault(int argc, char *argv[])
             PRINTF("At fault: SL checks F=%d S=%d D=%d P=%d takeover=%d speedPI=%d\n", snapshot.flux_ok,
                    snapshot.observer_speed_ok, snapshot.direction_ok, snapshot.phase_ok, snapshot.sensorless_takeover,
                    snapshot.speed_loop_enabled);
+            if (!motor.ol_enable) {
+                motor_protect_sample_t sample;
+                Motor_Protect_GetFaultSample(&sample);
+                PRINTF("Fault ADC snapshot valid=%d; raw CURR1/2/3, logical A/C/B mapping\n", sample.valid);
+                if (sample.valid) {
+                    PRINTF("Fault ADC raw=%.0f/%.0f/%.0f offset_cfg=%.6f/%.6f/%.6f scale=%.9f A/count\n",
+                           sample.adc[0], sample.adc[1], sample.adc[2], sample.configured_offset[0],
+                           sample.configured_offset[1], sample.configured_offset[2], sample.scale_a_per_count);
+                    PRINTF("Fault ADC abc=%.6f/%.6f/%.6f A dt=%.3fus OC_elapsed=%.3fus threshold=%.3fA delay=%.3fus\n",
+                           sample.current_abc[0], sample.current_abc[1], sample.current_abc[2],
+                           sample.trigger_dt_s * 1e6f, sample.over_current_elapsed_s * 1e6f,
+                           sample.over_current_threshold_a, sample.over_current_delay_s * 1e6f);
+                    PRINTF("Fault ADC entry_us=%lu callback CNT=%u ARR=%u CR1=%u; not trigger-time snapshot\n",
+                           (unsigned long)sample.entry_us, (unsigned)sample.callback_count,
+                           (unsigned)sample.callback_period, (unsigned)sample.callback_cr1);
+                }
+            }
+        }
+        if (!Motor_Protect_IsFaultLatched() && !motor.ol_enable) {
+            motor_protect_sample_t sample;
+            Motor_Protect_GetFaultSample(&sample);
+            PRINTF("Fault ADC snapshot valid=%d (no latched fault)\n", sample.valid);
         }
         PRINTF("Usage: olfault clear\n");
         return 0;

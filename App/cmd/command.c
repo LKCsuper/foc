@@ -93,7 +93,7 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olrpm",      Cmd_OlRpm,              "one-line rpm/current while running" },
     { "slstats",    Cmd_SensorlessStats,    "sensorless steady-window counters retained after stop" },
     { "sltest",     Cmd_SensorlessTest,     "[--3508] [--trace=off|lite|flight|entry|entryfast] [hold_s [rpm...]], stopped only" },
-    { "sltrace",    Cmd_SensorlessTrace,    "RAM trace compact|lite|flight|arm|entry|entryfast|show (stopped only)" },
+    { "sltrace",    Cmd_SensorlessTrace,    "RAM trace fault|debug|compact|lite|flight|arm|entry|entryfast|show (stopped only)" },
     { "slhandoff",  Cmd_SensorlessHandoff,  "arm|phase|phaselong|step|pair|half|show; half capture STOPPED ONLY" },
     { "slcadence",  Cmd_SensorlessCadence,  "timing reset|lean|task|probe|stop|show" },
     { "olsnap",     Cmd_OlSnap,             "short Id/Iq/RPM/fault snapshot while running" },
@@ -255,9 +255,14 @@ static void cmd_putc(char c)
 static void cmd_put_prompt(void)
 {
     char ts[20];
+    char reply[32];
+    int length;
 
     Cmd_FormatUptime(ts, sizeof(ts));
-    printf("%s $ ", ts);
+    length = snprintf(reply, sizeof(reply), "%s $ ", ts);
+    if (length > 0 && (unsigned)length < sizeof(reply))
+        (void)Bsp_Usart_Write((const UCHAR *)reply, (ULONG)length);
+    Bsp_Usart_Flush();
 }
 
 /**
@@ -269,9 +274,13 @@ static void cmd_put_prompt(void)
 static void cmd_print_run_stamp(const char *line)
 {
     char ts[20];
+    char reply[CMD_BUF_SIZE + 32U];
+    int length;
 
     Cmd_FormatUptime(ts, sizeof(ts));
-    printf("%s > %s\r\n", ts, line);
+    length = snprintf(reply, sizeof(reply), "%s > %s\r\n", ts, line);
+    if (length > 0 && (unsigned)length < sizeof(reply))
+        (void)Bsp_Usart_Write((const UCHAR *)reply, (ULONG)length);
 }
 
 /**

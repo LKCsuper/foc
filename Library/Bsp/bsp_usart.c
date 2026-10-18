@@ -41,13 +41,15 @@ STATIC VOID Bsp_Usart_YieldToIsr(VOID);
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @brief  任务里让出一次 tick，让 FOC 中断按原节拍跑。
- * @note   调度器未启动或当前在中断里时不延时。tick 为 10 kHz，一次是 0.1 ms。
+ * @brief  任务等待一次硬件中断，不进入依赖系统tick的阻塞延时。
+ * @note   仅调度器运行且中断未屏蔽时等待；ISR、PRIMASK或BASEPRI临界区直接返回。
  */
 STATIC VOID Bsp_Usart_YieldToIsr(VOID)
 {
-	if ((__get_IPSR() != 0U) || (osKernelGetState() != osKernelRunning)) return;
-	(void)osDelay(1U);
+	if ((__get_IPSR() != 0U) || (__get_PRIMASK() != 0U) || (__get_BASEPRI() != 0U) ||
+	    (osKernelGetState() != osKernelRunning)) return;
+	__DSB();
+	__WFI();
 }
 
 /**

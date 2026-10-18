@@ -7,6 +7,41 @@
 #include "motor_types.h"
 extern unsigned protect_diagnostic_reads;
 
+static void test_overcurrent_sampling_window(void)
+{
+    motor_protect_state_t state;
+    motor_protect_input_t input;
+    motor_protect_snapshot_t snapshot;
+    const float interval = 1.0f / 15000.0f;
+    memset(&input, 0, sizeof(input));
+    input.v_bus = 24.0f;
+    Motor_Protect_InitState(&state, NULL);
+    for (unsigned step = 0; step < 1000; ++step) {
+        input.ia = step % 2 ? 1.0f : 11.187f;
+        assert(!Motor_Protect_RunInputState(&state, &input, interval, NULL));
+    }
+    input.ia = 1.0f;
+    assert(!Motor_Protect_RunInputState(&state, &input, interval, NULL));
+    assert(state.over_current_timer == 0.0f);
+    input.ia = 20.0f;
+    for (unsigned step = 0; step < 14; ++step)
+        assert(!Motor_Protect_RunInputState(&state, &input, interval, NULL));
+    input.ia = 0.0f;
+    input.ib = -11.187f;
+    input.Id = -9.827f;
+    input.Iq = 6.908f;
+    for (unsigned step = 0; step < 2; ++step)
+        (void)Motor_Protect_RunInputState(&state, &input, interval, NULL);
+    assert(Motor_Protect_GetFaultState(&state) == FAULT_CODE_ABS_OVER_CURRENT);
+    Motor_Protect_GetSnapshotState(&state, &snapshot);
+    assert(fabsf(snapshot.current_peak - 11.187f) < 1.0e-5f);
+    assert(snapshot.id == input.Id && snapshot.iq == input.Iq);
+    input.ic = 50.0f;
+    (void)Motor_Protect_RunInputState(&state, &input, interval, NULL);
+    Motor_Protect_GetSnapshotState(&state, &snapshot);
+    assert(fabsf(snapshot.current_peak - 11.187f) < 1.0e-5f);
+}
+
 int main(void)
 {
     motor_protect_state_t a;
@@ -15,9 +50,11 @@ int main(void)
     MOTOR_PARAM_S motor_b;
     motor_protect_aux_t aux;
     motor_protect_snapshot_t snap;
+    motor_protect_sample_t sample;
     motor_protect_config_t cfg;
     float dt = 0.001f;
     unsigned i;
+    test_overcurrent_sampling_window();
     {
         motor_protect_state_t combined, separate;
         motor_protect_input_t input;
@@ -169,10 +206,34 @@ int main(void)
     for (i = 0U; i < 100U; i++) assert(!Motor_Protect_Run(&motor_a, 0.001f));
     assert(protect_diagnostic_reads == 0U);
     motor_a.ia = 20.0f;
+    motor_a.currentAdc[0] = 2184.0f;
+    motor_a.currentAdc[1] = 2044.0f;
+    motor_a.currentAdc[2] = 2043.0f;
+    motor_a.currentOffset[0] = 2045.6f;
+    motor_a.currentOffset[1] = 2044.8f;
+    motor_a.currentOffset[2] = 2045.2f;
+    Motor_Protect_CaptureFaultSample(&motor_a, .08f, 10, 20, 5600, 16);
+    Motor_Protect_GetFaultSample(&sample);
+    assert(!sample.valid && !Motor_Protect_FaultSampleIsPending());
     assert(!Motor_Protect_Run(&motor_a, 0.0005f));
     assert(protect_diagnostic_reads == 0U);
     assert(Motor_Protect_Run(&motor_a, 0.0005f));
     assert(protect_diagnostic_reads == 1U);
+    assert(Motor_Protect_FaultSampleIsPending());
+    Motor_Protect_CaptureFaultSample(&motor_a, .08058608f, 1234, 3500, 5600, 161);
+    Motor_Protect_GetFaultSample(&sample);
+    assert(sample.valid && !Motor_Protect_FaultSampleIsPending());
+    assert(sample.adc[0] == 2184.0f && sample.adc[1] == 2044.0f && sample.adc[2] == 2043.0f);
+    assert(sample.configured_offset[0] == motor_a.currentOffset[0]);
+    assert(sample.current_abc[0] == 20.0f && sample.current_abc[1] == motor_a.ib);
+    assert(sample.scale_a_per_count == .08058608f && sample.entry_us == 1234);
+    assert(sample.callback_count == 3500 && sample.callback_period == 5600 && sample.callback_cr1 == 161);
+    assert(sample.trigger_dt_s == .0005f && sample.over_current_elapsed_s == .001f);
+    assert(sample.over_current_threshold_a == 10.0f && sample.over_current_delay_s == .001f);
+    motor_a.currentAdc[0] = 3000;
+    Motor_Protect_CaptureFaultSample(&motor_a, 1, 9999, 0, 1, 0);
+    Motor_Protect_GetFaultSample(&sample);
+    assert(sample.adc[0] == 2184.0f && sample.entry_us == 1234);
     Motor_Protect_GetSnapshot(&snap);
     assert(Motor_Protect_GetFault() == FAULT_CODE_ABS_OVER_CURRENT);
     assert(snap.applied_voltage == 7.0f && snap.blend == 0.75f && snap.flux_ok);
@@ -184,11 +245,20 @@ int main(void)
     assert(protect_diagnostic_reads == 1U && snap.iq_command == 0.5f);
     assert(Motor_Protect_GetFault() == FAULT_CODE_ABS_OVER_CURRENT);
     Motor_Protect_ClearFault();
+    Motor_Protect_GetFaultSample(&sample);
+    assert(!sample.valid && !Motor_Protect_FaultSampleIsPending());
     motor_a.ia = 0.0f;
     motor_a.v_bus = 24.0f;
     assert(!Motor_Protect_Run(&motor_a, 0.001f));
     assert(protect_diagnostic_reads == 1U);
     assert(!Motor_Protect_Run(NULL, 0.001f));
+    Motor_Protect_Init(NULL);
+    Motor_Protect_TriggerFault(FAULT_CODE_CONTROL_TIMING, &motor_a);
+    assert(!Motor_Protect_FaultSampleIsPending());
+    Motor_Protect_CaptureFaultSample(&motor_a, .08f, 100, 200, 5600, 16);
+    Motor_Protect_GetFaultSample(&sample);
+    assert(!sample.valid);
+    Motor_Protect_GetFaultSample(NULL);
     printf("test_motor_protect: pass\n");
     return 0;
 }

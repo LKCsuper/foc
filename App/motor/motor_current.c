@@ -13,6 +13,7 @@ extern "C" {
 #include <math.h>
 
 #include "motor_current.h"
+#include "motor_fw.h"
 #include "motor_foc.h"
 #include "motor_math.h"
 #include "motor_pid.h"
@@ -44,9 +45,64 @@ static void motor_current_account_recon(uint8_t phase);
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 累计一拍最长零矢量重构结果
- * @param {uint8_t} phase  0=未重构，1=A，2=B，3=C
- * @return {*}
+ * @description: 逐控制拍累计电流跟踪超差，仅写诊断。
+ * @detail: 接口和范围见motor_current.h；不修改控制输出或保护。
+ * @param {motor_current_tracking_diag_t *} diag 调用者持有的观察状态，不可为空
+ * @param {bool} eligible 当前采样点工况适用
+ * @param {float} id 实测d轴电流
+ * @param {float} iq 实测q轴电流
+ * @param {float} id_cmd d轴目标
+ * @param {float} iq_cmd q轴目标
+ * @param {float} dt 当前控制拍周期
+ * @param {uint32_t} entry_us 当前控制入口时间
+ * @return {void} 无
+ */
+void Motor_Current_TrackingObserve(motor_current_tracking_diag_t *diag, bool eligible,
+                                  float id, float iq, float id_cmd, float iq_cmd, float dt, uint32_t entry_us)
+{
+    float error_d, error_q, squared;
+    COMMON_ASSERT(diag != NULL);
+    diag->active = eligible && dt > 0.0f && dt <= 0.0002f;
+    if (!diag->active) {
+        diag->over_time_s = 0.0f;
+        diag->over = false;
+        return;
+    }
+    error_d = id_cmd - id;
+    error_q = iq_cmd - iq;
+    squared = error_d * error_d + error_q * error_q;
+    if (!isfinite(squared)) {
+        diag->active = false;
+        diag->over_time_s = 0.0f;
+        diag->over = false;
+        return;
+    }
+    if (diag->eligible_samples < UINT32_MAX) diag->eligible_samples++;
+    if (squared > diag->max_error_squared) diag->max_error_squared = squared;
+    if (squared < 4.0f) {
+        diag->over_time_s = 0.0f;
+        diag->over = false;
+        return;
+    }
+    if (diag->over) return;
+    diag->over_time_s += dt;
+    if (diag->over_time_s < 0.002f) return;
+    diag->over_time_s = 0.002f;
+    diag->over = true;
+    if (diag->events < UINT32_MAX) diag->events++;
+    if (!diag->event_latched) {
+        diag->event_latched = true;
+        diag->first_entry_us = entry_us;
+        diag->first_id = id; diag->first_iq = iq;
+        diag->first_id_cmd = id_cmd; diag->first_iq_cmd = iq_cmd;
+    }
+}
+
+/**
+ * @description: 累计一拍最长零矢量重构结果。
+ * @detail: 只写本档诊断计数，不改电流。计数到 UINT32_MAX 后不再增加。
+ * @param {uint8_t} phase 0=未重构，1=A，2=B，3=C
+ * @return {void} 无
  * @author: lkc
  */
 static void motor_current_account_recon(uint8_t phase)
@@ -69,8 +125,9 @@ static void motor_current_account_recon(uint8_t phase)
 }
 
 /**
- * @description: 清零最长零矢量重构诊断
- * @return {*}
+ * @description: 清零最长零矢量重构诊断。
+ * @detail: 目标转速变化时由 ISR 调用。只清本档计数，不改电流或 PWM。
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Current_ResetReconstructDiag(void)
@@ -84,14 +141,15 @@ void Motor_Current_ResetReconstructDiag(void)
 }
 
 /**
- * @description: 读取上一拍重构相及本档累计次数
- * @param {int} *last_phase     0=未重构，1=A，2=B，3=C；可为 NULL
- * @param {uint32_t} *samples   本档调用次数；可为 NULL
- * @param {uint32_t} *hits      本档重构次数；可为 NULL
- * @param {uint32_t} *hit_a     A 相重构次数；可为 NULL
- * @param {uint32_t} *hit_b     B 相重构次数；可为 NULL
- * @param {uint32_t} *hit_c     C 相重构次数；可为 NULL
- * @return {*}
+ * @description: 读取上一拍重构相及本档累计次数。
+ * @detail: 各输出指针可为空，空则跳过该项。不改计数，不访问硬件。
+ * @param {int *} last_phase   0=未重构，1=A，2=B，3=C；可为 NULL
+ * @param {uint32_t *} samples 本档调用次数；可为 NULL
+ * @param {uint32_t *} hits    本档重构次数；可为 NULL
+ * @param {uint32_t *} hit_a   A 相重构次数；可为 NULL
+ * @param {uint32_t *} hit_b   B 相重构次数；可为 NULL
+ * @param {uint32_t *} hit_c   C 相重构次数；可为 NULL
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Current_GetReconstructDiag(int *last_phase, uint32_t *samples, uint32_t *hits, uint32_t *hit_a,
@@ -118,10 +176,12 @@ void Motor_Current_GetReconstructDiag(int *last_phase, uint32_t *samples, uint32
 }
 
 /**
- * @description: 三相电流 → αβ → d/q，写回 motor 反馈字段
- * @param {MOTOR_PARAM_S} *motor  含 ia/ib/ic
+ * @description: 三相电流变换到 αβ，再变换到 d/q，写回反馈字段。
+ * @detail: 读 ia/ib/ic (A)，写 Ialpha/Ibeta/Id/Iq (A)。不改相电流，不输出 PWM。
+ *          motor 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，含 ia/ib/ic (A)
  * @param {float} theta           Park 用电角度 (rad)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
@@ -135,11 +195,11 @@ void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
  * @description: 高占空比时重构采样窗口最短的那一相电流。
  * @detail: 对齐 VESC LONGEST_ZERO。任一相比 ARR 高过门槛时，把唯一最大 duty 的相写成
  *          −(另外两相)。duty 为软件 A/B/C 计数，须与 ia/ib/ic 同相序。pwm_period 不大于
- *          门槛、或三相窗口都够、或两相并列最大时不改。不访问 HAL。调用方在过流判定之后、
- *          Clarke 之前使用。
- * @param {float} *ia            A 相电流 (A)，可被改写
- * @param {float} *ib            B 相电流 (A)，可被改写
- * @param {float} *ic            C 相电流 (A)，可被改写
+ *          门槛、三相窗口都够、或两相并列最大时不改。任一电流指针为空返回 false。
+ *          不访问 HAL。调用方在过流判定之后、Clarke 之前使用。
+ * @param {float *} ia           A 相电流 (A)，可被改写
+ * @param {float *} ib           B 相电流 (A)，可被改写
+ * @param {float *} ic           C 相电流 (A)，可被改写
  * @param {uint32_t} duty_a      A 相 PWM 比较值（计数）
  * @param {uint32_t} duty_b      B 相 PWM 比较值（计数）
  * @param {uint32_t} duty_c      C 相 PWM 比较值（计数）
@@ -181,12 +241,43 @@ bool Motor_Current_ReconstructLongestZero(float *ia, float *ib, float *ic, uint3
 }
 
 /**
- * @description: 按工况选择 Id/Iq 目标。
- * @param {const MOTOR_PARAM_S} * motor  命令与对齐电流
- * @param {const motor_current_target_ctx_t} * ctx  注入上下文
- * @param {float} * id_target  输出 Id (A)
- * @param {float} * iq_target  输出 Iq (A)
- * @return {*}
+ * @description: 按目标电流圆限幅，先限制 Id，再用剩余幅值限制 Iq，保留符号。
+ * @detail: 纯计算，由控制上下文调用。不限制实测瞬态电流，不替代故障保护。
+ *          非有限输入或非正上限时两个目标清零。输出指针不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {float *} id_target   输入/输出 Id 目标 (A)，不可为空
+ * @param {float *} iq_target   输入/输出 Iq 目标 (A)，不可为空
+ * @param {float} current_limit 目标矢量模长上限 (A)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Current_LimitTargets(float *id_target, float *iq_target, float current_limit)
+{
+    float iq_room_squared;
+    COMMON_ASSERT(id_target != NULL && iq_target != NULL);
+    if (!isfinite(*id_target) || !isfinite(*iq_target) || !isfinite(current_limit) || current_limit <= 0.0f) {
+        *id_target = 0.0f;
+        *iq_target = 0.0f;
+        return;
+    }
+    if (*id_target > current_limit) *id_target = current_limit;
+    if (*id_target < -current_limit) *id_target = -current_limit;
+    iq_room_squared = current_limit * current_limit - *id_target * *id_target;
+    if (*iq_target * *iq_target > iq_room_squared) {
+        float iq_room = sqrtf(fmaxf(iq_room_squared, 0.0f));
+        *iq_target = *iq_target < 0.0f ? -iq_room : iq_room;
+    }
+}
+
+/**
+ * @description: 按工况选择 Id/Iq 目标，再按 MOTOR_FW_I_BUDGET 限幅。
+ * @detail: 对齐优先，用 D 轴电流、Iq 置 0。否则叠加定角比例、Id 给定和弱磁，
+ *          再选择速度环或 I/F 的 Iq。ctx 为空视为非对齐、缩放 1、不用速度环。
+ *          motor 与两个输出不可为空，违反约定触发 COMMON_ASSERT。不输出 PWM。
+ * @param {const MOTOR_PARAM_S *} motor             命令与对齐电流 (A)，不可为空
+ * @param {const motor_current_target_ctx_t *} ctx  注入上下文；可为 NULL
+ * @param {float *} id_target                       输出 Id 目标 (A)，不可为空
+ * @param {float *} iq_target                       输出 Iq 目标 (A)，不可为空
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_target_ctx_t *ctx, float *id_target,
@@ -214,6 +305,7 @@ void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_ta
         }
         *id_target = id_mag * ctx->soft_current_scale;
         *iq_target = 0.0f;
+        Motor_Current_LimitTargets(id_target, iq_target, MOTOR_FW_I_BUDGET);
         return;
     }
 
@@ -226,16 +318,19 @@ void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_ta
         /* 观测器锁定前必须保留 I/F 启动电流，否则无感电机无法从零速起转。 */
         *iq_target = motor->ol_iq_set * ctx->if_iq_scale * ctx->soft_current_scale;
     }
+    Motor_Current_LimitTargets(id_target, iq_target, MOTOR_FW_I_BUDGET);
 }
 
 /**
- * @description: vd/vq 合成矢量限幅 + 积分抗饱和。
- * @param {MOTOR_PARAM_S} * motor  增益与积分
- * @param {motor_dq_voltage_t} * v  电压指令
- * @param {float} id_err  Id 误差 (A)
- * @param {float} iq_err  Iq 误差 (A)
- * @param {float} v_limit  矢量模长上限 (V)
- * @return {*}
+ * @description: 对 vd/vq 做合成矢量限幅，饱和时回写 PI 积分。
+ * @detail: 未饱和则不改积分。用 Id/Iq 误差和 ol_current_kp 反算 P 项后回写积分，避免 windup。
+ *          不输出 PWM。motor 与 v 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {MOTOR_PARAM_S *} motor  使用 ol_current_kp 与 ol_vd_int/ol_vq_int (V)
+ * @param {motor_dq_voltage_t *} v 输入/输出电压指令 (V)
+ * @param {float} id_err           Id 误差 (A)
+ * @param {float} iq_err           Iq 误差 (A)
+ * @param {float} v_limit          电压矢量模长上限 (V)
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, float id_err, float iq_err, float v_limit)
@@ -253,14 +348,15 @@ void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, flo
 }
 
 /**
- * @description: d/q 双轴电流 PI + 矢量限幅。
- * @detail: Iq 误差在 PI 前取样，限幅抗饱和和钳位统计共用这一拍。PI 不改 Id/Iq。
- * @param {MOTOR_PARAM_S} * motor  反馈与积分
- * @param {float} id_target  Id 目标 (A)
- * @param {float} iq_target  Iq 目标 (A)
- * @param {float} dt  控制周期 (s)
- * @param {float} v_limit  限幅 (V)
- * @return {motor_dq_voltage_t} vd/vq (V)
+ * @description: 运行 d/q 双轴电流 PI，并做矢量限幅。
+ * @detail: Iq 误差在 PI 前取样，限幅抗饱和和钳位统计共用这一拍。不改 Id/Iq，不输出 PWM。
+ *          motor 为空返回零电压。
+ * @param {MOTOR_PARAM_S *} motor 含 Id/Iq 反馈 (A) 与积分、增益
+ * @param {float} id_target       Id 目标 (A)
+ * @param {float} iq_target       Iq 目标 (A)
+ * @param {float} dt              控制周期 (s)
+ * @param {float} v_limit         单轴与矢量限幅 (V)
+ * @return {motor_dq_voltage_t} 限幅后的 vd/vq (V)；motor 为空时为 0
  * @author: lkc
  */
 motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, float iq_target, float dt, float v_limit)
@@ -306,10 +402,11 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
 }
 
 /**
- * @description: 读出并清零 q 轴电流 PI 统计
- * @detail: 关中断后复制，避免和 FOC 中断同时改累加器。samples 为 0 时平均值记 0。
- * @param {motor_current_pi_diag_t *} diag  输出统计，不可为空
- * @return {*}
+ * @description: 读出并清零 q 轴电流 PI 统计。
+ * @detail: 进入临界区后复制，避免和 FOC 中断同时改累加器。samples 为 0 时平均值记 0。
+ *          diag 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {motor_current_pi_diag_t *} diag 输出统计，不可为空
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Current_TakePiDiag(motor_current_pi_diag_t *diag)
@@ -336,7 +433,8 @@ void Motor_Current_TakePiDiag(motor_current_pi_diag_t *diag)
 /**
  * @description: 坐标交接时旋转电流 PI 积分，并补偿目标变化的 P 项。
  * @detail: 只用于无感渐变等坐标交接。delta 为新电角减旧电角 (rad)，不得传入正常转速积分角。
- *          由电流环在矢量限幅前调用，不改 PWM。motor 为空或 delta 非有限值时直接返回。
+ *          由电流环在矢量限幅前调用，不改 PWM。motor 不可为空，违反约定触发 COMMON_ASSERT。
+ *          delta 非有限值时直接返回。
  * @param {MOTOR_PARAM_S *} motor 电机对象，读写 ol_vd_int/ol_vq_int (V)
  * @param {float} delta           交接附加角 (rad)
  * @param {float} old_id          旧坐标 Id 目标 (A)
@@ -364,15 +462,17 @@ void Motor_Current_TransportPi(MOTOR_PARAM_S *motor, float delta, float old_id, 
 
 /**
  * @description: 电流环一步：反馈变换、取目标、可选坐标交接、PI 及矢量限幅。
- * @detail: 不含 PWM。ctx->frame_correction 非 0 时先旋转积分，再跑 PI 并限幅。
- * @param {MOTOR_PARAM_S *} motor                   电机采样与积分
- * @param {float} theta                             Park 用电角度 (rad)
- * @param {const motor_current_target_ctx_t *} ctx  目标上下文
- * @param {float} dt                                控制周期 (s)
- * @param {float} v_limit                           电压限幅 (V)
- * @param {float *} id_target_out                   可选，回写本拍 Id 目标 (A)；可为 NULL
- * @param {float *} iq_target_out                   可选，回写本拍 Iq 目标 (A)；可为 NULL
- * @return {motor_dq_voltage_t} 限幅后的 vd/vq (V)
+ * @detail: 不含 PWM。ctx 为空时按非对齐、缩放 1、不用速度环取目标。
+ *          ctx->frame_correction 非 0 时先旋转积分，再跑 PI 并限幅。
+ *          motor 为空返回零电压。两个目标输出可为 NULL。
+ * @param {MOTOR_PARAM_S *} motor                  电机采样与积分；空则忽略
+ * @param {float} theta                            Park 用电角度 (rad)
+ * @param {const motor_current_target_ctx_t *} ctx 目标上下文；可为 NULL
+ * @param {float} dt                               控制周期 (s)
+ * @param {float} v_limit                          电压限幅 (V)
+ * @param {float *} id_target_out                  回写本拍 Id 目标 (A)；可为 NULL
+ * @param {float *} iq_target_out                  回写本拍 Iq 目标 (A)；可为 NULL
+ * @return {motor_dq_voltage_t} 限幅后的 vd/vq (V)；motor 为空时为 0
  * @author: lkc
  */
 motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const motor_current_target_ctx_t *ctx,
@@ -418,15 +518,19 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
 
 /**
  * @description: 按电角速度叠加 PMSM 交叉解耦与反电势前馈，再做矢量限幅。
- * @detail: 教科书符号；I/F 开环路径不调用。
- * @param {motor_dq_voltage_t *} v     输入/输出电压 (V)
- * @param {float} omega_e              电角速度 (rad/s)
- * @param {float} inductance           相电感 (H)
- * @param {float} flux                 永磁磁链 (Wb)
- * @param {float} id_ref               Id 参考 (A)
- * @param {float} iq_ref               Iq 参考 (A)
- * @param {float} v_limit              电压矢量模长上限 (V)
- * @return {*}
+ * @detail: 教科书 vd -= ωe·L·Iq、vq += ωe·L·Id + ωe·ψf。只用于转子对齐的 dq。
+ *          I/F 开环角不得调用。不改 PI 积分，不输出 PWM。
+ *          v 不可为空，违反约定触发 COMMON_ASSERT。任一浮点非有限则不改电压。
+ *          电感或磁链为负时按 0 计。v_limit 不大于 0 则不限幅。
+ * @param {motor_dq_voltage_t *} v 输入/输出电压 (V)，不可为空
+ * @param {float} omega_e          电角速度 (rad/s)
+ * @param {float} inductance       相电感 (H)
+ * @param {float} flux             永磁磁链 (Wb)
+ * @param {float} id_ref           Id 参考 (A)
+ * @param {float} iq_ref           Iq 参考 (A)
+ * @param {float} v_limit          电压矢量模长上限 (V)；不大于 0 则不限幅
+ * @return {void} 无
+ * @author: lkc
  */
 void Motor_Current_ApplySpeedFeedforward(motor_dq_voltage_t *v, float omega_e, float inductance, float flux,
                                          float id_ref, float iq_ref, float v_limit)

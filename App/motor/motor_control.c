@@ -25,7 +25,7 @@ extern "C" {
 #include "motor_timing.h"
 #if defined(__CC_ARM)
 /* 仅优化控制编排的调用开销，保持浮点规则及外设配置。 */
-#pragma O2
+#pragma O3
 #endif
 /* Private define ------------------------------------------------------------*/
 /* 机械 RPM → rad/s，再乘极对数得到电角速度。 */
@@ -492,14 +492,11 @@ static bool Motor_Control_RunAlignment(motor_control_t *ctrl, MOTOR_PARAM_S *mot
 static void Motor_Control_StartupIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
 {
     /* 前两阶段已经用 D 轴建立方向；拖转从 0 RPM 连续起步并由 Id→Iq 交接控制转矩。 */
-    motor_if_start_config_t config = {
-        0.0f,
-        0.0f,
-        1.0f,
-    };
-    motor_if_start_input_t input = {motor->ol_target_rpm, motor->ol_current_rpm, true};
-
-    MotorIfStart_Step(&ctrl->startup.if_start, &config, &input);
+    motor_if_start_t *state = &ctrl->startup.if_start;
+    state->phase_boost = 0.0f;
+    state->iq_scale = 1.0f;
+    state->angle_rpm = motor->ol_current_rpm;
+    if (state->first_cycle && motor->ol_target_rpm != 0.0f) state->first_cycle = false;
 }
 
 /**
@@ -630,7 +627,7 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
      * 电流模式没有前馈可抵消，Iq 就是最终转矩。禁止制动时在这里挡住反向电流。
      * 电压模式要留着负 PI，去抵消起动前馈，反向限制放在电压相加之后。
      */
-    if (!Motor_Control_EncoderSpeedUsesVoltage(motor->ol_target_rpm)) {
+    if (ctx->speed_loop_active && !Motor_Control_EncoderSpeedUsesVoltage(motor->ol_target_rpm)) {
         ctx->speed_iq_target = Motor_Speed_LimitNoBrakeOutput(motor->ol_current_rpm, ctx->speed_iq_target,
                                                               motor->speed_allow_braking);
     }
@@ -751,7 +748,7 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
      * 会在下面被整段覆盖，积分也会改成实际 Vq。这条路径不再做那段计算。
      * Id/Iq 仍从三相电流更新，供状态显示。
      */
-    encoder_speed_voltage_mode = Motor_Control_EncoderSpeedUsesVoltage(motor->ol_target_rpm) && ctx.speed_loop_active;
+    encoder_speed_voltage_mode = ctx.speed_loop_active && Motor_Control_EncoderSpeedUsesVoltage(motor->ol_target_rpm);
     encoder_voltage_output = !motor->joint_current_hold &&
                              (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER) &&
                              (encoder_direct_voltage_hold || encoder_speed_voltage_mode);
@@ -943,13 +940,13 @@ static motor_control_result_t Motor_Control_RunHallDetect(MOTOR_PARAM_S *motor, 
 static bool Motor_Control_RunHfi(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus,
                                  motor_control_result_t *result)
 {
+    if (!motor->hfi_start_enable || motor->hfi_start_voltage <= 0.0f || ctrl->startup.hfi_start.attempted) return false;
     motor_hfi_start_config_t config = {motor->hfi_start_enable, motor->hfi_start_voltage, motor->hfi_start_cycles,
                                        motor->hfi_start_min_confidence, 0.20f};
     motor_hfi_start_output_t output;
     motor_hfi_start_result_t hfi_result;
     bool starting;
 
-    if (!config.enabled || config.voltage <= 0.0f || ctrl->startup.hfi_start.attempted) return false;
     starting = !ctrl->startup.hfi_start.running;
 
     if (starting) {
@@ -1146,12 +1143,6 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
     }
     ctrl->last_mode = motor->ol_mode;
 
-    /* 欠压：复位并请求安全输出。 */
-    if (v_bus < 1.0f) {
-        Motor_Control_ResetRuntime(ctrl, motor);
-        return Motor_Control_ResultSafe();
-    }
-
     if (!Motor_Control_IsReady(motor, v_bus, hall_detect_active)) {
         Motor_Control_ResetRuntime(ctrl, motor);
         return Motor_Control_ResultSafe();
@@ -1202,6 +1193,13 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
 bool Motor_Control_IsAligning(const motor_control_t *ctrl)
 {
     return ctrl != NULL && ctrl->startup.alignment.running;
+}
+
+bool Motor_Control_IsIfDragSettled(const motor_control_t *ctrl)
+{
+    return ctrl != NULL && ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP &&
+           ctrl->startup.drag_current_scale >= 0.999f && !Motor_Control_IsAligning(ctrl) &&
+           !Motor_Control_HfiIsRunning(ctrl);
 }
 
 /**

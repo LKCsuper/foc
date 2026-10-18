@@ -121,7 +121,7 @@ void Motor_Control_UpdateTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor, floa
 
 /**
  * @description: 推进一拍开环/I/F/V/F/霍尔标定编排，返回输出请求
- * @detail: 不调用 HAL；欠压或未就绪时复位并请求 SAFE
+ * @detail: 不调用 HAL；未就绪时复位并请求 SAFE。欠压、过流等保护不在这里判定
  * @param {motor_control_t} *ctrl   控制实例
  * @param {MOTOR_PARAM_S} *motor    电机对象
  * @param {float} v_bus             母线电压 (V)
@@ -140,6 +140,9 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
  * @author: lkc
  */
 bool Motor_Control_IsAligning(const motor_control_t *ctrl);
+
+/** 只读查询I/F拖转电流交接是否完成；不要求跳过对齐时未使用的定角软起比例。空对象返回false。 */
+bool Motor_Control_IsIfDragSettled(const motor_control_t *ctrl);
 
 /**
  * @description: 本次对齐已进行时间

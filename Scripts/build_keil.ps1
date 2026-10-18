@@ -141,6 +141,22 @@ $logFailed = $logText -match "(?im)^error\s+-" -or
 $ok = (($code -eq 0) -or ((-not $StrictWarnings) -and ($code -eq 1))) -and
       (-not $logFailed)
 if ($ok) {
+    if ($Project -eq "Foc" -and $Action -ne "clean") {
+        $mapPath = [IO.Path]::ChangeExtension($info.OutHint, '.map')
+        $graphPath = [IO.Path]::ChangeExtension($info.OutHint, '.htm')
+        $map = Get-Content -LiteralPath $mapPath -Raw
+        $graph = Get-Content -LiteralPath $graphPath -Raw
+        $stack = [regex]::Match($map, '(?m)^\s*STACK\s+0x[0-9a-fA-F]+\s+Section\s+(\d+)\s+startup_stm32f40xx\.o')
+        $handler = [regex]::Match($graph, '(?s)DMA2_Stream4_IRQHandler</STRONG>(.*?)(?=<P>|$)')
+        $depth = [regex]::Match($handler.Value, 'Max Depth = (\d+)')
+        if (!$stack.Success -or !$depth.Success) { throw 'Missing FOC ISR stack budget evidence in linker outputs' }
+        $stackBytes = [int]$stack.Groups[1].Value
+        $depthBytes = [int]$depth.Groups[1].Value
+        if ($stackBytes -lt ($depthBytes + 512)) {
+            throw "FOC main stack insufficient: $stackBytes bytes, static DMA depth $depthBytes plus 512-byte exception/nesting reserve required"
+        }
+        Write-Host "FOC main stack: $stackBytes bytes; static DMA depth $depthBytes; reserve $($stackBytes - $depthBytes) bytes (runtime watermark still required)."
+    }
     if ($code -eq 1) {
         Write-Host "Keil finished with warnings (exit $code)."
     } else {

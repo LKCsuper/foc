@@ -5,7 +5,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+/* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include "common_assert.h"
 #include <stddef.h>
@@ -21,19 +21,25 @@ extern "C" {
 #if defined(__CC_ARM)
 #pragma O2
 #endif
-
-/* 仅诊断RAM参数：有效死区秒数×PWM频率，不修改硬件死区或PWM命令。 */
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* 仅诊断 RAM 参数：有效死区秒数乘 PWM 频率，不修改硬件死区或 PWM 命令。 */
 static float s_observer_deadtime_fraction;
 static float s_observer_current_a;
 static float s_observer_current_b;
 static float s_observer_current_c;
+/* Private function prototypes -----------------------------------------------*/
+static void Motor_OutputCommit(MOTOR_PARAM_S *motor);
+/* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 设置仅 RAM 的观测电压死区补偿比例。
  * @detail: 应用任务调用，不阻塞，不改 PWM 比较值或硬件死区。比例为有效死区秒数乘 PWM 频率，
  *          合法范围 [0, 0.02]，0 表示禁用。非法值保持原设置。写入成功时清零观测电流滤波。
  * @param {float} fraction 补偿比例，无量纲
- * @return {bool} 已写入返回 true
+ * @return {bool} 写入成功返回 true；非法值返回 false
  * @author: lkc
  */
 bool Motor_OutputSetObserverDeadtime(float fraction)
@@ -60,14 +66,15 @@ float Motor_OutputGetObserverDeadtime(void)
 /**
  * @description: 由逻辑相序的 ABC 比较值估计平均 α/β 电压。
  * @detail: 纯计算，不阻塞，不访问硬件。deadtime_fraction 为有效死区秒数乘 PWM 频率，0 表示不补偿。
- *          非零时使用 motor 的 ia/ib/ic (A)，不做电流滤波，不含管压降。参数非法时返回 false，
- *          并把非空输出清零。估计结果不能直接当作 PWM 命令。
- * @param {const MOTOR_PARAM_S *} motor 电机对象，读取 duty 与相电流 (A)
+ *          非零时使用 motor 的 ia/ib/ic (A)，不做电流滤波，不含管压降。motor 为空、输出为空、
+ *          period 为 0、母线或比例非法、或比较值超过 period 时返回 false，并把非空输出清零。
+ *          估计结果不能直接当作 PWM 命令。
+ * @param {const MOTOR_PARAM_S *} motor 电机对象，读取 duty 与相电流 (A)；空则失败
  * @param {uint32_t} period             PWM 周期计数，须大于 0
  * @param {float} v_bus                 母线电压 (V)，须为有限正值
  * @param {float} deadtime_fraction     死区补偿比例，无量纲，范围 [0, 0.5)
- * @param {float *} v_alpha             输出 α 轴电压 (V)，不可为空
- * @param {float *} v_beta              输出 β 轴电压 (V)，不可为空
+ * @param {float *} v_alpha             输出 α 轴电压 (V)；空则失败
+ * @param {float *} v_beta              输出 β 轴电压 (V)；空则失败
  * @return {bool} 估计成功返回 true
  * @author: lkc
  */
@@ -83,8 +90,9 @@ bool Motor_OutputEstimateVoltage(const MOTOR_PARAM_S *motor, uint32_t period, fl
 
 /**
  * @description: 输出三相中点占空比并提交 PWM。
- * @detail: 中点不等于关桥，也不保证无转矩。同时清零无感本拍应用电压记录。
- * @param {MOTOR_PARAM_S *} motor 电机对象，写入 duty1/2/3
+ * @detail: 中点不等于关桥，也不保证无转矩。同时清零无感本拍应用电压记录和观测电流滤波。
+ *          motor 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，写入 duty1/2/3（计数）
  * @return {void} 无
  * @author: lkc
  */
@@ -104,53 +112,104 @@ void Motor_OutputSafe(MOTOR_PARAM_S *motor)
 }
 
 /**
- * @description: 反 Park 加调制，将 vd/vq 落到三相 PWM。
- * @detail: 有感 I/F 保持已验证的 VESC SVM。无感 I/F 也用同一套电压换算，观测器记录PWM平均电压估计。
- *          V/F 仍用 svm_hqd。比较值按当前板 A-C-B 相序提交。
- * @param {MOTOR_PARAM_S *} motor 电机对象，写入 duty1/2/3
- * @param {float} vd            D 轴电压 (V)
- * @param {float} vq            Q 轴电压 (V)
- * @param {float} theta_rad     电角度 (rad)
- * @param {float} v_bus         母线电压 (V)
+ * @description: 按 BM75/HD75 的 A-C-B 相序提交 PWM。
+ * @detail: 主动电压路径共用此出口。比较值顺序为 duty1、duty3、duty2。
+ *          调用者保证 motor 非空。不改占空比数值。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，读取 duty1/2/3（计数）
  * @return {void} 无
  * @author: lkc
  */
-static void Motor_OutputVoltageInternal(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus,
-                                        bool force_linear_svm)
+static void Motor_OutputCommit(MOTOR_PARAM_S *motor)
+{
+    Hal_Motor_PwmSetDuty(motor->duty1, motor->duty3, motor->duty2);
+    Hal_Motor_PwmCommit();
+}
+
+/**
+ * @description: V/F 输出，使用 HQD 调制。
+ * @detail: 反 Park 后把原符号 α/β 记入无感应用电压，再用 svm_hqd 写三相比较值，按 A-C-B 提交。
+ *          不重建观测电压。motor 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，写入 duty1/2/3（计数）
+ * @param {float} vd              D 轴电压 (V)
+ * @param {float} vq              Q 轴电压 (V)
+ * @param {float} theta_rad       电角度 (rad)
+ * @param {float} v_bus           母线电压 (V)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_OutputVoltageVf(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus)
 {
     float v_alpha;
     float v_beta;
     uint32_t sector;
     uint32_t period;
-    motor_feedback_source_t feedback_source;
-    bool sensored_if;
-    bool sensorless_if;
 
     COMMON_ASSERT(motor != NULL);
     period = Hal_Motor_PwmPeriodCounts();
     inverse_park(vd, vq, theta_rad, &v_alpha, &v_beta);
-    feedback_source = Motor_Feedback_GetSourceDefault();
-    /* 编码器与 Hall 的条件保持原样。 */
-    sensored_if = (motor->ol_mode == MOTOR_OL_MODE_IF) &&
-                  (((feedback_source == MOTOR_FEEDBACK_SRC_HALL) && MOTOR_HALL_USE_VESC_SVM) ||
-                   (feedback_source == MOTOR_FEEDBACK_SRC_ENCODER));
-    /* 无感拖转和观测器接管都走 I/F。电压必须和 VESC SVM 一致，否则磁链积分会放大。 */
-    sensorless_if = (motor->ol_mode == MOTOR_OL_MODE_IF) &&
-                    (feedback_source == MOTOR_FEEDBACK_SRC_SENSORLESS ||
-                     feedback_source == MOTOR_FEEDBACK_SRC_OPENLOOP);
-    if (sensorless_if) {
-        Motor_Sensorless_SetAppliedVoltage(-v_alpha, -v_beta);
-    } else {
-        Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
-    }
-    if (force_linear_svm || sensored_if || sensorless_if) {
-        foc_svm_from_voltage(-v_alpha, -v_beta, v_bus, MOTOR_FOC_SVM_MAX_DUTY, period, &motor->duty1,
-                             &motor->duty2, &motor->duty3, &sector);
-    } else {
-        svm_hqd(v_alpha, v_beta, v_bus, period, &motor->duty1, &motor->duty2, &motor->duty3, &sector);
-    }
-    /* BM75/HD75 当前实机验证相序为 A-C-B。 */
-    if (sensorless_if && period != 0U) {
+    Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
+    svm_hqd(v_alpha, v_beta, v_bus, period, &motor->duty1, &motor->duty2, &motor->duty3, &sector);
+    Motor_OutputCommit(motor);
+}
+
+/**
+ * @description: 有感 I/F 输出，使用 VESC 线性 SVM。
+ * @detail: 反 Park 原符号 α/β 记入应用电压；SVM 使用取反后的 α/β。不重建观测电压，按 A-C-B 提交。
+ *          霍尔是否改走 V/F 由上层选择。motor 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，写入 duty1/2/3（计数）
+ * @param {float} vd              D 轴电压 (V)
+ * @param {float} vq              Q 轴电压 (V)
+ * @param {float} theta_rad       电角度 (rad)
+ * @param {float} v_bus           母线电压 (V)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_OutputVoltageSensoredIf(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus)
+{
+    float v_alpha;
+    float v_beta;
+    uint32_t sector;
+    uint32_t period;
+
+    COMMON_ASSERT(motor != NULL);
+    period = Hal_Motor_PwmPeriodCounts();
+    inverse_park(vd, vq, theta_rad, &v_alpha, &v_beta);
+    Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
+    foc_svm_from_voltage(-v_alpha, -v_beta, v_bus, MOTOR_FOC_SVM_MAX_DUTY, period, &motor->duty1,
+                         &motor->duty2, &motor->duty3, &sector);
+    Motor_OutputCommit(motor);
+}
+
+/**
+ * @description: 无感及开环 I/F 输出，使用 VESC 线性 SVM 并重建观测电压。
+ * @detail: SVM 使用反 Park 取反后的 α/β，并按 A-C-B 提交。PWM 周期计数为 0 时不重建。
+ *          否则先用无死区重建电压做调制误差诊断，再把本拍平均电压留给下一拍观测。
+ *          死区只在 RAM 比例大于 0 且三相电流有限时，按逻辑 ABC 电流的一阶滤波估计，
+ *          系数 0.01，不含管压降，不改已算出的比较值。
+ *          motor 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，写入 duty1/2/3（计数）
+ * @param {float} vd              D 轴电压 (V)
+ * @param {float} vq              Q 轴电压 (V)
+ * @param {float} theta_rad       电角度 (rad)
+ * @param {float} v_bus           母线电压 (V)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_OutputVoltageSensorlessIf(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus)
+{
+    float v_alpha;
+    float v_beta;
+    uint32_t sector;
+    uint32_t period;
+
+    COMMON_ASSERT(motor != NULL);
+    period = Hal_Motor_PwmPeriodCounts();
+    inverse_park(vd, vq, theta_rad, &v_alpha, &v_beta);
+    /* 暂存与调制输入同符号的指令，供 SetModulatedVoltage 比较；之后用重建电压覆盖。 */
+    Motor_Sensorless_SetAppliedVoltage(-v_alpha, -v_beta);
+    foc_svm_from_voltage(-v_alpha, -v_beta, v_bus, MOTOR_FOC_SVM_MAX_DUTY, period, &motor->duty1,
+                         &motor->duty2, &motor->duty3, &sector);
+    if (period != 0U) {
         /* 使用逻辑ABC比较值重建平均电压；交换到物理ACB前计算，不含死区/管压降。 */
         float reconstructed_a;
         float reconstructed_b;
@@ -172,50 +231,110 @@ static void Motor_OutputVoltageInternal(MOTOR_PARAM_S *motor, float vd, float vq
          * 死区只按显式RAM参数估计，不含管压降。 */
         Motor_Sensorless_SetAppliedVoltage(reconstructed_a, reconstructed_b);
     }
-    Hal_Motor_PwmSetDuty(motor->duty1, motor->duty3, motor->duty2);
-    Hal_Motor_PwmCommit();
+    Motor_OutputCommit(motor);
 }
 
 /**
- * @description: 反 Park 加调制，将 vd/vq 落到三相 PWM。
- * @detail: 有感 I/F 保持已验证的 VESC SVM。无感 I/F 使用同一套电压换算。V/F 仍用 svm_hqd。
- *          比较值按当前板 A-C-B 相序提交。为空则直接返回。
- * @param {MOTOR_PARAM_S *} motor     电机对象，写入 duty1/2/3
- * @param {float} vd                  D 轴电压 (V)
- * @param {float} vq                  Q 轴电压 (V)
- * @param {float} theta_rad           电角度 (rad)
- * @param {float} v_bus               母线电压 (V)
+ * @description: 旧电压输出接口，按模式和反馈源分派。
+ * @detail: 正常 FOC 由上层选明确路径。非 I/F 走 V/F。I/F 且无感或开环走无感 I/F。
+ *          I/F 且编码器，或霍尔且启用 VESC SVM，走有感 I/F。其余走 V/F。
+ *          本函数不复制调制。motor 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，写入 duty1/2/3（计数）
+ * @param {float} vd              D 轴电压 (V)
+ * @param {float} vq              Q 轴电压 (V)
+ * @param {float} theta_rad       电角度 (rad)
+ * @param {float} v_bus           母线电压 (V)
  * @return {void} 无
  * @author: lkc
  */
 void Motor_OutputVoltage(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus)
 {
-    Motor_OutputVoltageInternal(motor, vd, vq, theta_rad, v_bus, false);
+    motor_feedback_source_t source;
+    COMMON_ASSERT(motor != NULL);
+    source = Motor_Feedback_GetSourceDefault();
+    if (motor->ol_mode != MOTOR_OL_MODE_IF) {
+        Motor_OutputVoltageVf(motor, vd, vq, theta_rad, v_bus);
+    } else if (source == MOTOR_FEEDBACK_SRC_SENSORLESS || source == MOTOR_FEEDBACK_SRC_OPENLOOP) {
+        Motor_OutputVoltageSensorlessIf(motor, vd, vq, theta_rad, v_bus);
+    } else if (source == MOTOR_FEEDBACK_SRC_ENCODER ||
+               (source == MOTOR_FEEDBACK_SRC_HALL && MOTOR_HALL_USE_VESC_SVM)) {
+        Motor_OutputVoltageSensoredIf(motor, vd, vq, theta_rad, v_bus);
+    } else {
+        Motor_OutputVoltageVf(motor, vd, vq, theta_rad, v_bus);
+    }
 }
 
 /**
- * @description: 使用 VESC 线性 SVM 电压归一化输出 dq 电压。
- * @detail: 供需要线性电压归一化的诊断路径使用；不依赖当前控制模式或反馈源。
- *          实际端电压仍受死区与管压降影响，不能将指令电压当作实测注入电压。
- * @param {MOTOR_PARAM_S *} motor     电机对象，写入 duty1/2/3
- * @param {float} vd                  D 轴电压 (V)
- * @param {float} vq                  Q 轴电压 (V)
- * @param {float} theta_rad           电角度 (rad)
- * @param {float} v_bus               母线电压 (V)
+ * @description: 参数检测用的线性调制入口。
+ * @detail: 两条路径都用 VESC 线性 SVM，不走 HQD。I/F 且无感或开环时保留无感观测电压重建，
+ *          其余走有感 I/F。不改硬件死区或相序。指令电压不是实测端电压。
+ *          motor 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，写入 duty1/2/3（计数）
+ * @param {float} vd              D 轴电压 (V)
+ * @param {float} vq              Q 轴电压 (V)
+ * @param {float} theta_rad       电角度 (rad)
+ * @param {float} v_bus           母线电压 (V)
  * @return {void} 无
  * @author: lkc
  */
 void Motor_OutputVoltageLinear(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus)
 {
-    Motor_OutputVoltageInternal(motor, vd, vq, theta_rad, v_bus, true);
+    motor_feedback_source_t source;
+    COMMON_ASSERT(motor != NULL);
+    source = Motor_Feedback_GetSourceDefault();
+    if (motor->ol_mode == MOTOR_OL_MODE_IF &&
+        (source == MOTOR_FEEDBACK_SRC_SENSORLESS || source == MOTOR_FEEDBACK_SRC_OPENLOOP)) {
+        Motor_OutputVoltageSensorlessIf(motor, vd, vq, theta_rad, v_bus);
+    } else {
+        Motor_OutputVoltageSensoredIf(motor, vd, vq, theta_rad, v_bus);
+    }
+}
+
+/**
+ * @description: 将完成最终故障仲裁的结果按显式路径提交。
+ * @detail: SAFE 不看路径，直接输出中点。NONE 不更新 PWM。OUTPUT_DQ 按路径走 V/F、
+ *          有感 I/F 或无感 I/F；非法路径改为 SAFE。本函数不检查故障锁存，
+ *          调用者不得在故障时提交 OUTPUT_DQ。
+ *          motor 与 result 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {MOTOR_PARAM_S *} motor                 电机对象
+ * @param {float} v_bus                           母线电压 (V)
+ * @param {const motor_control_result_t *} result 仲裁后的输出请求，不可为空
+ * @param {motor_output_path_t} path             主动电压路径
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_OutputApplyControlResultForPath(MOTOR_PARAM_S *motor, float v_bus,
+                                         const motor_control_result_t *result, motor_output_path_t path)
+{
+    COMMON_ASSERT(motor != NULL && result != NULL);
+    if (result->action == MOTOR_CONTROL_ACTION_SAFE) {
+        Motor_OutputSafe(motor);
+    } else if (result->action == MOTOR_CONTROL_ACTION_OUTPUT_DQ) {
+        switch (path) {
+        case MOTOR_OUTPUT_PATH_VF:
+            Motor_OutputVoltageVf(motor, result->vd, result->vq, result->theta, v_bus);
+            break;
+        case MOTOR_OUTPUT_PATH_SENSORED_IF:
+            Motor_OutputVoltageSensoredIf(motor, result->vd, result->vq, result->theta, v_bus);
+            break;
+        case MOTOR_OUTPUT_PATH_SENSORLESS_IF:
+            Motor_OutputVoltageSensorlessIf(motor, result->vd, result->vq, result->theta, v_bus);
+            break;
+        default:
+            Motor_OutputSafe(motor);
+            break;
+        }
+    }
 }
 
 /**
  * @description: 将已经仲裁的控制结果应用到 PWM。
- * @detail: 调用前须已经过 Motor_Control_ArbitrateOutput。SAFE 走中点，OUTPUT_DQ 走反 Park。
- * @param {MOTOR_PARAM_S *} motor                  电机对象
- * @param {float} v_bus                            母线电压 (V)
- * @param {const motor_control_result_t *} result  仲裁后的输出请求
+ * @detail: 调用前须已经过 Motor_Control_ArbitrateOutput。SAFE 走中点，OUTPUT_DQ 经旧接口分派后反 Park。
+ *          NONE 不更新 PWM。本函数不检查故障锁存，故障时不得传入 OUTPUT_DQ。
+ *          motor 与 result 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {MOTOR_PARAM_S *} motor                 电机对象
+ * @param {float} v_bus                           母线电压 (V)
+ * @param {const motor_control_result_t *} result 仲裁后的输出请求，不可为空
  * @return {void} 无
  * @author: lkc
  */

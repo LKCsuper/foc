@@ -19,6 +19,8 @@ static float s_vesc_beta;
 static float s_reconstructed_alpha;
 static float s_reconstructed_beta;
 static unsigned s_reconstruction_calls;
+static float s_command_alpha;
+static float s_command_beta;
 
 uint32_t Hal_Motor_PwmPeriodCounts(void) { return 1000U; }
 void Hal_Motor_PwmSetDuty(uint32_t a, uint32_t b, uint32_t c)
@@ -36,6 +38,8 @@ void Motor_Sensorless_SetAppliedVoltage(float alpha, float beta)
 }
 void Motor_Sensorless_SetModulatedVoltage(float alpha, float beta)
 {
+    s_command_alpha = s_applied_alpha;
+    s_command_beta = s_applied_beta;
     s_reconstructed_alpha = alpha;
     s_reconstructed_beta = beta;
     s_reconstruction_calls++;
@@ -195,6 +199,51 @@ int main(void)
     assert(Motor_OutputSetObserverDeadtime(0.0f));
     Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
     assert(s_applied_alpha == s_reconstructed_alpha && s_applied_beta == s_reconstructed_beta);
+    /* 显式路径不受模式/反馈元数据影响；检查符号、相序、诊断顺序及 SAFE/NONE。 */
+    {
+        unsigned commits = s_commit_calls;
+        unsigned reconstructions = s_reconstruction_calls;
+        unsigned hqd = s_hqd_calls;
+        unsigned vesc = s_vesc_calls;
+        result.action = MOTOR_CONTROL_ACTION_OUTPUT_DQ;
+        result.vd = 2.0f;
+        result.vq = -3.0f;
+        result.theta = 1.0f;
+        motor.ol_mode = MOTOR_OL_MODE_VF;
+        s_source = MOTOR_FEEDBACK_SRC_ENCODER;
+        Motor_OutputApplyControlResultForPath(&motor, 24.0f, &result, MOTOR_OUTPUT_PATH_SENSORLESS_IF);
+        assert(s_vesc_calls == vesc + 1U && s_hqd_calls == hqd);
+        assert(s_reconstruction_calls == reconstructions + 1U);
+        assert(s_command_alpha == -2.0f && s_command_beta == 3.0f);
+        assert(s_applied_alpha == s_reconstructed_alpha && s_applied_beta == s_reconstructed_beta);
+        assert(s_pwm_a == 11U && s_pwm_b == 33U && s_pwm_c == 22U);
+        motor.ol_mode = MOTOR_OL_MODE_IF;
+        s_source = MOTOR_FEEDBACK_SRC_SENSORLESS;
+        Motor_OutputApplyControlResultForPath(&motor, 24.0f, &result, MOTOR_OUTPUT_PATH_VF);
+        assert(s_hqd_calls == hqd + 1U && s_vesc_calls == vesc + 1U);
+        assert(s_applied_alpha == 2.0f && s_applied_beta == -3.0f);
+        Motor_OutputApplyControlResultForPath(&motor, 24.0f, &result, MOTOR_OUTPUT_PATH_SENSORED_IF);
+        assert(s_vesc_calls == vesc + 2U && s_hqd_calls == hqd + 1U);
+        assert(s_applied_alpha == 2.0f && s_applied_beta == -3.0f);
+        assert(s_reconstruction_calls == reconstructions + 1U);
+        assert(s_commit_calls == commits + 3U);
+        result.action = MOTOR_CONTROL_ACTION_NONE;
+        Motor_OutputApplyControlResultForPath(&motor, 24.0f, &result, MOTOR_OUTPUT_PATH_SENSORLESS_IF);
+        assert(s_commit_calls == commits + 3U);
+        result.action = MOTOR_CONTROL_ACTION_SAFE;
+        Motor_OutputApplyControlResultForPath(&motor, 24.0f, &result, MOTOR_OUTPUT_PATH_SENSORLESS_IF);
+        assert(s_pwm_a == 500U && s_pwm_b == 500U && s_pwm_c == 500U);
+        result.action = MOTOR_CONTROL_ACTION_OUTPUT_DQ;
+        Motor_OutputApplyControlResultForPath(&motor, 24.0f, &result, (motor_output_path_t)99);
+        assert(s_pwm_a == 500U && s_pwm_b == 500U && s_pwm_c == 500U);
+        motor.ol_mode = MOTOR_OL_MODE_VF;
+        Motor_OutputVoltageLinear(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+        assert(s_vesc_calls == vesc + 3U && s_hqd_calls == hqd + 1U);
+        assert(s_applied_alpha == 2.0f && s_applied_beta == -3.0f);
+        motor.ol_mode = MOTOR_OL_MODE_IF;
+        Motor_OutputVoltageLinear(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+        assert(s_reconstruction_calls == reconstructions + 2U);
+    }
     puts("test_motor_output: pass");
     return 0;
 }

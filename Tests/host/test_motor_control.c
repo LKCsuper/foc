@@ -823,6 +823,63 @@ int main(void)
         assert(ctrl.current_frame_correction == 0.0f);
         s_sensorless_correction = 0.0f;
     }
+    {
+        motor_control_t settled;
+        memset(&settled, 0, sizeof(settled));
+        assert(!Motor_Control_IsIfDragSettled(NULL));
+        assert(!Motor_Control_IsIfDragSettled(&settled));
+        settled.startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+        settled.startup.drag_current_scale = 0.5f;
+        assert(!Motor_Control_IsIfDragSettled(&settled));
+        settled.startup.drag_current_scale = 1.0f;
+        assert(settled.startup.soft_current_scale == 0.0f);
+        assert(Motor_Control_IsIfDragSettled(&settled));
+        settled.startup.alignment.running = true;
+        assert(!Motor_Control_IsIfDragSettled(&settled));
+        settled.startup.alignment.running = false;
+        settled.startup.phase = MOTOR_STARTUP_ANGLE_HOLD;
+        assert(!Motor_Control_IsIfDragSettled(&settled));
+    }
+    {
+        const float targets[] = {0.0f, 300.0f, -300.0f};
+        const float currents[] = {0.0f, 100.0f, -100.0f};
+        motor_control_t ctrl;
+        MOTOR_PARAM_S m;
+        unsigned target_index, current_index, first;
+        Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_OPENLOOP);
+        for (target_index = 0U; target_index < 3U; target_index++) {
+            for (current_index = 0U; current_index < 3U; current_index++) {
+                for (first = 0U; first < 2U; first++) {
+                    motor_if_start_t expected;
+                    motor_if_start_config_t config = {0.0f, 0.0f, 1.0f};
+                    motor_if_start_input_t input;
+                    Motor_Control_Init(&ctrl);
+                    memset(&m, 0, sizeof(m));
+                    ctrl.startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+                    ctrl.startup.if_start.first_cycle = first != 0U;
+                    ctrl.startup.if_start.phase_boost = 0.5f;
+                    ctrl.startup.if_start.iq_scale = 0.2f;
+                    expected = ctrl.startup.if_start;
+                    m.ol_enable = true;
+                    m.ol_mode = MOTOR_OL_MODE_IF;
+                    m.ol_target_rpm = targets[target_index];
+                    m.ol_current_rpm = currents[current_index];
+                    m.ol_max_rpm = 1000.0f;
+                    m.ol_pole_pairs = 7.0f;
+                    m.speed_enable = true;
+                    Motor_Control_Step(&ctrl, &m, 16.0f, 1.0f / 15000.0f, false);
+                    input.target_rpm = m.ol_target_rpm;
+                    input.current_rpm = m.ol_current_rpm;
+                    input.rotor_position_known = true;
+                    MotorIfStart_Step(&expected, &config, &input);
+                    assert(ctrl.startup.if_start.first_cycle == expected.first_cycle);
+                    assert(ctrl.startup.if_start.phase_boost == expected.phase_boost);
+                    assert(ctrl.startup.if_start.iq_scale == expected.iq_scale);
+                    assert(ctrl.startup.if_start.angle_rpm == expected.angle_rpm);
+                }
+            }
+        }
+    }
     printf("test_motor_control: pass\n");
     return 0;
 }

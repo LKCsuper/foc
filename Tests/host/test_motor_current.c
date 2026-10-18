@@ -236,6 +236,103 @@ int main(void)
             }
         }
     }
+    {
+        const float cases[][4] = {
+            {0.0f, 1.0f, 0.0f, 1.0f},
+            {1.5f, 3.0f, 1.5f, 2.0f},
+            {-1.5f, -3.0f, -1.5f, -2.0f},
+            {3.0f, 1.0f, 2.5f, 0.0f},
+            {-3.0f, -1.0f, -2.5f, 0.0f},
+            {1.5f, -2.0f, 1.5f, -2.0f}
+        };
+        for (i = 0U; i < sizeof(cases) / sizeof(cases[0]); i++) {
+            id_t = cases[i][0]; iq_t = cases[i][1];
+            Motor_Current_LimitTargets(&id_t, &iq_t, 2.5f);
+            assert(fabsf(id_t - cases[i][2]) < 1e-6f);
+            assert(fabsf(iq_t - cases[i][3]) < 1e-6f);
+            assert(hypotf(id_t, iq_t) <= 2.500001f);
+        }
+        id_t = NAN; iq_t = 1.0f;
+        Motor_Current_LimitTargets(&id_t, &iq_t, 2.5f);
+        assert(id_t == 0.0f && iq_t == 0.0f);
+        id_t = 1.0f; iq_t = INFINITY;
+        Motor_Current_LimitTargets(&id_t, &iq_t, 2.5f);
+        assert(id_t == 0.0f && iq_t == 0.0f);
+        id_t = 1.0f; iq_t = 1.0f;
+        Motor_Current_LimitTargets(&id_t, &iq_t, 0.0f);
+        assert(id_t == 0.0f && iq_t == 0.0f);
+        memset(&a, 0, sizeof(a)); memset(&ctx, 0, sizeof(ctx));
+        ctx.soft_current_scale = 1.0f; ctx.if_iq_scale = 1.0f;
+        a.ol_id_set = -1.5f; a.ol_iq_set = 3.0f;
+        Motor_Current_GetTargets(&a, &ctx, &id_t, &iq_t);
+        assert(id_t == -1.5f && iq_t == 2.0f);
+        ctx.speed_loop_active = true; ctx.speed_iq_target = -3.0f;
+        Motor_Current_GetTargets(&a, &ctx, &id_t, &iq_t);
+        assert(id_t == -1.5f && iq_t == -2.0f);
+        ctx.alignment_running = true; a.ol_align_current = 4.0f;
+        Motor_Current_GetTargets(&a, &ctx, &id_t, &iq_t);
+        assert(id_t == 2.5f && iq_t == 0.0f);
+        ctx.alignment_running = false; ctx.speed_loop_active = false;
+        a.ol_id_set = 0.0f; a.ol_iq_set = 1.0f; ctx.id_fw = -2.0f;
+        Motor_Current_GetTargets(&a, &ctx, &id_t, &iq_t);
+        assert(id_t == -2.0f && iq_t == 1.0f);
+        ctx.id_fw = -2.5f;
+        Motor_Current_Step(&a, 0.0f, &ctx, 0.0f, 4.0f, &a.id_target, &a.iq_target);
+        assert(a.id_target == -2.5f && a.iq_target == 0.0f);
+    }
+    {
+        motor_current_tracking_diag_t diag = {0};
+        motor_current_tracking_diag_t other = {0};
+        for (i = 0U; i < 19U; i++)
+            Motor_Current_TrackingObserve(&diag, true, -2.0f, 1.0f, 0.0f, 1.0f, 0.0001f, i);
+        assert(!diag.event_latched && diag.events == 0U);
+        for (; i < 21U; i++)
+            Motor_Current_TrackingObserve(&diag, true, -2.0f, 1.0f, 0.0f, 1.0f, 0.0001f, i);
+        assert(diag.event_latched && diag.over && diag.events == 1U);
+        assert(diag.first_id == -2.0f && diag.first_iq_cmd == 1.0f);
+        assert(diag.first_entry_us == 19U || diag.first_entry_us == 20U);
+        Motor_Current_TrackingObserve(&diag, true, -3.0f, 1.0f, 0.0f, 1.0f, 0.0001f, 100U);
+        assert(diag.events == 1U && diag.first_id == -2.0f);
+        Motor_Current_TrackingObserve(&diag, false, -3.0f, 1.0f, 0.0f, 1.0f, 0.0001f, 101U);
+        assert(!diag.active && !diag.over && diag.over_time_s == 0.0f && diag.event_latched);
+        for (i = 0U; i < 21U; i++)
+            Motor_Current_TrackingObserve(&diag, true, 0.0f, -2.0f, 0.0f, 1.0f, 0.0001f, 200U + i);
+        assert(diag.events == 2U && diag.first_id == -2.0f && diag.max_error_squared == 9.0f);
+        Motor_Current_TrackingObserve(&diag, true, 0.0f, 1.0f, 0.0f, 1.0f, 0.0001f, 300U);
+        assert(!diag.over && diag.over_time_s == 0.0f && diag.event_latched);
+        assert(other.events == 0U && !other.event_latched);
+        for (i = 0U; i < 100U; i++) {
+            Motor_Current_TrackingObserve(&other, true, 2.0f, 0.0f, 2.0f, 0.0f, 0.0001f, i);
+        }
+        assert(other.active && !other.event_latched && other.max_error_squared == 0.0f);
+        Motor_Current_TrackingObserve(&diag, true, NAN, 1.0f, 0.0f, 1.0f, 0.0001f, 400U);
+        assert(!diag.active && diag.events == 2U);
+        Motor_Current_TrackingObserve(&diag, true, -3.0f, 1.0f, 0.0f, 1.0f, 0.001f, 401U);
+        assert(!diag.active && diag.over_time_s == 0.0f);
+        {
+            const float invalid[] = {NAN, INFINITY, -INFINITY};
+            unsigned invalid_index, field;
+            for (invalid_index = 0U; invalid_index < 3U; invalid_index++) {
+                for (field = 0U; field < 5U; field++) {
+                    float values[] = {0.0f, 1.0f, 0.0f, 1.0f, 0.0001f};
+                    uint32_t samples = diag.eligible_samples;
+                    values[field] = invalid[invalid_index];
+                    Motor_Current_TrackingObserve(&diag, true, values[0], values[1], values[2], values[3],
+                                                  values[4], 402U);
+                    assert(!diag.active && !diag.over && diag.over_time_s == 0.0f);
+                    assert(diag.eligible_samples == samples && diag.events == 2U);
+                }
+            }
+            Motor_Current_TrackingObserve(&diag, true, INFINITY, 1.0f, INFINITY, 1.0f, 0.0001f, 403U);
+            assert(!diag.active && diag.events == 2U);
+            Motor_Current_TrackingObserve(&diag, true, -3.0f, 1.0f, 0.0f, 1.0f, 0.0f, 404U);
+            assert(!diag.active && diag.events == 2U);
+        }
+        diag.events = UINT32_MAX;
+        for (i = 0U; i < 21U; i++)
+            Motor_Current_TrackingObserve(&diag, true, -3.0f, 1.0f, 0.0f, 1.0f, 0.0001f, 500U + i);
+        assert(diag.events == UINT32_MAX);
+    }
     printf("test_motor_current: pass\n");
     return 0;
 }

@@ -13,6 +13,9 @@ extern "C" {
 #include "common_assert.h"
 #include "hal_motor.h"
 #include "hal_sensor.h"
+#if defined(__CC_ARM)
+#pragma O2
+#endif
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/

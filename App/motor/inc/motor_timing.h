@@ -55,55 +55,278 @@ typedef struct {
     motor_pair_frame_t previous, current;
     float v_alpha, v_beta;
 } motor_pair_sample_t;
-/** 停机武装；复用32条缓冲，每450拍抽取连续两帧。回调寄存器不是ADC触发锁存值。 */
+/**
+ * @description: 停机时武装连续两帧配对记录。
+ * @detail: 复用 32 条缓冲，每 450 拍抽取一对。回调寄存器不是 ADC 触发锁存值。不改控制。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_PairArm(void);
-/** 仅停机原始半周期回调配对；901回调抽样。起转时停止诊断，不阻止控制；状态位复用reconstructed。 */
+
+/**
+ * @description: 停机时武装原始半周期回调配对。
+ * @detail: 每 901 次回调抽样。起转时应停止诊断，本函数不阻止控制。状态位复用 reconstructed。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_PairHalfArm(void);
+
+/**
+ * @description: 查询是否为半周期配对格式。
+ * @return {bool} true=半周期配对
+ * @author: lkc
+ */
 bool Motor_Timing_PairHalfMode(void);
+
+/**
+ * @description: 查询配对记录是否为当前格式。
+ * @return {bool} true=配对模式
+ * @author: lkc
+ */
 bool Motor_Timing_PairMode(void);
+
+/**
+ * @description: 查询配对记录是否仍在采集。
+ * @return {bool} true=配对模式且窗口未冻结
+ * @author: lkc
+ */
 bool Motor_Timing_PairActive(void);
-/** 每个选中FOC拍一次，写入重构后电流；返回true时同拍调用PairPush。 */
+
+/**
+ * @description: 写入重构后的电流帧，并判断本拍是否凑成一对。
+ * @detail: 每个选中 FOC 拍调用一次。第一帧只建立前拍，返回 false。之后按分频返回 true 时，同拍调用 PairPush。
+ *          frame 为空或未在采集时返回 false。不改控制。
+ * @param {const motor_pair_frame_t *} frame 本拍电流帧；空则失败
+ * @return {bool} true=本拍应调用 PairPush
+ * @author: lkc
+ */
 bool Motor_Timing_PairFrame(const motor_pair_frame_t *frame);
+
+/**
+ * @description: 写入一对电流帧及本拍 α/β 电压。
+ * @detail: 仅在 PairFrame 返回 true 的同一拍调用。配额用完后停止。不改控制。
+ * @param {float} v_alpha α 轴电压 (V)
+ * @param {float} v_beta  β 轴电压 (V)
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_PairPush(float v_alpha, float v_beta);
+
+/**
+ * @description: 按时间顺序读取一条已停止的配对样本。
+ * @detail: 仍在采集、不是配对格式、out 为空或下标越界时返回 false。下标 0 为最旧。
+ * @param {unsigned} index              时间顺序下标
+ * @param {motor_pair_sample_t *} out   输出；空则失败
+ * @return {bool} true=已写入 out
+ * @author: lkc
+ */
 bool Motor_Timing_PairGet(unsigned index, motor_pair_sample_t *out);
-/** 停机武装，复用32条缓冲；450拍抽样，完成拍后的首拍触发，再留27条。 */
+
+/**
+ * @description: 停机时武装观测步进记录。
+ * @detail: 复用 32 条缓冲。每 450 拍抽样，完成拍后的首拍触发，再留 27 条。不改控制。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_ObserverStepArm(void);
+
+/**
+ * @description: 查询观测步进记录是否为当前格式。
+ * @return {bool} true=步进模式
+ * @author: lkc
+ */
 bool Motor_Timing_ObserverStepMode(void);
-/** 默认实例更新前调用；Active用于维护连续前一拍电流，Due只推进一次抽样计数。 */
+
+/**
+ * @description: 查询观测步进记录是否仍在采集。
+ * @detail: 默认实例更新前调用，用于维护连续前一拍电流。不推进抽样计数。
+ * @return {bool} true=步进模式且窗口未冻结
+ * @author: lkc
+ */
 bool Motor_Timing_ObserverStepActive(void);
+
+/**
+ * @description: 判断本拍是否写入观测步进样本。
+ * @detail: 只在步进模式推进一次抽样计数。不改控制。
+ * @return {bool} true=本拍应 Push
+ * @author: lkc
+ */
 bool Motor_Timing_ObserverStepDue(void);
+
+/**
+ * @description: 写入一条观测步进样本。
+ * @detail: 时间戳在本函数内读取。调用者保证 sample 非空。配额用完后停止。不改控制。
+ * @param {const motor_observer_step_sample_t *} sample 本拍样本，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_ObserverStepPush(const motor_observer_step_sample_t *sample);
+
+/**
+ * @description: 按时间顺序读取一条已停止的观测步进样本。
+ * @detail: 仍在采集、不是步进格式、out 为空或下标越界时返回 false。下标 0 为最旧。
+ * @param {unsigned} index                      时间顺序下标
+ * @param {motor_observer_step_sample_t *} out  输出；空则失败
+ * @return {bool} true=已写入 out
+ * @author: lkc
+ */
 bool Motor_Timing_ObserverStepGet(unsigned index, motor_observer_step_sample_t *out);
-/** 与交接积分记录互斥复用缓冲，PLL更新后记录同拍输入/输出。 */
+
+/**
+ * @description: 武装相位记录，与交接记录互斥复用缓冲。
+ * @detail: 进入临界区。PLL 更新后由调用者写入同拍输入输出。不改控制。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_PhaseArm(void);
-/** 停机调用；复用32条缓冲，450拍抽样，完成拍及其后27条自动冻结；不保证捕获拍间尖峰。 */
+
+/**
+ * @description: 停机时武装长相位窗口。
+ * @detail: 复用 32 条缓冲。每 450 拍抽样，完成拍及其后 27 条后自动停止。不保证捕获拍间尖峰。不改控制。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_PhaseArmLong(void);
+
+/**
+ * @description: 查询相位记录是否为当前格式。
+ * @return {bool} true=相位模式
+ * @author: lkc
+ */
 bool Motor_Timing_PhaseMode(void);
+
+/**
+ * @description: 判断本拍是否写入相位样本。
+ * @detail: 步进或配对模式、未武装时返回 false。completed 为真且尚未触发时标记完成拍。不改控制。
+ * @param {bool} completed 本拍相位环已完成
+ * @return {bool} true=本拍应 Push
+ * @author: lkc
+ */
 bool Motor_Timing_PhaseDue(bool completed);
+
+/**
+ * @description: 写入一条相位样本。
+ * @detail: 时间戳在本函数内读取。调用者保证 sample 非空。配额用完后停止。不改控制。
+ * @param {const motor_phase_sample_t *} sample 本拍样本，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_PhasePush(const motor_phase_sample_t *sample);
+
+/**
+ * @description: 按时间顺序读取一条已停止的相位样本。
+ * @detail: 仍在采集、不是相位格式、out 为空或下标越界时返回 false。下标 0 为最旧。
+ * @param {unsigned} index               时间顺序下标
+ * @param {motor_phase_sample_t *} out   输出；空则失败
+ * @return {bool} true=已写入 out
+ * @author: lkc
+ */
 bool Motor_Timing_PhaseGet(unsigned index, motor_phase_sample_t *out);
-/** 停机时武装独立短窗口；每15个电流控制拍记录一次，完成交接拍强制记录并再留15条。 */
+
+/**
+ * @description: 停机时武装交接短窗口。
+ * @detail: 进入临界区后清索引并开始采集。与相位、观测步进和配对记录互斥，复用 32 条缓冲。
+ *          每 15 个电流控制拍记录一次；完成交接拍强制记录，再留 15 条后停止。不改控制。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_HandoffArm(void);
+
+/**
+ * @description: 停止交接窗口继续写入。
+ * @detail: 只清采集开关。不清已有样本，不改控制。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_HandoffStop(void);
+
+/**
+ * @description: 标记下一拍为交接完成拍。
+ * @detail: 仅在窗口仍活动且尚未触发时生效。不改控制。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_HandoffMark(void);
+
+/**
+ * @description: 判断本电流控制拍是否应记录交接样本。
+ * @detail: 相位模式开启时返回 false。否则按 15 拍分频；已标记的完成拍立即放行。不改控制。
+ * @return {bool} true=本拍应依次调用 Before、Transport、After
+ * @author: lkc
+ */
 bool Motor_Timing_HandoffDue(void);
-/** 以下三接口仅在Due返回true后于同一电流控制拍依次调用；motor必须有效。 */
+
+/**
+ * @description: 写入交接拍限幅前的电流与积分。
+ * @detail: 仅在 Due 返回 true 后、同一电流控制拍、Transport 之前调用。
+ *          id/iq 是本拍目标，样本里的反馈取 motor->Id/Iq。调用者保证 motor 非空。不改控制。
+ * @param {const MOTOR_PARAM_S *} motor 电流、积分与母线
+ * @param {float} theta                 电角度 (rad)
+ * @param {float} delta                 坐标交接附加角 (rad)
+ * @param {float} id                    本拍 Id 目标 (A)
+ * @param {float} iq                    本拍 Iq 目标 (A)
+ * @param {float} dt                    控制周期 (s)
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_HandoffBefore(const MOTOR_PARAM_S *motor, float theta, float delta, float id, float iq, float dt);
+
+/**
+ * @description: 写入坐标旋转后的电流积分。
+ * @detail: 同一拍在 Before 之后、After 之前调用。调用者保证 motor 非空。不改控制。
+ * @param {const MOTOR_PARAM_S *} motor 读取 ol_vd_int/ol_vq_int (V)
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_HandoffTransport(const MOTOR_PARAM_S *motor);
+
+/**
+ * @description: 写入限幅后的积分与电压，并推进环形索引。
+ * @detail: 同一拍最后调用。配额用完后停止采集。调用者保证 motor 非空。不改控制。
+ * @param {const MOTOR_PARAM_S *} motor 读取限幅后积分 (V)
+ * @param {float} vd                    限幅后 vd (V)
+ * @param {float} vq                    限幅后 vq (V)
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_HandoffAfter(const MOTOR_PARAM_S *motor, float vd, float vq);
+
+/**
+ * @description: 返回交接缓冲里尚未被覆盖的条数。
+ * @detail: 仍在采集时也会增长，最大 32。不表示 Get 已经允许读取。
+ * @return {unsigned} 条数
+ * @author: lkc
+ */
 unsigned Motor_Timing_HandoffCount(void);
+
+/**
+ * @description: 按时间顺序读取一条已停止的交接样本。
+ * @detail: 仍在采集、处于相位模式、out 为空或下标越界时返回 false。下标 0 为最旧。
+ * @param {unsigned} index               时间顺序下标
+ * @param {motor_handoff_sample_t *} out 输出；空则失败
+ * @return {bool} true=已写入 out
+ * @author: lkc
+ */
 bool Motor_Timing_HandoffGet(unsigned index, motor_handoff_sample_t *out);
 
 /**
- * 完整控制入口间隔换算为秒。首次启用使用名义周期；关闭时清除历史。
- * 接受 0.5..3 倍名义周期，异常返回 false 且输出 0，调用者须停机。
- * 时间戳允许 uint32_t 回绕；入口间隔不等于 ADC 硬件采样时间戳。
+ * @description: 把完整控制入口间隔换算成秒。
+ * @detail: 首次启用或未使能时使用名义周期。接受名义周期的 0.5 到 3 倍；超出时 *dt 为 0 并返回 false，
+ *          本次入口已写入 last_us。时间戳允许 uint32_t 回绕。入口间隔不是 ADC 硬件采样时间戳。
+ *          clock 或 dt 为空、或名义周期非法时返回 false。不改控制量。
+ * @param {motor_control_clock_t *} clock 调用者持有的时钟状态；空则失败
+ * @param {bool} enabled                  true=按入口间隔计时
+ * @param {uint32_t} time_us              本控制入口时间 (us)
+ * @param {float} nominal_dt              名义控制周期 (s)，须为有限正值
+ * @param {float *} dt                    输出周期 (s)；空则失败
+ * @return {bool} true=dt 可用
+ * @author: lkc
  */
 bool Motor_Timing_ControlClockStep(motor_control_clock_t *clock, bool enabled, uint32_t time_us,
                                    float nominal_dt, float *dt);
 
 typedef enum {
-    MOTOR_TIMING_SAMPLE,           /* SampleAndProtect 整段 */
+    MOTOR_TIMING_SAMPLE,           /* 采样与保护整段 */
     MOTOR_TIMING_CURRENT,          /* PrepareCurrentFeedback 整段 */
     MOTOR_TIMING_CONTROL,          /* RunControl 墙钟；内部又记了 OBSERVER 与 TRANSPORT */
     MOTOR_TIMING_OBSERVER,         /* Sensorless_Update 整段，含在 CONTROL 墙钟内 */
@@ -120,17 +343,23 @@ typedef enum {
     MOTOR_TIMING_CURRENT_TARGET,   /* 电流目标计算，含在IF_CURRENT内 */
     MOTOR_TIMING_CURRENT_PI,       /* 双轴PI，不含矢量限幅 */
     MOTOR_TIMING_CURRENT_LIMIT,    /* 矢量限幅及积分抗饱和 */
-    MOTOR_TIMING_SENSE_FRAME,
-    MOTOR_TIMING_SENSOR_FEEDBACK,
-    MOTOR_TIMING_PROTECTION,
-    MOTOR_TIMING_STAGE_COUNT
+    MOTOR_TIMING_SENSE_FRAME,      /* Sense_Update 整段，含在 SAMPLE 内 */
+    MOTOR_TIMING_SENSOR_FEEDBACK,  /* SensorUpdate_Step 整段，含在 SAMPLE 内 */
+    MOTOR_TIMING_PROTECTION,       /* Protect_Run 整段，含在 SAMPLE 内 */
+    MOTOR_TIMING_STAGE_COUNT       /* 分段总数，仅作数组维度，不参与记录 */
 } motor_timing_stage_t;
 typedef struct {
     uint32_t count[MOTOR_TIMING_STAGE_COUNT];
     uint32_t sum_us[MOTOR_TIMING_STAGE_COUNT];
     uint32_t max_us[MOTOR_TIMING_STAGE_COUNT];
 } motor_profile_snapshot_t;
-/** 短临界区复制所有分段原始统计；平均值及打印在调用方关中断区外计算。 */
+/**
+ * @description: 在短临界区内复制全部分段原始统计。
+ * @detail: 平均值和打印由调用方在临界区外计算。out 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {motor_profile_snapshot_t *} out 输出，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_ProfileSnapshot(motor_profile_snapshot_t *out);
 
 /* Private macro -------------------------------------------------------------*/
@@ -138,7 +367,7 @@ void Motor_Timing_ProfileSnapshot(motor_profile_snapshot_t *out);
 /* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 推进分段耗时分频，并决定本拍是否采样。
- * @detail: 分频计数是 uint8_t，每次调用加 1，回绕为 0 时返回 true，即每 256 次调用采 1 次。
+ * @detail: 性能统计关闭时返回 false。分频计数是 uint8_t，每次调用加 1，回绕为 0 时返回 true，即每 256 次调用采 1 次。
  *          调用方只在通过控制门控之后调用。本函数不读取耗时，也不改变控制量。
  * @return {bool} true=本拍后续 Record 会累加
  * @author: lkc
@@ -152,8 +381,21 @@ bool Motor_Timing_ProfileBegin(void);
  * @author: lkc
  */
 bool Motor_Timing_ProfileIsActive(void);
-/** 细分计时默认关闭；开启只影响诊断采样，不改变控制周期。 */
+/**
+ * @description: 开关电流环内部的细分计时。
+ * @detail: 默认关闭。只影响诊断采样，不改变控制周期。总分段采样仍由 ProfileBegin 决定。
+ * @param {bool} enabled true=允许细分阶段记录
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_ProfileSetDetailed(bool enabled);
+
+/**
+ * @description: 查询本拍细分计时是否有效。
+ * @detail: 总采样标志和细分开关都为真才返回 true。
+ * @return {bool} true=本拍可记录细分阶段
+ * @author: lkc
+ */
 bool Motor_Timing_ProfileDetailedIsActive(void);
 
 /**
@@ -231,12 +473,17 @@ typedef struct {
  * @author: lkc
  */
 void Motor_Timing_CadenceReset(void);
-/** 清零并只开启速度任务统计，关闭高频性能统计；不改变轨迹模式或控制参数。 */
+/**
+ * @description: 清零并只开启速度任务统计。
+ * @detail: 先做 CadenceReset，再关闭回调统计、性能统计和分段采样。不改变轨迹模式或控制参数。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_SpeedTaskReset(void);
 
 /**
  * @description: 停止节拍和 DMA 回调累加。
- * @detail: 临界区内只清两个使能标志。已有统计和环形诊断都保留。
+ * @detail: 临界区内关闭性能统计、分段采样、唤醒探测、节拍和回调累加。已有统计和环形诊断保留。
  * @return {void} 无
  * @author: lkc
  */
@@ -317,8 +564,20 @@ void Motor_Timing_CallbackEnd(uint32_t time_us, bool pending);
  */
 void Motor_Timing_CallbackGet(motor_callback_t *out);
 
-/** 关闭回调统计可省去 BSP 中两次时间戳读取；不影响 IRQ 总占用统计。 */
+/**
+ * @description: 关闭 DMA 回调耗时统计。
+ * @detail: 进入临界区，只清回调统计开关。已有统计保留。BSP 可据此省去两次时间戳读取。不影响 IRQ 总占用统计。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_CallbackStop(void);
+
+/**
+ * @description: 查询回调起点是否仍需记录。
+ * @detail: 回调统计开启，或非紧凑轨迹仍在采集时返回 true。不改统计。
+ * @return {bool} true=应调用 CallbackBegin
+ * @author: lkc
+ */
 bool Motor_Timing_CallbackIsActive(void);
 
 /**
@@ -364,6 +623,99 @@ typedef struct {
     uint32_t time_us, flags;
     float theta, rpm, id, iq, id_cmd, iq_cmd;
 } motor_trace_compact_sample_t;
+
+typedef struct {
+    uint32_t time_us, flags;
+    uint16_t adc[3], reserved;
+    float ia, ib, ic, theta, pll, flux, rpm, v_alpha, v_beta;
+    float vd_int, vq_int, id, iq, id_cmd, iq_cmd, v_bus, dt;
+} motor_fault_trace_sample_t;
+
+#define MOTOR_FAULT_TRACE_STRIDE 4U
+#define MOTOR_FAULT_DEBUG_MAGIC 0x464f4344U
+#define MOTOR_FAULT_DEBUG_VERSION 1U
+#define MOTOR_FAULT_DEBUG_INVALID 0U
+#define MOTOR_FAULT_DEBUG_ARMED 1U
+#define MOTOR_FAULT_DEBUG_FROZEN 2U
+
+/**
+ * @description: 调试器读取的固定56字节描述符，所有字段为32位小端。
+ * @detail: sequence为偶数且前后相等才稳定。只在武装/冻结/复用时发布，armed的head/count不是实时值。
+ *          frozen时数组只读；其他模式复用缓冲前先失效。不提供运行中的跨字段快照。
+ */
+typedef struct {
+    uint32_t magic, version, sequence, state;
+    uint32_t address, sample_bytes, capacity, stride;
+    uint32_t head, count, fault, first_us, last_us, descriptor_bytes;
+} motor_fault_debug_descriptor_t;
+
+extern volatile motor_fault_debug_descriptor_t g_motor_fault_debug;
+
+/**
+ * @description: 停机任务里武装故障前分频环形记录。
+ * @detail: 复用完整轨迹 RAM，并暂停性能统计。已有故障须由应用拒绝武装，本函数不清除故障。
+ *          采集期间不要从任务读取或切换模式。采样入口的 ADC、abc、母线和 dt 由调用者填本拍值。
+ *          flags 高 16 位为故障码，低 2 位为观测状态，bit8 为跟踪事件锁存。不改控制。
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Timing_FaultTraceArm(void);
+
+/**
+ * @description: 查询故障轨迹是否仍在采集。
+ * @detail: ISR 写者用它检查采集开关。停机任务只宜用它判断格式是否活动，不要读取活动数组。
+ * @return {bool} true=故障格式且未冻结
+ * @author: lkc
+ */
+bool Motor_Timing_FaultTraceIsActive(void);
+
+/**
+ * @description: 查询当前记录格式是否为故障轨迹。
+ * @return {bool} true=故障轨迹格式
+ * @author: lkc
+ */
+bool Motor_Timing_TraceIsFault(void);
+
+/**
+ * @description: 判断本控制入口是否写入一条故障轨迹。
+ * @detail: ISR 采样前调用。普通情况每 4 拍放行一次。force 为真时强制本拍，同一入口时间不重复。
+ *          running 为 false 且已有样本时冻结并返回 false，不采集停机数据。time_us 是控制入口 (us)。
+ * @param {uint32_t} time_us 控制入口时间 (us)
+ * @param {bool} running     本拍控制是否仍在运行
+ * @param {bool} force       true=故障拍强制采集
+ * @return {bool} true=本拍应 Push
+ * @author: lkc
+ */
+bool Motor_Timing_FaultTraceDue(uint32_t time_us, bool running, bool force);
+
+/**
+ * @description: 复制一条故障轨迹样本。
+ * @detail: 只在已武装且未冻结时写入。sample 不可为空，违反约定触发 COMMON_ASSERT。故障冻结后不覆盖。
+ * @param {const motor_fault_trace_sample_t *} sample 本拍样本，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Timing_FaultTracePush(const motor_fault_trace_sample_t *sample);
+
+/**
+ * @description: 冻结故障轨迹，并给最后一条标故障码。
+ * @detail: ISR 在故障处理复位前调用。fault 非 0 时写入最后一条 flags 的高 16 位。
+ *          停机任务只在已经停机时传 0，只冻结、不改最后一条。未在采集则返回。
+ * @param {unsigned} fault 故障码；0 表示只冻结
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Timing_FaultTraceFreeze(unsigned fault);
+
+/**
+ * @description: 按时间顺序读取一条已冻结的故障轨迹。
+ * @detail: 未冻结、不是故障格式、sample 为空或下标越界时返回 false。下标 0 为最旧。
+ * @param {unsigned} index                      时间顺序下标
+ * @param {motor_fault_trace_sample_t *} sample 输出；空则失败
+ * @return {bool} true=已写入 sample
+ * @author: lkc
+ */
+bool Motor_Timing_FaultTraceGet(unsigned index, motor_fault_trace_sample_t *sample);
 #define MOTOR_TRACE_COMPACT_CAPACITY \
     (MOTOR_TRACE_CAPACITY * sizeof(motor_trace_sample_t) / sizeof(motor_trace_compact_sample_t))
 #define MOTOR_TRACE_COMPACT_STRIDE 30U
@@ -374,16 +726,62 @@ typedef struct {
 #define MOTOR_TRACE_COMPACT_FAULT 512U
 #define MOTOR_TRACE_COMPACT_TASK_GAP 1024U
 #define MOTOR_TRACE_COMPACT_STOP 2048U
-/** 停机时武装32字节飞行记录，复用完整缓冲；默认停用性能统计，CadenceReset可显式恢复。
- * 正常每30控制拍写一条；首次CLOSED当拍标记，失锁/故障/任务超10ms留16条尾段，停机立即冻结。
- * flags低2位为状态，高16位为故障码；中间事件位见宏。时间us、角度rad、转速RPM、电流A。
+/**
+ * @description: 停机时武装紧凑飞行记录。
+ * @detail: 复用完整缓冲，每条 32 字节。默认关闭性能统计，CadenceReset 可再打开。
+ *          正常每 30 个控制拍写一条。首次 CLOSED 当拍做标记；失锁、故障或任务超过 10 ms 后再留 16 条。
+ *          停机立即冻结。flags 低 2 位为状态，高 16 位为故障码。不改控制。
+ * @return {void} 无
+ * @author: lkc
  */
 void Motor_Timing_TraceArmCompact(void);
+
+/**
+ * @description: 查询当前记录格式是否为紧凑轨迹。
+ * @detail: 故障轨迹复用同一缓冲，此时返回 false。
+ * @return {bool} true=紧凑格式且不是故障轨迹
+ * @author: lkc
+ */
 bool Motor_Timing_TraceIsCompact(void);
+
+/**
+ * @description: 查询紧凑轨迹是否仍在采集。
+ * @return {bool} true=紧凑格式且未冻结
+ * @author: lkc
+ */
 bool Motor_Timing_TraceCompactIsActive(void);
+
+/**
+ * @description: 判断本控制拍是否写入一条紧凑轨迹。
+ * @detail: 未运行且无故障时不采集。首次 CLOSED 当拍做标记。失锁、故障或任务心跳超过 10 ms 后留 16 条。
+ *          停机立即放行并在 Push 后冻结。time_us 为控制入口 (us)。不改控制。
+ * @param {uint32_t} time_us 控制入口时间 (us)
+ * @param {unsigned} state   观测器状态，2 为 CLOSED
+ * @param {unsigned} fault   故障码，0 为无故障
+ * @param {bool} running     本拍控制是否仍在运行
+ * @return {bool} true=本拍应 Push
+ * @author: lkc
+ */
 bool Motor_Timing_TraceCompactDue(uint32_t time_us, unsigned state, unsigned fault, bool running);
+
+/**
+ * @description: 写入一条紧凑轨迹，并附上本拍事件标志。
+ * @detail: sample 不可为空，违反约定触发 COMMON_ASSERT。未在采集则返回。
+ *          停机或尾段配额用完后清除采集开关。不改控制。
+ * @param {const motor_trace_compact_sample_t *} sample 本拍样本，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_TracePushCompact(const motor_trace_compact_sample_t *sample);
-/** 仅冻结后可按时间顺序读取；输出空、下标越界或格式不匹配则返回false。 */
+
+/**
+ * @description: 按时间顺序读取一条已冻结的紧凑轨迹。
+ * @detail: 仍在采集、不是紧凑格式、sample 为空或下标越界时返回 false。下标 0 为最旧。
+ * @param {unsigned} index                        时间顺序下标
+ * @param {motor_trace_compact_sample_t *} sample 输出；空则失败
+ * @return {bool} true=已写入 sample
+ * @author: lkc
+ */
 bool Motor_Timing_TraceGetCompact(unsigned index, motor_trace_compact_sample_t *sample);
 
 typedef struct {
@@ -403,36 +801,166 @@ typedef struct {
     uint32_t pi_over_1ms, pi_over_streak, pi_over_streak_max;
     motor_wake_probe_t worst_pi_wake, worst_wake;
 } motor_speed_task_diag_t;
-/** 显式启用目标tick入口到任务唤醒的DMA计时；probe属于插桩模式。 */
+/**
+ * @description: 打开目标 tick 到任务唤醒的 DMA 探测。
+ * @detail: 先做 SpeedTaskReset，再允许 WakeProbeArm。探测是插桩，不改任务调度。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_WakeProbeReset(void);
+
+/**
+ * @description: 武装一轮从截止 tick 到任务唤醒的 DMA 计时。
+ * @detail: 仅在 WakeProbeReset 打开探测后生效。不改任务调度。
+ * @param {uint32_t} deadline_tick 本轮 osDelayUntil 截止 tick
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_WakeProbeArm(uint32_t deadline_tick);
+
+/**
+ * @description: 查询目标 tick 到任务唤醒的 DMA 探测是否已武装。
+ * @return {bool} true=已武装
+ * @author: lkc
+ */
 bool Motor_Timing_WakeProbeArmed(void);
+
+/**
+ * @description: 在截止 tick 的 SysTick 入口记下探测起点。
+ * @detail: 只记第一次命中。不改任务调度。
+ * @param {uint32_t} next_tick 即将发生的 tick
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_WakeProbeTick(uint32_t next_tick);
+
+/**
+ * @description: 查询本轮探测是否已经看到截止 tick，可以累计 DMA。
+ * @return {bool} true=应调用 WakeProbeDmaNote
+ * @author: lkc
+ */
 bool Motor_Timing_WakeProbeDmaDue(void);
+
+/**
+ * @description: 累计截止 tick 之后、任务唤醒之前的一次 DMA 耗时。
+ * @detail: 未到采集窗口则返回。不改 PWM 或任务调度。
+ * @param {uint32_t} start_us DMA 入口时间 (us)
+ * @param {uint32_t} end_us   DMA 返回时间 (us)
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_WakeProbeDmaNote(uint32_t start_us, uint32_t end_us);
 typedef struct {
     uint32_t count, first_us, last_us, sum_us, max_us, tick_pending, switch_pending;
     uint32_t seen;
 } motor_irq_diag_t;
 #define MOTOR_TIMING_IRQ_STRIDE 31U
-/** IRQ入口调用；诊断开启时统计总次数，每31次允许一次计时。不同kind独立分频，reset清零。 */
+/**
+ * @description: 判断本次 IRQ 是否允许记一次耗时。
+ * @detail: 节拍统计开启且不是只统计速度任务时，每次调用都加总次数。每 31 次放行一次计时。
+ *          kind 0 为 DMA 函数体，1 为 SysTick 函数体；其他值返回 false。CadenceReset 清零分频。不改控制。
+ * @param {unsigned} kind 0=DMA，1=SysTick
+ * @return {bool} true=本拍应调用 IrqNote
+ * @author: lkc
+ */
 bool Motor_Timing_IrqDue(unsigned kind);
-/* kind=0 DMA函数体，1 SysTick函数体。pending bit0=SysTick，bit1=PendSV。
- * SysTick包含DMA抢占，不能相加；不包括异常入/出栈及Note自身。 */
+
+/**
+ * @description: 记录一次已放行的 IRQ 函数体耗时。
+ * @detail: kind 0 为 DMA，1 为 SysTick。pending 的 bit0 为 SysTick，bit1 为 PendSV。
+ *          SysTick 耗时包含被 DMA 抢占的时间，不能与 DMA 相加。不含异常入出栈和本函数自身。
+ *          未开启或 kind 非法则返回。不改控制。
+ * @param {unsigned} kind       0=DMA，1=SysTick
+ * @param {uint32_t} start_us   函数体入口时间 (us)
+ * @param {uint32_t} end_us     函数体返回时间 (us)
+ * @param {unsigned} pending    bit0=SysTick 挂起，bit1=PendSV 挂起
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_IrqNote(unsigned kind, uint32_t start_us, uint32_t end_us, unsigned pending);
+
+/**
+ * @description: 拷贝一类 IRQ 耗时统计。
+ * @detail: 进入临界区。out 不可为空，违反约定触发 COMMON_ASSERT。kind 非法则不写输出。
+ * @param {unsigned} kind          0=DMA，1=SysTick
+ * @param {motor_irq_diag_t *} out 输出，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_IrqGet(unsigned kind, motor_irq_diag_t *out);
-/* phase: 1等待周期，2已唤醒，3位置环完成，4速度调用完成；tick由任务传入。 */
+
+/**
+ * @description: 记录速度任务阶段切换耗时。
+ * @detail: phase 1 为等待周期，2 为已唤醒，3 为位置环完成，4 为速度调用完成。
+ *          只在相邻阶段前进时更新上一段峰值。未开启或 phase 超出 1..4 则返回。不改调度。
+ * @param {uint32_t} time_us 阶段时间 (us)
+ * @param {uint32_t} tick    任务看到的 tick
+ * @param {uint32_t} phase   阶段号，1..4
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_SpeedTaskStage(uint32_t time_us, uint32_t tick, uint32_t phase);
-/** 唤醒时发布阶段2，并比较实际tick和本轮osDelayUntil截止tick；不改变任务调度。 */
+
+/**
+ * @description: 记录任务唤醒，并发布阶段 2。
+ * @detail: 比较实际 tick 和本轮 osDelayUntil 截止 tick，只保留最晚的正偏差。
+ *          若探测已看到同一截止 tick，记下唤醒延迟和期间 DMA 累计。不改任务调度。
+ * @param {uint32_t} time_us       唤醒时间 (us)
+ * @param {uint32_t} tick          实际 tick
+ * @param {uint32_t} deadline_tick 本轮截止 tick
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_SpeedTaskWake(uint32_t time_us, uint32_t tick, uint32_t deadline_tick);
-/* 任务完成一次外环调用后发布；运行门控不是PI实际更新计数。 */
+
+/**
+ * @description: 记录一次外环调用完成。
+ * @detail: 先写心跳。节拍统计开启时更新完成间隔，并保存门控、目标、反馈和 Iq。
+ *          allowed 是运行门控，不是 PI 实际更新次数。不改控制。
+ * @param {uint32_t} time_us 完成时间 (us)
+ * @param {bool} allowed     本拍外环是否允许输出
+ * @param {float} target     速度目标 (RPM)
+ * @param {float} feedback   速度反馈 (RPM)
+ * @param {float} iq         速度环 Iq (A)
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_SpeedTaskNote(uint32_t time_us, bool allowed, float target, float feedback, float iq);
+
+/**
+ * @description: 拷贝速度任务诊断。
+ * @detail: 进入临界区。out 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {motor_speed_task_diag_t *} out 输出，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_SpeedTaskGet(motor_speed_task_diag_t *out);
-/** 查询任务统计是否开启，供调用方跳过不必要的诊断参数采集。 */
+
+/**
+ * @description: 查询速度任务统计是否开启。
+ * @detail: 供调用方跳过不必要的诊断参数采集。不改控制。
+ * @return {bool} true=节拍统计开启
+ * @author: lkc
+ */
 bool Motor_Timing_SpeedTaskIsActive(void);
-/** 每次任务完成都发布心跳，供紧凑记录超时触发；不启用其他统计。 */
+
+/**
+ * @description: 发布一次速度任务完成心跳。
+ * @detail: 每次任务完成都写，供紧凑记录判断超时。不启用其他统计，不改调度。
+ * @param {uint32_t} time_us 任务完成时间 (us)
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_SpeedTaskHeartbeat(uint32_t time_us);
-/** 任务比较实际PI序号后发布；仅cadence开启时统计，间隔包含跳拍及禁用时间。 */
+
+/**
+ * @description: 记录速度 PI 是否在本拍实际更新。
+ * @detail: 仅节拍统计开启时计入。间隔包含跳拍和禁用前的时间。超过 1 ms 计一次超时。不改 PI。
+ * @param {uint32_t} time_us 本次观察时间 (us)
+ * @param {bool} updated     true=本拍 PI 序号已前进
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_SpeedPiNote(uint32_t time_us, bool updated);
 
 /* 轻量记录：96字节，附速度任务证据；仍小于完整记录，不增大union缓冲。 */
@@ -446,13 +974,64 @@ typedef struct {
     float speed_target, speed_feedback, speed_iq;
     uint32_t task_tick, task_phase, task_phase_age_us;
 } motor_trace_light_sample_t;
+/**
+ * @description: 按接管触发方式武装轻量轨迹。
+ * @detail: 样本比完整记录短，仍复用同一缓冲。触发后每 8 拍记录，配额 384 条。不停止电机。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_TraceArmLight(void);
-/* 复用轻量缓冲：首次接管192条固定保留，余下320条循环记录；离开CLOSED当拍冻结。 */
+
+/**
+ * @description: 武装飞行记录，复用轻量缓冲。
+ * @detail: 首次接管保留 192 条，其余 320 条循环覆盖。离开 CLOSED 的当拍冻结。不停止电机。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_TraceArmFlight(void);
+
+/**
+ * @description: 查询当前记录是否为飞行格式。
+ * @return {bool} true=飞行记录
+ * @author: lkc
+ */
 bool Motor_Timing_TraceIsFlight(void);
+
+/**
+ * @description: 返回飞行记录里固定保留的接管条数。
+ * @detail: 最多 192。循环区条数不在这里。
+ * @return {unsigned} 固定区条数
+ * @author: lkc
+ */
 unsigned Motor_Timing_TraceFlightEntryCount(void);
+
+/**
+ * @description: 查询当前记录格式是否为轻量轨迹。
+ * @return {bool} true=轻量格式
+ * @author: lkc
+ */
 bool Motor_Timing_TraceIsLight(void);
+
+/**
+ * @description: 写入一条轻量或飞行轨迹。
+ * @detail: sample 不可为空，违反约定触发 COMMON_ASSERT。未武装则返回。
+ *          飞行格式先填满 192 条固定区，再在其余 320 条里循环；离开 CLOSED 的当拍冻结。
+ *          普通轻量格式按配额停止。不改控制。
+ * @param {const motor_trace_light_sample_t *} sample 本拍样本，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_TracePushLight(const motor_trace_light_sample_t *sample);
+
+/**
+ * @description: 按时间顺序读取一条已停止的轻量或飞行轨迹。
+ * @detail: 仍在采集、不是轻量格式、sample 为空或下标越界时返回 false。下标 0 为最旧。
+ *          飞行格式先读固定区，再读循环区。
+ * @param {unsigned} index                      时间顺序下标
+ * @param {motor_trace_light_sample_t *} sample 输出；空则失败
+ * @return {bool} true=已写入 sample
+ * @author: lkc
+ */
 bool Motor_Timing_TraceGetLight(unsigned index, motor_trace_light_sample_t *sample);
 
 /**
@@ -472,7 +1051,12 @@ void Motor_Timing_TraceArm(void);
  * @author: lkc
  */
 void Motor_Timing_TraceArmEntry(void);
-/** 首次CLOSED后逐控制拍记录384条，收满冻结；不停止电机。 */
+/**
+ * @description: 首次 CLOSED 后逐控制拍记录 384 条。
+ * @detail: 在接管触发方式上改为触发后每拍放行。收满后冻结。不停止电机，不改控制节拍。
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Timing_TraceArmEntryFast(void);
 
 /**
@@ -488,7 +1072,9 @@ void Motor_Timing_TraceStop(void);
  * @detail: active 为 false 时返回 false。state==2 表示已经到过 CLOSED，这个标记在本次事件判断之后才更新。
  *          普通武装：此前到过 CLOSED 且本次 state 不是 2，当拍触发，并把后续配额设为 16。
  *          entry 武装：首次 state==2 当拍触发，并把后续配额设为 384。
- *          没有触发时每 30 次调用返回一次 true；有触发时当拍返回 true，并把 30 次计数清零。
+ *          没有触发时每 30 次调用返回一次 true；有触发时当拍返回 true，并把计数清零。
+ *          快速接管触发后改为逐拍。轻量触发后每 8 拍。飞行记录满 192 条固定区后每 128 拍。
+ *          紧凑格式不走本函数。
  * @param {unsigned} state 观测器状态，2 为 CLOSED
  * @return {bool} true=本拍应 Push
  * @author: lkc
@@ -497,7 +1083,8 @@ bool Motor_Timing_TraceDue(unsigned state);
 
 /**
  * @description: 写入一条环形诊断，并附上当前窗口的间隔统计。
- * @detail: sample 不可为空并由 COMMON_ASSERT 检查，active 为 false 时直接返回。写入后用窗口里的 gap/full/pending/up 覆盖样本对应字段并清窗口。
+ * @detail: sample 不可为空，违反约定触发 COMMON_ASSERT。未在采集或当前是轻量/紧凑格式时返回。
+ *          写入后用窗口里的 gap/full/pending/up 覆盖样本对应字段并清窗口。
  *          失锁触发给 flags 加 bit7(128)，接管触发加 bit8(256)。配额减到 0 时清除 active。
  * @param {const motor_trace_sample_t *} sample 本拍样本；不可为空，违反约定触发 COMMON_ASSERT
  * @return {void} 无

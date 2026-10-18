@@ -4,11 +4,32 @@ $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 Push-Location $root
 try {
     New-Item -ItemType Directory -Force .build/host | Out-Null
+    & (Join-Path $PSScriptRoot 'test_isr_stack_budget.ps1')
     $env:ZIG_GLOBAL_CACHE_DIR = Join-Path $root '.build/zig-cache'
     if (!$Compiler) {
         $Compiler = Join-Path $root '.build/tools/ziglang/zig.exe'
         if (!(Test-Path $Compiler)) { throw 'Specify -Compiler path to zig.exe, or install ziglang into .build/tools.' }
     }
+    $usartSource = Get-Content Library/Bsp/bsp_usart.c -Raw -Encoding utf8
+    $usartWait = [regex]::Match($usartSource, '(?s)STATIC VOID Bsp_Usart_YieldToIsr\(VOID\)\s*\{.*?\r?\n\}')
+    if (!$usartWait.Success) { throw 'USART wait function missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/usart_wait_under_test.inc'), $usartWait.Value, [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/host Tests/host/test_usart_wait.c -o .build/host/test_usart_wait.exe
+    if ($LASTEXITCODE -ne 0) { throw 'USART wait compilation failed' }
+    & .build/host/test_usart_wait.exe
+    if ($LASTEXITCODE -ne 0) { throw 'USART wait tests failed' }
+    $focSource = Get-Content App/motor/motor_foc_isr.c -Raw -Encoding utf8
+    $focDispatch = [regex]::Match($focSource, '(?s)void Motor_FocIsr_Step\(MOTOR_PARAM_S \*motor_param\)\s*\{.*?\r?\n\}')
+    if (!$focDispatch.Success) { throw 'FOC dispatch function missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/foc_dispatch_under_test.inc'), $focDispatch.Value, [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/host Tests/host/test_foc_dispatch.c -o .build/host/test_foc_dispatch.exe
+    if ($LASTEXITCODE -ne 0) { throw 'FOC dispatch compilation failed' }
+    & .build/host/test_foc_dispatch.exe
+    if ($LASTEXITCODE -ne 0) { throw 'FOC dispatch tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_math.c Tests/host/test_motor_math.c -o .build/host/test_motor_math.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor math compilation failed' }
+    & .build/host/test_motor_math.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor math tests failed' }
     foreach ($assertMode in @('', '-DNDEBUG')) {
         $assertFlags = @()
         if ($assertMode) { $assertFlags += $assertMode }

@@ -33,6 +33,7 @@ extern "C" {
 
 /**
  * @description: 计算两角度之差并限制在 [-π, π]。
+ * @detail: 无按圈数迭代的循环；任一输入非有限时返回 NaN。
  * @param {float} angle1  角度 1 (rad)
  * @param {float} angle2  角度 2 (rad)
  * @return {float} 角度差 (rad)

@@ -41,11 +41,24 @@ extern "C" {
  * @return {float} 最短角度差 (rad)
  * @author: lkc
  */
-float utils_angle_difference_rad(float angle1, float angle2) {
-	float difference = angle1 - angle2;
-	while (difference < -M_PI) difference += 2.0f * M_PI;
-	while (difference > M_PI) difference -= 2.0f * M_PI;
-	return difference;
+float utils_angle_difference_rad(float angle1, float angle2)
+{
+    float difference = angle1 - angle2;
+
+    /* 非有限角度不能解释为有效零误差；保留 NaN 供调用者识别。 */
+    if (!isfinite(angle1) || !isfinite(angle2)) {
+        return NAN;
+    }
+    /* 常规单圈角度差最多修正一次，保持原有加减顺序及 ±π 边界。
+     * 大角度走余数路径，避免循环耗时随圈数增长或因浮点精度不足停滞。 */
+    if (!isfinite(difference)) {
+        difference = fmodf(angle1, 2.0f * M_PI) - fmodf(angle2, 2.0f * M_PI);
+    } else if (difference < -3.0f * M_PI || difference > 3.0f * M_PI) {
+        difference = fmodf(difference, 2.0f * M_PI);
+    }
+    if (difference < -M_PI) difference += 2.0f * M_PI;
+    if (difference > M_PI) difference -= 2.0f * M_PI;
+    return difference;
 }
 
 /**
