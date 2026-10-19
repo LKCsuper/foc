@@ -4,6 +4,7 @@
 #include <string.h>
 #include "motor_output.h"
 #include "motor_feedback.h"
+#include "motor_timing.h"
 
 static motor_feedback_source_t s_source;
 static unsigned s_vesc_calls;
@@ -21,6 +22,16 @@ static float s_reconstructed_beta;
 static unsigned s_reconstruction_calls;
 static float s_command_alpha;
 static float s_command_beta;
+static bool s_profile_detailed;
+static unsigned s_voltage_records;
+
+bool Motor_Timing_ProfileDetailedIsActive(void) { return s_profile_detailed; }
+uint32_t Motor_Timing_ProfileTimeUs(void) { return 0U; }
+void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start_us)
+{
+    (void)start_us;
+    if (stage == MOTOR_TIMING_VOLTAGE_REBUILD) s_voltage_records++;
+}
 
 uint32_t Hal_Motor_PwmPeriodCounts(void) { return 1000U; }
 void Hal_Motor_PwmSetDuty(uint32_t a, uint32_t b, uint32_t c)
@@ -130,6 +141,7 @@ int main(void)
     assert(s_applied_alpha == 0.0f && s_applied_beta == 0.0f && s_commit_calls == 1U);
 
     motor.ol_mode = MOTOR_OL_MODE_IF;
+    motor.sensorless_takeover = true;
     s_source = MOTOR_FEEDBACK_SRC_ENCODER;
     Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
     assert(s_vesc_calls == 1U && s_hqd_calls == 0U);
@@ -243,6 +255,42 @@ int main(void)
         motor.ol_mode = MOTOR_OL_MODE_IF;
         Motor_OutputVoltageLinear(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
         assert(s_reconstruction_calls == reconstructions + 2U);
+    }
+    /* 电压重建只计入使能的无感 I/F 细分拍，开环和停机仍重建但不进该段。 */
+    s_profile_detailed = true;
+    motor.ol_enable = true;
+    motor.sensorless_enable = true;
+    motor.ol_mode = MOTOR_OL_MODE_IF;
+    s_source = MOTOR_FEEDBACK_SRC_SENSORLESS;
+    s_voltage_records = 0U;
+    Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+    assert(s_voltage_records == 1U);
+    s_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
+    Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+    assert(s_voltage_records == 1U);
+    s_source = MOTOR_FEEDBACK_SRC_SENSORLESS;
+    motor.ol_enable = false;
+    Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+    assert(s_voltage_records == 1U);
+    motor.ol_enable = true;
+    s_profile_detailed = false;
+    Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+    assert(s_voltage_records == 1U);
+    /* 未授权接管时不重建，比较值和 SVM 输入保持原符号。 */
+    motor.sensorless_takeover = false;
+    motor.ol_enable = true;
+    motor.ol_mode = MOTOR_OL_MODE_IF;
+    s_source = MOTOR_FEEDBACK_SRC_SENSORLESS;
+    s_profile_detailed = true;
+    {
+        unsigned reconstructions = s_reconstruction_calls;
+        unsigned records = s_voltage_records;
+        Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+        assert(s_reconstruction_calls == reconstructions);
+        assert(s_voltage_records == records);
+        assert(s_pwm_a == 11U && s_pwm_b == 33U && s_pwm_c == 22U);
+        assert(s_applied_alpha == -2.0f && s_applied_beta == 3.0f);
+        assert(s_vesc_alpha == -2.0f && s_vesc_beta == 3.0f);
     }
     puts("test_motor_output: pass");
     return 0;

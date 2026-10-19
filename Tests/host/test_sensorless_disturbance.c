@@ -64,6 +64,7 @@ static result_t simulate_dynamic(const scenario_t *scenario, float voltage_ratio
     motor.ol_iq_set = current_amplitude;
     motor.ol_max_rpm = 5920.0f;
     motor.sensorless_enable = true;
+    motor.sensorless_takeover = true;
     motor.sensorless_motor_r = resistance * scenario->resistance_ratio;
     motor.sensorless_motor_l = inductance * scenario->inductance_ratio;
     motor.sensorless_flux_linkage = flux;

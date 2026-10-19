@@ -63,6 +63,7 @@ extern "C" {
  * 重要限制：电机静止或转速很低时，反电动势信息太弱，观测结果不可信。
  * 所以系统必须先用 I/F 强制角度让电机转起来，满足磁链、转速、方向、
  * 相位和持续时间条件后，才允许观测角度渐变接管电流环。
+ * 未授权接管时本拍直接返回，不积分磁链、不跑 PLL；重新授权后从冷态 Seed。
  *
  * 本文件只负责“估算与接管判断”。真正的 D/Q 电流 PI 和 SVPWM 仍在
  * motor_it.c 中执行，速度 PI 则在 motor_speed.c 中执行。
@@ -70,6 +71,18 @@ extern "C" {
 
 /* 默认单实例包装，步骤 2 过渡期保留；学习/测试优先用 *State API。 */
 static motor_sensorless_runtime_t s_sensorless;
+
+/**
+ * @description: 对观测器参数执行有限非负下限处理。
+ * @detail: minimum 必须是有限非负值；NaN 输入返回下限，与本文件原 fmaxf 用法一致。
+ * @param {float} value 待处理参数
+ * @param {float} minimum 有限非负下限
+ * @return {float} 不低于下限的参数，NaN 时返回下限
+ */
+static inline float Motor_Sensorless_AtLeast(float value, float minimum)
+{
+    return value > minimum ? value : minimum;
+}
 
 /**
  * @description: 将 UpdateState 产生的副作用落到速度环/保护（仅默认包装使用）。
@@ -146,10 +159,12 @@ static void Motor_Sensorless_Seed(motor_sensorless_runtime_t *rt, const MOTOR_PA
 {
     float inductance = motor->sensorless_motor_l;
     float flux = motor->sensorless_flux_linkage;
+    float sine, cosine;
 
     /* L×I 是定子电感磁链，flux×cos/sin 是假定的永磁体磁链。 */
-    rt->x_alpha = inductance * i_alpha + flux * cosf(motor->ol_theta);
-    rt->x_beta = inductance * i_beta + flux * sinf(motor->ol_theta);
+    sincos_f32(motor->ol_theta, &sine, &cosine);
+    rt->x_alpha = inductance * i_alpha + flux * cosine;
+    rt->x_beta = inductance * i_beta + flux * sine;
 
     /* 原始角、PLL 角和控制角从同一角度出发，避免启动瞬间发生角度阶跃。 */
     rt->observer_angle = motor->ol_theta;
@@ -176,10 +191,12 @@ static void Motor_Sensorless_Seed(motor_sensorless_runtime_t *rt, const MOTOR_PA
  * @param {motor_sensorless_runtime_t *} rt  观测器运行时
  * @param {const MOTOR_PARAM_S *} motor     PLL 增益和转速上限
  * @param {float} dt                        步长 (s)
+ * @param {float} pole_pairs                本拍已规范化的极对数，至少为 1
  * @return {void} 无
  * @author: lkc
  */
-static void Motor_Sensorless_RunPll(motor_sensorless_runtime_t *rt, const MOTOR_PARAM_S *motor, float dt)
+static void Motor_Sensorless_RunPll(motor_sensorless_runtime_t *rt, const MOTOR_PARAM_S *motor, float dt,
+                                    float pole_pairs)
 {
     float delta = utils_angle_difference_rad(rt->observer_angle, rt->pll_angle);
     float max_electrical_speed;
@@ -195,7 +212,7 @@ static void Motor_Sensorless_RunPll(motor_sensorless_runtime_t *rt, const MOTOR_
      * 将 PLL 速度限制在“最高机械转速 × 极对数 × 1.5”以内。
      * 1.5 倍留出加速余量，同时阻止噪声或参数错误把速度积分到异常大。
      */
-    max_electrical_speed = RPM2RADPS_f(fabsf(motor->ol_max_rpm) * fmaxf(motor->ol_pole_pairs, 1.0f) * 1.5f);
+    max_electrical_speed = RPM2RADPS_f(fabsf(motor->ol_max_rpm) * pole_pairs * 1.5f);
     rt->pll_speed_electrical =
         Motor_Sensorless_Clamp(rt->pll_speed_electrical, -max_electrical_speed, max_electrical_speed);
 }
@@ -286,6 +303,8 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
 
     /* Ortega 磁链幅值误差和定子磁链微分量。 */
     float magnitude_error;
+    float correction_alpha;
+    float correction_beta;
     float x_alpha_dot;
     float x_beta_dot;
 
@@ -323,12 +342,35 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
     }
 
     /*
+     * 未授权接管时不做磁链积分和 PLL，I/F 继续使用强制角。
+     * 已闭环且转速高于开环安全上限时仍请求失速故障，然后清成冷态。
+     * 已经是冷态的拍只留下清零的副作用，避免每拍重复复位。
+     * 重新授权后从 Seed 建立，不沿用这段停算期间的旧磁链。
+     */
+    if (!motor->sensorless_takeover) {
+        bool above_open_loop_limit = rt->state == MOTOR_SENSORLESS_CLOSED &&
+                                     motor->sensorless_openloop_max_rpm > 0.0f &&
+                                     fabsf(motor->ol_current_rpm) > motor->sensorless_openloop_max_rpm;
+
+        if (above_open_loop_limit && effects != NULL) {
+            effects->request_speed_loss_fault = true;
+        }
+        if (rt->initialized || rt->state != MOTOR_SENSORLESS_OPEN_LOOP) {
+            Motor_Sensorless_ResetState(rt);
+        }
+        if (effects != NULL) {
+            effects->feedback_valid = false;
+        }
+        return;
+    }
+
+    /*
      * 对关键模型参数做最后一道保护：R/L 不允许为负，额定磁链不能为 0。
      * 参数数量级必须正确，例如 400mΩ 要写成 0.4Ω，800uH 要写成 0.0008H。
      */
-    resistance = fmaxf(motor->sensorless_motor_r, 0.0f);
-    inductance = fmaxf(motor->sensorless_motor_l, 0.0f);
-    flux = fmaxf(motor->sensorless_flux_linkage, 1.0e-6f);
+    resistance = Motor_Sensorless_AtLeast(motor->sensorless_motor_r, 0.0f);
+    inductance = Motor_Sensorless_AtLeast(motor->sensorless_motor_l, 0.0f);
+    flux = Motor_Sensorless_AtLeast(motor->sensorless_flux_linkage, 1.0e-6f);
     observer_gain = motor->sensorless_observer_gain;
 
     /*
@@ -338,7 +380,7 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
     if (observer_gain <= 0.0f) {
         observer_gain = 1000.0f / (flux * flux);
     }
-    pole_pairs = fmaxf(motor->ol_pole_pairs, 1.0f);
+    pole_pairs = Motor_Sensorless_AtLeast(motor->ol_pole_pairs, 1.0f);
 
     /* Ia/Ib/Ic -> 静止 α/β 坐标系。观测器不在旋转 D/Q 坐标系中计算。 */
     clarke_transform(motor->ia, motor->ib, motor->ic, &i_alpha, &i_beta);
@@ -382,15 +424,16 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
      *
      * V-R×I 是电机电压方程；最后一项只用于抑制积分漂移和磁链发散。
      */
-    x_alpha_dot =
-        rt->applied_v_alpha - resistance * i_alpha + 0.5f * observer_gain * rotor_flux_alpha * magnitude_error;
-    x_beta_dot = rt->applied_v_beta - resistance * i_beta + 0.5f * observer_gain * rotor_flux_beta * magnitude_error;
+    correction_alpha = 0.5f * observer_gain * rotor_flux_alpha * magnitude_error;
+    correction_beta = 0.5f * observer_gain * rotor_flux_beta * magnitude_error;
+    x_alpha_dot = rt->applied_v_alpha - resistance * i_alpha + correction_alpha;
+    x_beta_dot = rt->applied_v_beta - resistance * i_beta + correction_beta;
     if (diagnostic != NULL) {
         diagnostic->x_before_alpha = rt->x_alpha; diagnostic->x_before_beta = rt->x_beta;
         diagnostic->i_alpha = i_alpha; diagnostic->i_beta = i_beta;
         diagnostic->v_alpha = rt->applied_v_alpha; diagnostic->v_beta = rt->applied_v_beta;
-        diagnostic->correction_alpha = 0.5f * observer_gain * rotor_flux_alpha * magnitude_error;
-        diagnostic->correction_beta = 0.5f * observer_gain * rotor_flux_beta * magnitude_error;
+        diagnostic->correction_alpha = correction_alpha;
+        diagnostic->correction_beta = correction_beta;
         diagnostic->resistance = resistance; diagnostic->inductance = inductance;
         diagnostic->flux_nominal = flux; diagnostic->gain = observer_gain;
         diagnostic->pll_before = rt->pll_angle; diagnostic->phase_offset = motor->sensorless_phase_offset;
@@ -417,8 +460,8 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
      * x_alpha/x_beta 刚刚完成积分，因此重新计算一次最新转子磁链。
      * 模长用于判断观测是否可信，方向 atan2(β, α) 就是转子电角度。
      */
-    rotor_flux_alpha = rt->x_alpha - inductance * i_alpha;
-    rotor_flux_beta = rt->x_beta - inductance * i_beta;
+    rotor_flux_alpha = rt->x_alpha - l_i_alpha;
+    rotor_flux_beta = rt->x_beta - l_i_beta;
     rt->flux_magnitude = NORM2_f(rotor_flux_alpha, rotor_flux_beta);
     rt->observer_angle = utils_fast_atan2(rotor_flux_beta, rotor_flux_alpha) + motor->sensorless_phase_offset;
 
@@ -435,7 +478,7 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
      * 原始 atan2 角度先进入 PLL，不能直接拿去控制电流环。
      * PLL 输出电角速度；除以极对数后才是机械角速度，再换算成 RPM。
      */
-    Motor_Sensorless_RunPll(rt, motor, dt);
+    Motor_Sensorless_RunPll(rt, motor, dt, pole_pairs);
     rt->mechanical_rpm = RADPS2RPM_f(rt->pll_speed_electrical) / pole_pairs;
     /*
      * 对机械 RPM 再做一次一阶低通：
@@ -463,7 +506,7 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
      */
     open_loop_rpm_abs = fabsf(motor->ol_current_rpm);
     observer_rpm_abs = fabsf(rt->filtered_rpm);
-    speed_error_limit = fmaxf(open_loop_rpm_abs * 0.25f, 100.0f);
+    speed_error_limit = Motor_Sensorless_AtLeast(open_loop_rpm_abs * 0.25f, 100.0f);
     speed_ok = open_loop_rpm_abs >= motor->sensorless_transition_rpm &&
                observer_rpm_abs >= motor->sensorless_transition_rpm &&
                fabsf(observer_rpm_abs - open_loop_rpm_abs) <= speed_error_limit;

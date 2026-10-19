@@ -28,6 +28,7 @@ static double run(float load_angle, float voltage_bias, int cold_start, float ga
     m.ol_iq_set = 1.0f;
     m.ol_max_rpm = 5920.0f;
     m.sensorless_enable = true;
+    m.sensorless_takeover = true;
     m.sensorless_motor_r = 0.474f;
     m.sensorless_motor_l = 0.000112f;
     m.sensorless_flux_linkage = model_flux;

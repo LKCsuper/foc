@@ -17,6 +17,7 @@ extern "C" {
 #include "motor_hall.h"
 #include "motor_math.h"
 #include "motor_sensorless.h"
+#include "motor_timing.h"
 #include "hal_motor.h"
 #if defined(__CC_ARM)
 #pragma O2
@@ -186,6 +187,7 @@ void Motor_OutputVoltageSensoredIf(MOTOR_PARAM_S *motor, float vd, float vq, flo
  *          否则先用无死区重建电压做调制误差诊断，再把本拍平均电压留给下一拍观测。
  *          死区只在 RAM 比例大于 0 且三相电流有限时，按逻辑 ABC 电流的一阶滤波估计，
  *          系数 0.01，不含管压降，不改已算出的比较值。
+ *          无感反馈且未授权接管时不重建：观测器不积分，比较值保持本拍 SVM 的结果。
  *          motor 不可为空，违反约定触发 COMMON_ASSERT。
  * @param {MOTOR_PARAM_S *} motor 电机对象，写入 duty1/2/3（计数）
  * @param {float} vd              D 轴电压 (V)
@@ -209,10 +211,16 @@ void Motor_OutputVoltageSensorlessIf(MOTOR_PARAM_S *motor, float vd, float vq, f
     Motor_Sensorless_SetAppliedVoltage(-v_alpha, -v_beta);
     foc_svm_from_voltage(-v_alpha, -v_beta, v_bus, MOTOR_FOC_SVM_MAX_DUTY, period, &motor->duty1,
                          &motor->duty2, &motor->duty3, &sector);
-    if (period != 0U) {
+    if (period != 0U &&
+        (Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_SENSORLESS || motor->sensorless_takeover)) {
         /* 使用逻辑ABC比较值重建平均电压；交换到物理ACB前计算，不含死区/管压降。 */
         float reconstructed_a;
         float reconstructed_b;
+        /* 与采样、保护同一无感 I/F 运行窗口；停机和开环不计入。时间含在 OUTPUT 内。 */
+        bool profile = Motor_Timing_ProfileDetailedIsActive() && motor->ol_enable && motor->sensorless_enable &&
+                       motor->ol_mode == MOTOR_OL_MODE_IF &&
+                       Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_SENSORLESS;
+        uint32_t stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
         /* 先重建理想调制电压，保持重建误差诊断独立于实验补偿。 */
         (void)Motor_OutputEstimateVoltage(motor, period, v_bus, 0.0f, &reconstructed_a, &reconstructed_b);
         Motor_Sensorless_SetModulatedVoltage(reconstructed_a, reconstructed_b);
@@ -230,6 +238,7 @@ void Motor_OutputVoltageSensorlessIf(MOTOR_PARAM_S *motor, float vd, float vq, f
         /* 诊断先比较指令与调制结果，再将本拍PWM平均电压留给下一拍观测。
          * 死区只按显式RAM参数估计，不含管压降。 */
         Motor_Sensorless_SetAppliedVoltage(reconstructed_a, reconstructed_b);
+        if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_VOLTAGE_REBUILD, stage_start);
     }
     Motor_OutputCommit(motor);
 }

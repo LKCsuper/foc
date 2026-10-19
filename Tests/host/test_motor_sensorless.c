@@ -11,6 +11,82 @@ extern bool host_observer_step_active;
 extern motor_observer_step_sample_t host_observer_step;
 extern unsigned host_observer_step_count;
 
+static void check_parameter_lower_bounds(void)
+{
+    const float values[] = {-INFINITY, -3.0f, -0.0f, 0.0f, 0.0000001f, 2.0f, INFINITY, NAN};
+    unsigned field, index;
+    for (field = 0; field < 4U; ++field) {
+        for (index = 0; index < sizeof(values) / sizeof(values[0]); ++index) {
+            MOTOR_PARAM_S actual = {0}, reference;
+            motor_sensorless_runtime_t actual_state, reference_state;
+            motor_sensorless_effects_t actual_effects, reference_effects;
+            float *actual_value, *reference_value;
+            float minimum = field < 2U ? 0.0f : (field == 2U ? 0.000001f : 1.0f);
+            actual.ol_enable = true;
+            actual.ol_mode = MOTOR_OL_MODE_IF;
+            actual.sensorless_enable = true;
+            actual.sensorless_takeover = true;
+            actual.sensorless_flux_linkage = 0.0023f;
+            actual.sensorless_motor_l = 0.0001f;
+            actual.sensorless_motor_r = 0.47f;
+            actual.sensorless_observer_gain = 12000000.0f;
+            actual.ol_pole_pairs = 7.0f;
+            actual.ol_max_rpm = 6000.0f;
+            actual.ia = 0.1f;
+            actual.ib = -0.1f;
+            actual.ol_current_rpm = 300.0f;
+            reference = actual;
+            actual_value = field == 0U ? &actual.sensorless_motor_r :
+                           field == 1U ? &actual.sensorless_motor_l :
+                           field == 2U ? &actual.sensorless_flux_linkage : &actual.ol_pole_pairs;
+            reference_value = field == 0U ? &reference.sensorless_motor_r :
+                              field == 1U ? &reference.sensorless_motor_l :
+                              field == 2U ? &reference.sensorless_flux_linkage : &reference.ol_pole_pairs;
+            *actual_value = values[index];
+            *reference_value = fmaxf(values[index], minimum);
+            Motor_Sensorless_InitState(&actual_state);
+            actual_state.initialized = true;
+            actual_state.x_alpha = 0.0023f;
+            reference_state = actual_state;
+            Motor_Sensorless_UpdateState(&actual_state, &actual, 0.000067f, &actual_effects);
+            Motor_Sensorless_UpdateState(&reference_state, &reference, 0.000067f, &reference_effects);
+            assert(memcmp(&actual_state, &reference_state, sizeof(actual_state)) == 0);
+            assert(actual_effects.request_speed_loss_fault == reference_effects.request_speed_loss_fault);
+            assert(actual_effects.feedback_valid == reference_effects.feedback_valid);
+        }
+    }
+}
+
+static void check_pll_limit_updates(void)
+{
+    MOTOR_PARAM_S motor = {0};
+    motor_sensorless_runtime_t runtime;
+    motor_sensorless_effects_t effects;
+    const float pairs[] = {7.0f, 2.0f, 0.0f, -3.0f};
+    unsigned index;
+    motor.ol_enable = true;
+    motor.ol_mode = MOTOR_OL_MODE_IF;
+    motor.sensorless_enable = true;
+    motor.sensorless_takeover = true;
+    motor.sensorless_flux_linkage = 0.0023f;
+    motor.sensorless_observer_gain = 1.0f;
+    Motor_Sensorless_InitState(&runtime);
+    for (index = 0; index < sizeof(pairs) / sizeof(pairs[0]); ++index) {
+        float expected;
+        motor.ol_pole_pairs = pairs[index];
+        motor.ol_max_rpm = index & 1U ? -300.0f : 600.0f;
+        expected = fabsf(motor.ol_max_rpm) * fmaxf(pairs[index], 1.0f) * 1.5f *
+                   (6.283185307f / 60.0f);
+        runtime.initialized = true;
+        runtime.x_alpha = motor.sensorless_flux_linkage;
+        runtime.x_beta = 0.0f;
+        runtime.pll_speed_electrical = index & 1U ? -100000.0f : 100000.0f;
+        Motor_Sensorless_UpdateState(&runtime, &motor, 0.000001f, &effects);
+        assert(fabsf(fabsf(runtime.pll_speed_electrical) - expected) < 0.0001f);
+        assert((runtime.pll_speed_electrical < 0.0f) == ((index & 1U) != 0U));
+    }
+}
+
 static void check_observer_step_capture(void)
 {
     MOTOR_PARAM_S captured_motor = {0}, reference_motor;
@@ -19,7 +95,8 @@ static void check_observer_step_capture(void)
     unsigned index;
     float previous_alpha = 0.0f, previous_beta = 0.0f;
     captured_motor.ol_mode = MOTOR_OL_MODE_IF; captured_motor.ol_enable = true;
-    captured_motor.sensorless_enable = true; captured_motor.sensorless_motor_r = 0.6f;
+    captured_motor.sensorless_enable = true; captured_motor.sensorless_takeover = true;
+    captured_motor.sensorless_motor_r = 0.6f;
     captured_motor.sensorless_motor_l = 0.00013f; captured_motor.sensorless_flux_linkage = 0.0023f;
     captured_motor.sensorless_observer_gain = 12000000.0f;
     captured_motor.sensorless_pll_kp = 2000.0f; captured_motor.sensorless_pll_ki = 30000.0f;
@@ -127,6 +204,8 @@ int main(void)
     float angle_a;
     float angle_b;
 
+    check_parameter_lower_bounds();
+    check_pll_limit_updates();
     check_observer_step_capture();
 
     memset(&motor, 0, sizeof(motor));
@@ -208,7 +287,7 @@ int main(void)
     assert(!effects.feedback_valid);
     assert(Motor_Sensorless_GetStateState(&a) == MOTOR_SENSORLESS_OPEN_LOOP);
 
-    /* 撤销授权后低速退出观测角，保留 PLL/磁链，不把反馈继续报为有效。 */
+    /* 撤销授权后低速退出观测角并清成冷态，不请求故障，也不再积分。 */
     Motor_Sensorless_InitState(&a);
     a.state = MOTOR_SENSORLESS_CLOSED;
     a.initialized = true;
@@ -225,24 +304,41 @@ int main(void)
     assert(!Motor_Sensorless_IsTakeoverCompleteState(&a));
     assert(!effects.feedback_valid && !effects.prime_speed_iq);
     assert(!effects.request_speed_loss_fault);
-    assert(a.initialized && a.x_alpha > 0.0f && a.pll_speed_electrical > 200.0f);
+    assert(!a.initialized && a.x_alpha == 0.0f && a.pll_speed_electrical == 0.0f);
     assert(fabsf(Motor_Sensorless_GetControlAngleState(&a, motor.ol_theta) - motor.ol_theta) < 1e-6f);
-    Motor_Sensorless_GetDiagnosticsState(&a, &diag_a);
-    assert(fabsf(diag_a.phase_error - (diag_a.pll_angle - diag_a.reference_angle)) < 1e-5f);
-    assert(diag_a.phase_ok == (fabsf(diag_a.lock_phase_error) <= motor.sensorless_phase_tolerance));
-    /* 快照值不会随后续状态写入变化。 */
-    angle_a = diag_a.pll_angle;
-    a.pll_angle = 2.0f;
-    assert(diag_a.pll_angle == angle_a);
+    a.stats.samples = 3U;
+    Motor_Sensorless_UpdateState(&a, &motor, 0.00001f, &effects);
+    assert(!a.initialized && a.x_alpha == 0.0f && a.stats.samples == 3U);
+    assert(!effects.request_speed_loss_fault);
 
     /* 高速撤销授权必须请求故障，不能退回超上限 I/F。 */
     a.state = MOTOR_SENSORLESS_CLOSED;
+    a.initialized = true;
     a.blend = 0.5f;
+    a.x_alpha = 0.02f;
     motor.ol_current_rpm = 1200.0f;
     Motor_Sensorless_UpdateState(&a, &motor, 0.00001f, &effects);
     assert(effects.request_speed_loss_fault && !effects.feedback_valid);
     assert(!Motor_Sensorless_IsClosedLoopState(&a));
-    assert(a.blend == 0.0f);
+    assert(a.blend == 0.0f && !a.initialized);
+
+    /* 重新授权后才积分，并检查相位差诊断。 */
+    motor.sensorless_takeover = true;
+    motor.ol_current_rpm = 600.0f;
+    Motor_Sensorless_InitState(&a);
+    a.initialized = true;
+    a.x_alpha = 0.02f;
+    a.pll_angle = 0.01f;
+    a.pll_speed_electrical = 300.0f;
+    motor.ol_theta = 0.02f;
+    Motor_Sensorless_UpdateState(&a, &motor, 0.00001f, &effects);
+    assert(a.initialized && a.x_alpha != 0.0f);
+    Motor_Sensorless_GetDiagnosticsState(&a, &diag_a);
+    assert(fabsf(diag_a.phase_error - (diag_a.pll_angle - diag_a.reference_angle)) < 1e-4f);
+    assert(diag_a.phase_ok == (fabsf(diag_a.lock_phase_error) <= motor.sensorless_phase_tolerance));
+    angle_a = diag_a.pll_angle;
+    a.pll_angle = 2.0f;
+    assert(diag_a.pll_angle == angle_a);
 
     /* 排除升速段、记录每拍失败；停机保留，下次起步重置。 */
     Motor_Sensorless_InitState(&a);

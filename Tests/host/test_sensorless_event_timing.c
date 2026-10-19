@@ -26,7 +26,7 @@ static event_result_t run_events(bool variable_write, bool average_voltage, bool
     event_result_t result = {.flux_min = 100};
     memset(&motor, 0, sizeof(motor));
     Motor_Sensorless_InitState(&runtime);
-    motor.ol_enable = motor.sensorless_enable = true;
+    motor.ol_enable = motor.sensorless_enable = motor.sensorless_takeover = true;
     motor.ol_mode = MOTOR_OL_MODE_IF;
     motor.ol_pole_pairs = 7;
     motor.ol_current_rpm = motor.ol_target_rpm = 600;
