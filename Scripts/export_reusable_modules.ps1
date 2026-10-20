@@ -1,4 +1,4 @@
-# 导出已经具备独立边界的算法及其直接头文件，不复制HAL、RTOS或全局电机配置。
+﻿# 导出已经具备独立边界的算法及其直接头文件，不复制HAL、RTOS或全局电机配置。
 param([string]$Destination = "")
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path $PSScriptRoot -Parent
@@ -8,7 +8,7 @@ $taskSources = @(
     'App/motor_sensor/motor_encoder_core.c',
     'App/motor_sensor/motor_mt6701_protocol.c',
     'App/motor_sensor/motor_hall_angle.c',
-    'App/motor/motor_output_core.c', 'App/motor/motor_protect_core.c', 'App/motor/motor_position_control.c', 'App/motor/motor_position_core.c', 'App/motor/motor_speed_core.c', 'App/motor/motor_math.c', 'App/motor/motor_utils.c', 'App/motor/motor_foc.c', 'App/motor/motor_pid.c',
+    'App/motor/core/motor_output_core.c', 'App/motor/protect/motor_protect_core.c', 'App/motor/loop/motor_position_control.c', 'App/motor/loop/motor_position_core.c', 'App/motor/loop/motor_speed_core.c', 'App/motor/algo/motor_math.c', 'App/motor/algo/motor_utils.c', 'App/motor/algo/motor_foc.c', 'App/motor/algo/motor_pid.c',
     'App/motor/start/motor_alignment.c', 'App/motor/start/motor_if_start.c',
     'App/motor/start/motor_hfi_start.c',
     'App/motor/observer/motor_flux.c', 'App/motor/observer/motor_luenberger.c',
@@ -19,8 +19,10 @@ $taskSrc = Join-Path $Destination 'src'
 New-Item -ItemType Directory -Force $taskInclude, $taskSrc | Out-Null
 $taskHeaders = @{}
 $taskHeaders['common_assert.h'] = Join-Path $taskRoot 'Library/Common/inc/common_assert.h'
-foreach ($taskDir in @('App/motor/inc', 'App/motor_sensor/inc')) {
-    Get-ChildItem (Join-Path $taskRoot $taskDir) -Filter '*.h' | ForEach-Object {
+$taskHeaderDirs = @(Get-ChildItem (Join-Path $taskRoot 'App/motor') -Directory -Recurse -Filter 'inc') +
+    @(Get-Item (Join-Path $taskRoot 'App/motor_sensor/inc'))
+foreach ($taskDir in $taskHeaderDirs) {
+    Get-ChildItem $taskDir.FullName -Filter '*.h' | ForEach-Object {
         if ($taskHeaders.ContainsKey($_.Name)) { throw "Duplicate header: $($_.Name)" }
         $taskHeaders[$_.Name] = $_.FullName
     }

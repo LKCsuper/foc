@@ -37,8 +37,8 @@
 | 编码器        | `App/motor_sensor/motor_encoder.c` 及对应头文件                  | 已存在；完善速度、有效性、标定并接入主反馈链，禁止重复新建 |
 | 霍尔          | `App/motor_sensor/motor_hall.c`                                  | 分清标定与正常解码，补齐正常运行角度/速度反馈              |
 | 硬件抽象      | `Library/Hal/inc/`、`Library/Hal/port/stm32f4/`                | 补足采样/PWM 时序、故障输出和板级能力约定                  |
-| 存储与校准    | `flash_storage.c`、`motor_detect.c`                            | 偏移校准可保存；R/L/磁链检测结果仅存 RAM；继续分离 RTOS 等平台依赖 |
-| 学习/遗留路径 | `App/motor_simple_foc/`、`motor_ctrl.c` 等                     | 核查调用后独立为示例或兼容代码，明确唯一主控制实现         |
+| 存储与校准    | `flash_storage.c`、`App/motor/calibration/motor_detect.c`      | 偏移校准可保存；R/L/磁链检测结果仅存 RAM；继续分离 RTOS 等平台依赖 |
+| 学习/遗留路径 | `motor_ctrl.c` 等（`App/motor_simple_foc/` 已移除）            | 核查调用后独立为示例或兼容代码，明确唯一主控制实现         |
 
 当前不能宣称已跨平台：去掉 `includes.h` 不等于去掉平台依赖；`DETECT_Offset`/`DETECT_Hall` 包装仍用 RTOS，采样增益/通道仍来自板级宏经 HAL 包装，相电压 SENS 映射仍在 Sense。
 
@@ -69,33 +69,35 @@
 
 ### 3.2 目录安排
 
-先在原目录内明确职责，再按阶段移动平台文件。以下新模块仅在对应步骤需要时创建，不预建空壳：
+先在原目录内明确职责，再按阶段移动平台文件。以下新模块仅在对应步骤需要时创建，不预建空壳。
+
+`App/motor/` 下每个子目录的头文件放在该目录的 `inc/`，Keil 分组为 `Motor\<子目录>`，主机测试用 `run.ps1` 的 `$motorInc` 列出全部包含路径。
 
 | 目录/文件                                                    | 目标职责                                                         |
 | ------------------------------------------------------------ | ---------------------------------------------------------------- |
 | `App/motor/motor.c`、`inc/motor.h`                       | 公共 API、实例初始化、命令提交、状态读取；现有参数打印迁到应用侧 |
-| `App/motor/motor_control.c`（待抽取）                      | 一次完整控制步进与运行状态编排                                   |
-| `App/motor/motor_current.c`（待抽取）                      | d/q 电流反馈、PI、矢量限幅和抗饱和                               |
+| `App/motor/motor_it.c`、`motor_task.c`、`motor_snapshot.c` | 平台中断入口（仅分派校准、BLDC、快速 V/F 与正常 FOC）、电机任务、状态快照 |
+| `App/motor/core/`                                          | FOC 中断主流程 `motor_foc_isr.c`、控制编排 `motor_control.c`、电流环 `motor_current.c`、输出 `motor_output*.c`、采样 `motor_sense.c` |
 | `App/motor/motor_feedback.c`（待抽取）                     | 选择开环/编码器/霍尔/无感角度，发布反馈有效性                    |
-| `App/motor/motor_output.c`                                 | SAFE/DQ 结果转三相 PWM，集中调制选择、板级相序和提交             |
-| `App/motor/diagnostic/motor_fast_vf.c`                     | 历史快速 V/F 实机诊断路径，不与正常控制编排混写                  |
-| `App/motor/motor_timing.c`                                 | ADC/控制周期、实际频率及 ISR 平均/最大耗时                       |
-| `App/motor/motor_it.c`                                     | 平台中断入口：仅分派校准、BLDC、快速 V/F 与正常 FOC 路径          |
-| `App/motor/calibration/`                                   | 校准占用期间的采样与 ISR 状态机适配                               |
-| `App/motor/joint/`                                         | 关节控制、命令协议与超时保护集成                                 |
-| `App/motor/motor_foc.c`、`motor_math.c`、`motor_pid.c` | 无平台依赖的算法                                                 |
-| `App/motor/motor_speed.c`、`motor_protect.c`、启动模块   | 独立状态和明确输入输出的控制模块                                 |
+| `App/motor/algo/`                                          | 无平台依赖的算法：`motor_foc.c`、`motor_math.c`、`motor_pid.c`、`motor_utils.c` |
+| `App/motor/loop/`                                          | 速度环、位置环、轨迹、弱磁、齿槽补偿                             |
+| `App/motor/protect/`                                       | 保护入口与纯判定核心                                             |
 | `App/motor/start/`                                         | 对齐、I/F、HFI 扫角起步                                          |
+| `App/motor/calibration/`                                   | 偏移/R/L/磁链检测 `motor_detect*.c`、校准 ISR、自整定           |
+| `App/motor/joint/`                                         | 关节控制、命令协议与超时保护集成                                 |
+| `App/motor/diagnostic/motor_timing.c`                      | 控制周期、实际频率、分段计时及 ISR 平均/最大耗时；`motor_timing.h` 汇总诊断子头文件 |
+| `App/motor/diagnostic/motor_diag_handoff.c`、`motor_diag_schedule.c`、`motor_diag_trace.c` | 交接短窗口采样、调度/任务/回调节拍诊断、运行与故障轨迹；跨文件共享状态只在同目录私有头 `motor_timing_internal.h` |
+| `App/motor/diagnostic/motor_fast_vf.c`                     | 历史快速 V/F 实机诊断路径，不与正常控制编排混写                  |
 | `App/motor/observer/`                                      | FOC 无感观测（sensorless / flux / luenberger / ekf / smo / hfi） |
 | `App/motor/bldc/`                                          | 六步 BLDC 与悬空相 BEMF，与 FOC 无感不是同一条路径               |
 | `App/motor/bldc/motor_bldc_isr.c`                          | BLDC ADC 采样、保护、BEMF 采样窗与换相步进                       |
 | `App/motor/bldc/motor_bldc_defaults.c`                     | BM75/HD75 已验证的 BLDC 启动与 BEMF 默认参数                     |
 | `App/motor_sensor/`                                        | 已有编码器与霍尔模块，不合并成万能传感器文件                     |
-| `App/motor_param/`                                         | 配置默认值/校验、校准状态机、持久化格式                          |
+| `App/motor_param/`                                         | 配置默认值/校验、持久化格式                                      |
 | `Library/Hal/inc/`                                         | 平台无关的硬件接口与能力描述                                     |
 | `Library/Hal/port/stm32f4/`                                | STM32F4 实现，包括后续迁入的存储适配                             |
 | `Library/Bsp/`                                             | 当前板级外设实现；后续随第二平台需要按板区分                     |
-| `App/cmd/`、`App/user/`、`App/Task/`                   | 命令、应用集成、日志与 RTOS 调度                                 |
+| `App/cmd/`、`App/user/`                                    | 命令、应用集成、日志与 RTOS 调度；开环命令按 `cmd_openloop.c`（开环/电流）、`cmd_sensorless.c`、`cmd_speed.c`、`cmd_motor_diag.c`（台架与诊断）分文件 |
 | `Examples/`（按需创建）                                    | 学习示例，复用同一套核心算法                                     |
 | `Tests/host/`（按需创建）                                  | PC 上的核心编译和行为测试                                        |
 

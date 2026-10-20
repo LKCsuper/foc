@@ -49,7 +49,7 @@ def main():
     executable = build / 'test_current_plant.exe'
     compiled = run('current_plant_compile', [args.compiler, 'cc', '-std=c99', '-Wall', '-Wextra',
                       '-Werror', '-D_DEFAULT_SOURCE', '-Dassert_param(x)=((void)0)', '-IApp/motor/inc',
-                      'App/motor/motor_pid.c', 'App/motor/motor_foc.c', 'App/motor/motor_utils.c',
+                      '-IApp/motor/algo/inc', 'App/motor/algo/motor_pid.c', 'App/motor/algo/motor_foc.c', 'App/motor/algo/motor_utils.c',
                       str(HERE / 'test_current_plant.c'), '-o', str(executable)])
     if compiled:
         run('current_plant', [str(executable)])

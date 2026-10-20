@@ -206,10 +206,10 @@ z
     <text style="font-size: 11px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #444444" x="58.716" y="489.8304" transform="rotate(-0 58.716 489.8304)">最大 duty 并列时不重构；BM75 约 0.0806 A/count，0.1～0.2 A 的精确跟踪无法由单拍读数证明。</text>
    </g>
    <g id="text_15">
-    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="514.7136" transform="rotate(-0 58.716 514.7136)">App/motor/motor_sense.c</text>
+    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="514.7136" transform="rotate(-0 58.716 514.7136)">App/motor/core/motor_sense.c</text>
    </g>
    <g id="text_16">
-    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="527.43168" transform="rotate(-0 58.716 527.43168)">App/motor/motor_current.c</text>
+    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="527.43168" transform="rotate(-0 58.716 527.43168)">App/motor/core/motor_current.c</text>
    </g>
    <g id="text_17">
     <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="540.14976" transform="rotate(-0 58.716 540.14976)">Library/Hal/port/stm32f4/hal_motor_stm32f4.c</text>

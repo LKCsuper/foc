@@ -210,10 +210,10 @@ z
     <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="514.7136" transform="rotate(-0 58.716 514.7136)">App/motor/motor_it.c</text>
    </g>
    <g id="text_16">
-    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="527.43168" transform="rotate(-0 58.716 527.43168)">App/motor/motor_foc_isr.c</text>
+    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="527.43168" transform="rotate(-0 58.716 527.43168)">App/motor/core/motor_foc_isr.c</text>
    </g>
    <g id="text_17">
-    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="540.14976" transform="rotate(-0 58.716 540.14976)">App/motor/motor_foc_divider.c</text>
+    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="540.14976" transform="rotate(-0 58.716 540.14976)">App/motor/core/motor_foc_divider.c</text>
    </g>
   </g>
  </g>

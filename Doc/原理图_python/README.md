@@ -38,7 +38,7 @@ images/ 同时包含 PNG 和可放大编辑的 SVG；source_hashes.json 记录�
 
 速度/位置/关节外环在 foc pid 任务，电流环在 ISR；筛选发生在正常路径采样与软件保护之前。
 
-源码：[App/motor/motor_it.c](../../App/motor/motor_it.c)、[App/motor/motor_foc_isr.c](../../App/motor/motor_foc_isr.c)、[App/motor/motor_foc_divider.c](../../App/motor/motor_foc_divider.c)
+源码：[App/motor/motor_it.c](../../App/motor/motor_it.c)、[App/motor/core/motor_foc_isr.c](../../App/motor/core/motor_foc_isr.c)、[App/motor/core/motor_foc_divider.c](../../App/motor/core/motor_foc_divider.c)
 
 ## 02_sampling ADC 物理量、板级相序与电流重构
 
@@ -46,7 +46,7 @@ images/ 同时包含 PNG 和可放大编辑的 SVG；source_hashes.json 记录�
 
 最大 duty 并列时不重构；BM75 约 0.0806 A/count，0.1～0.2 A 的精确跟踪无法由单拍读数证明。
 
-源码：[App/motor/motor_sense.c](../../App/motor/motor_sense.c)、[App/motor/motor_current.c](../../App/motor/motor_current.c)、[Library/Hal/port/stm32f4/hal_motor_stm32f4.c](../../Library/Hal/port/stm32f4/hal_motor_stm32f4.c)
+源码：[App/motor/core/motor_sense.c](../../App/motor/core/motor_sense.c)、[App/motor/core/motor_current.c](../../App/motor/core/motor_current.c)、[Library/Hal/port/stm32f4/hal_motor_stm32f4.c](../../Library/Hal/port/stm32f4/hal_motor_stm32f4.c)
 
 ## 03_current d/q 电流 PI 与两级抗饱和
 
@@ -54,7 +54,7 @@ images/ 同时包含 PNG 和可放大编辑的 SVG；source_hashes.json 记录�
 
 电流目标单位 A、电压 V、dt 秒。对齐定角 Id 建立磁场，正常 Iq 提供转矩。
 
-源码：[App/motor/motor_current.c](../../App/motor/motor_current.c)、[App/motor/motor_pid.c](../../App/motor/motor_pid.c)、[App/motor/motor_control.c](../../App/motor/motor_control.c)
+源码：[App/motor/core/motor_current.c](../../App/motor/core/motor_current.c)、[App/motor/algo/motor_pid.c](../../App/motor/algo/motor_pid.c)、[App/motor/core/motor_control.c](../../App/motor/core/motor_control.c)
 
 ## 04_output 逆 Park 极性、调制选择与 PWM 提交
 
@@ -62,7 +62,7 @@ images/ 同时包含 PNG 和可放大编辑的 SVG；source_hashes.json 记录�
 
 图内两个调制节点是条件分支；SAFE 三相中点不等于关桥。无感记录实际调制约定下的电压。
 
-源码：[App/motor/motor_output.c](../../App/motor/motor_output.c)、[App/motor/motor_foc.c](../../App/motor/motor_foc.c)
+源码：[App/motor/core/motor_output.c](../../App/motor/core/motor_output.c)、[App/motor/algo/motor_foc.c](../../App/motor/algo/motor_foc.c)
 
 ## 05_task 任务、编码器采集与快环之间的数据流
 
@@ -70,7 +70,7 @@ images/ 同时包含 PNG 和可放大编辑的 SVG；source_hashes.json 记录�
 
 PID dt 按真实经过时间取得并钳位；编码器总线事务不进入 ADC ISR。
 
-源码：[App/motor/motor_task.c](../../App/motor/motor_task.c)、[App/motor_sensor/motor_mt6701.c](../../App/motor_sensor/motor_mt6701.c)、[App/motor/motor_control.c](../../App/motor/motor_control.c)
+源码：[App/motor/motor_task.c](../../App/motor/motor_task.c)、[App/motor_sensor/motor_mt6701.c](../../App/motor_sensor/motor_mt6701.c)、[App/motor/core/motor_control.c](../../App/motor/core/motor_control.c)
 
 ## 06_vf 当前快速 V/F 诊断：恒 Vq 旋转磁场
 
@@ -86,7 +86,7 @@ PID dt 按真实经过时间取得并钳位；编码器总线事务不进入 ADC
 
 ol_align_enable=0 跳过前两阶段。正常 I/F 不把真实角速度瞬间抬到 ol_min_rpm。
 
-源码：[App/motor/motor_control.c](../../App/motor/motor_control.c)、[App/motor/start/motor_if_start.c](../../App/motor/start/motor_if_start.c)、[App/motor/start/motor_alignment.c](../../App/motor/start/motor_alignment.c)
+源码：[App/motor/core/motor_control.c](../../App/motor/core/motor_control.c)、[App/motor/start/motor_if_start.c](../../App/motor/start/motor_if_start.c)、[App/motor/start/motor_alignment.c](../../App/motor/start/motor_alignment.c)
 
 ## 08_encoder MT6701 编码器：回绕、PLL 与电角
 
@@ -110,7 +110,7 @@ ol_align_enable=0 跳过前两阶段。正常 I/F 不把真实角速度瞬间抬
 
 禁止制动时零速命令自然滑停；允许制动时检测过零后释放；位置保持具有独立语义。
 
-源码：[App/motor/motor_speed.c](../../App/motor/motor_speed.c)、[App/motor/motor_control.c](../../App/motor/motor_control.c)
+源码：[App/motor/loop/motor_speed.c](../../App/motor/loop/motor_speed.c)、[App/motor/core/motor_control.c](../../App/motor/core/motor_control.c)
 
 ## 11_position 多圈位置控制：大误差移动与电压保持
 
@@ -118,7 +118,7 @@ ol_align_enable=0 跳过前两阶段。正常 I/F 不把真实角速度瞬间抬
 
 纯位置控制模块输出电压；应用层根据误差滞回选择移动/保持。不能简化成所有工况都三环串联。
 
-源码：[App/motor/motor_position.c](../../App/motor/motor_position.c)、[App/motor/motor_position_control.c](../../App/motor/motor_position_control.c)
+源码：[App/motor/loop/motor_position.c](../../App/motor/loop/motor_position.c)、[App/motor/loop/motor_position_control.c](../../App/motor/loop/motor_position_control.c)
 
 ## 12_joint 关节阻抗与低电流混合后端
 
@@ -134,7 +134,7 @@ ol_align_enable=0 跳过前两阶段。正常 I/F 不把真实角速度瞬间抬
 
 轨迹生成器给外环参考，不直接写 PWM；反向运动先按减速规则处理。
 
-源码：[App/motor/motor_trajectory.c](../../App/motor/motor_trajectory.c)
+源码：[App/motor/loop/motor_trajectory.c](../../App/motor/loop/motor_trajectory.c)
 
 ## 14_flux Ortega 磁链观测与主路径 PLL
 
@@ -190,7 +190,7 @@ ol_align_enable=0 跳过前两阶段。正常 I/F 不把真实角速度瞬间抬
 
 检测过程有保护、超时及退出恢复；源码文件头存在旧说明，本图以实际函数体为依据。 偏移/R/L/磁链为按命令分别执行的检测分支，不是必经串联。
 
-源码：[App/motor_param/motor_detect.c](../../App/motor_param/motor_detect.c)、[App/motor_param/motor_detect_offset.c](../../App/motor_param/motor_detect_offset.c)、[App/motor/calibration/motor_detect_isr.c](../../App/motor/calibration/motor_detect_isr.c)
+源码：[App/motor/calibration/motor_detect.c](../../App/motor/calibration/motor_detect.c)、[App/motor/calibration/motor_detect_offset.c](../../App/motor/calibration/motor_detect_offset.c)、[App/motor/calibration/motor_detect_isr.c](../../App/motor/calibration/motor_detect_isr.c)
 
 ## 21_protection 保护去抖、首因锁存与最终仲裁
 
@@ -198,7 +198,7 @@ ol_align_enable=0 跳过前两阶段。正常 I/F 不把真实角速度瞬间抬
 
 无可靠速度反馈时不进行堵转/失速判定；软件 SAFE 为中点电压语义，硬件短路保护不由此图验收。
 
-源码：[App/motor/motor_protect.c](../../App/motor/motor_protect.c)、[App/motor/motor_foc_isr.c](../../App/motor/motor_foc_isr.c)、[App/motor/motor_control.c](../../App/motor/motor_control.c)
+源码：[App/motor/protect/motor_protect.c](../../App/motor/protect/motor_protect.c)、[App/motor/core/motor_foc_isr.c](../../App/motor/core/motor_foc_isr.c)、[App/motor/core/motor_control.c](../../App/motor/core/motor_control.c)
 
 ## 22_storage 双槽 Flash：最后写提交标记
 
@@ -214,7 +214,7 @@ ol_align_enable=0 跳过前两阶段。正常 I/F 不把真实角速度瞬间抬
 
 三个节点组代表三种独立补偿；不表示它们必须串联。抗齿槽补偿当前以电压表表示。
 
-源码：[App/motor/motor_fw.c](../../App/motor/motor_fw.c)、[App/motor/motor_speed_ff_detect.c](../../App/motor/motor_speed_ff_detect.c)、[App/motor/motor_anticogging.c](../../App/motor/motor_anticogging.c)
+源码：[App/motor/loop/motor_fw.c](../../App/motor/loop/motor_fw.c)、[App/motor/loop/motor_speed_ff_detect.c](../../App/motor/loop/motor_speed_ff_detect.c)、[App/motor/loop/motor_anticogging.c](../../App/motor/loop/motor_anticogging.c)
 
 ## 24_commands 命令、状态快照与关节固定帧
 

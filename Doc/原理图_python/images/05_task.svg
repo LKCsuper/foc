@@ -213,7 +213,7 @@ z
     <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="527.43168" transform="rotate(-0 58.716 527.43168)">App/motor_sensor/motor_mt6701.c</text>
    </g>
    <g id="text_17">
-    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="540.14976" transform="rotate(-0 58.716 540.14976)">App/motor/motor_control.c</text>
+    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="540.14976" transform="rotate(-0 58.716 540.14976)">App/motor/core/motor_control.c</text>
    </g>
   </g>
  </g>

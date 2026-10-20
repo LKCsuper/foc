@@ -206,7 +206,7 @@ z
     <text style="font-size: 11px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #444444" x="58.716" y="489.8304" transform="rotate(-0 58.716 489.8304)">ol_align_enable=0 跳过前两阶段。正常 I/F 不把真实角速度瞬间抬到 ol_min_rpm。</text>
    </g>
    <g id="text_15">
-    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="514.7136" transform="rotate(-0 58.716 514.7136)">App/motor/motor_control.c</text>
+    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="514.7136" transform="rotate(-0 58.716 514.7136)">App/motor/core/motor_control.c</text>
    </g>
    <g id="text_16">
     <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="527.43168" transform="rotate(-0 58.716 527.43168)">App/motor/start/motor_if_start.c</text>

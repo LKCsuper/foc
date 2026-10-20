@@ -206,10 +206,10 @@ z
     <text style="font-size: 11px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #444444" x="58.716" y="489.8304" transform="rotate(-0 58.716 489.8304)">纯位置控制模块输出电压；应用层根据误差滞回选择移动/保持。不能简化成所有工况都三环串联。</text>
    </g>
    <g id="text_15">
-    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="514.7136" transform="rotate(-0 58.716 514.7136)">App/motor/motor_position.c</text>
+    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="514.7136" transform="rotate(-0 58.716 514.7136)">App/motor/loop/motor_position.c</text>
    </g>
    <g id="text_16">
-    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="527.43168" transform="rotate(-0 58.716 527.43168)">App/motor/motor_position_control.c</text>
+    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="527.43168" transform="rotate(-0 58.716 527.43168)">App/motor/loop/motor_position_control.c</text>
    </g>
   </g>
  </g>

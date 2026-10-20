@@ -3,7 +3,7 @@
 ## 前提
 
 - 无需接线、无需 MCU。
-- 使用生产代码：`App/motor/motor_foc.c` + `motor_utils.c`（`sin_f32`/`cos_f32`）。
+- 使用生产代码：`App/motor/algo/motor_foc.c` + `motor_utils.c`（`sin_f32`/`cos_f32`）。
 
 ## 调用顺序
 
@@ -31,7 +31,7 @@
 ```powershell
 # 在仓库根目录；zig.exe 路径按本机调整
 zig cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE "-Dassert_param(x)=((void)0)" -IApp/motor/inc `
-  App/motor/motor_foc.c App/motor/motor_utils.c Examples/01_transform/main.c `
+  App/motor/algo/motor_foc.c App/motor/algo/motor_utils.c Examples/01_transform/main.c `
   -o .build/host/example_01_transform.exe
 .\.build\host\example_01_transform.exe
 ```

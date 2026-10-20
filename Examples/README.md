@@ -20,7 +20,7 @@
 
 ## 与旧学习代码的关系
 
-- `App/motor_simple_foc/`：早期独立学习实现，**未接入** `Motor_DmaInt` 主链；保留作对照，**不要**再复制一套算法进 Examples。
+- 早期独立学习实现 `App/motor_simple_foc/` 已移除；**不要**再复制一套算法进 Examples。
 - 主学习路径以本目录文档 + 生产模块为准。
 
 ## 推荐阅读

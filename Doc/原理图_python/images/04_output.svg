@@ -224,10 +224,10 @@ L 484.848 340.5312
     <text style="font-size: 11px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #444444" x="58.716" y="489.8304" transform="rotate(-0 58.716 489.8304)">图内两个调制节点是条件分支；SAFE 三相中点不等于关桥。无感记录实际调制约定下的电压。</text>
    </g>
    <g id="text_15">
-    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="514.7136" transform="rotate(-0 58.716 514.7136)">App/motor/motor_output.c</text>
+    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="514.7136" transform="rotate(-0 58.716 514.7136)">App/motor/core/motor_output.c</text>
    </g>
    <g id="text_16">
-    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="527.43168" transform="rotate(-0 58.716 527.43168)">App/motor/motor_foc.c</text>
+    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="527.43168" transform="rotate(-0 58.716 527.43168)">App/motor/algo/motor_foc.c</text>
    </g>
   </g>
  </g>

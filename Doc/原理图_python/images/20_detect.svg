@@ -189,7 +189,7 @@ z
     <text style="font-size: 10px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start" x="58.716" y="545.1264" transform="rotate(-0 58.716 545.1264)">R/L/磁链结果仅 RAM；偏移结果写入校准字段。显式保存另行执行。</text>
    </g>
    <g id="text_10">
-    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="561.7152" transform="rotate(-0 58.716 561.7152)">App/motor_param/motor_detect.c / motor_detect_offset.c</text>
+    <text style="font-size: 9px; font-family: 'Microsoft YaHei', 'SimHei', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #666666" x="58.716" y="561.7152" transform="rotate(-0 58.716 561.7152)">App/motor/calibration/motor_detect.c / motor_detect_offset.c</text>
    </g>
   </g>
  </g>

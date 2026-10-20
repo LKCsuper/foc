@@ -89,14 +89,14 @@
     ]
   },
   {
-    "path": "App/motor/motor_anticogging.c",
+    "path": "App/motor/loop/motor_anticogging.c",
     "description": "位置保持电压抗齿槽表",
     "direct_diagrams": [
       "23_compensation"
     ]
   },
   {
-    "path": "App/motor/motor_control.c",
+    "path": "App/motor/core/motor_control.c",
     "description": "开环/I/F 主控制编排与输出仲裁（不含 HAL）",
     "direct_diagrams": [
       "03_current",
@@ -107,7 +107,7 @@
     ]
   },
   {
-    "path": "App/motor/motor_current.c",
+    "path": "App/motor/core/motor_current.c",
     "description": "电流环：Clarke/Park、目标选择、d/q PI 与矢量限幅",
     "direct_diagrams": [
       "02_sampling",
@@ -115,21 +115,21 @@
     ]
   },
   {
-    "path": "App/motor/motor_foc.c",
+    "path": "App/motor/algo/motor_foc.c",
     "description": "FOC 坐标变换与 SVPWM 调制（Clarke/Park/逆 Park/SVM）",
     "direct_diagrams": [
       "04_output"
     ]
   },
   {
-    "path": "App/motor/motor_foc_divider.c",
+    "path": "App/motor/core/motor_foc_divider.c",
     "description": "FOC 控制环分频计数",
     "direct_diagrams": [
       "01_main"
     ]
   },
   {
-    "path": "App/motor/motor_foc_isr.c",
+    "path": "App/motor/core/motor_foc_isr.c",
     "description": "正常 FOC 中断路径：采样、保护、控制与输出",
     "direct_diagrams": [
       "01_main",
@@ -137,7 +137,7 @@
     ]
   },
   {
-    "path": "App/motor/motor_fw.c",
+    "path": "App/motor/loop/motor_fw.c",
     "description": "弱磁：电压利用率触发负 Id",
     "direct_diagrams": [
       "23_compensation"
@@ -151,47 +151,47 @@
     ]
   },
   {
-    "path": "App/motor/motor_math.c",
+    "path": "App/motor/algo/motor_math.c",
     "description": "电机控制通用数学工具（角度与 CRC）",
     "direct_diagrams": []
   },
   {
-    "path": "App/motor/motor_output.c",
+    "path": "App/motor/core/motor_output.c",
     "description": "FOC 安全输出、反 Park、SVPWM 与板级相序提交",
     "direct_diagrams": [
       "04_output"
     ]
   },
   {
-    "path": "App/motor/motor_pid.c",
+    "path": "App/motor/algo/motor_pid.c",
     "description": "通用单轴电流 PI 控制器",
     "direct_diagrams": [
       "03_current"
     ]
   },
   {
-    "path": "App/motor/motor_position.c",
+    "path": "App/motor/loop/motor_position.c",
     "description": "编码器多圈位置环（位置 P 串速度 PI，输出电压）",
     "direct_diagrams": [
       "11_position"
     ]
   },
   {
-    "path": "App/motor/motor_position_control.c",
+    "path": "App/motor/loop/motor_position_control.c",
     "description": "纯位置 P 串速度 PI，状态由调用者持有",
     "direct_diagrams": [
       "11_position"
     ]
   },
   {
-    "path": "App/motor/motor_protect.c",
+    "path": "App/motor/protect/motor_protect.c",
     "description": "电机保护：过流、欠压、堵转、失速；核心只依赖注入状态/辅助快照",
     "direct_diagrams": [
       "21_protection"
     ]
   },
   {
-    "path": "App/motor/motor_sense.c",
+    "path": "App/motor/core/motor_sense.c",
     "description": "电流/相电压/母线采样换算（采样帧 → 物理量）",
     "direct_diagrams": [
       "02_sampling"
@@ -205,14 +205,14 @@
     ]
   },
   {
-    "path": "App/motor/motor_speed.c",
+    "path": "App/motor/loop/motor_speed.c",
     "description": "通用速度 PI 外环实现（支持状态实例；默认单实例包装保留）",
     "direct_diagrams": [
       "10_speed"
     ]
   },
   {
-    "path": "App/motor/motor_speed_ff_detect.c",
+    "path": "App/motor/loop/motor_speed_ff_detect.c",
     "description": "空载速度电压前馈的线性拟合 */",
     "direct_diagrams": [
       "23_compensation"
@@ -226,19 +226,19 @@
     ]
   },
   {
-    "path": "App/motor/motor_timing.c",
+    "path": "App/motor/diagnostic/motor_timing.c",
     "description": "ADC/控制周期计算与 ADC-DMA 中断耗时统计",
     "direct_diagrams": []
   },
   {
-    "path": "App/motor/motor_trajectory.c",
+    "path": "App/motor/loop/motor_trajectory.c",
     "description": "一维梯形运动轨迹；按剩余制动距离提前减速",
     "direct_diagrams": [
       "13_trajectory"
     ]
   },
   {
-    "path": "App/motor/motor_utils.c",
+    "path": "App/motor/algo/motor_utils.c",
     "description": "* @Date: 2023-02-18 23:29:37",
     "direct_diagrams": []
   },
@@ -368,14 +368,14 @@
     ]
   },
   {
-    "path": "App/motor_param/motor_detect.c",
+    "path": "App/motor/calibration/motor_detect.c",
     "description": "电流/电压偏移校准。R/L/磁链等电机参数检测后期再做。",
     "direct_diagrams": [
       "20_detect"
     ]
   },
   {
-    "path": "App/motor_param/motor_detect_offset.c",
+    "path": "App/motor/calibration/motor_detect_offset.c",
     "description": "电流/电压偏移校准非阻塞核心（收样本，不延时、不写 PWM）",
     "direct_diagrams": [
       "20_detect"

@@ -41,6 +41,9 @@ extern "C" {
 #include "motor_it.h"
 #include "motor_foc_isr.h"
 #include "motor_timing.h"
+#include "motor_diag_handoff.h"
+#include "motor_diag_schedule.h"
+#include "motor_diag_trace.h"
 #include "motor_bldc.h"
 #include "motor_pid.h"
 #include "motor_fw.h"
@@ -67,12 +70,12 @@ extern "C" {
 #include "flash_storage.h"
 #include "motor.h"
 
-#include "motor_simple_includes.h"
-
 /* cmd */
 #include "textbuf.h"
 #include "command.h"
 #include "cmd_serial_plot.h"
+#include "cmd_openloop.h"
+#include "cmd_speed.h"
 
 #ifdef __cplusplus
 }

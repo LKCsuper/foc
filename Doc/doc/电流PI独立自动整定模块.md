@@ -2,7 +2,7 @@
 
 ## 职责与范围
 
-`App/motor/motor_autotune.c` 和 `App/motor/inc/motor_autotune.h` 提供无硬件、RTOS、全局电机依赖的纯计算 API：`Motor_Autotune_CurrentPi`。
+`App/motor/calibration/motor_autotune.c` 和 `App/motor/calibration/inc/motor_autotune.h` 提供无硬件、RTOS、全局电机依赖的纯计算 API：`Motor_Autotune_CurrentPi`。
 
 第一版为基于已辨识 RL 的模型初值计算器，不包含自动扫频、闭环试验状态机、速度环整定或在线自适应。模块自身不调用参数检测、不驱动电机、不写运行参数或 Flash；由上层决定何时检测、何时请求候选值及如何验证。
 

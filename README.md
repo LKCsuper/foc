@@ -26,7 +26,7 @@ DMA2_Stream4 → Bsp_Dma2Stream4_Handler → Motor_DmaInt
 先读 `motor_foc.c` / `motor_pid.c`，再读 `motor_it.c` 主链和 `motor_settings.h` 配置边界，最后看硬件适配。有感路径：`olfb encoder|hall` + 可选 `spenable`（见 `Examples/04`/`05`）。
 
 - 当前配置推算：PWM 约 15 kHz，ADC 回调约 30 kHz，FOC 分频 2 后约 15 kHz；这些是代码配置值，本次未用示波器测量。
-- `motor_simple_foc` 为早期学习实现，未接入主 FOC 中断；正式学习路径见 `Examples/`，勿再复制第二套核心算法。
+- 早期学习实现 `motor_simple_foc` 已移除；学习路径见 `Examples/`，勿再复制第二套核心算法。
 - `motor_ctrl.c` 开环函数和 `Motor_PidControl` 未发现外部 C 调用，保留兼容/占位身份。
 
 ## 启动与调试

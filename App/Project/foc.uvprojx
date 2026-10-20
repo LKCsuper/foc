@@ -341,7 +341,7 @@
               <MiscControls>--locale=english</MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F40_41xxx,__CC_ARM,__TARGET_FPU_VFP=1,__FPU_PRESENT=1,__FPU_USED=1,ARM_MATH_CM4,SIMULINK_USE_ARM_MATH</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\user;..\..\Library\Bsp\inc;..\..\Library\Hal\inc;..\motor\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\common_code\lib\seqlock;..\..\ThirtyLibrary\common_code\lib\textbuf;..\..\ThirtyLibrary\common_code\lib\ringbuf;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc;..\..\Doc\matlab\foc_simulink0_ert_rtw;..\Motor_Simple_Foc\inc;..\Motor_Param\inc;..\RTT;..\Motor_Param\inc;..\..\ThirtyLibrary\easyflash\inc;..\Motor_Sensor\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include</IncludePath>
+              <IncludePath>..\..\Library\STM32F4xx_StdPeriph_Driver\inc;..\user;..\..\Library\Bsp\inc;..\..\Library\Hal\inc;..\motor\inc;..\motor\core\inc;..\motor\algo\inc;..\motor\loop\inc;..\motor\protect\inc;..\motor\start\inc;..\motor\observer\inc;..\motor\bldc\inc;..\motor\joint\inc;..\motor\calibration\inc;..\motor\diagnostic\inc;..\..\Library\Common\inc;..\cmd\inc;..\..\ThirtyLibrary\common_code\lib\seqlock;..\..\ThirtyLibrary\common_code\lib\textbuf;..\..\ThirtyLibrary\common_code\lib\ringbuf;..\..\ThirtyLibrary\ymodem\inc;..\..\ThirtyLibrary\FreeRTOS\include;..\..\ThirtyLibrary\FreeRTOS\portable\RVDS\ARM_CM4F;..\..\ThirtyLibrary\XCmd\inc;..\..\ThirtyLibrary\FreeRTOS\CMSIS_RTOS_V2;..\..\ThirtyLibrary\FreeRTOS\FreeRTOS-Plus-CLI;..\..\ThirtyLibrary\nr_micro_shell-master\inc;..\configs\inc;..\..\ThirtyLibrary\letter-shell-master\inc;..\..\ThirtyLibrary\letter-shell-master\port;..\..\ThirtyLibrary\FlashDB\inc;..\..\ThirtyLibrary\Fal\inc;..\..\Doc\matlab\foc_simulink0_ert_rtw;..\Motor_Param\inc;..\RTT;..\..\ThirtyLibrary\easyflash\inc;..\Motor_Sensor\inc;..\..\Library\CMSIS\Device\ST\STM32F4xx\Include</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -723,7 +723,7 @@
             <File>
               <FileName>cmd_duty.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Cmd\cmd_duty.c</FilePath>
+              <FilePath>..\cmd\cmd_duty.c</FilePath>
             </File>
             <File>
               <FileName>cmd_autotune.c</FileName>
@@ -733,7 +733,7 @@
             <File>
               <FileName>cmd_detect.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Cmd\cmd_detect.c</FilePath>
+              <FilePath>..\cmd\cmd_detect.c</FilePath>
             </File>
             <File>
               <FileName>cmd_openloop.c</FileName>
@@ -774,6 +774,21 @@
               <FileName>cmd_env.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\cmd\cmd_env.c</FilePath>
+            </File>
+            <File>
+              <FileName>cmd_motor_diag.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_motor_diag.c</FilePath>
+            </File>
+            <File>
+              <FileName>cmd_sensorless.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_sensorless.c</FilePath>
+            </File>
+            <File>
+              <FileName>cmd_speed.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_speed.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -973,6 +988,11 @@
               <FileType>1</FileType>
               <FilePath>..\motor_param\motor_param.c</FilePath>
             </File>
+            <File>
+              <FileName>flash_storage.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_param\flash_storage.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -1021,137 +1041,17 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>Motor\Core</GroupName>
+          <GroupName>Motor</GroupName>
           <Files>
-            <File>
-              <FileName>motor_foc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_foc.c</FilePath>
-            </File>
             <File>
               <FileName>motor_it.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_it.c</FilePath>
             </File>
             <File>
-              <FileName>motor_foc_isr.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_foc_isr.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_output_core.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_output_core.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_output.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_output.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_timing.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_timing.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_sense.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_sense.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_autotune.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_autotune.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_pid.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_pid.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_current.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_current.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_fw.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_fw.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_control.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_control.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_anticogging.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_anticogging.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_protect_core.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_protect_core.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_protect.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_protect.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_speed_core.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_speed_core.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_speed.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_speed.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_speed_ff_detect.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_speed_ff_detect.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_position_core.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_position_core.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_position.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_position.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_position_control.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_position_control.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_trajectory.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_trajectory.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_foc_divider.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_foc_divider.c</FilePath>
-            </File>
-            <File>
               <FileName>motor_task.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\motor_task.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_utils.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_utils.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_math.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor\motor_math.c</FilePath>
             </File>
             <File>
               <FileName>motor.c</FileName>
@@ -1163,6 +1063,141 @@
               <FileType>1</FileType>
               <FilePath>..\motor\motor_snapshot.c</FilePath>
             </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor\Core</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_foc_isr.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\core\motor_foc_isr.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_output_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\core\motor_output_core.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_output.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\core\motor_output.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_sense.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\core\motor_sense.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_current.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\core\motor_current.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\core\motor_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_foc_divider.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\core\motor_foc_divider.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor\Algo</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_foc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\algo\motor_foc.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_pid.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\algo\motor_pid.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_utils.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\algo\motor_utils.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_math.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\algo\motor_math.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor\Loop</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_fw.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\loop\motor_fw.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_anticogging.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\loop\motor_anticogging.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_speed_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\loop\motor_speed_core.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_speed.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\loop\motor_speed.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_speed_ff_detect.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\loop\motor_speed_ff_detect.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_position_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\loop\motor_position_core.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_position.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\loop\motor_position.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_position_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\loop\motor_position_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_trajectory.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\loop\motor_trajectory.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Motor\Protect</GroupName>
+          <Files>
+            <File>
+              <FileName>motor_protect_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\protect\motor_protect_core.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_protect.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\protect\motor_protect.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Common_Lib</GroupName>
+          <Files>
             <File>
               <FileName>seqlock.c</FileName>
               <FileType>1</FileType>
@@ -1184,6 +1219,26 @@
           <GroupName>Motor\Diagnostic</GroupName>
           <Files>
             <File>
+              <FileName>motor_timing.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\diagnostic\motor_timing.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_diag_handoff.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\diagnostic\motor_diag_handoff.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_diag_schedule.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\diagnostic\motor_diag_schedule.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_diag_trace.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\diagnostic\motor_diag_trace.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_reference_trig.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\diagnostic\motor_reference_trig.c</FilePath>
@@ -1204,9 +1259,24 @@
           <GroupName>Motor\Calibration</GroupName>
           <Files>
             <File>
+              <FileName>motor_autotune.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\calibration\motor_autotune.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_detect_isr.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\calibration\motor_detect_isr.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_detect.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\calibration\motor_detect.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_detect_offset.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\calibration\motor_detect_offset.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1322,46 +1392,6 @@
               <FileName>motor_bldc_six_step_hal.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\bldc\motor_bldc_six_step_hal.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Motor_Simple</GroupName>
-          <Files>
-            <File>
-              <FileName>motor_simple_bldc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor_simple_foc\motor_simple_bldc.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_simple_foc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor_simple_foc\motor_simple_foc.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_simple_utils.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor_simple_foc\motor_simple_utils.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Motor_Detect</GroupName>
-          <Files>
-            <File>
-              <FileName>motor_detect.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor_param\motor_detect.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_detect_offset.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor_param\motor_detect_offset.c</FilePath>
-            </File>
-            <File>
-              <FileName>flash_storage.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\motor_param\flash_storage.c</FilePath>
             </File>
           </Files>
         </Group>

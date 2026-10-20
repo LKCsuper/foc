@@ -64,7 +64,7 @@ aa[2].plot([pq[0],field[0]],[pq[1],field[1]],'--',color=B)
 aa[2].set_title('Park 是向旋转轴投影\nId=Iαcosθ+Iβsinθ\nIq=−Iαsinθ+Iβcosθ')
 save(fig,'P01_field_torque','三相磁场、转矩与 dq：FOC 为什么要变换坐标',
      'd 轴沿转子磁链，q 轴与其垂直。转矩公式是表贴 PMSM 的物理近似，不是代码中已有转矩估算函数。',
-     ['App/motor/motor_foc.c','App/motor/motor_current.c'])
+     ['App/motor/algo/motor_foc.c','App/motor/core/motor_current.c'])
 
 # 2. A real negative-feedback loop and implementation-order saturation.
 fig,aa=plt.subplots(2,1,figsize=(14,10));ax=aa[0];ax.set(xlim=(0,1),ylim=(0,1));ax.axis('off')
@@ -90,7 +90,7 @@ aa[1].axvspan(0,.10,alpha=.08,color=R);aa[1].set(xlabel='时间 (s)',ylabel='A /
 aa[1].legend(ncol=4);aa[1].grid(alpha=.2);aa[1].set_title('教学 RL 模型：目标超出电压能力时不持续积累积分，目标下降后能够退出饱和')
 save(fig,'P02_current_feedback','电流 PI 的负反馈和抗饱和原理',
      '波形使用自选 RL 教学模型演示代码的单轴 clamping。dq 合成圆限幅仍须在单轴限幅后回写两轴积分。',
-     ['App/motor/motor_pid.c','App/motor/motor_current.c'])
+     ['App/motor/algo/motor_pid.c','App/motor/core/motor_current.c'])
 
 # 3. PWM voltage synthesis with switches and time allocation.
 fig,aa=plt.subplots(1,3,figsize=(17,6));ax=aa[0];ax.set(xlim=(0,1),ylim=(0,1));ax.axis('off')
@@ -113,7 +113,7 @@ ax.grid(alpha=.2);ax.set_title('零矢量 + 相邻有效矢量\nT0+T1+T2=T（时
 ax.text(.02,2.5,'改变时间比例 → 改变平均电压',fontsize=11)
 save(fig,'P03_bridge_svpwm','逆变桥与 SVPWM：用开关时间合成连续电压矢量',
      '开关序列用于解释平均原理，并非本板所有计数侧的实际门极时序。代码归一化为 1.5×Vαβ/Vbus，板级 A-C-B 和极性按原实现保留。',
-     ['App/motor/motor_foc.c','App/motor/motor_output.c','Library/Hal/port/stm32f4/hal_motor_stm32f4.c'])
+     ['App/motor/algo/motor_foc.c','App/motor/core/motor_output.c','Library/Hal/port/stm32f4/hal_motor_stm32f4.c'])
 
 # 4. V/F versus I/F fields and electrical/mechanical angle.
 fig,aa=plt.subplots(1,3,figsize=(17,6))
@@ -129,7 +129,7 @@ aa[2].plot(tt,np.minimum(tt/.25,1)*.6,label='I/F 拖转：Iq 示意 (A)')
 aa[2].set(xlabel='时间 (s)',ylabel='V / A');aa[2].grid(alpha=.2);aa[2].legend();aa[2].set_title('快速 V/F 直接规定电压\nI/F 用电流 PI 维持指定电流')
 save(fig,'P04_openloop_field','开环为什么能拖转：旋转磁场与转子跟随',
      '本仓库快速 V/F 的 Vq 为限幅 boost，不是经典 V∝f。I/F 时 dq 相对于强制场角，不能假定已对准转子磁链；速度和电流曲线仅示意。',
-     ['App/motor/diagnostic/motor_fast_vf.c','App/motor/motor_control.c','App/motor/start/motor_if_start.c'])
+     ['App/motor/diagnostic/motor_fast_vf.c','App/motor/core/motor_control.c','App/motor/start/motor_if_start.c'])
 
 # 5. Sensor observability and resolution.
 fig,aa=plt.subplots(1,3,figsize=(17,6));ang=np.linspace(0,2*np.pi,700)
@@ -144,7 +144,7 @@ aa[2].axvspan(.10,.20,color=R,alpha=.12);aa[2].set(xlabel='真实电流 (A)',yla
 aa[2].legend();aa[2].grid(alpha=.2);aa[2].set_title('BM75≈0.0806 A/count\n低电流只有少量 ADC 计数')
 save(fig,'P05_sensor_resolution','传感器原理：离散测量如何得到连续反馈',
      '霍尔插值、编码器 PLL 和 ADC 量化有不同的信息限制。PLL 不能凭空恢复过期或错误原始帧；反馈有效性须同时检查。',
-     ['App/motor_sensor/motor_encoder.c','App/motor_sensor/motor_hall_angle.c','App/motor/motor_sense.c'])
+     ['App/motor_sensor/motor_encoder.c','App/motor_sensor/motor_hall_angle.c','App/motor/core/motor_sense.c'])
 
 # 6. Outer-loop mechanics and impedance.
 fig,aa=plt.subplots(2,1,figsize=(15,10));ax=aa[0];ax.set(xlim=(0,1),ylim=(0,1));ax.axis('off')
@@ -160,7 +160,7 @@ ax.text(.18,.12,'u=Kp·位置误差+Kd·速度误差+前馈+条件积分\n应用
 ax.set_title('关节阻抗：把软件增益解释成弹性与阻尼')
 save(fig,'P06_outerloop_impedance','速度、位置与关节外环的机械原理',
      '位置 P 产生速度参考；当前近目标电压保持有专用速度 PI，不能把全部位置行为画成通用三环。关节纯算法的输出单位由后端配置决定。',
-     ['App/motor/motor_speed.c','App/motor/motor_position_control.c','App/motor/joint/motor_joint_control.c'])
+     ['App/motor/loop/motor_speed.c','App/motor/loop/motor_position_control.c','App/motor/joint/motor_joint_control.c'])
 
 # 7. Braking distance and hysteresis boundaries.
 fig,aa=plt.subplots(1,3,figsize=(17,6));distance=np.linspace(0,1,500);a=2.;v=np.minimum(1,np.sqrt(2*a*distance))
@@ -175,7 +175,7 @@ aa[2].set(xlabel='|Iq需求| (A)',ylabel='后端',yticks=[0,1],yticklabels=['Vq'
 aa[2].set_title('0.25 A 进入、0.20 A 退出\n滞回避免阈值附近反复切换')
 save(fig,'P07_limits_hysteresis','轨迹制动、弱磁电流预算与后端滞回原理',
      '制动速度上限由运动学推导；弱磁消耗电流圆的 d 轴余量；关节后端阈值依据需求而非单拍实测电流。',
-     ['App/motor/motor_trajectory.c','App/motor/motor_fw.c','App/motor/joint/motor_joint.c'])
+     ['App/motor/loop/motor_trajectory.c','App/motor/loop/motor_fw.c','App/motor/joint/motor_joint.c'])
 
 # 8. Observer physical equation and innovation.
 fig,aa=plt.subplots(1,3,figsize=(17,6));ax=aa[0];axes_xy(ax,1.3)
@@ -231,7 +231,7 @@ w=np.linspace(0,250,300);aa[2].plot(w,.008*w,lw=2);aa[2].set(xlabel='电角速�
 aa[2].set_title('磁链：关桥滑行时 e≈ωe·ψf\nψf≈|e|/|ωe|')
 save(fig,'P11_identification','R、L、磁链为什么可以由电压和电流检测',
      '拟合/脉冲/滑行是不同物理工况。曲线为理想模型，实际代码有比例校正、窗口和样本有效性检查，检测结果仅 RAM。',
-     ['App/motor_param/motor_detect.c'])
+     ['App/motor/calibration/motor_detect.c'])
 
 # 12. Debounce and atomic commit principle rather than software call sequence.
 fig,aa=plt.subplots(1,2,figsize=(15,6));t=np.linspace(0,1,500);condition=((t>.1)&(t<.18))|((t>.4)&(t<.8));timer=[];z=0;latched=False;fault=[]
@@ -248,7 +248,7 @@ ax.text(.10,.20,'提交前掉电：新槽无效 → 仍能读取旧槽\n提交�
 ax.set_title('双槽保留上一份有效数据\n提交标记表达“完整写入”的边界')
 save(fig,'P12_debounce_commit','时间去抖与双槽提交：保护和存储的可靠性原理',
      '软件保护示意门槛不是当前配置值；硬件紧急关断不由软件去抖覆盖。双槽图说明最后写提交标记和回读 CRC 的目的。',
-     ['App/motor/motor_protect.c','App/motor_param/flash_storage.c'])
+     ['App/motor/protect/motor_protect.c','App/motor_param/flash_storage.c'])
 
 lines=['# 先看原理：磁场、电路、反馈、波形与数学关系','',
        '本组专门解释机制。旧目录 images/ 为代码结构与流程辅助图；本目录 principles/ 为物理和控制原理图。',

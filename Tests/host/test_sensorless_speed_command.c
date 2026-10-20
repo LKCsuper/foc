@@ -27,8 +27,8 @@ static bool underspeed;
 uint32_t Hal_Motor_PwmPeriodCounts(void) { return 5600; }
 uint32_t Hal_Motor_TimeUs(void) { return clock_us; }
 static void osDelay(uint32_t ms) { clock_us += ms * 1000U; }
-static bool speed_stop_key(void) { return abort_us && clock_us >= abort_us; }
-static bool ol_capture_config(motor_config_t *out) { *out=config; return true; }
+static bool Cmd_Speed_StopKey(void) { return abort_us && clock_us >= abort_us; }
+static bool Cmd_Ol_CaptureConfig(motor_config_t *out) { *out=config; return true; }
 motor_result_t Motor_GetCommand(const MOTOR_PARAM_S *m, motor_command_t *out) { (void)m; *out=command; return MOTOR_OK; }
 motor_result_t Motor_SetCommand(MOTOR_PARAM_S *m, const motor_command_t *c)
 {
