@@ -11,6 +11,7 @@ extern "C" {
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
+#include <float.h>
 
 #include "motor_current.h"
 #include "motor_fw.h"
@@ -43,6 +44,16 @@ static float s_pi_dt;
 /* Private function prototypes -----------------------------------------------*/
 static void motor_current_account_recon(uint8_t phase);
 /* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 使用浮点范围比较检查有限数，避免目标限流路径调用通用分类函数。
+ * @param {float} value 待检查的电流或限幅
+ * @return {bool} 有限数为 true，NaN 或无穷大为 false
+ */
+static inline bool Motor_Current_IsFinite(float value)
+{
+    return value <= FLT_MAX && value >= -FLT_MAX;
+}
+
 
 /**
  * @description: 逐控制拍累计电流跟踪超差，仅写诊断。
@@ -254,7 +265,8 @@ void Motor_Current_LimitTargets(float *id_target, float *iq_target, float curren
 {
     float iq_room_squared;
     COMMON_ASSERT(id_target != NULL && iq_target != NULL);
-    if (!isfinite(*id_target) || !isfinite(*iq_target) || !isfinite(current_limit) || current_limit <= 0.0f) {
+    if (!Motor_Current_IsFinite(*id_target) || !Motor_Current_IsFinite(*iq_target) ||
+        !Motor_Current_IsFinite(current_limit) || current_limit <= 0.0f) {
         *id_target = 0.0f;
         *iq_target = 0.0f;
         return;
@@ -263,7 +275,7 @@ void Motor_Current_LimitTargets(float *id_target, float *iq_target, float curren
     if (*id_target < -current_limit) *id_target = -current_limit;
     iq_room_squared = current_limit * current_limit - *id_target * *id_target;
     if (*iq_target * *iq_target > iq_room_squared) {
-        float iq_room = sqrtf(fmaxf(iq_room_squared, 0.0f));
+        float iq_room = sqrtf(iq_room_squared > 0.0f ? iq_room_squared : 0.0f);
         *iq_target = *iq_target < 0.0f ? -iq_room : iq_room;
     }
 }
@@ -450,8 +462,7 @@ void Motor_Current_TransportPi(MOTOR_PARAM_S *motor, float delta, float old_id, 
     float c, s, vd, vq;
     COMMON_ASSERT(motor != NULL);
     if (!isfinite(delta)) return;
-    c = cos_f32(delta);
-    s = sin_f32(delta);
+    sincos_f32(delta, &s, &c);
     vd = motor->ol_vd_int;
     vq = motor->ol_vq_int;
     /* R(-delta): 同一静止电压矢量在新dq轴上的坐标。反馈也按同一旋转变化，
@@ -498,7 +509,6 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
                                            id_target, iq_target, dt);
     if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CURRENT_TARGET, stage_start);
     if (ctx != NULL && ctx->frame_correction != 0.0f) {
-        bool profile = Motor_Timing_ProfileDetailedIsActive();
         uint32_t start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
         Motor_Current_TransportPi(motor, ctx->frame_correction, motor->id_target, motor->iq_target,
                                   id_target, iq_target);

@@ -4,7 +4,7 @@
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: Please set LastEditors
- * @LastEditTime: 2026-10-16 19:22:52
+ * @LastEditTime: 2026-10-20 15:48:40
  */
 #ifdef __cplusplus
 extern "C" {
@@ -60,15 +60,15 @@ void MOTOR_Param_Print(void)
  */
 void Task_Init(void *argument)
 {
-    Bsp_Init(); // 初始化硬件
-    MOTOR_Param_Init();  // 初始化Flash参数（直接结构体读写，无需EasyFlash）
+    Bsp_Init();                         // 初始化硬件
+    MOTOR_Param_Init();                 // 初始化Flash参数（直接结构体读写，无需EasyFlash）
     COMMON_ASSERT(Motor_Sensor_Init()); // 初始化传感器、恢复校准并选择默认反馈源
-    MOTOR_Param_Print(); // 显示参数（在Shell启动前打印完，避免抢UART）
-    Detect_Init();                    // 开机检测电流偏移校准（有 Flash 则跳过）
-    Command_Init();                   // 命令行初始化（最后启动，避免Shell抢UART）
-    Motor_Task_Start();               // 速度/位置外环任务；电流环仍在 ADC 中断
-    Hal_Motor_PwmStart();             // 先恢复三相 PWMp 模式，此时仍没有运行命令
-    osThreadExit();                   // 初始化完成；空闲任务获得运行机会后释放动态内存
+    MOTOR_Param_Print();                // 显示参数（在Shell启动前打印完，避免抢UART）
+    Detect_Init();                      // 开机检测电流偏移校准（有 Flash 则跳过）
+    Command_Init();                     // 命令行初始化（最后启动，避免Shell抢UART）
+    Motor_Task_Start();                 // 速度/位置外环任务；电流环仍在 ADC 中断
+    Hal_Motor_PwmStart();               // 先恢复三相 PWMp 模式，此时仍没有运行命令
+    osThreadExit();                     // 初始化完成；空闲任务获得运行机会后释放动态内存
 }
 
 /**

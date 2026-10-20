@@ -41,6 +41,12 @@ def observation_collapsed(previous, current):
     return previous is not None and previous > 500 and current < previous * .25
 
 
+def observation_command(brief, coherent, rpms, maximum):
+    if brief and (coherent or rpms != [300] or maximum > 800):
+        raise ValueError('精简安全查询仅用于单档300RPM对照，不能同时请求同拍角度校验')
+    return 'olrpm brief' if brief else 'olrpm'
+
+
 def voltage_near_limit(reply):
     fault = re.search(r'Fault\s*:\s*(\d+)\s', reply)
     if not fault or int(fault[1]) != 0:
@@ -83,6 +89,7 @@ def main():
     voltage_group.add_argument("--voltage-limit", type=float, help="经用户确认的临时软件电压上限，最高4.5V，停机后恢复")
     voltage_group.add_argument("--stage-voltage-limits", nargs="+", type=float, help="与转速逐档对应的限幅，起步≤4.5V，最高10V，停机后恢复")
     parser.add_argument("--coherent", action="store_true", help="检查新版同拍相位/角度诊断一致性")
+    parser.add_argument('--brief', action='store_true', help='单档300RPM用单行安全查询替代完整诊断，检查次数不变')
     parser.add_argument("--fault-trace", action="store_true", help="武装故障前逐拍RAM记录，停机恢复限幅后导出")
     parser.add_argument('--fault-export', choices=('jlink', 'uart'), default='jlink',
                         help='故障RAM默认用J-Link只读导出，uart保留旧串口方式')
@@ -93,6 +100,7 @@ def main():
         parser.error('J-Link故障导出需要有效--jlink路径；或显式选择--fault-export uart')
     try:
         validate_plan(args.rpms, args.max_rpm, args.samples)
+        poll_command = observation_command(args.brief, args.coherent, args.rpms, args.max_rpm)
         validate_voltage_limit(args.voltage_limit)
         validate_voltage_schedule(args.rpms, args.stage_voltage_limits)
     except ValueError as error:
@@ -113,7 +121,7 @@ def main():
     shell = Shell(args.port, 2_000_000)
     with path.open("w", encoding="utf-8") as log:
         def run(command, timeout=3):
-            reply = shell.run(command, timeout=timeout, tries=2 if command == "olrpm" else 1)
+            reply = shell.run(command, timeout=timeout, tries=2 if command in ("olrpm", "olrpm brief") else 1)
             block = f"\n$ {command}\n{reply}"
             log.write(block)
             log.flush()
@@ -176,7 +184,7 @@ def main():
                 tracking_good = 0
                 for _ in range(args.samples):
                     shell.drain(0.7)
-                    reply = run("olrpm")
+                    reply = run(poll_command)
                     match = re.search(r"rpm obs=([-\d.]+).*?tgt=([-\d.]+).*?iq=([-\d.]+).*?tk=(\d).*?fault=(\d+)", reply)
                     if not match:
                         raise RuntimeError("观测回包不完整，停止测试")

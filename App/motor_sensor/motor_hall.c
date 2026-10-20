@@ -17,6 +17,7 @@ extern "C" {
 #include "motor_param.h"
 #include "motor_protect.h"
 #include "motor_math.h"
+#include "motor_foc.h"
 #include "hal_motor.h"
 #include "hal_sensor.h"
 #include "motor.h"
@@ -299,9 +300,7 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
                 z++;
             }
 
-            /* 标定上下文统一使用弧度；直接调用标准函数，避免 CMSIS 版本/链接差异。 */
-            s = sinf(s_hall_detect.theta_rad);
-            c = cosf(s_hall_detect.theta_rad);
+            sincos_f32(s_hall_detect.theta_rad, &s, &c);
             sin_hall[hall] += s;
             cos_hall[hall] += c;
             hall_iterations[hall]++;
@@ -317,8 +316,7 @@ int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
             }
 
             hall = Motor_Hall_Read(false, m->hall_extra_samples);
-            s = sinf(s_hall_detect.theta_rad);
-            c = cosf(s_hall_detect.theta_rad);
+            sincos_f32(s_hall_detect.theta_rad, &s, &c);
             sin_hall[hall] += s;
             cos_hall[hall] += c;
             hall_iterations[hall]++;

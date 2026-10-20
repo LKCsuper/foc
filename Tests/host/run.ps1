@@ -10,6 +10,36 @@ try {
         $Compiler = Join-Path $root '.build/tools/ziglang/zig.exe'
         if (!(Test-Path $Compiler)) { throw 'Specify -Compiler path to zig.exe, or install ziglang into .build/tools.' }
     }
+    $cmdSource = Get-Content App/cmd/cmd_openloop.c -Raw -Encoding utf8
+    $trigBench = [regex]::Match($cmdSource, '(?s)static int ol_trig_bench\(void\)\s*\{.*?\r?\n\}')
+    if (!$trigBench.Success) { throw 'Stopped trig benchmark missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/trig_bench_under_test.inc'), $trigBench.Value, [Text.UTF8Encoding]::new($false))
+    $currentBench = [regex]::Match($cmdSource, '(?s)static int ol_current_bench\(void\)\s*\{.*?\r?\n\}')
+    if (!$currentBench.Success) { throw 'Stopped current benchmark missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/current_bench_under_test.inc'), $currentBench.Value, [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -ILibrary/Common/inc -I.build/host -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc Tests/host/test_current_bench.c -o .build/host/test_current_bench.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Current benchmark compilation failed' }
+    & .build/host/test_current_bench.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Current benchmark tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/diagnostic/motor_reference_trig.c Tests/host/test_reference_trig.c -o .build/host/test_reference_trig.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Reference trig compilation failed' }
+    & .build/host/test_reference_trig.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Reference trig tests failed' }
+    $rpmBrief = [regex]::Match($cmdSource, '(?s)static int ol_print_rpm_brief\(void\)\s*\{.*?\r?\n\}')
+    if (!$rpmBrief.Success) { throw 'Brief RPM command missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/rpm_brief_under_test.inc'), $rpmBrief.Value, [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/host Tests/host/test_rpm_brief.c -o .build/host/test_rpm_brief.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Brief RPM command compilation failed' }
+    & .build/host/test_rpm_brief.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Brief RPM command tests failed' }
+    $irqSource = Get-Content Library/Hal/port/stm32f4/hal_motor_stm32f4.c -Raw -Encoding utf8
+    $irqTest = [regex]::Match($irqSource, '(?s)static bool s_irq_test_active;.*?bool Hal_Motor_StoppedIrqTestEnd\(bool restore_gate\)\s*\{.*?\r?\n\}')
+    if (!$irqTest.Success) { throw 'Stopped IRQ test HAL missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/stopped_irq_test_under_test.inc'), $irqTest.Value, [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/host Tests/host/test_stopped_irq_test.c -o .build/host/test_stopped_irq_test.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Stopped IRQ test HAL compilation failed' }
+    & .build/host/test_stopped_irq_test.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Stopped IRQ test HAL tests failed' }
     $usartSource = Get-Content Library/Bsp/bsp_usart.c -Raw -Encoding utf8
     $usartWait = [regex]::Match($usartSource, '(?s)STATIC VOID Bsp_Usart_YieldToIsr\(VOID\)\s*\{.*?\r?\n\}')
     if (!$usartWait.Success) { throw 'USART wait function missing' }
@@ -19,6 +49,12 @@ try {
     & .build/host/test_usart_wait.exe
     if ($LASTEXITCODE -ne 0) { throw 'USART wait tests failed' }
     $focSource = Get-Content App/motor/motor_foc_isr.c -Raw -Encoding utf8
+    $statusPublish = [regex]::Match($focSource, '(?s)static void Motor_FocIsr_PublishStatus\(const MOTOR_PARAM_S \*motor_param\)\s*\{.*?\r?\n\}')
+    $statusCounter = [regex]::Match($focSource, 'static uint\d+_t s_status_publish_divider;')
+    $statusDivider = [regex]::Match($focSource, '#define MOTOR_STATUS_PUBLISH_DIVIDER \d+U')
+    if (!$statusPublish.Success -or !$statusCounter.Success -or !$statusDivider.Success) { throw 'Status publish boundary missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/status_publish_under_test.inc'),
+        ($statusDivider.Value + "`n" + $statusCounter.Value + "`n" + $statusPublish.Value), [Text.UTF8Encoding]::new($false))
     $focDispatch = [regex]::Match($focSource, '(?s)void Motor_FocIsr_Step\(MOTOR_PARAM_S \*motor_param\)\s*\{.*?\r?\n\}')
     if (!$focDispatch.Success) { throw 'FOC dispatch function missing' }
     [IO.File]::WriteAllText((Join-Path $root '.build/host/foc_dispatch_under_test.inc'), $focDispatch.Value, [Text.UTF8Encoding]::new($false))
@@ -225,31 +261,31 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor FW host compilation failed' }
     & .build/host/test_motor_fw.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor FW host tests failed' }
-    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_hfi.c Tests/host/test_motor_hfi.c -o .build/host/test_motor_hfi.exe
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_utils.c App/motor/observer/motor_hfi.c Tests/host/test_motor_hfi.c -o .build/host/test_motor_hfi.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor HFI host compilation failed' }
     & .build/host/test_motor_hfi.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor HFI host tests failed' }
-    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_flux.c Tests/host/test_motor_flux.c -o .build/host/test_motor_flux.exe
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_utils.c App/motor/observer/motor_flux.c Tests/host/test_motor_flux.c -o .build/host/test_motor_flux.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor flux host compilation failed' }
     & .build/host/test_motor_flux.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor flux host tests failed' }
-    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_luenberger.c Tests/host/test_motor_luenberger.c -o .build/host/test_motor_luenberger.exe
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_utils.c App/motor/observer/motor_luenberger.c Tests/host/test_motor_luenberger.c -o .build/host/test_motor_luenberger.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor Luenberger host compilation failed' }
     & .build/host/test_motor_luenberger.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor Luenberger host tests failed' }
-    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_ekf.c Tests/host/test_motor_ekf.c -o .build/host/test_motor_ekf.exe
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_utils.c App/motor/observer/motor_ekf.c Tests/host/test_motor_ekf.c -o .build/host/test_motor_ekf.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor EKF host compilation failed' }
     & .build/host/test_motor_ekf.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor EKF host tests failed' }
-    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_smo.c Tests/host/test_motor_smo.c -o .build/host/test_motor_smo.exe
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_utils.c App/motor/observer/motor_smo.c Tests/host/test_motor_smo.c -o .build/host/test_motor_smo.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor SMO host compilation failed' }
     & .build/host/test_motor_smo.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor SMO host tests failed' }
-    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_output_core.c App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_utils.c App/motor/motor_output_core.c App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control host compilation failed' }
     & .build/host/test_motor_control.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control host tests failed' }
-    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -DMOTOR_CONTROL_HOLD_ONLY -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_output_core.c App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control_hold_2804.exe
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -DMOTOR_CONTROL_HOLD_ONLY -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_utils.c App/motor/motor_output_core.c App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control_hold_2804.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control 2804 hold compilation failed' }
     & .build/host/test_motor_control_hold_2804.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor control 2804 hold tests failed' }

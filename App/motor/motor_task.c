@@ -47,7 +47,6 @@ static const osThreadAttr_t s_encoder_attr = {
 };
 static osThreadId_t s_encoder_thread;
 /* Private function prototypes -----------------------------------------------*/
-static uint32_t Motor_Task_PidPeriodTicks(void);
 static uint32_t Motor_Task_EncoderPeriodTicks(void);
 static void Motor_Task_DelayNextTick(uint32_t *tick, uint32_t period);
 static void Motor_Task_Pid(void *argument);
@@ -74,32 +73,6 @@ static void Motor_Task_DelayNextTick(uint32_t *tick, uint32_t period)
 }
 
 /**
- * @description: 按 speed_loop_hz 计算任务周期（tick）
- * @return {uint32_t} 周期，至少 1 个 tick
- * @author: lkc
- */
-static uint32_t Motor_Task_PidPeriodTicks(void)
-{
-    uint32_t tick_hz;
-    float loop_hz;
-    uint32_t period;
-
-    tick_hz = osKernelGetTickFreq();
-    if (tick_hz < 1U) {
-        tick_hz = 1U;
-    }
-    loop_hz = motor.speed_loop_hz;
-    if (loop_hz < 1.0f) {
-        loop_hz = 1.0f;
-    }
-    period = (uint32_t)((float)tick_hz / loop_hz);
-    if (period < 1U) {
-        period = 1U;
-    }
-    return period;
-}
-
-/**
  * @description: foc pid 任务：睡眠到下一拍后运行速度 PI。
  * @param {void *} argument 未使用
  * @return {*}
@@ -113,7 +86,9 @@ static void Motor_Task_Pid(void *argument)
     uint32_t complete_us;
     bool diagnostics;
     float dt;
-    motor_speed_snapshot_t before;
+    uint32_t before_update;
+    const uint32_t tick_hz = osKernelGetTickFreq();
+    motor_task_period_cache_t period_cache = {0};
 
     (void)argument;
     tick = osKernelGetTickCount();
@@ -123,9 +98,11 @@ static void Motor_Task_Pid(void *argument)
         if (Motor_Timing_SpeedTaskIsActive()) {
             Motor_Timing_SpeedTaskStage(Hal_Motor_TimeUs(), osKernelGetTickCount(), 1U);
         }
-        tick = Motor_Task_NextDeadline(tick, osKernelGetTickCount(), Motor_Task_PidPeriodTicks());
+        tick = Motor_Task_NextDeadline(tick, osKernelGetTickCount(),
+                                       Motor_Task_PeriodTicks(&period_cache, tick_hz, motor.speed_loop_hz));
         Motor_Timing_WakeProbeArm(tick);
         (void)osDelayUntil(tick);
+        Motor_Timing_TaskRuntimeBegin();
         diagnostics = Motor_Timing_SpeedTaskIsActive();
         if (diagnostics) {
             Motor_Timing_SpeedTaskWake(Hal_Motor_TimeUs(), osKernelGetTickCount(), tick);
@@ -147,7 +124,7 @@ static void Motor_Task_Pid(void *argument)
         }
         if (diagnostics) {
             Motor_Timing_SpeedTaskStage(Hal_Motor_TimeUs(), osKernelGetTickCount(), 3U);
-            (void)Motor_SpeedLoop_GetSnapshot(&before);
+            before_update = Motor_SpeedLoop_GetUpdateCount();
         }
         Motor_SpeedLoop_RunScheduled(&motor, dt);
         if (diagnostics) {
@@ -155,12 +132,13 @@ static void Motor_Task_Pid(void *argument)
             Motor_Timing_SpeedTaskStage(Hal_Motor_TimeUs(), osKernelGetTickCount(), 4U);
             (void)Motor_SpeedLoop_GetSnapshot(&speed);
             complete_us = Hal_Motor_TimeUs();
-            Motor_Timing_SpeedPiNote(complete_us, speed.update_count != before.update_count);
+            Motor_Timing_SpeedPiNote(complete_us, speed.update_count != before_update);
             Motor_Timing_SpeedTaskNote(complete_us, Motor_SpeedLoop_IsRunAllowed(),
                                       speed.target_rpm, speed.measured_rpm, speed.iq_target);
         } else {
             Motor_Timing_SpeedTaskHeartbeat(Hal_Motor_TimeUs());
         }
+        Motor_Timing_TaskRuntimeEnd();
     }
 }
 

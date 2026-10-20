@@ -1184,6 +1184,11 @@
           <GroupName>Motor\Diagnostic</GroupName>
           <Files>
             <File>
+              <FileName>motor_reference_trig.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor\diagnostic\motor_reference_trig.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_fast_vf.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor\diagnostic\motor_fast_vf.c</FilePath>

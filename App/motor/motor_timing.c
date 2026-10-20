@@ -522,6 +522,13 @@ static bool s_task_only;
 static volatile bool s_probe_enabled, s_probe_armed, s_probe_tick_seen;
 static volatile uint32_t s_probe_deadline, s_probe_start, s_probe_dma_count, s_probe_dma_us;
 static motor_wake_probe_t s_probe_cycle;
+static bool s_callback_full;
+static bool s_beat_published;
+static uint32_t s_beat_publish_us;
+static uint32_t s_wake_full_count, s_wake_full_us, s_wake_skip_count, s_wake_skip_us;
+static uint32_t s_wake_publish_count, s_wake_publish_us;
+static motor_split_diag_t s_split;
+volatile uint8_t g_motor_timing_split_active;
 static motor_irq_diag_t s_irq_diag[2];
 static uint8_t s_irq_divider[2];
 /**
@@ -588,6 +595,12 @@ void Motor_Timing_IrqGet(unsigned kind, motor_irq_diag_t *out)
     Motor_Crit_Exit(key);
 }
 static motor_speed_task_diag_t s_speed_task;
+static motor_wake_probe_t s_task_previous_wake;
+static uint32_t s_task_gap_bins[6];
+static motor_task_gap_event_t s_task_worst_gap;
+static uint32_t s_task_phase_stamp[4], s_task_phase_mask;
+volatile motor_schedule_debug_t g_motor_schedule_debug = {.magic = 0x464f4353U, .version = 3U};
+typedef char motor_schedule_debug_size_check_t[sizeof(motor_schedule_debug_t) == 280U ? 1 : -1];
 /**
  * @description: 查询目标 tick 到任务唤醒的 DMA 探测是否已武装。
  * @return {bool} true=已武装
@@ -610,6 +623,8 @@ void Motor_Timing_WakeProbeArm(uint32_t deadline_tick)
     s_probe_tick_seen = false;
     s_probe_dma_count = 0U;
     s_probe_dma_us = 0U;
+    s_wake_full_count = s_wake_full_us = s_wake_skip_count = s_wake_skip_us = 0U;
+    s_wake_publish_count = s_wake_publish_us = 0U;
     s_probe_armed = true;
     Motor_Crit_Exit(key);
 }
@@ -630,13 +645,15 @@ void Motor_Timing_WakeProbeTick(uint32_t next_tick)
     }
 }
 /**
- * @description: 查询本轮探测是否已经看到截止 tick，可以累计 DMA。
+ * @description: 查询唤醒或任务执行窗口是否需要累计 DMA。
  * @return {bool} true=应调用 WakeProbeDmaNote
  * @author: lkc
  */
-bool Motor_Timing_WakeProbeDmaDue(void) { return s_probe_armed && s_probe_tick_seen; }
+static volatile bool s_task_runtime_active;
+static volatile uint32_t s_task_runtime_dma_us, s_task_runtime_dma_count;
+bool Motor_Timing_WakeProbeDmaDue(void) { return (s_probe_armed && s_probe_tick_seen) || s_task_runtime_active; }
 /**
- * @description: 累计截止 tick 之后、任务唤醒之前的一次 DMA 耗时。
+ * @description: 分别累计唤醒等待窗口与任务执行窗口的一次 DMA 耗时。
  * @detail: 未到采集窗口则返回。不改 PWM 或任务调度。
  * @param {uint32_t} start_us DMA 入口时间 (us)
  * @param {uint32_t} end_us   DMA 返回时间 (us)
@@ -646,8 +663,28 @@ bool Motor_Timing_WakeProbeDmaDue(void) { return s_probe_armed && s_probe_tick_s
 void Motor_Timing_WakeProbeDmaNote(uint32_t start_us, uint32_t end_us)
 {
     if (!Motor_Timing_WakeProbeDmaDue()) return;
-    s_probe_dma_count++;
-    s_probe_dma_us += end_us - start_us;
+    if (s_probe_armed && s_probe_tick_seen) {
+        uint32_t elapsed = end_us - start_us;
+        s_probe_dma_count++;
+        s_probe_dma_us += elapsed;
+        if (g_motor_timing_split_active) {
+            if (s_callback_full) {
+                s_wake_full_count++;
+                s_wake_full_us += elapsed;
+            } else {
+                s_wake_skip_count++;
+                s_wake_skip_us += elapsed;
+            }
+            if (s_beat_published) {
+                s_wake_publish_count++;
+                s_wake_publish_us += s_beat_publish_us;
+            }
+        }
+    }
+    if (s_task_runtime_active) {
+        s_task_runtime_dma_count++;
+        s_task_runtime_dma_us += end_us - start_us;
+    }
 }
 /**
  * @description: 查询速度任务统计是否开启。
@@ -656,6 +693,48 @@ void Motor_Timing_WakeProbeDmaNote(uint32_t start_us, uint32_t end_us)
  * @author: lkc
  */
 bool Motor_Timing_SpeedTaskIsActive(void) { return s_cadence_active; }
+
+volatile motor_task_runtime_debug_t g_motor_task_runtime_debug;
+static uint32_t s_task_runtime_start;
+
+void Motor_Timing_TaskRuntimeBegin(void)
+{
+    uint32_t key;
+    if (!s_cadence_active) {
+        s_task_runtime_active = false;
+        return;
+    }
+    key = Motor_Crit_Enter();
+    s_task_runtime_dma_us = 0U;
+    s_task_runtime_dma_count = 0U;
+    s_task_runtime_start = Hal_Motor_TimeUs();
+    s_task_runtime_active = s_cadence_active;
+    Motor_Crit_Exit(key);
+}
+
+void Motor_Timing_TaskRuntimeEnd(void)
+{
+    uint32_t elapsed;
+    uint32_t key;
+    if (!s_task_runtime_active) return;
+    key = Motor_Crit_Enter();
+    elapsed = Hal_Motor_TimeUs() - s_task_runtime_start;
+    s_task_runtime_active = false;
+    if (s_cadence_active && g_motor_task_runtime_debug.count < 100000U) {
+        if (!g_motor_task_runtime_debug.count || elapsed < g_motor_task_runtime_debug.min_us)
+            g_motor_task_runtime_debug.min_us = elapsed;
+        if (!g_motor_task_runtime_debug.count || elapsed > g_motor_task_runtime_debug.max_us) {
+            g_motor_task_runtime_debug.max_us = elapsed;
+            g_motor_task_runtime_debug.max_wall_dma_us = s_task_runtime_dma_us;
+            g_motor_task_runtime_debug.max_wall_dma_count = s_task_runtime_dma_count;
+        }
+        g_motor_task_runtime_debug.last_us = elapsed;
+        g_motor_task_runtime_debug.sum_us += elapsed;
+        g_motor_task_runtime_debug.dma_sum_us += s_task_runtime_dma_us;
+        g_motor_task_runtime_debug.count++;
+    }
+    Motor_Crit_Exit(key);
+}
 /**
  * @description: 发布一次速度任务完成心跳。
  * @detail: 每次任务完成都写，供紧凑记录判断超时。不启用其他统计，不改调度。
@@ -708,7 +787,8 @@ void Motor_Timing_SpeedPiNote(uint32_t time_us, bool updated)
 /**
  * @description: 记录速度任务阶段切换耗时。
  * @detail: phase 1 为等待周期，2 为已唤醒，3 为位置环完成，4 为速度调用完成。
- *          只在相邻阶段前进时更新上一段峰值。未开启或 phase 超出 1..4 则返回。不改调度。
+ *          只在相邻阶段前进时更新上一段峰值；复用时间戳关联同一轮1/2/3/4阶段。
+ *          未开启或 phase 超出 1..4 则返回。不改调度。
  * @param {uint32_t} time_us 阶段时间 (us)
  * @param {uint32_t} tick    任务看到的 tick
  * @param {uint32_t} phase   阶段号，1..4
@@ -720,6 +800,10 @@ void Motor_Timing_SpeedTaskStage(uint32_t time_us, uint32_t tick, uint32_t phase
     uint32_t key;
     if (!s_cadence_active || phase < 1U || phase > 4U) return;
     key = Motor_Crit_Enter();
+    if (phase == 1U) s_task_phase_mask = 1U;
+    else if (s_task_phase_mask == (1U << (phase - 1U)) - 1U) s_task_phase_mask |= 1U << (phase - 1U);
+    else s_task_phase_mask = 0U;
+    s_task_phase_stamp[phase - 1U] = time_us;
     if (s_speed_task.phase == (phase == 1U ? 4U : phase - 1U)) {
         uint32_t index = s_speed_task.phase - 1U;
         uint32_t elapsed = time_us - s_speed_task.phase_us;
@@ -754,9 +838,31 @@ void Motor_Timing_SpeedTaskWake(uint32_t time_us, uint32_t tick, uint32_t deadli
     s_probe_cycle.dma_count = s_probe_cycle.valid ? s_probe_dma_count : 0U;
     s_probe_cycle.dma_us = s_probe_cycle.valid ? s_probe_dma_us : 0U;
     s_probe_armed = false;
+    if (s_probe_cycle.valid && g_motor_timing_split_active) {
+        s_split.wake_count++;
+        s_split.wake_delay_sum_us += s_probe_cycle.delay_us;
+        s_split.wake_dma_sum_us += s_probe_cycle.dma_us;
+        s_split.wake_full_count += s_wake_full_count;
+        s_split.wake_full_sum_us += s_wake_full_us;
+        s_split.wake_skip_count += s_wake_skip_count;
+        s_split.wake_skip_sum_us += s_wake_skip_us;
+        s_split.wake_publish_count += s_wake_publish_count;
+        s_split.wake_publish_sum_us += s_wake_publish_us;
+    }
     if (s_probe_cycle.valid && (!s_speed_task.worst_wake.valid ||
-                               s_probe_cycle.delay_us > s_speed_task.worst_wake.delay_us))
+                               s_probe_cycle.delay_us > s_speed_task.worst_wake.delay_us)) {
         s_speed_task.worst_wake = s_probe_cycle;
+        if (g_motor_timing_split_active) {
+            s_split.worst_delay_us = s_probe_cycle.delay_us;
+            s_split.worst_dma_us = s_probe_cycle.dma_us;
+            s_split.worst_full_count = s_wake_full_count;
+            s_split.worst_full_us = s_wake_full_us;
+            s_split.worst_skip_count = s_wake_skip_count;
+            s_split.worst_skip_us = s_wake_skip_us;
+            s_split.worst_publish_count = s_wake_publish_count;
+            s_split.worst_publish_us = s_wake_publish_us;
+        }
+    }
     Motor_Crit_Exit(key);
     Motor_Timing_SpeedTaskStage(time_us, tick, 2U);
     key = Motor_Crit_Enter();
@@ -769,6 +875,7 @@ void Motor_Timing_SpeedTaskWake(uint32_t time_us, uint32_t tick, uint32_t deadli
 /**
  * @description: 记录一次外环调用完成。
  * @detail: 先写心跳。节拍统计开启时更新完成间隔，并保存门控、目标、反馈和 Iq。
+ *          新的最长间隔同时保存完整阶段链；阶段链不完整或总和不符时标为无效。
  *          allowed 是运行门控，不是 PI 实际更新次数。不改控制。
  * @param {uint32_t} time_us 完成时间 (us)
  * @param {bool} allowed     本拍外环是否允许输出
@@ -785,10 +892,40 @@ void Motor_Timing_SpeedTaskNote(uint32_t time_us, bool allowed, float target, fl
     if (!s_cadence_active) return;
     key = Motor_Crit_Enter();
     gap = time_us - s_speed_task.last_us;
+    if (s_speed_task.count) {
+        unsigned bin = gap <= 1000U ? 0U : gap <= 1100U ? 1U : gap <= 1250U ? 2U :
+                       gap <= 1500U ? 3U : gap <= 2000U ? 4U : 5U;
+        s_task_gap_bins[bin]++;
+    }
     if (s_speed_task.count && gap > s_speed_task.max_gap_us) {
         s_speed_task.max_gap_us = gap;
         s_speed_task.max_gap_ticks = s_speed_task.tick - s_speed_task.complete_tick;
+        s_task_worst_gap.sequence = s_speed_task.count + 1U;
+        s_task_worst_gap.time_us = time_us;
+        s_task_worst_gap.previous_us = s_speed_task.last_us;
+        s_task_worst_gap.wake = s_probe_cycle;
+        s_task_worst_gap.previous_wake = s_task_previous_wake;
+        s_task_worst_gap.phase_valid = 0U;
+        s_task_worst_gap.before_wait_us = 0U;
+        memset(s_task_worst_gap.phase_us, 0, sizeof(s_task_worst_gap.phase_us));
+        if (s_task_phase_mask == 15U) {
+            uint32_t before_wait = s_task_phase_stamp[0] - s_speed_task.last_us;
+            uint32_t durations[4];
+            uint64_t sum = before_wait;
+            unsigned index;
+            for (index = 0U; index < 4U; index++) {
+                durations[index] = (index == 3U ? time_us : s_task_phase_stamp[index + 1U]) - s_task_phase_stamp[index];
+                sum += durations[index];
+            }
+            if (sum == gap && gap < 0x80000000U) {
+                s_task_worst_gap.phase_valid = 1U;
+                s_task_worst_gap.before_wait_us = before_wait;
+                memcpy(s_task_worst_gap.phase_us, durations, sizeof(durations));
+            }
+        }
     }
+    s_task_phase_mask = 0U;
+    s_task_previous_wake = s_probe_cycle;
     s_speed_task.complete_tick = s_speed_task.tick;
     s_speed_task.count++;
     s_speed_task.last_us = time_us;
@@ -813,6 +950,23 @@ void Motor_Timing_SpeedTaskGet(motor_speed_task_diag_t *out)
     *out = s_speed_task;
     Motor_Crit_Exit(key);
 }
+
+void Motor_Timing_SpeedTaskCaptureLight(motor_trace_light_sample_t *sample)
+{
+    uint32_t key;
+    COMMON_ASSERT(sample != NULL);
+    key = Motor_Crit_Enter();
+    sample->task_count = s_speed_task.count;
+    sample->task_age_us = s_speed_task.count ? sample->time_us - s_speed_task.last_us : UINT32_MAX;
+    sample->task_gate = s_speed_task.allowed ? 1U : 0U;
+    sample->speed_target = s_speed_task.target;
+    sample->speed_feedback = s_speed_task.feedback;
+    sample->speed_iq = s_speed_task.iq;
+    sample->task_tick = s_speed_task.tick;
+    sample->task_phase = s_speed_task.phase;
+    sample->task_phase_age_us = s_speed_task.phase ? sample->time_us - s_speed_task.phase_us : UINT32_MAX;
+    Motor_Crit_Exit(key);
+}
 static bool s_trace_flight;
 #define MOTOR_TRACE_FLIGHT_ENTRY 192U
 #define MOTOR_TRACE_FLIGHT_RING (MOTOR_TRACE_CAPACITY - MOTOR_TRACE_FLIGHT_ENTRY)
@@ -822,7 +976,7 @@ static uint32_t s_cadence_last;
 static bool s_cadence_seed;
 static motor_callback_t s_callback;
 static uint32_t s_callback_start, s_callback_last;
-static bool s_callback_active, s_callback_seed, s_callback_full;
+static bool s_callback_active, s_callback_seed;
 static uint32_t s_trace_entry_last;
 static bool s_trace_entry_seed;
 static uint16_t s_trace_gap_max, s_trace_full_max, s_trace_pending, s_trace_up;
@@ -843,6 +997,8 @@ void Motor_Timing_CallbackBegin(uint32_t time_us)
     if (!s_callback_active && (!s_trace_active || s_trace_compact)) return;
     s_callback_start = time_us;
     s_callback_full = false;
+    s_beat_published = false;
+    s_beat_publish_us = 0U;
     if (!s_callback_active) return;
     delta = time_us - s_callback_last;
     s_callback_last = time_us;
@@ -888,7 +1044,37 @@ void Motor_Timing_CallbackEnd(uint32_t time_us, bool pending)
     if (elapsed > 33U) s_callback.over33++;
     if (elapsed > 66U) s_callback.over66++;
     if (pending) s_callback.pending++;
+    if (s_beat_published) {
+        s_callback.publish++;
+        s_callback.publish_sum += s_beat_publish_us;
+        if (s_beat_publish_us > s_callback.publish_max) s_callback.publish_max = s_beat_publish_us;
+        if (s_callback_full) s_callback.publish_on_full++;
+        s_split.publish_count = s_callback.publish;
+        s_split.publish_sum_us = s_callback.publish_sum;
+        s_split.publish_max_us = s_callback.publish_max;
+        s_split.publish_on_full = s_callback.publish_on_full;
+    }
     if (s_callback.count >= 1000000U) s_callback_active = false;
+}
+/**
+ * @description: 标记本回调是完整控制拍还是跳过拍。
+ * @detail: 仅细分诊断开启时由 FOC 入口调用。须在 CallbackEnd 之前。不改控制。
+ * @param {bool} full true=本回调执行了完整控制
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Timing_CallbackClassify(bool full) { s_callback_full = full; }
+/**
+ * @description: 记下本回调内一次状态发布的自身耗时。
+ * @detail: elapsed_us 只含快照发布，不含分频计数。同一回调只记最后一次。不改控制。
+ * @param {uint32_t} elapsed_us 状态发布耗时 (us)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Timing_CallbackPublish(uint32_t elapsed_us)
+{
+    s_beat_published = true;
+    s_beat_publish_us = elapsed_us;
 }
 /**
  * @description: 拷贝 DMA 回调耗时统计。
@@ -937,6 +1123,7 @@ bool Motor_Timing_CallbackIsActive(void) { return s_callback_active || (s_trace_
 void Motor_Timing_CadenceReset(void)
 {
     uint32_t key = Motor_Crit_Enter();
+    g_motor_schedule_debug.state = 0U;
     s_probe_enabled = false;
     s_probe_armed = false;
     memset(&s_probe_cycle, 0, sizeof(s_probe_cycle));
@@ -944,6 +1131,13 @@ void Motor_Timing_CadenceReset(void)
     s_performance_enabled = true;
     memset(&s_cadence, 0, sizeof(s_cadence));
     memset(&s_speed_task, 0, sizeof(s_speed_task));
+    memset((void *)&g_motor_task_runtime_debug, 0, sizeof(g_motor_task_runtime_debug));
+    s_task_runtime_active = false;
+    memset(&s_task_previous_wake, 0, sizeof(s_task_previous_wake));
+    memset(s_task_gap_bins, 0, sizeof(s_task_gap_bins));
+    memset(&s_task_worst_gap, 0, sizeof(s_task_worst_gap));
+    s_task_phase_mask = 0U;
+    memset(s_task_phase_stamp, 0, sizeof(s_task_phase_stamp));
     memset(s_irq_diag, 0, sizeof(s_irq_diag));
     memset(s_irq_divider, 0, sizeof(s_irq_divider));
     memset((void *)s_profile_sum, 0, sizeof(s_profile_sum));
@@ -954,6 +1148,42 @@ void Motor_Timing_CadenceReset(void)
     memset(&s_callback, 0, sizeof(s_callback));
     s_callback_seed = false;
     s_callback_active = true;
+    g_motor_timing_split_active = 0U;
+    memset(&s_split, 0, sizeof(s_split));
+    Motor_Crit_Exit(key);
+}
+/**
+ * @description: 打开完整拍、跳过拍和状态发布的同窗口细分，并武装唤醒重叠。
+ * @detail: 关闭性能统计和分段采样，保留回调耗时与速度任务节拍。不改控制周期、增益或任务优先级。
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Timing_SplitReset(void)
+{
+    uint32_t key;
+    Motor_Timing_CadenceReset();
+    key = Motor_Crit_Enter();
+    s_task_only = true;
+    s_performance_enabled = false;
+    s_profile_active = false;
+    s_callback_active = true;
+    s_probe_enabled = true;
+    g_motor_timing_split_active = 1U;
+    Motor_Crit_Exit(key);
+}
+/**
+ * @description: 拷贝拍型细分与唤醒重叠。
+ * @detail: 进入临界区。out 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {motor_split_diag_t *} out 输出，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Timing_SplitGet(motor_split_diag_t *out)
+{
+    uint32_t key;
+    COMMON_ASSERT(out != NULL);
+    key = Motor_Crit_Enter();
+    *out = s_split;
     Motor_Crit_Exit(key);
 }
 /**
@@ -1000,6 +1230,64 @@ void Motor_Timing_CadenceStop(void)
     s_probe_armed = false;
     s_cadence_active = false;
     s_callback_active = false;
+    g_motor_timing_split_active = 0U;
+    Motor_Crit_Exit(key);
+}
+
+/**
+ * @description: 在停机命令任务中冻结调度统计，发布只读 RAM 快照。
+ * @detail: 复用已有计数，不增加 ISR 插桩；短临界区内关闭采集并复制，发布前后使用序号和内存屏障。
+ * @return {void} 无
+ */
+void Motor_Timing_ScheduleDebugFreeze(void)
+{
+    unsigned index;
+    uint32_t key = Motor_Crit_Enter();
+    if (g_motor_schedule_debug.state == 2U) {
+        Motor_Crit_Exit(key);
+        return;
+    }
+    g_motor_schedule_debug.sequence++;
+#if MOTOR_CRIT_HAS_IRQ_LOCK
+    __DMB();
+#endif
+    g_motor_schedule_debug.state = 0U;
+    g_motor_schedule_debug.mode = (s_task_only ? 1U : 0U) | (s_probe_enabled ? 2U : 0U) |
+                                 (s_performance_enabled ? 4U : 0U) | (s_cadence_active ? 8U : 0U);
+    Motor_Timing_CadenceStop();
+    g_motor_schedule_debug.task_count = s_speed_task.count;
+    g_motor_schedule_debug.task_max_gap_us = s_speed_task.max_gap_us;
+    g_motor_schedule_debug.pi_count = s_speed_task.pi_count;
+    g_motor_schedule_debug.pi_no_update = s_speed_task.pi_no_update;
+    g_motor_schedule_debug.pi_max_gap_us = s_speed_task.pi_max_gap_us;
+    g_motor_schedule_debug.pi_over_1ms = s_speed_task.pi_over_1ms;
+    g_motor_schedule_debug.pi_streak_max = s_speed_task.pi_over_streak_max;
+    g_motor_schedule_debug.wake_late_max_ticks = s_speed_task.wake_late_max_ticks;
+    for (index = 0U; index < 4U; index++)
+        g_motor_schedule_debug.phase_max_us[index] = s_speed_task.phase_max_us[index];
+    for (index = 0U; index < 6U; index++)
+        g_motor_schedule_debug.pi_gap_bins[index] = s_speed_task.pi_gap_bins[index];
+    g_motor_schedule_debug.worst_pi_wake = s_speed_task.worst_pi_wake;
+    g_motor_schedule_debug.worst_wake = s_speed_task.worst_wake;
+    for (index = 0U; index < 6U; index++)
+        g_motor_schedule_debug.task_gap_bins[index] = s_task_gap_bins[index];
+    g_motor_schedule_debug.worst_gap = s_task_worst_gap;
+    for (index = 0U; index < 2U; index++) {
+        const motor_irq_diag_t *irq = &s_irq_diag[index];
+        g_motor_schedule_debug.irq[index][0] = irq->seen;
+        g_motor_schedule_debug.irq[index][1] = irq->count;
+        g_motor_schedule_debug.irq[index][2] = irq->sum_us;
+        g_motor_schedule_debug.irq[index][3] = irq->max_us;
+        g_motor_schedule_debug.irq[index][4] = irq->first_us;
+        g_motor_schedule_debug.irq[index][5] = irq->last_us;
+        g_motor_schedule_debug.irq[index][6] = irq->tick_pending;
+        g_motor_schedule_debug.irq[index][7] = irq->switch_pending;
+    }
+    g_motor_schedule_debug.state = 2U;
+#if MOTOR_CRIT_HAS_IRQ_LOCK
+    __DMB();
+#endif
+    g_motor_schedule_debug.sequence++;
     Motor_Crit_Exit(key);
 }
 /**
@@ -1140,6 +1428,27 @@ void Motor_Timing_TraceArmCompact(void)
  * @author: lkc
  */
 bool Motor_Timing_TraceIsCompact(void) { return s_trace_compact && !s_trace_fault; }
+
+/**
+ * @description: 一次汇总高频控制路径中已开启的诊断。
+ * @detail: 不推进分频、不读取时钟。回调 full 标记在细分诊断中由 CallbackClassify 写入；
+ *          非紧凑轨迹的入口统计仍由 ProfileOpen 更新。
+ * @return {uint32_t} 本拍诊断位掩码
+ */
+uint32_t Motor_Timing_IsrFeatures(void)
+{
+    uint32_t features = 0U;
+    if (s_performance_enabled || (s_cadence_active && !s_task_only) || (s_trace_active && !s_trace_compact))
+        features |= MOTOR_TIMING_ISR_PROFILE;
+    if (s_performance_enabled) features |= MOTOR_TIMING_ISR_RUNTIME;
+    if (s_pair_mode && s_handoff_active && !s_pair_half) features |= MOTOR_TIMING_ISR_PAIR;
+    if (s_trace_active) {
+        if (s_trace_fault) features |= MOTOR_TIMING_ISR_FAULT;
+        else if (s_trace_compact) features |= MOTOR_TIMING_ISR_COMPACT;
+        else features |= MOTOR_TIMING_ISR_TRACE;
+    }
+    return features;
+}
 /**
  * @description: 查询紧凑轨迹是否仍在采集。
  * @return {bool} true=紧凑格式且未冻结
@@ -1627,6 +1936,8 @@ void Motor_Timing_ProfileEnd(void) { s_profile_active = false; }
  *          该段样本数已经达到 256 时，先清掉该段的 sum/count/max，再计入本拍。
  *          跳过的 ADC 回调不会调用本函数。CONTROL 与 OBSERVER、TRANSPORT 的时间互相包含；
  *          BLEND/CLOSED 与 OBSERVER 是同一段耗时，平均值不能相加。
+ *          SENSE/SENSOR/PROTECTION 只在使能的无感 I/F 细分拍计入，停机拍留在 SAMPLE。
+ *          VOLTAGE_REBUILD 含在 OUTPUT 内，不能与 OUTPUT 相加。
  * @param {motor_timing_stage_t} stage 阶段编号
  * @param {uint32_t} start_us          阶段开始时间戳 (us)
  * @return {void} 无

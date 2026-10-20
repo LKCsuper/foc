@@ -190,6 +190,15 @@ bool Motor_SpeedLoop_GetSnapshot(motor_speed_snapshot_t *snapshot)
     return true;
 }
 
+/**
+ * @description: 返回默认速度环更新序号，避免诊断前复制无用浮点字段。
+ * @return {uint32_t} 当前PI更新计数
+ */
+uint32_t Motor_SpeedLoop_GetUpdateCount(void)
+{
+    return s_speed.update_count;
+}
+
 #ifdef __cplusplus
 }
 #endif

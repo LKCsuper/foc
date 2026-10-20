@@ -230,7 +230,8 @@ static const unsigned int crc32_table[256] =
 
 /**
  * @description: 同一角度共用正弦表索引与插值比例，计算 sin 与 cos。
- * @detail: 余弦使用正弦表的四分之一周期偏移。不缓存跨拍状态，不访问硬件。输出指针不可为空。
+ * @detail: ±64 rad 内余弦使用正弦表四分之一周期偏移，超范围或非有限值回退标准库。
+ *          保留正负零。不缓存跨拍状态，不访问硬件。输出指针不可为空。
  * @param {float} x        输入角度 (rad)
  * @param {float *} sine   输出正弦值，不可为空
  * @param {float *} cosine 输出余弦值，不可为空
@@ -239,6 +240,16 @@ static const unsigned int crc32_table[256] =
  */
 void sincos_f32(float x, float *sine, float *cosine)
 {
+    if (!(x >= -64.0f && x <= 64.0f)) {
+        *sine = sinf(x);
+        *cosine = cosf(x);
+        return;
+    }
+    if (x == 0.0f) {
+        *sine = x;
+        *cosine = 1.0f;
+        return;
+    }
     float in = x * 0.159154943092f;
     int32_t n = (int32_t)in;
     float findex, fract;
@@ -255,6 +266,42 @@ void sincos_f32(float x, float *sine, float *cosine)
     cos_index = (uint16_t)((index + SIN_TABLE_SIZE / 4U) % SIN_TABLE_SIZE);
     *sine = (1.0f - fract) * sinTable_f32[index] + fract * sinTable_f32[index + 1U];
     *cosine = (1.0f - fract) * sinTable_f32[cos_index] + fract * sinTable_f32[cos_index + 1U];
+}
+
+/**
+ * @description: 泰勒候选后端，边界和多项式阶数见 motor_foc.h。
+ * @param {float} x 输入弧度
+ * @param {float *} sine 正弦输出
+ * @param {float *} cosine 余弦输出
+ * @return {void} 无
+ */
+void sincos_taylor_f32(float x, float *sine, float *cosine)
+{
+    int32_t quadrant;
+    float reduced, square, sine_reduced, cosine_reduced;
+    if (!(x >= -64.0f && x <= 64.0f)) {
+        *sine = sinf(x);
+        *cosine = cosf(x);
+        return;
+    }
+    if (x == 0.0f) {
+        *sine = x;
+        *cosine = 1.0f;
+        return;
+    }
+    quadrant = (int32_t)(x * 0.63661977236758134308f + (x < 0.0f ? -0.5f : 0.5f));
+    reduced = (x - (float)quadrant * 1.5703125f) - (float)quadrant * 0.00048382679489661923f;
+    square = reduced * reduced;
+    sine_reduced = reduced + reduced * square * (-1.0f / 6.0f + square *
+                              (1.0f / 120.0f - square * (1.0f / 5040.0f)));
+    cosine_reduced = 1.0f + square * (-0.5f + square * (1.0f / 24.0f + square *
+                                (-1.0f / 720.0f + square * (1.0f / 40320.0f))));
+    switch ((uint32_t)quadrant & 3U) {
+    case 0U: *sine = sine_reduced; *cosine = cosine_reduced; break;
+    case 1U: *sine = cosine_reduced; *cosine = -sine_reduced; break;
+    case 2U: *sine = -sine_reduced; *cosine = -cosine_reduced; break;
+    default: *sine = -cosine_reduced; *cosine = sine_reduced; break;
+    }
 }
 
 float sin_f32(float x)

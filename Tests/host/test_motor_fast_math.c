@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <float.h>
 #include "motor_foc.h"
 #include "motor_math.h"
 static bool reference(float *x,float *y,float limit) {
@@ -12,6 +13,49 @@ static bool reference(float *x,float *y,float limit) {
 }
 int main(void) {
  unsigned i,j; float max_trig=0,max_dq=0;
+ {
+  float maximum=0.0f,amplitude_maximum=0.0f;
+  for(i=0;i<=262144U;i++) {
+   float angle=-64.0f+128.0f*(float)i/262144.0f,sine,cosine,error,amplitude_error;
+   sincos_taylor_f32(angle,&sine,&cosine);
+   error=fmaxf(fabsf(sine-sinf(angle)),fabsf(cosine-cosf(angle)));
+   amplitude_error=fabsf(sine*sine+cosine*cosine-1.0f);
+   if(error>maximum)maximum=error;
+   if(amplitude_error>amplitude_maximum)amplitude_maximum=amplitude_error;
+   assert(error<0.000001f && amplitude_error<0.000002f);
+  }
+  for(i=0;i<81U;i++) {
+   float boundary=((float)i-40.0f)*((float)M_PI/4.0f);
+   float angles[]={nextafterf(boundary,-INFINITY),boundary,nextafterf(boundary,INFINITY)};
+   for(j=0;j<3U;j++) {
+    float sine,cosine;
+    sincos_taylor_f32(angles[j],&sine,&cosine);
+    assert(fabsf(sine-sinf(angles[j]))<0.000001f);
+    assert(fabsf(cosine-cosf(angles[j]))<0.000001f);
+   }
+  }
+  { float sine,cosine; sincos_taylor_f32(-0.0f,&sine,&cosine); assert(signbit(sine)&&cosine==1.0f); }
+  printf("Taylor math: standard max=%g unit-circle max=%g\n",maximum,amplitude_maximum);
+ }
+ {
+  const float special[]={NAN,INFINITY,-INFINITY,FLT_MAX,-FLT_MAX,65.0f,-65.0f,1000000.0f};
+  for(i=0;i<sizeof(special)/sizeof(special[0]);i++) {
+   float sine,cosine,expected_sine=sinf(special[i]),expected_cosine=cosf(special[i]);
+   sincos_f32(special[i],&sine,&cosine);
+   assert((isnan(sine)&&isnan(expected_sine))||sine==expected_sine);
+   assert((isnan(cosine)&&isnan(expected_cosine))||cosine==expected_cosine);
+   sincos_taylor_f32(special[i],&sine,&cosine);
+   assert((isnan(sine)&&isnan(expected_sine))||sine==expected_sine);
+   assert((isnan(cosine)&&isnan(expected_cosine))||cosine==expected_cosine);
+  }
+  { float sine,cosine; sincos_f32(-0.0f,&sine,&cosine); assert(signbit(sine)&&cosine==1.0f); }
+  for(i=0;i<=131072U;i++) {
+   float angle=-64.0f+128.0f*(float)i/131072.0f,sine,cosine;
+   sincos_f32(angle,&sine,&cosine);
+   assert(fabsf(sine-sinf(angle))<0.000025f);
+   assert(fabsf(cosine-cosf(angle))<0.000025f);
+  }
+ }
  for(i=0;i<=65536;i++) {
   float angle=((float)i/65536.0f*4.0f-2.0f)*M_PI,s,c,old_s=sin_f32(angle),old_c=cos_f32(angle);
   float d,q,a,b,rd,rq;

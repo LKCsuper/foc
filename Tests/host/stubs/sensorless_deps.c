@@ -17,6 +17,7 @@ void Motor_Timing_ObserverStepPush(const motor_observer_step_sample_t *sample)
     host_observer_step = *sample;
     host_observer_step_count++;
 }
+bool Motor_Timing_PhaseMode(void) { return false; }
 bool Motor_Timing_PhaseDue(bool completed) { (void)completed; return false; }
 void Motor_Timing_PhasePush(const motor_phase_sample_t *sample) { (void)sample; }
 uint32_t Motor_Timing_ProfileTimeUs(void) { return 0U; }
@@ -26,10 +27,17 @@ void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start)
     (void)start;
 }
 
+float host_speed_feedback_rpm;
+bool host_speed_feedback_valid;
+unsigned host_speed_feedback_calls;
+mc_fault_code host_protect_fault;
+unsigned host_protect_fault_calls;
+
 void Motor_SpeedFeedback_Set(float rpm, bool valid)
 {
-    (void)rpm;
-    (void)valid;
+    host_speed_feedback_rpm = rpm;
+    host_speed_feedback_valid = valid;
+    host_speed_feedback_calls++;
 }
 
 void Motor_SpeedLoop_PrimeIq(float iq)
@@ -39,6 +47,7 @@ void Motor_SpeedLoop_PrimeIq(float iq)
 
 void Motor_Protect_TriggerFault(mc_fault_code fault, const MOTOR_PARAM_S *motor)
 {
-    (void)fault;
     (void)motor;
+    host_protect_fault = fault;
+    host_protect_fault_calls++;
 }

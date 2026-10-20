@@ -59,9 +59,9 @@
 | PB2 | 28 | SDX / BOOT1 | GPIO | BMI160 SDA |
 | PB3 | 55 | SWO / JTDO | TRACE / GPIO | 调试 SWO；本板无 DRV SPI，不当 MISO 用 |
 | PB4 | 56 | NJTRST | GPIO | JTAG 复位脚；本板无 DRV SPI，不当 SCK 用 |
-| PB5 | 57 | （门极使能） | GPIO 输出 | FD6288 EN：高=允许输出，低=关桥。固件 `ENABLE_GATE()` / `DISABLE_GATE()` |
+| PB5 | 57 | NC | 原理图未连接 | 2026-10-18核对MCU页及FD6288页：不是门极EN，不能用遗留`ENABLE_GATE()`/`DISABLE_GATE()`宏证明关桥 |
 | PB6 | 58 | SERVO | TIM4_CH1 / GPIO | 舵机/PPM 输入，引出到连接器 |
-| PB7 | 59 | FAULT | GPIO 输入 | FD6288 故障，低有效。固件 `IS_DRV_FAULT()` |
+| PB7 | 59 | FAULT | GPIO 输入 | R6上拉；固件`IS_DRV_FAULT()`按低有效读取，但FD6288无FAULT脚，原理图未给出驱动故障输出来源 |
 | PB8 | 61 | CAN_RX | CAN1_RX | CAN 收 |
 | PB9 | 62 | CAN_TX | CAN1_TX | CAN 发 |
 | PB10 | 29 | TX_SCL_MOSI | USART3_TX / I2C2_SCL | 外设口 TX；现工程调试串口不在这组 |
@@ -149,7 +149,9 @@ MOS 页：
 | GHA/GHB/GHC、GLA/GLB/GLC | 高/低边门极，串约 5.1 Ω |
 | TEMP1 | 功率区 NTC，到 MCU `M_TEMP` |
 
-FD6288：`EN`←PB5，故障←PB7（低有效）。无 SPI 寄存器。`hw_hd75.h` 里 `DRV8323S_*` 宏是历史残留，**不要**按那些脚去配本板。
+FD6288Q没有独立EN或FAULT引脚；直接使用六路HIN/LIN。MCU页PB5为NC，PB7标FAULT并由R6上拉，不能据此声称存在FD6288硬件故障输出。无SPI寄存器。`hw_hd75.h`中的PB5门极宏及`DRV8323S_*`宏为遗留定义，不能作为本板安全关断依据。
+
+2026-10-18停机J-Link读回PB5仍为输入，与原理图一致。限时停机诊断改用TIM1：先清三相主/互补空闲电平，再清MOE，使六路HIN/LIN保持低，并读回PA8/PA9/PA10、PB13/PB14/PB15。不能只清MOE而保留旧OIS高电平，也不能把50%中点当关桥；该诊断不替代硬件过流保护。
 
 ## 5. 滤波开关
 
@@ -192,7 +194,7 @@ FD6288：`EN`←PB5，故障←PB7（低有效）。无 SPI 寄存器。`hw_hd75
 | 母线 / PCB 温度 / 电机温度 / 外部 ADC | PC3、PA3、PC4、PA5、PA6 | 模拟输入 |
 | 调试串口 | PC10、PC11 | UART4 |
 | 霍尔 | PC6、PC7、PC8 | 输入 |
-| 门极 EN / nFAULT | PB5、PB7 | 宏已定义；GPIO 初始化里 EN 曾被注释，以运行时 `ENABLE_GATE` 为准 |
+| 遗留 EN / FAULT 宏 | PB5、PB7 | PB5原理图NC，PB7仅标FAULT上拉；FD6288无EN/FAULT脚，不作为安全关桥或硬件保护证据 |
 | LED | PB0、PB1 | 宏已定义，`Bsp_Gpio_Init` 里 LED 初始化被注释 |
 | SENS_FILTER / CURR_FILTER | PC13、PD2 | PC13 按 FOC/BLDC 模式切换；PD2 上电后固定为推挽高电平 |
 | CAN、USB、BMI160、USART3、SPI、NRF SWD | 见上表 | 原理图有，当前应用未初始化 |

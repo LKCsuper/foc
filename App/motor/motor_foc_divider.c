@@ -3,8 +3,8 @@
  * @Author: lkc
  *
  * 学习要点：ADC-DMA 回调频率常高于电流环（如 30kHz vs 15kHz）。
- * 采样与软件保护每拍都跑；完整 FOC（电流环/观测器/SVPWM）按 divider 分频。
- * FOC 的 dt 须乘以 divider，否则斜坡/PI/观测器时间尺度会错。
+ * 本计数器只决定这一回调是否跑完整 FOC。采样和软件保护由调用方放在完整拍，
+ * 跳过拍不再做这两项。FOC 的 dt 须乘以 divider，否则斜坡/PI/观测器时间尺度会错。
  */
 #ifdef __cplusplus
 extern "C" {
@@ -37,8 +37,9 @@ void Motor_FocDivider_Init(motor_foc_divider_t *state, int divider)
 /**
  * @description: 每个 ADC 回调推进一拍，判断本拍是否应跑完整 FOC。
  * @detail: divider=2 时模式为 false,true,false,true…；NULL 恒 true（无分频兜底）。
+ *          返回 false 时调用方不得补跑采样或保护。
  * @param {motor_foc_divider_t *} state  分频状态
- * @return {bool} true=本拍执行电流环/观测器/SVPWM
+ * @return {bool} true=本拍执行采样、保护、电流环和 SVPWM
  * @author: lkc
  */
 bool Motor_FocDivider_ShouldRun(motor_foc_divider_t *state)

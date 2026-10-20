@@ -8,6 +8,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "motor_ekf.h"
 #include "common_assert.h"
+#include "motor_foc.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -340,8 +341,7 @@ bool Motor_Ekf_Step(motor_ekf_t *obs, const motor_ekf_config_t *config, float v_
 
     omega = obs->x[MOTOR_EKF_W];
     theta = obs->x[MOTOR_EKF_TH];
-    s_th = sinf(theta);
-    c_th = cosf(theta);
+    sincos_f32(theta, &s_th, &c_th);
 
     /*
      * 连续模型：

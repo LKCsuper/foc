@@ -921,7 +921,23 @@ void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
 {
     static float previous_ia, previous_ib, previous_ic, previous_dt;
     motor_observer_step_sample_t step;
-    bool step_active = Motor_Timing_ObserverStepActive();
+    bool step_active;
+    /*
+     * 未授权且已经是冷态时，磁链和 PLL 不再前进。本拍只把速度反馈保持为无效，
+     * 堵转/失速计时因此继续清零。闭环中撤销授权、或观测器尚未冷下来时仍走完整入口。
+     */
+    if (motor != NULL && !motor->sensorless_takeover && !s_sensorless.initialized &&
+        s_sensorless.state == MOTOR_SENSORLESS_OPEN_LOOP && motor->ol_enable && motor->sensorless_enable &&
+        motor->ol_mode == MOTOR_OL_MODE_IF && !Motor_Timing_ObserverStepActive() &&
+        !Motor_Timing_PhaseMode()) {
+        bool profile = Motor_Timing_ProfileIsActive();
+        uint32_t start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+        previous_dt = 0.0f;
+        Motor_SpeedFeedback_Set(0.0f, false);
+        if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_OBSERVER, start);
+        return;
+    }
+    step_active = Motor_Timing_ObserverStepActive();
     bool step_due = step_active && Motor_Timing_ObserverStepDue();
     motor_sensorless_effects_t effects;
     float pll_before = s_sensorless.pll_angle;

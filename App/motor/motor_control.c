@@ -516,6 +516,9 @@ static float Motor_Control_GetCurrentTheta(motor_control_t *ctrl, MOTOR_PARAM_S 
     if (sample != NULL) return sample->elec_angle_rad;
 
     utils_norm_angle_rad(&theta);
+    if (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_SENSORLESS) {
+        return motor->sensorless_enable ? Motor_Sensorless_GetControlAngle(theta) : theta;
+    }
     /*
      * 统一反馈选择：默认无感；编码器/霍尔在角有效时走有感电流环电角。
      */
@@ -756,18 +759,19 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
         Motor_Fw_Reset(&ctrl->fw);
         Motor_Current_FeedbackUpdateDq(motor, theta);
     } else if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
-        float iq_abs;
         float fw_max;
 
-        if (ctx.speed_loop_active) {
-            iq_abs = fabsf(ctx.speed_iq_target * ctx.soft_current_scale);
-        } else {
-            iq_abs = fabsf(motor->ol_iq_set * ctx.if_iq_scale * ctx.soft_current_scale);
-        }
         fw_max = motor->fw_current_max;
         /* 弱磁关闭时Step直接清零Id，不必每拍计算电流圆的sqrt余量。 */
         if (fw_max > 0.0f) {
-            float id_room = Motor_Fw_IdRoom(iq_abs, MOTOR_FW_I_BUDGET);
+            float iq_abs;
+            float id_room;
+            if (ctx.speed_loop_active) {
+                iq_abs = fabsf(ctx.speed_iq_target * ctx.soft_current_scale);
+            } else {
+                iq_abs = fabsf(motor->ol_iq_set * ctx.if_iq_scale * ctx.soft_current_scale);
+            }
+            id_room = Motor_Fw_IdRoom(iq_abs, MOTOR_FW_I_BUDGET);
             if (fw_max > id_room) {
                 fw_max = id_room;
             }
@@ -847,13 +851,54 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
 }
 
 /**
- * @description: V/F 路径：按电气频率计算 Vq，固定 Vd=0，用开环电角输出。
- * @detail: 电压软起并受统一线性调制电压上限约束。
- * @param {motor_control_t} *ctrl  控制实例（取软起比例）
- * @param {MOTOR_PARAM_S} *motor  电机对象
- * @param {float} v_bus  母线 (V)
- * @return {motor_control_result_t} DQ 电压请求
- * @author: lkc
+ * @description: 独立实例 I/F 外层逐项诊断入口，模式与限制见 motor_control.h。
+ * @param {motor_control_t *} ctrl 独立控制状态
+ * @param {MOTOR_PARAM_S *} motor 独立电机状态
+ * @param {motor_current_target_ctx_t *} ctx 独立目标上下文
+ * @param {unsigned} mode 诊断模式
+ * @return {motor_control_result_t} 不得应用到硬件的校验结果
+ */
+motor_control_result_t Motor_Control_IfDiagnosticStep(motor_control_t *ctrl, MOTOR_PARAM_S *motor,
+                                                     motor_current_target_ctx_t *ctx, unsigned mode)
+{
+    motor_feedback_sample_t feedback = {0};
+    motor_dq_voltage_t voltage;
+    COMMON_ASSERT(ctrl != NULL && motor != NULL && ctx != NULL);
+    feedback.elec_angle_rad = motor->ol_theta;
+    feedback.angle_valid = true;
+    switch (mode) {
+    case 1U:
+        return Motor_Control_ResultDq(Motor_Control_GetCurrentTheta(ctrl, motor, NULL), 0.0f, 0.0f);
+    case 2U:
+        return Motor_Control_ResultDq(Motor_Control_GetCurrentTheta(ctrl, motor, &feedback), 0.0f, 0.0f);
+    case 3U:
+        Motor_Control_FillCurrentCtx(ctrl, motor, ctx);
+        return Motor_Control_ResultDq(ctx->soft_current_scale, ctx->if_iq_scale, ctx->frame_correction);
+    case 4U:
+        return Motor_Control_ResultDq(Motor_Fw_Step(&ctrl->fw, 0.0f, motor->fw_duty_start,
+                                      motor->fw_ramp_a_s, ctrl->fw.last_vd, ctrl->fw.last_vq,
+                                      4.0f, 1.0f / 15000.0f), 0.0f, 0.0f);
+    case 5U:
+        return Motor_Control_ResultDq(Motor_Control_GetVoltageLimit(motor, 24.0f), 0.0f, 0.0f);
+    case 6U:
+        return Motor_Control_RunIf(ctrl, motor, 24.0f, 1.0f / 15000.0f, NULL);
+    case 7U:
+        return Motor_Control_RunIf(ctrl, motor, 24.0f, 1.0f / 15000.0f, &feedback);
+    case 8U:
+        voltage = Motor_Current_Step(motor, motor->ol_theta, ctx, 1.0f / 15000.0f, 4.0f,
+                                     &motor->id_target, &motor->iq_target);
+        return Motor_Control_ResultDq(voltage.vd, voltage.vq, motor->ol_theta);
+    default:
+        return Motor_Control_ResultSafe();
+    }
+}
+
+/**
+ * @description: V/F 路径，电压软起并受统一线性调制上限约束。
+ * @param {motor_control_t *} ctrl 控制实例
+ * @param {MOTOR_PARAM_S *} motor 电机状态
+ * @param {float} v_bus 母线电压 (V)
+ * @return {motor_control_result_t} DQ 输出请求
  */
 static motor_control_result_t Motor_Control_RunVf(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus)
 {

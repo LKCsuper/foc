@@ -8,6 +8,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "motor_flux.h"
 #include "common_assert.h"
+#include "motor_foc.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -138,6 +139,7 @@ void Motor_Flux_Seed(motor_flux_t *obs, const motor_flux_config_t *config, float
     float flux;
     float inductance;
     float wrapped;
+    float sine, cosine;
 
     COMMON_ASSERT(obs != NULL && config != NULL);
     if (!isfinite(angle) || !isfinite(i_alpha) || !isfinite(i_beta)) return;
@@ -147,10 +149,11 @@ void Motor_Flux_Seed(motor_flux_t *obs, const motor_flux_config_t *config, float
     wrapped = Motor_Flux_WrapPi(angle);
 
     /* L×I 是电感磁链；ψf×cos/sin 是假定方向上的永磁磁链。 */
-    obs->x_alpha = inductance * i_alpha + flux * cosf(wrapped);
-    obs->x_beta = inductance * i_beta + flux * sinf(wrapped);
-    obs->psi_alpha = flux * cosf(wrapped);
-    obs->psi_beta = flux * sinf(wrapped);
+    sincos_f32(wrapped, &sine, &cosine);
+    obs->psi_alpha = flux * cosine;
+    obs->psi_beta = flux * sine;
+    obs->x_alpha = inductance * i_alpha + obs->psi_alpha;
+    obs->x_beta = inductance * i_beta + obs->psi_beta;
     obs->magnitude = flux;
     obs->angle = Motor_Flux_WrapPi(wrapped + config->phase_offset);
     obs->initialized = true;

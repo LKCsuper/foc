@@ -44,6 +44,94 @@ void Hal_Motor_PwmStop(void)
     Bsp_Tim_StopPwm(MOTOR1);
 }
 
+static bool s_irq_test_active;
+static uint32_t s_irq_test_idle;
+
+/** 返回三相主输出已强制无效且互补输出关闭的停机模式。 */
+static bool Hal_Motor_StoppedIrqTestPwmOff(void)
+{
+    return (TIM1->CCMR1 & 0x7070U) == 0x4040U && (TIM1->CCMR2 & 0x70U) == 0x40U &&
+           (TIM1->CCER & 0x444U) == 0U && (GPIOA->MODER & 0x3f0000U) == 0x2a0000U &&
+           (GPIOB->MODER & 0xfc000000U) == 0xa8000000U &&
+           (GPIOA->AFR[1] & 0xfffU) == 0x111U && (GPIOB->AFR[1] & 0xfff00000U) == 0x11100000U;
+}
+
+/**
+ * @description: 读回TIM1输出关闭、六路输入全低和ADC-DMA中断屏蔽状态。
+ * @param {bool} masked 预期屏蔽状态
+ * @return {bool} true=窗口有效且寄存器和引脚读回正确
+ */
+bool Hal_Motor_StoppedIrqTestCheck(bool masked)
+{
+    bool enabled = (NVIC->ISER[(unsigned)DMA2_Stream4_IRQn >> 5U] &
+                    (1UL << ((unsigned)DMA2_Stream4_IRQn & 31U))) != 0U;
+    return s_irq_test_active && Hal_Motor_StoppedIrqTestPwmOff() &&
+           !(TIM1->BDTR & TIM_BDTR_MOE) && (TIM1->BDTR & TIM_BDTR_OSSI) &&
+           !(TIM1->CR2 & 0x3f00U) && !(GPIOA->IDR & 0x700U) && !(GPIOB->IDR & 0xe000U) && enabled != masked;
+}
+
+/**
+ * @description: 临时清六路空闲电平和MOE，确认六路输入全低后可选屏蔽DMA IRQ。
+ * @param {bool} masked true=屏蔽ADC-DMA IRQ
+ * @return {bool} true=成功，失败时不主动开启驱动
+ */
+bool Hal_Motor_StoppedIrqTestBegin(bool masked)
+{
+    uint32_t key = __get_PRIMASK();
+    if (key || s_irq_test_active || !Hal_Motor_StoppedIrqTestPwmOff() ||
+        !(TIM1->BDTR & TIM_BDTR_MOE) || !(TIM1->BDTR & TIM_BDTR_OSSI) || (TIM1->BDTR & TIM_BDTR_AOE) ||
+        !(NVIC->ISER[(unsigned)DMA2_Stream4_IRQn >> 5U] & (1UL << ((unsigned)DMA2_Stream4_IRQn & 31U))))
+        return false;
+    __disable_irq();
+    s_irq_test_idle = TIM1->CR2 & 0x3f00U;
+    TIM1->CR2 &= ~0x3f00U;
+    TIM1->BDTR &= ~TIM_BDTR_MOE;
+    __DSB();
+    __ISB();
+    if ((GPIOA->IDR & 0x700U) || (GPIOB->IDR & 0xe000U)) {
+        __enable_irq();
+        return false;
+    }
+    s_irq_test_active = true;
+    if (masked) NVIC_DisableIRQ(DMA2_Stream4_IRQn);
+    __DSB();
+    __ISB();
+    __enable_irq();
+    return true;
+}
+
+/**
+ * @description: 先恢复ADC-DMA IRQ，再按停机条件恢复MOE和六路空闲电平。
+ * @param {bool} restore_gate true=调用者确认允许恢复原EN
+ * @return {bool} true=原使能状态恢复并读回一致
+ */
+bool Hal_Motor_StoppedIrqTestEnd(bool restore_gate)
+{
+    bool valid;
+    if (!s_irq_test_active) return false;
+    __disable_irq();
+    valid = !(TIM1->BDTR & TIM_BDTR_MOE) && !(TIM1->CR2 & 0x3f00U) &&
+            !(GPIOA->IDR & 0x700U) && !(GPIOB->IDR & 0xe000U) && Hal_Motor_StoppedIrqTestPwmOff();
+    NVIC_EnableIRQ(DMA2_Stream4_IRQn);
+    __DSB();
+    __ISB();
+    valid = valid && restore_gate &&
+            (NVIC->ISER[(unsigned)DMA2_Stream4_IRQn >> 5U] & (1UL << ((unsigned)DMA2_Stream4_IRQn & 31U)));
+    if (valid) {
+        TIM1->BDTR |= TIM_BDTR_MOE;
+        TIM1->CR2 = (TIM1->CR2 & ~0x3f00U) | s_irq_test_idle;
+    }
+    __DSB();
+    valid = valid && (TIM1->BDTR & TIM_BDTR_MOE) && (TIM1->CR2 & 0x3f00U) == s_irq_test_idle;
+    if (!valid) {
+        TIM1->CR2 &= ~0x3f00U;
+        TIM1->BDTR &= ~TIM_BDTR_MOE;
+    }
+    s_irq_test_active = false;
+    __enable_irq();
+    return valid;
+}
+
 /**
  * @description: 设置三相 PWM 比较值
  * @param {uint32_t} duty_a

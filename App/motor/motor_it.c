@@ -5,7 +5,7 @@
  * 学习要点：
  *   1) 本文件是平台胶水，不承载对齐/斜坡/电流 PI 算法细节。
  *   2) 算法在 motor_control / motor_current / 启动与无感模块。
- *   3) 分频前：Hal 采样帧 → Sense 换算 + 软件保护；分频后：Motor_Control_Step → 应用 PWM。
+ *   3) 分频没到的 ADC 回调直接返回；到点的那一拍才采样、保护和 Motor_Control_Step。
  *   4) 速度 PI 不在本中断；由 Motor_Task foc pid 写出 Iq，本拍只读。
  */
 #ifdef __cplusplus

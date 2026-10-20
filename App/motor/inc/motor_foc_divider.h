@@ -2,7 +2,7 @@
  * @Description: FOC 控制环分频计数（ADC 回调 → 是否跑完整 FOC）
  * @Author: lkc
  *
- * 学习要点：采样/软件保护每拍；电流环与 SVPWM 按 divider 分频；FOC 的 dt 须×divider。
+ * 学习要点：分频只决定是否跑完整 FOC；采样和保护在完整拍，dt 须×divider。
  */
 #ifndef MOTOR_FOC_DIVIDER_H
 #define MOTOR_FOC_DIVIDER_H
@@ -35,9 +35,9 @@ void Motor_FocDivider_Init(motor_foc_divider_t *state, int divider);
 
 /**
  * @description: 每个 ADC 回调推进一拍，判断本拍是否应跑完整 FOC
- * @detail: 采样/保护不经此门；仅电流环、观测器、SVPWM 使用返回值
+ * @detail: 返回 true 时调用方才采样、保护和跑电流环；返回 false 的拍不再补做这些
  * @param {motor_foc_divider_t} *state  分频状态；NULL 时恒返回 true
- * @return {bool} true=本拍执行电流环/观测器/SVPWM
+ * @return {bool} true=本拍执行采样、保护、电流环和 SVPWM
  * @author: lkc
  */
 bool Motor_FocDivider_ShouldRun(motor_foc_divider_t *state);

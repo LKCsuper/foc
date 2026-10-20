@@ -48,24 +48,25 @@ static motor_foc_divider_t s_divider = {
 };
 static float s_recon_diag_target_rpm;
 static bool s_recon_diag_enable;
-static uint8_t s_status_publish_divider;
+static uint16_t s_status_publish_divider;
 static motor_control_clock_t s_control_clock;
 /* Private function prototypes -----------------------------------------------*/
 static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t feedback_source);
 static bool Motor_FocIsr_Sample(MOTOR_PARAM_S *motor, motor_feedback_source_t feedback_source, uint32_t entry_us,
                                 float *control_dt);
-static bool Motor_FocIsr_Protect(MOTOR_PARAM_S *motor, bool timing_ok, float control_dt, uint32_t entry_us);
+static bool Motor_FocIsr_Protect(MOTOR_PARAM_S *motor, motor_feedback_source_t feedback_source, bool timing_ok,
+                                 float control_dt, uint32_t entry_us);
 static void Motor_FocIsr_PrepareCurrentFeedback(MOTOR_PARAM_S *motor);
 static motor_control_result_t Motor_FocIsr_RunControl(MOTOR_PARAM_S *motor, float control_dt);
 static void Motor_FocIsr_ArbitrateAndApply(MOTOR_PARAM_S *motor, motor_control_result_t result);
 static void Motor_FocIsr_PublishStatus(const MOTOR_PARAM_S *motor_param);
 static bool Motor_FocIsr_ProfileOpen(uint32_t entry_us, uint32_t *stage_start);
-static void Motor_FocIsr_ProfileMark(bool profile, motor_timing_stage_t stage, uint32_t *stage_start);
+static void Motor_FocIsr_ProfileMark(motor_timing_stage_t stage, uint32_t *stage_start);
 static void Motor_FocIsr_RecordPair(const MOTOR_PARAM_S *motor_param, uint32_t entry_us);
 static void Motor_FocIsr_RecordTrace(const MOTOR_PARAM_S *motor_param, motor_feedback_source_t feedback_source, float vd,
                                      float vq);
 static void Motor_FocIsr_RecordExit(const MOTOR_PARAM_S *motor_param, motor_feedback_source_t feedback_source,
-                                    uint32_t entry_us);
+                                    uint32_t entry_us, uint32_t diagnostics);
 static void Motor_FocIsr_RecordFault(const MOTOR_PARAM_S *motor, uint32_t entry_us, float dt, bool force);
 static motor_current_tracking_diag_t s_tracking;
 static bool s_tracking_enabled;
@@ -223,8 +224,25 @@ static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t feedback_s
 }
 
 /**
+ * @description: 判断本拍细分计时是否属于无感 I/F 运行窗口。
+ * @detail: 细分开关关闭时直接返回 false，避免停机拍读取反馈源。
+ *          只在开环使能、无感使能、I/F 模式且反馈源为无感时返回 true。
+ *          停机拍仍走外层 SAMPLE，不进入这三段。
+ * @param {const MOTOR_PARAM_S *} motor 电机运行时，调用者保证非空
+ * @param {motor_feedback_source_t} source 本拍反馈源
+ * @return {bool} true=本拍可记录采样、反馈和保护细分
+ * @author: lkc
+ */
+static bool Motor_FocIsr_ProfileRunning(const MOTOR_PARAM_S *motor, motor_feedback_source_t source)
+{
+    return Motor_Timing_ProfileDetailedIsActive() && motor->ol_enable && motor->sensorless_enable &&
+           motor->ol_mode == MOTOR_OL_MODE_IF && source == MOTOR_FEEDBACK_SRC_SENSORLESS;
+}
+
+/**
  * @description: 捕获本拍样本并更新传感器。
  * @detail: 这里不判故障、不改 PWM。控制周期异常时不更新传感器，交由保护入口停机。
+ *          采样与传感器细分只在无感 I/F 运行窗口计入。
  * @param {MOTOR_PARAM_S *} motor               电机运行时，调用者保证非空
  * @param {motor_feedback_source_t} feedback_source 当前反馈源
  * @param {uint32_t} entry_us                   本次完整控制入口时间 (us)
@@ -235,7 +253,7 @@ static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t feedback_s
 static bool Motor_FocIsr_Sample(MOTOR_PARAM_S *motor, motor_feedback_source_t feedback_source, uint32_t entry_us,
                                 float *control_dt)
 {
-    bool profile = Motor_Timing_ProfileDetailedIsActive();
+    bool profile = Motor_FocIsr_ProfileRunning(motor, feedback_source);
     uint32_t stage_start;
     Motor_Timing_RecordSampleDirection((TIM1->CR1 & TIM_CR1_DIR) == 0U);
     Motor_Hall_DiagNoteTimer((uint16_t)TIM1->CNT, (uint16_t)TIM1->ARR);
@@ -260,16 +278,19 @@ static bool Motor_FocIsr_Sample(MOTOR_PARAM_S *motor, motor_feedback_source_t fe
  * @detail: 时序异常锁存 CONTROL_TIMING。软件保护覆盖过流、欠压、堵转和失速。
  *          母线低于 1V 时立即停机，不等欠压去抖；去抖仍在本拍推进。
  *          保护使用原始换算电流，电流重构必须放在本函数之后。
+ *          保护细分只在无感 I/F 运行窗口计入。
  * @param {MOTOR_PARAM_S *} motor 电机运行时，调用者保证非空
+ * @param {motor_feedback_source_t} feedback_source 本拍反馈源
  * @param {bool} timing_ok            本拍控制周期是否有效
  * @param {float} control_dt          本拍控制周期 (s)；时序异常时忽略
  * @param {uint32_t} entry_us         控制入口时间 (us)，不是 ADC 采样孔径
  * @return {bool} true=允许继续控制；false=已复位并安全输出
  * @author: lkc
  */
-static bool Motor_FocIsr_Protect(MOTOR_PARAM_S *motor, bool timing_ok, float control_dt, uint32_t entry_us)
+static bool Motor_FocIsr_Protect(MOTOR_PARAM_S *motor, motor_feedback_source_t feedback_source, bool timing_ok,
+                                 float control_dt, uint32_t entry_us)
 {
-    bool profile = Motor_Timing_ProfileDetailedIsActive();
+    bool profile = Motor_FocIsr_ProfileRunning(motor, feedback_source);
     bool faulted;
     uint32_t stage_start;
 
@@ -469,18 +490,16 @@ static bool Motor_FocIsr_ProfileOpen(uint32_t entry_us, uint32_t *stage_start)
 
 /**
  * @description: 记下刚结束的阶段，并作为下一段的起点。
- * @detail: profile 为 false 时不读时钟。stage_start 不可为空，违反约定触发 COMMON_ASSERT。
+ * @detail: 仅在本拍分段计时开启时调用。stage_start 不可为空，违反约定触发 COMMON_ASSERT。
  *          最后一段由调用者直接 ProfileRecord，避免多读一次时间。
- * @param {bool} profile               本拍是否计入分段统计
  * @param {motor_timing_stage_t} stage 刚结束的阶段
  * @param {uint32_t *} stage_start     本段起点 (us)，返回时改为下一段起点
  * @return {void} 无
  * @author: lkc
  */
-static void Motor_FocIsr_ProfileMark(bool profile, motor_timing_stage_t stage, uint32_t *stage_start)
+static void Motor_FocIsr_ProfileMark(motor_timing_stage_t stage, uint32_t *stage_start)
 {
     COMMON_ASSERT(stage_start != NULL);
-    if (!profile) return;
     Motor_Timing_ProfileRecord(stage, *stage_start);
     *stage_start = Hal_Motor_TimeUs();
 }
@@ -546,7 +565,6 @@ static void Motor_FocIsr_RecordTrace(const MOTOR_PARAM_S *motor_param, motor_fee
     if (Motor_Timing_TraceIsLight()) {
         motor_sensorless_light_snapshot_t d;
         motor_trace_light_sample_t t;
-        motor_speed_task_diag_t task;
         Motor_Sensorless_GetLightSnapshot(&d);
         t.time_us = Hal_Motor_TimeUs();
         t.flags = (unsigned)d.state | (d.flux_ok ? 4U : 0U) | (d.direction_ok ? 8U : 0U);
@@ -563,16 +581,7 @@ static void Motor_FocIsr_RecordTrace(const MOTOR_PARAM_S *motor_param, motor_fee
         t.v_alpha = d.v_alpha;
         t.v_beta = d.v_beta;
         t.gap_max_us = t.full_max_us = 0U;
-        Motor_Timing_SpeedTaskGet(&task);
-        t.task_count = task.count;
-        t.task_age_us = task.count ? t.time_us - task.last_us : UINT32_MAX;
-        t.task_gate = task.allowed ? 1U : 0U;
-        t.speed_target = task.target;
-        t.speed_feedback = task.feedback;
-        t.speed_iq = task.iq;
-        t.task_tick = task.tick;
-        t.task_phase = task.phase;
-        t.task_phase_age_us = task.phase ? t.time_us - task.phase_us : UINT32_MAX;
+        Motor_Timing_SpeedTaskCaptureLight(&t);
         Motor_Timing_TracePushLight(&t);
     } else {
         motor_trace_sample_t sample;
@@ -587,15 +596,17 @@ static void Motor_FocIsr_RecordTrace(const MOTOR_PARAM_S *motor_param, motor_fee
  * @param {const MOTOR_PARAM_S *} motor_param 电机运行时，不可为空
  * @param {motor_feedback_source_t} feedback_source 当前反馈源
  * @param {uint32_t} entry_us                       本拍入口时间 (us)
+ * @param {uint32_t} diagnostics                    本拍诊断入口位掩码
  * @return {void} 无
  * @author: lkc
  */
 static void Motor_FocIsr_RecordExit(const MOTOR_PARAM_S *motor_param, motor_feedback_source_t feedback_source,
-                                    uint32_t entry_us)
+                                    uint32_t entry_us, uint32_t diagnostics)
 {
     COMMON_ASSERT(motor_param != NULL);
-    if (feedback_source == MOTOR_FEEDBACK_SRC_SENSORLESS) Motor_FocIsr_RecordCompact(motor_param, entry_us);
-    Motor_Timing_RecordRuntime(entry_us);
+    if ((diagnostics & MOTOR_TIMING_ISR_COMPACT) && feedback_source == MOTOR_FEEDBACK_SRC_SENSORLESS)
+        Motor_FocIsr_RecordCompact(motor_param, entry_us);
+    if (diagnostics & MOTOR_TIMING_ISR_RUNTIME) Motor_Timing_RecordRuntime(entry_us);
 }
 
 /**
@@ -665,23 +676,26 @@ static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor_param, motor_feedback_source_t
     float control_dt = 0.0f;
     bool timing_ok;
     motor_control_result_t result;
+    uint32_t diagnostics = Motor_Timing_IsrFeatures();
 
-    profile = Motor_FocIsr_ProfileOpen(runtime_start, &stage_start);
+    stage_start = 0U;
+    profile = (diagnostics & MOTOR_TIMING_ISR_PROFILE) ? Motor_FocIsr_ProfileOpen(runtime_start, &stage_start) : false;
     timing_ok = Motor_FocIsr_Sample(motor_param, feedback_source, runtime_start, &control_dt);
-    Motor_FocIsr_RecordFault(motor_param, runtime_start, control_dt, false);
-    if (!Motor_FocIsr_Protect(motor_param, timing_ok, control_dt, runtime_start)) {
+    if (diagnostics & MOTOR_TIMING_ISR_FAULT)
+        Motor_FocIsr_RecordFault(motor_param, runtime_start, control_dt, false);
+    if (!Motor_FocIsr_Protect(motor_param, feedback_source, timing_ok, control_dt, runtime_start)) {
         if (s_tracking_enabled)
             Motor_Current_TrackingObserve(&s_tracking, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, runtime_start);
-        Motor_Timing_ProfileEnd();
-        Motor_FocIsr_RecordExit(motor_param, feedback_source, runtime_start);
+        if (profile) Motor_Timing_ProfileEnd();
+        Motor_FocIsr_RecordExit(motor_param, feedback_source, runtime_start, diagnostics);
         return;
     }
 
-    Motor_FocIsr_ProfileMark(profile, MOTOR_TIMING_SAMPLE, &stage_start);
+    if (profile) Motor_FocIsr_ProfileMark(MOTOR_TIMING_SAMPLE, &stage_start);
     Motor_FocIsr_PrepareCurrentFeedback(motor_param);
-    Motor_FocIsr_RecordPair(motor_param, runtime_start);
+    if (diagnostics & MOTOR_TIMING_ISR_PAIR) Motor_FocIsr_RecordPair(motor_param, runtime_start);
 
-    Motor_FocIsr_ProfileMark(profile, MOTOR_TIMING_CURRENT, &stage_start);
+    if (profile) Motor_FocIsr_ProfileMark(MOTOR_TIMING_CURRENT, &stage_start);
     result = Motor_FocIsr_RunControl(motor_param, control_dt);
     if (s_tracking_enabled) Motor_Current_TrackingObserve(&s_tracking,
                 motor_param->ol_enable && motor_param->ol_mode == MOTOR_OL_MODE_IF &&
@@ -691,13 +705,14 @@ static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor_param, motor_feedback_source_t
                 motor_param->Id, motor_param->Iq, motor_param->id_target, motor_param->iq_target,
                 control_dt, runtime_start);
 
-    Motor_FocIsr_ProfileMark(profile, MOTOR_TIMING_CONTROL, &stage_start);
+    if (profile) Motor_FocIsr_ProfileMark(MOTOR_TIMING_CONTROL, &stage_start);
     Motor_FocIsr_ArbitrateAndApply(motor_param, result);
     if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_OUTPUT, stage_start);
 
-    Motor_Timing_ProfileEnd();
-    Motor_FocIsr_RecordTrace(motor_param, feedback_source, result.vd, result.vq);
-    Motor_FocIsr_RecordExit(motor_param, feedback_source, runtime_start);
+    if (profile) Motor_Timing_ProfileEnd();
+    if (diagnostics & MOTOR_TIMING_ISR_TRACE)
+        Motor_FocIsr_RecordTrace(motor_param, feedback_source, result.vd, result.vq);
+    Motor_FocIsr_RecordExit(motor_param, feedback_source, runtime_start, diagnostics);
 
     return;
 }
@@ -715,29 +730,36 @@ static void Motor_FocIsr_PublishStatus(const MOTOR_PARAM_S *motor_param)
     s_status_publish_divider++;
     if (s_status_publish_divider >= MOTOR_STATUS_PUBLISH_DIVIDER) {
         s_status_publish_divider = 0U;
-        Motor_StatusSnapshotPublishFromIsr(motor_param);
+        if (g_motor_timing_split_active) {
+            uint32_t publish_start = Hal_Motor_TimeUs();
+            Motor_StatusSnapshotPublishFromIsr(motor_param);
+            Motor_Timing_CallbackPublish(Hal_Motor_TimeUs() - publish_start);
+        } else {
+            Motor_StatusSnapshotPublishFromIsr(motor_param);
+        }
     }
 }
 
 /**
  * @description: 推进一次正常 FOC ADC 中断路径，并按约 100 Hz 发布状态快照。
- * @detail: 在 ADC-DMA 中断调用，正常路径不阻塞。motor_param 不可为空，违反约定触发 COMMON_ASSERT。
+ * @detail: 在 ADC-DMA 中断调用，正常路径不阻塞。跳过拍只推进分频和状态计数，
+ *          不读微秒时基，也不写入运行耗时；采样、保护和电流控制只在完整拍执行。
+ *          motor_param 不可为空，违反约定触发 COMMON_ASSERT。
  * @param {MOTOR_PARAM_S *} motor_param 电机采样与保护对象，不可为空
  * @return {void} 无
  * @author: lkc
  */
 void Motor_FocIsr_Step(MOTOR_PARAM_S *motor_param)
 {
-    uint32_t runtime_start;
     motor_feedback_source_t feedback_source;
     COMMON_ASSERT(motor_param != NULL);
 
-    runtime_start = Hal_Motor_TimeUs();
     feedback_source = Motor_Feedback_GetSourceDefault();
     if (Motor_FocIsr_ShouldExecuteControl(feedback_source)) {
-        Motor_FocIsr_Run(motor_param, feedback_source, runtime_start);
-    } else {
-        Motor_Timing_RecordRuntime(runtime_start);
+        Motor_FocIsr_Run(motor_param, feedback_source, Hal_Motor_TimeUs());
+        if (g_motor_timing_split_active) Motor_Timing_CallbackClassify(true);
+    } else if (g_motor_timing_split_active) {
+        Motor_Timing_CallbackClassify(false);
     }
     Motor_FocIsr_PublishStatus(motor_param);
 

@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "motor_hfi_start.h"
+#include "motor_foc.h"
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
@@ -119,6 +120,7 @@ motor_hfi_start_result_t MotorHfiStart_Step(
     motor_hfi_start_output_t *output)
 {
     float theta;
+    float sine, cosine;
     float current;
     float delta;
     float voltage;
@@ -137,7 +139,8 @@ motor_hfi_start_result_t MotorHfiStart_Step(
 
     theta = MOTOR_HFI_START_PI * (float)state->axis /
             (float)MOTOR_HFI_START_AXIS_COUNT;
-    current = i_alpha * cosf(theta) + i_beta * sinf(theta);
+    sincos_f32(theta, &sine, &cosine);
+    current = i_alpha * cosine + i_beta * sine;
 
     if (state->sample_valid) {
         delta = fabsf(current - state->previous_current);

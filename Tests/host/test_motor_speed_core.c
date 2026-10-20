@@ -6,6 +6,25 @@
 
 int main(void)
 {
+    {
+        motor_task_period_cache_t cache = {0};
+        const float frequencies[] = {1.0f, 10.0f, 333.0f, 500.0f, 1000.0f, 1500.0f, 20000.0f};
+        unsigned index;
+        for (index = 0U; index < sizeof(frequencies) / sizeof(frequencies[0]); index++) {
+            uint32_t expected = (uint32_t)(10000.0f / frequencies[index]);
+            if (expected == 0U) expected = 1U;
+            assert(Motor_Task_PeriodTicks(&cache, 10000U, frequencies[index]) == expected);
+            assert(Motor_Task_PeriodTicks(&cache, 10000U, frequencies[index]) == expected);
+        }
+        assert(Motor_Task_PeriodTicks(&cache, 1000U, 500.0f) == 2U);
+        assert(Motor_Task_PeriodTicks(&cache, 10000U, 500.0f) == 20U);
+        assert(Motor_Task_PeriodTicks(&cache, 10000U, 1000.0f) == 10U);
+        assert(Motor_Task_PeriodTicks(&cache, 0U, 1000.0f) == 1U);
+        assert(Motor_Task_PeriodTicks(&cache, 10000U, -1.0f) == 10000U);
+        assert(Motor_Task_PeriodTicks(&cache, 10000U, NAN) == 10000U);
+        assert(Motor_Task_PeriodTicks(&cache, 10000U, INFINITY) == 1U);
+        assert(Motor_Task_PeriodTicks(&cache, UINT32_MAX, 1.0f) == UINT32_MAX);
+    }
     assert(Motor_Task_NextDeadline(10U, 12U, 10U) == 20U);
     assert(Motor_Task_NextDeadline(10U, 20U, 10U) == 30U);
     assert(Motor_Task_NextDeadline(10U, 52U, 10U) == 60U);

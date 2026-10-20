@@ -7,6 +7,7 @@
 #include "motor_current.h"
 #include "motor_feedback.h"
 #include "motor_timing.h"
+#include "motor_math.h"
 
 /* 控制行为测试不采集平台耗时；计时与逐拍记录由独立timing测试覆盖。 */
 bool Motor_Timing_ProfileIsActive(void) { return false; }
@@ -876,6 +877,66 @@ int main(void)
                     assert(ctrl.startup.if_start.phase_boost == expected.phase_boost);
                     assert(ctrl.startup.if_start.iq_scale == expected.iq_scale);
                     assert(ctrl.startup.if_start.angle_rpm == expected.angle_rpm);
+                }
+            }
+        }
+    }
+    {
+        motor_control_t diagnostic_control;
+        MOTOR_PARAM_S diagnostic_motor = {0};
+        motor_current_target_ctx_t diagnostic_ctx = {0};
+        motor_control_result_t result;
+        unsigned mode;
+        int previous_updates = s_sensorless_updates;
+        Motor_Control_Init(&diagnostic_control);
+        diagnostic_control.startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+        diagnostic_control.startup.drag_current_scale = 1.0f;
+        diagnostic_motor.ol_theta = 0.6f;
+        diagnostic_motor.ol_vq_limit = 4.0f;
+        diagnostic_motor.ol_iq_set = 1.0f;
+        Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_OPENLOOP);
+        result = Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor, &diagnostic_ctx, 0U);
+        assert(result.action == MOTOR_CONTROL_ACTION_SAFE);
+        for (mode = 1U; mode <= 2U; ++mode) {
+            result = Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor, &diagnostic_ctx, mode);
+            assert(fabsf(result.vd - 0.6f) < 1e-6f);
+        }
+        result = Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor, &diagnostic_ctx, 3U);
+        assert(result.vd == 1.0f && result.vq == 1.0f && !diagnostic_ctx.speed_loop_active);
+        diagnostic_control.fw.id = -0.5f;
+        result = Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor, &diagnostic_ctx, 4U);
+        assert(result.vd == 0.0f && diagnostic_control.fw.id == 0.0f);
+        result = Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor, &diagnostic_ctx, 5U);
+        assert(result.vd == 4.0f);
+        for (mode = 6U; mode <= 8U; ++mode) {
+            int previous_calls = s_current_step_calls;
+            result = Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor, &diagnostic_ctx, mode);
+            assert(result.action == MOTOR_CONTROL_ACTION_OUTPUT_DQ);
+            assert(result.vd == 0.1f && result.vq == 0.2f && result.theta == 0.6f);
+            assert(s_current_step_calls == previous_calls + 1);
+        }
+        assert(s_sensorless_updates == previous_updates);
+        {
+            const motor_feedback_source_t sources[] = {MOTOR_FEEDBACK_SRC_OPENLOOP, MOTOR_FEEDBACK_SRC_SENSORLESS,
+                                                       MOTOR_FEEDBACK_SRC_ENCODER, MOTOR_FEEDBACK_SRC_HALL};
+            const float angles[] = {0.6f, -3.4f, 7.0f};
+            unsigned source, enabled, angle;
+            for (source = 0U; source < sizeof(sources) / sizeof(sources[0]); ++source) {
+                Motor_Feedback_SetSourceDefault(sources[source]);
+                for (enabled = 0U; enabled < 2U; ++enabled) {
+                    diagnostic_motor.sensorless_enable = enabled != 0U;
+                    for (angle = 0U; angle < sizeof(angles) / sizeof(angles[0]); ++angle) {
+                        motor_feedback_sample_t expected;
+                        float normalized;
+                        diagnostic_motor.ol_theta = angles[angle];
+                        diagnostic_control.startup.if_start.phase_boost = 0.1f;
+                        normalized = diagnostic_motor.ol_theta + diagnostic_control.startup.if_start.phase_boost;
+                        utils_norm_angle_rad(&normalized);
+                        Motor_Feedback_SampleDefault(&diagnostic_motor, normalized, &expected);
+                        result = Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor,
+                                                               &diagnostic_ctx, 1U);
+                        assert(result.vd == expected.elec_angle_rad);
+                    }
                 }
             }
         }

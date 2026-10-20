@@ -119,6 +119,13 @@ bool Motor_SpeedLoop_IsRunAllowed(void);
  * @author: lkc
  */
 bool Motor_SpeedLoop_GetSnapshot(motor_speed_snapshot_t *snapshot);
+
+/**
+ * @description: 读取默认实例PI更新序号，供任务在调用前后对比。
+ * @detail: 仅任务诊断使用，不构成多字段一致快照；复位仍沿用现有序号语义。
+ * @return {uint32_t} PI更新计数，可回绕
+ */
+uint32_t Motor_SpeedLoop_GetUpdateCount(void);
 /* Private functions ---------------------------------------------------------*/
 #ifdef __cplusplus
 }

@@ -8,6 +8,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "motor_hfi.h"
 #include "common_assert.h"
+#include "motor_foc.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -154,8 +155,7 @@ bool Motor_Hfi_Step(motor_hfi_t *hfi, const motor_hfi_config_t *config, float i_
         hfi->speed_e = 0.0f;
     }
 
-    c = cosf(hfi->angle);
-    s = sinf(hfi->angle);
+    sincos_f32(hfi->angle, &s, &c);
     iq = -i_alpha * s + i_beta * c;
 
     if (hfi->sample_valid) {

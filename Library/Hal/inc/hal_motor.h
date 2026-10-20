@@ -35,6 +35,29 @@ void Hal_Motor_PwmStart(void);
 void Hal_Motor_PwmStop(void);
 
 /**
+ * @description: 停机诊断开始，临时清TIM1六路空闲电平和MOE并可选屏蔽ADC-DMA IRQ。
+ * @detail: 仅命令任务调用，调用者须确认所有电机控制停用；保留ADC/PWM/DMA配置及系统调度中断。
+ * @param {bool} masked true=屏蔽ADC-DMA中断，false=保留中断作基准
+ * @return {bool} true=六路引脚全低读回通过，须配对End；失败可能保持MOE关闭
+ */
+bool Hal_Motor_StoppedIrqTestBegin(bool masked);
+
+/**
+ * @description: 查询停机窗口内MOE/空闲电平/六路引脚及ADC-DMA IRQ状态。
+ * @param {bool} masked 本窗口预期IRQ屏蔽状态
+ * @return {bool} true=窗口有效且六路引脚低、IRQ状态符合预期
+ */
+bool Hal_Motor_StoppedIrqTestCheck(bool masked);
+
+/**
+ * @description: 恢复停机诊断前的ADC-DMA IRQ、MOE和六路空闲电平。
+ * @detail: 恢复IRQ后才允许恢复输出配置；恢复条件不满足时保持MOE关闭，不清故障、不启动电机。
+ * @param {bool} restore_gate 调用者确认仍停机、控制未启用且窗口检查通过才传true
+ * @return {bool} true=IRQ和输出配置均恢复并读回符合原状态
+ */
+bool Hal_Motor_StoppedIrqTestEnd(bool restore_gate);
+
+/**
  * @description: 设置三相 PWM 比较值（尚未生效，须再 Commit）。
  * @param {uint32_t} duty_a  A 相比较值，范围 [0, period]
  * @param {uint32_t} duty_b  B 相比较值，范围 [0, period]

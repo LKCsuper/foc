@@ -8,6 +8,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
 #include "common_assert.h"
+#include "motor_foc.h"
 /* Private typedef -----------------------------------------------------------*/
 typedef enum {
     PLOT_MODE_NONE = 0,
@@ -86,8 +87,7 @@ static void Plot_SendFrame(void)
     case PLOT_MODE_SINE:
         theta = motor.ol_theta;
         ch[0] = theta;
-        ch[1] = sinf(theta);
-        ch[2] = cosf(theta);
+        sincos_f32(theta, &ch[1], &ch[2]);
         ch[3] = motor.Id;
         ch[4] = motor.Iq;
         n = 5U;

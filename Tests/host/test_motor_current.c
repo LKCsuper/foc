@@ -1,9 +1,41 @@
 #include <assert.h>
 #include <math.h>
+#include <float.h>
 #include <stdio.h>
 #include <string.h>
 #include "motor_current.h"
 #include "motor_param.h"
+
+static void check_target_limit_equivalence(void)
+{
+    const float values[] = {NAN, -INFINITY, INFINITY, -FLT_MAX, FLT_MAX, -0.0f, 0.0f,
+                            -3.0f, 3.0f, 2.5f, 0.00000000000000000001f};
+    unsigned id_index, iq_index, limit_index;
+    for (id_index = 0U; id_index < sizeof(values) / sizeof(values[0]); ++id_index) {
+        for (iq_index = 0U; iq_index < sizeof(values) / sizeof(values[0]); ++iq_index) {
+            for (limit_index = 0U; limit_index < sizeof(values) / sizeof(values[0]); ++limit_index) {
+                float actual_id = values[id_index], actual_iq = values[iq_index];
+                float expected_id = actual_id, expected_iq = actual_iq;
+                float limit = values[limit_index];
+                if (!isfinite(expected_id) || !isfinite(expected_iq) || !isfinite(limit) || limit <= 0.0f) {
+                    expected_id = expected_iq = 0.0f;
+                } else {
+                    float room_squared;
+                    if (expected_id > limit) expected_id = limit;
+                    if (expected_id < -limit) expected_id = -limit;
+                    room_squared = limit * limit - expected_id * expected_id;
+                    if (expected_iq * expected_iq > room_squared) {
+                        float room = sqrtf(fmaxf(room_squared, 0.0f));
+                        expected_iq = expected_iq < 0.0f ? -room : room;
+                    }
+                }
+                Motor_Current_LimitTargets(&actual_id, &actual_iq, limit);
+                assert(memcmp(&actual_id, &expected_id, sizeof(actual_id)) == 0);
+                assert(memcmp(&actual_iq, &expected_iq, sizeof(actual_iq)) == 0);
+            }
+        }
+    }
+}
 
 int main(void)
 {
@@ -18,6 +50,7 @@ int main(void)
     float v_limit = 12.0f;
     unsigned i;
 
+    check_target_limit_equivalence();
     memset(&a, 0, sizeof(a));
     memset(&b, 0, sizeof(b));
     a.ol_current_kp = 0.2f;

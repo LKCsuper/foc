@@ -26,6 +26,10 @@ extern "C" {
 #include "motor_crit.h"
 #include "motor_output.h"
 #include "motor_foc.h"
+#include "motor_current.h"
+#include "motor_pid.h"
+#include "motor_reference_trig.h"
+#include "motor_feedback.h"
 #include "motor_mt6701.h"
 #include "hal_motor.h"
 #include <math.h>
@@ -255,7 +259,6 @@ static void ol_print_status(void)
     float foc_frequency_hz;
     float foc_average_us;
     float foc_maximum_us;
-    float foc_load_percent;
     uint32_t format_start;
     uint32_t format_elapsed_us;
 
@@ -279,8 +282,6 @@ static void ol_print_status(void)
     foc_frequency_hz = Motor_DmaInt_GetControlFrequencyHz();
     foc_average_us = Motor_DmaInt_GetAverageRuntimeUs();
     foc_maximum_us = Motor_DmaInt_GetMaximumRuntimeUs();
-    /* 平均耗时包含轻/重两种 ADC 回调，所以乘 30kHz ADC 频率才是总 ISR 占用。 */
-    foc_load_percent = foc_average_us * adc_frequency_hz / 10000.0f;
 
     {
         char ts[20];
@@ -329,9 +330,8 @@ static void ol_print_status(void)
                      (unsigned long)TIM1->CCMR1, (unsigned long)TIM1->CCMR2);
     ol_status_append(&used, "  Fault      : %d %s (%s)\n", fault, Motor_Protect_GetFaultName(fault),
                      status.fault_latched ? "LATCHED" : "CLEAR");
-    ol_status_append(&used, "  FOC loop   : %.0f Hz adc=%.0f div=%d avg=%.1fus max=%.1fus load=%.0f%%\n",
-                     foc_frequency_hz, adc_frequency_hz, FOC_CONTROL_LOOP_FREQ_DIVIDER, foc_average_us, foc_maximum_us,
-                     foc_load_percent);
+    ol_status_append(&used, "  FOC loop   : %.0f Hz adc=%.0f div=%d avg=%.1fus max=%.1fus load=n/a\n",
+                     foc_frequency_hz, adc_frequency_hz, FOC_CONTROL_LOOP_FREQ_DIVIDER, foc_average_us, foc_maximum_us);
     ol_status_append(&used, "  UART TX    : %s @ %lu baud, bytes=%lu drop=%lu\n",
                      Bsp_Usart_TxDmaIsReady() ? "DMA" : "POLLING",
                      (unsigned long)DEBUG_USART_BAUD,
@@ -741,18 +741,287 @@ int Cmd_OlStatus(int argc, char *argv[])
     return 0;
 }
 
+static MOTOR_PARAM_S test_motor;
+
 /**
- * @description: slcadence — 统计实际完整控制入口间隔；不改变控制 dt。
- * @param {int} argc 参数个数
- * @param {char *} argv[] 无额外参数
- * @return {int} 0 成功
+ * @description: 停机比较空框架、查表及泰勒三角后端，不操作真实电机。
+ * @detail: 每组四次调用隔离中断，输入构造和结果累加均在计时区外。
+ * @return {int} 0 成功，-1 停机条件不满足
+ */
+static int ol_trig_bench(void)
+{
+    motor_command_t command;
+    uint32_t totals[3][8] = {{0U}}, maxima[3][8] = {{0U}};
+    const int terms[5] = {3, 5, 7, 9, 12};
+    volatile float checksum = 0.0f;
+    unsigned family, mode, batch, index;
+    if (Motor_GetCommand(&motor, &command) != MOTOR_OK || command.enable || motor.ol_enable ||
+        command.target_rpm != 0.0f || Motor_Position_IsEnabled() || Motor_Joint_IsEnabled() ||
+        Motor_Bldc_IsSelected() || Motor_Detect_IsActive() || Motor_Protect_IsFaultLatched()) {
+        PRINTF("Invalid: trigbench requires stopped FOC, zero target, position/joint off, no detection/fault\n");
+        return -1;
+    }
+    for (family = 0U; family < 3U; ++family) {
+        for (mode = 0U; mode < 8U; ++mode) {
+            for (batch = 0U; batch < 128U; ++batch) {
+                float sine = 0.0f, cosine = 0.0f;
+                float angle = family == 0U ? -3.141592654f + 6.283185307f * (float)batch / 127.0f :
+                              family == 1U ? -64.0f + 128.0f * (float)batch / 127.0f :
+                              ((float)(batch % 9U) - 3.5f) * 1.570796327f +
+                              ((batch & 1U) ? 0.000001f : -0.000001f);
+                uint32_t key = Motor_Crit_Enter();
+                uint32_t begin = Hal_Motor_TimeUs();
+                uint32_t elapsed;
+                for (index = 0U; index < 4U; ++index) {
+                    if (mode == 1U) sincos_f32(angle, &sine, &cosine);
+                    else if (mode == 2U) sincos_taylor_f32(angle, &sine, &cosine);
+                    else if (mode >= 3U) Motor_ReferenceTrigRaw(angle, terms[mode - 3U], &sine, &cosine);
+                }
+                elapsed = Hal_Motor_TimeUs() - begin;
+                Motor_Crit_Exit(key);
+                totals[family][mode] += elapsed;
+                if (elapsed > maxima[family][mode]) maxima[family][mode] = elapsed;
+                checksum += sine + cosine;
+            }
+        }
+    }
+    for (family = 0U; family < 3U; ++family) {
+        for (mode = 0U; mode < 8U; ++mode) {
+            PRINTF("Trig bench family=%u mode=%u n=512 total=%lu avg=%.3f max_batch=%lu us\n",
+                   family, mode, (unsigned long)totals[family][mode], (float)totals[family][mode] / 512.0f,
+                   (unsigned long)maxima[family][mode]);
+        }
+    }
+    PRINTF("Families: 0=single_turn 1=64rad 2=quadrant_edges; modes 0=empty 1=table 2=Taylor 3=ref_n3 4=ref_n5 5=ref_n7 6=ref_n9 7=ref_n12; checksum=%.6f; PWM untouched\n",
+           (double)checksum);
+    return 0;
+}
+
+/**
+ * @description: 在停机独立实例上逐层比较电流计算耗时，不调用输出路径。
+ * @detail: 四次调用为一组隔离中断；停用计时与交接采集，PI 共享统计会包含合成样本。
+ * @return {int} 0 成功，-1 不满足停机条件
+ */
+static int ol_current_bench(void)
+{
+    motor_current_target_ctx_t ctx;
+    motor_control_t control;
+    motor_command_t command;
+    uint32_t totals[2][23] = {{0U}}, maxima[2][23] = {{0U}};
+    volatile float checksum = 0.0f;
+    unsigned load, mode, batch, index;
+    if (Motor_GetCommand(&motor, &command) != MOTOR_OK || command.enable || motor.ol_enable ||
+        command.target_rpm != 0.0f || Motor_Position_IsEnabled() || Motor_Joint_IsEnabled() ||
+        Motor_Bldc_IsSelected() || Motor_Detect_IsActive() || Motor_Protect_IsFaultLatched() ||
+        Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_SENSORLESS) {
+        PRINTF("Invalid: currentbench requires stopped FOC, zero target, position/joint off, no detection/fault\n");
+        return -1;
+    }
+    Motor_Timing_CadenceStop();
+    Motor_Timing_HandoffStop();
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.if_iq_scale = 1.0f;
+    ctx.soft_current_scale = 1.0f;
+    Motor_Control_Init(&control);
+    control.startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+    control.startup.soft_current_scale = 1.0f;
+    control.startup.drag_current_scale = 1.0f;
+    test_motor = motor;
+    test_motor.ol_current_kp = 0.12f;
+    test_motor.ol_current_ki = 18.0f;
+    test_motor.ol_id_set = 0.0f;
+    test_motor.ol_iq_set = 1.0f;
+    test_motor.ol_align_current = 0.0f;
+    test_motor.ol_align_enable = false;
+    test_motor.ol_theta = 0.6f;
+    test_motor.ol_mode = MOTOR_OL_MODE_IF;
+    test_motor.ol_vq_limit = 4.0f;
+    test_motor.sensorless_enable = true;
+    test_motor.speed_enable = false;
+    test_motor.joint_current_hold = false;
+    test_motor.joint_voltage_hold = false;
+    test_motor.position_voltage_hold = false;
+    test_motor.fw_current_max = 0.0f;
+    for (load = 0U; load < 2U; ++load) {
+        test_motor.ia = load ? 80.0f : 0.3f;
+        test_motor.ib = load ? -40.0f : -0.1f;
+        test_motor.ic = -test_motor.ia - test_motor.ib;
+        Motor_Current_FeedbackUpdateDq(&test_motor, 0.6f);
+        for (mode = 0U; mode < 23U; ++mode) {
+            if (mode == 9U) {
+                Motor_Timing_CadenceReset();
+                Motor_Timing_CallbackStop();
+                Motor_Timing_ProfileSetDetailed(true);
+            }
+            for (batch = 0U; batch < 64U; ++batch) {
+                motor_dq_voltage_t voltage = {load ? 3.0f : 0.3f, load ? 4.0f : 0.4f};
+                float id_target = 0.0f, iq_target = 1.0f;
+                bool probe = false, capture = false;
+                uint32_t key, begin, elapsed;
+                test_motor.ol_vd_int = test_motor.ol_vq_int = 0.0f;
+                control.fw.id = control.fw.last_vd = control.fw.last_vq = 0.0f;
+                key = Motor_Crit_Enter();
+                if (mode == 9U) {
+                    unsigned arm;
+                    bool armed = false;
+                    for (arm = 0U; arm < 256U; ++arm) {
+                        if (Motor_Timing_ProfileBegin()) {
+                            armed = true;
+                            break;
+                        }
+                    }
+                    if (!armed) {
+                        Motor_Crit_Exit(key);
+                        Motor_Timing_CadenceStop();
+                        Motor_Timing_ProfileSetDetailed(false);
+                        PRINTF("Invalid: currentbench profiling could not be armed\n");
+                        return -1;
+                    }
+                }
+                begin = Hal_Motor_TimeUs();
+                for (index = 0U; index < 4U; ++index) {
+                    switch (mode) {
+                    case 1U:
+                        Motor_Current_FeedbackUpdateDq(&test_motor, 0.6f);
+                        break;
+                    case 2U:
+                        Motor_Current_GetTargets(&test_motor, &ctx, &id_target, &iq_target);
+                        break;
+                    case 3U:
+                    case 5U:
+                        voltage.vd = Motor_Current_PI_Run(id_target, test_motor.Id, &test_motor.ol_vd_int,
+                                                          0.12f, 18.0f, 1.0f / 15000.0f, 4.0f);
+                        voltage.vq = Motor_Current_PI_Run(iq_target, test_motor.Iq, &test_motor.ol_vq_int,
+                                                          0.12f, 18.0f, 1.0f / 15000.0f, 4.0f);
+                        if (mode == 5U) Motor_Current_LimitVoltage(&test_motor, &voltage,
+                                                   id_target - test_motor.Id, iq_target - test_motor.Iq, 4.0f);
+                        break;
+                    case 4U:
+                        voltage.vd = load ? 3.0f : 0.3f;
+                        voltage.vq = load ? 4.0f : 0.4f;
+                        Motor_Current_LimitVoltage(&test_motor, &voltage,
+                                                   id_target - test_motor.Id, iq_target - test_motor.Iq, 4.0f);
+                        break;
+                    case 6U:
+                        voltage = Motor_Current_RunPi(&test_motor, id_target, iq_target, 1.0f / 15000.0f, 4.0f);
+                        break;
+                    case 7U:
+                    case 9U:
+                    case 13U:
+                        voltage = Motor_Current_Step(&test_motor, 0.6f, &ctx, 1.0f / 15000.0f, 4.0f,
+                                                     mode == 13U ? NULL : &id_target,
+                                                     mode == 13U ? NULL : &iq_target);
+                        break;
+                    case 8U:
+                    case 10U:
+                    case 11U:
+                    case 12U:
+                        if (mode == 10U || mode == 12U) probe = Motor_Timing_ProfileDetailedIsActive();
+                        Motor_Current_FeedbackUpdateDq(&test_motor, 0.6f);
+                        Motor_Current_GetTargets(&test_motor, &ctx, &id_target, &iq_target);
+                        if (mode == 11U || mode == 12U) capture = Motor_Timing_HandoffDue();
+                        voltage = Motor_Current_RunPi(&test_motor, id_target, iq_target, 1.0f / 15000.0f, 4.0f);
+                        break;
+                    default:
+                        if (mode >= 14U) {
+                            motor_control_result_t result = Motor_Control_IfDiagnosticStep(&control, &test_motor,
+                                                                                           &ctx, mode - 14U);
+                            voltage.vd = result.vd;
+                            voltage.vq = result.vq;
+                        }
+                        break;
+                    }
+                }
+                elapsed = Hal_Motor_TimeUs() - begin;
+                if (mode == 9U) Motor_Timing_ProfileEnd();
+                Motor_Crit_Exit(key);
+                if (probe || capture) {
+                    PRINTF("Invalid: currentbench expected unarmed diagnostic checks\n");
+                    return -1;
+                }
+                totals[load][mode] += elapsed;
+                if (elapsed > maxima[load][mode]) maxima[load][mode] = elapsed;
+                checksum += voltage.vd + voltage.vq + id_target + iq_target + test_motor.Id;
+            }
+            if (mode == 9U) {
+                Motor_Timing_CadenceStop();
+                Motor_Timing_ProfileSetDetailed(false);
+            }
+        }
+    }
+    for (load = 0U; load < 2U; ++load) {
+        for (mode = 0U; mode < 23U; ++mode) {
+            PRINTF("Current bench load=%u mode=%u n=256 total=%lu avg=%.3f max_batch=%lu us\n",
+                   load, mode, (unsigned long)totals[load][mode], (float)totals[load][mode] / 256.0f,
+                   (unsigned long)maxima[load][mode]);
+        }
+    }
+    PRINTF("Modes: 0=empty 1=Park 2=targets 3=PI 4=limit 5=PI+limit 6=RunPi 7=Step 8=chain 9=Step_profile 10=chain_probe 11=chain_capture 12=chain_both 13=Step_null; checksum=%.6f\n",
+           (double)checksum);
+    PRINTF("Synthetic stopped instance, PWM untouched; IRQ isolated batch4; mode9 arms profiling before timing; profiling/handoff stopped at end; PI/stage statistics include synthetic calls\n");
+    PRINTF("Outer modes: 14=empty 15=angle 16=given_angle 17=context 18=FW_off 19=vlimit 20=RunIf 21=RunIf_given 22=Step_same_entry\n");
+    return 0;
+}
+
+/**
+ * @description: 控制停机基准、控制节拍和任务调度诊断。
+ * @param {int} argc 命令参数个数
+ * @param {char **} argv 命令参数
+ * @return {int} 0 成功，-1 参数或停机条件不满足
  */
 int Cmd_SensorlessCadence(int argc, char *argv[])
 {
     motor_cadence_t c;
     motor_callback_t cb;
+    if (argc > 1 && strcmp(argv[1], "trigbench") == 0) return ol_trig_bench();
+    if (argc > 1 && strcmp(argv[1], "currentbench") == 0) return ol_current_bench();
+    if (argc > 1 && strcmp(argv[1], "irqtest") == 0) {
+        motor_command_t command;
+        bool masked, valid, restored;
+        uint32_t start_us, duration_us;
+        osStatus_t status;
+        if (argc != 3 || (strcmp(argv[2], "on") != 0 && strcmp(argv[2], "off") != 0)) {
+            PRINTF("Invalid: slcadence irqtest on|off (5 seconds, stopped only)\n");
+            return -1;
+        }
+        if (Motor_GetCommand(&motor, &command) != MOTOR_OK || command.enable || motor.ol_enable ||
+            command.target_rpm != 0.0f || Motor_Position_IsEnabled() || Motor_Joint_IsEnabled() ||
+            Motor_Bldc_IsSelected() || Motor_Detect_IsActive() || Motor_Protect_IsFaultLatched()) {
+            PRINTF("Invalid: irqtest requires stopped FOC, zero target, position/joint off, no detection/fault\n");
+            return -1;
+        }
+        masked = strcmp(argv[2], "off") == 0;
+        if (Motor_RequestStop(&motor) != MOTOR_OK || !Hal_Motor_StoppedIrqTestBegin(masked)) {
+            PRINTF("Invalid: irqtest could not confirm gate disabled\n");
+            return -1;
+        }
+        Motor_Timing_SpeedTaskReset();
+        start_us = Hal_Motor_TimeUs();
+        status = osDelay(pdMS_TO_TICKS(5000U));
+        duration_us = Hal_Motor_TimeUs() - start_us;
+        Motor_Timing_ScheduleDebugFreeze();
+        valid = status == osOK && Hal_Motor_StoppedIrqTestCheck(masked) &&
+                Motor_GetCommand(&motor, &command) == MOTOR_OK && !command.enable && !motor.ol_enable &&
+                command.target_rpm == 0.0f && !Motor_Position_IsEnabled() && !Motor_Joint_IsEnabled() &&
+                !Motor_Bldc_IsSelected() && !Motor_Detect_IsActive() && !Motor_Protect_IsFaultLatched();
+        if (Motor_RequestStop(&motor) != MOTOR_OK) valid = false;
+        restored = Hal_Motor_StoppedIrqTestEnd(valid);
+        PRINTF("IRQ test %s: masked=%u gate_low=%u restored=%u duration=%luus; motor stays stopped\n",
+               valid && restored ? "PASS" : "FAIL", masked ? 1U : 0U, valid ? 1U : 0U,
+               restored ? 1U : 0U, (unsigned long)duration_us);
+        return valid && restored ? 0 : -1;
+    }
+    if (argc > 1 && strcmp(argv[1], "debug") == 0) {
+        if (motor.ol_enable) {
+            PRINTF("Invalid: slcadence debug requires stopped motor\n");
+            return 0;
+        }
+        Motor_Timing_ScheduleDebugFreeze();
+        PRINTF("Schedule RAM frozen: sequence=%lu bytes=%u\n",
+               (unsigned long)g_motor_schedule_debug.sequence, (unsigned)sizeof(g_motor_schedule_debug));
+        return 0;
+    }
     if (argc > 1 && strcmp(argv[1], "blendbench") == 0) {
-        static MOTOR_PARAM_S test_motor;
         static motor_sensorless_runtime_t test_runtime;
         motor_sensorless_effects_t effects;
         unsigned mode, i;
@@ -780,8 +1049,9 @@ int Cmd_SensorlessCadence(int argc, char *argv[])
             unsigned closed = 0U;
             for (i = 0; i < 128U; ++i) {
                 float phase = (float)(i % 4U) * 1.5f - 2.8f;
-                float s = sin_f32(phase), co = cos_f32(phase);
+                float s, co;
                 uint32_t key, begin, elapsed;
+                sincos_f32(phase, &s, &co);
                 memset(&test_runtime, 0, sizeof(test_runtime));
                 test_runtime.initialized = true;
                 test_runtime.x_alpha = 0.0023358f * co;
@@ -932,6 +1202,10 @@ int Cmd_SensorlessCadence(int argc, char *argv[])
         PRINTF("Task-only statistics: IRQ/cadence/runtime/stage profiling disabled\n");
     }
     if (argc > 1 && strcmp(argv[1], "probe") == 0) Motor_Timing_WakeProbeReset();
+    if (argc > 1 && strcmp(argv[1], "split") == 0) {
+        Motor_Timing_SplitReset();
+        PRINTF("Split timing: full/skip/publish and wake overlap; stage profiling off\n");
+    }
     if (argc > 1 && strcmp(argv[1], "stop") == 0) Motor_Timing_CadenceStop();
     Motor_Timing_CadenceGet(&c);
     Motor_Timing_CallbackGet(&cb);
@@ -963,6 +1237,27 @@ int Cmd_SensorlessCadence(int argc, char *argv[])
            (unsigned long)cb.full, cb.full ? (float)cb.full_sum / (float)cb.full : 0.0f, (unsigned long)cb.full_max,
            cb.count > cb.full ? (float)cb.skip_sum / (float)(cb.count - cb.full) : 0.0f, (unsigned long)cb.skip_max,
            (unsigned long)cb.over33, (unsigned long)cb.over66, (unsigned long)cb.pending);
+    {
+        motor_split_diag_t split;
+        Motor_Timing_SplitGet(&split);
+        PRINTF("split publish n=%lu avg=%.2f max=%lu on_full=%lu on_skip=%lu\n",
+               (unsigned long)split.publish_count,
+               split.publish_count ? (float)split.publish_sum_us / (float)split.publish_count : 0.0f,
+               (unsigned long)split.publish_max_us, (unsigned long)split.publish_on_full,
+               (unsigned long)(split.publish_count - split.publish_on_full));
+        PRINTF("wake overlap n=%lu delay_avg=%.1f dma_avg=%.1f full_n=%lu full_us=%lu skip_n=%lu skip_us=%lu publish_n=%lu publish_us=%lu\n",
+               (unsigned long)split.wake_count,
+               split.wake_count ? (float)split.wake_delay_sum_us / (float)split.wake_count : 0.0f,
+               split.wake_count ? (float)split.wake_dma_sum_us / (float)split.wake_count : 0.0f,
+               (unsigned long)split.wake_full_count, (unsigned long)split.wake_full_sum_us,
+               (unsigned long)split.wake_skip_count, (unsigned long)split.wake_skip_sum_us,
+               (unsigned long)split.wake_publish_count, (unsigned long)split.wake_publish_sum_us);
+        PRINTF("worst wake delay=%lu dma=%lu full_n=%lu full_us=%lu skip_n=%lu skip_us=%lu publish_n=%lu publish_us=%lu\n",
+               (unsigned long)split.worst_delay_us, (unsigned long)split.worst_dma_us,
+               (unsigned long)split.worst_full_count, (unsigned long)split.worst_full_us,
+               (unsigned long)split.worst_skip_count, (unsigned long)split.worst_skip_us,
+               (unsigned long)split.worst_publish_count, (unsigned long)split.worst_publish_us);
+    }
     {
         motor_speed_task_diag_t task;
         Motor_Timing_SpeedTaskGet(&task);
@@ -1317,12 +1612,41 @@ int Cmd_SensorlessTrace(int argc, char *argv[])
 }
 
 /**
- * @description: olrpm 命令 — 打印无感转速、接管条件和分段耗时。
- * @detail: 先在临界区捕获状态，再格式化串口，避免发送期间读取变化中的运行量。
- * @param {int} argc       参数个数
- * @param {char *} argv[]  无额外参数
- * @return {int} 0 成功
- * @author: lkc
+ * @description: 输出低速观察所需的单行状态，不读取编码器或性能报表。
+ * @return {int} 0=已发送，-1=格式化失败
+ */
+static int ol_print_rpm_brief(void)
+{
+    char reply[192];
+    motor_sensorless_light_snapshot_t observer;
+    float measured_rpm, target_rpm, iq;
+    bool takeover, feedback_valid;
+    mc_fault_code fault;
+    int length;
+    uint32_t key = Motor_Crit_Enter();
+    Motor_Sensorless_GetLightSnapshot(&observer);
+    measured_rpm = Motor_SpeedLoop_GetMeasuredRpm();
+    target_rpm = motor.ol_target_rpm;
+    iq = motor.Iq;
+    takeover = motor.sensorless_takeover;
+    feedback_valid = Motor_SpeedLoop_IsFeedbackValid();
+    fault = Motor_Protect_GetFault();
+    Motor_Crit_Exit(key);
+    length = snprintf(reply, sizeof(reply),
+                      "rpm obs=%.1f meas=%.1f tgt=%.0f iq=%.3f %s tk=%d fb=%s fault=%d\r\n",
+                      observer.rpm, measured_rpm, target_rpm, iq, ol_sensorless_state_name(observer.state),
+                      takeover ? 1 : 0, feedback_valid ? "valid" : "invalid", (int)fault);
+    if (length < 0 || (unsigned)length >= sizeof(reply)) return -1;
+    (void)Bsp_Usart_Write((const UCHAR *)reply, (ULONG)length);
+    Bsp_Usart_Flush();
+    return 0;
+}
+
+/**
+ * @description: 输出完整转速诊断，brief参数只输出必要安全字段。
+ * @param {int} argc 参数个数
+ * @param {char *[]} argv 命令参数
+ * @return {int} 0=成功，-1=失败
  */
 int Cmd_OlRpm(int argc, char *argv[])
 {
@@ -1341,8 +1665,7 @@ int Cmd_OlRpm(int argc, char *argv[])
     float encoder_angle, encoder_mech, encoder_rpm, encoder_age;
     bool encoder_valid, encoder_zero;
 
-    (void)argc;
-    (void)argv;
+    if (argc == 2 && strcmp(argv[1], "brief") == 0) return ol_print_rpm_brief();
 
     /* 所有字段先捕获，串口格式化/发送期间不再读取运行状态。 */
     primask = Motor_Crit_Enter();

@@ -8,6 +8,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "motor_luenberger.h"
 #include "common_assert.h"
+#include "motor_foc.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -195,8 +196,7 @@ void Motor_Luenberger_Seed(motor_luenberger_t *obs, const motor_luenberger_confi
 
     flux = config->flux_linkage >= MOTOR_LUENBERGER_MIN_LINKAGE ? config->flux_linkage : MOTOR_LUENBERGER_MIN_LINKAGE;
     wrapped = Motor_Luenberger_WrapPi(angle);
-    s = sinf(wrapped);
-    c = cosf(wrapped);
+    sincos_f32(wrapped, &s, &c);
 
     obs->i_hat_alpha = i_alpha;
     obs->i_hat_beta = i_beta;

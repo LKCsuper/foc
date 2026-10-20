@@ -6,6 +6,7 @@
 
 float sin_f32(float angle) { return sinf(angle); }
 float cos_f32(float angle) { return cosf(angle); }
+void sincos_f32(float angle, float *sine, float *cosine) { *sine = sinf(angle); *cosine = cosf(angle); }
 
 #ifndef ONE_BY_SQRT3
 #define ONE_BY_SQRT3 (0.57735026919f)

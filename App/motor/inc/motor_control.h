@@ -22,6 +22,7 @@ extern "C" {
 #include "motor_if_start.h"
 #include "motor_hfi_start.h"
 #include "motor_fw.h"
+#include "motor_current.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /**
@@ -51,6 +52,21 @@ typedef struct {
     bool speed_loop_latched; /* 速度 PI 已接管；跌回门槛以下才释放给启动 Iq */
     float current_frame_correction; /* 本拍无感渐变附加角，排除正常转速积分(rad) */
 } motor_control_t;
+
+/**
+ * @description: 停机软件实例的 I/F 外层逐项诊断，不输出 PWM。
+ * @detail: 仅供停机命令对独立实例调用；固定 24 V、15 kHz、反馈角取 ol_theta。
+ *          mode 0=空入口，1=选角，2=给定反馈选角，3=上下文，4=关闭弱磁步进，
+ *          5=电压上限，6=RunIf，7=给定反馈 RunIf，8=同上下文电流 Step。
+ *          不运行启动、观测器或速度任务；会修改传入实例及共享 PI 诊断统计。
+ * @param {motor_control_t *} ctrl 独立控制状态，不可为空
+ * @param {MOTOR_PARAM_S *} motor 独立电机参数，不可为空
+ * @param {motor_current_target_ctx_t *} ctx 独立目标上下文，不可为空
+ * @param {unsigned} mode 诊断模式 0～8
+ * @return {motor_control_result_t} 仅供校验使用的结果，调用方不得应用到硬件
+ */
+motor_control_result_t Motor_Control_IfDiagnosticStep(motor_control_t *ctrl, MOTOR_PARAM_S *motor,
+                                                     motor_current_target_ctx_t *ctx, unsigned mode);
 
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/

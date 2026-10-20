@@ -8,6 +8,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "motor_smo.h"
 #include "common_assert.h"
+#include "motor_foc.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -185,8 +186,7 @@ void Motor_Smo_Seed(motor_smo_t *obs, const motor_smo_config_t *config, float an
 
     flux = config->flux_linkage >= MOTOR_SMO_MIN_LINKAGE ? config->flux_linkage : MOTOR_SMO_MIN_LINKAGE;
     wrapped = Motor_Smo_WrapPi(angle);
-    s = sinf(wrapped);
-    c = cosf(wrapped);
+    sincos_f32(wrapped, &s, &c);
 
     obs->i_hat_alpha = i_alpha;
     obs->i_hat_beta = i_beta;
@@ -263,8 +263,7 @@ bool Motor_Smo_Step(motor_smo_t *obs, const motor_smo_config_t *config, float v_
     e_alpha_old = obs->e_alpha;
     e_beta_old = obs->e_beta;
     rot_delta = obs->speed_e * dt;
-    rot_c = cosf(rot_delta);
-    rot_s = sinf(rot_delta);
+    sincos_f32(rot_delta, &rot_s, &rot_c);
     /* 旋转矩阵推 ê；z 是电流残差，lpf 约 0.002，避免把满幅 k 当成反电势低通。 */
     obs->e_alpha = e_alpha_old * rot_c - e_beta_old * rot_s + lpf * obs->z_alpha;
     obs->e_beta = e_alpha_old * rot_s + e_beta_old * rot_c + lpf * obs->z_beta;

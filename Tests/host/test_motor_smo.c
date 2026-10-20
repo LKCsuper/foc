@@ -99,7 +99,7 @@ int main(void)
     assert(obs.initialized);
     assert(fabsf(Motor_Smo_GetAngle(&obs) - 0.40f) < 1e-5f);
     assert(fabsf(Motor_Smo_GetSpeedE(&obs) - omega_e) < 1e-4f);
-    assert(fabsf(obs.e_alpha + omega_e * cfg.flux_linkage * sinf(0.40f)) < 1e-5f);
+    assert(fabsf(obs.e_alpha + omega_e * cfg.flux_linkage * sinf(0.40f)) < fabsf(omega_e * cfg.flux_linkage) * 0.000025f + 1e-6f);
 
     theta = 0.40f;
     for (i = 0U; i < 600U; ++i) {
@@ -175,7 +175,7 @@ int main(void)
         pmsm_voltage(0.2f, omega_e, 0.0f, &cfg, &v_alpha, &v_beta, &i_alpha, &i_beta);
         Motor_Smo_Step(&a, &cfg, v_alpha, v_beta, i_alpha, i_beta, dt, &out);
         assert(fabsf(Motor_Smo_GetAngle(&b) - 2.0f) < 1e-5f);
-        assert(fabsf(b.e_beta - omega_e * cfg.flux_linkage * cosf(2.0f)) < 1e-5f);
+        assert(fabsf(b.e_beta - omega_e * cfg.flux_linkage * cosf(2.0f)) < fabsf(omega_e * cfg.flux_linkage) * 0.000025f + 1e-6f);
     }
 
     Motor_Smo_Reset(NULL);

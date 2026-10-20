@@ -96,8 +96,8 @@ int main(void)
     assert(obs.initialized);
     assert(fabsf(Motor_Luenberger_GetAngle(&obs) - 0.40f) < 1e-5f);
     assert(fabsf(Motor_Luenberger_GetSpeedE(&obs) - omega_e) < 1e-4f);
-    assert(fabsf(obs.e_alpha + omega_e * cfg.flux_linkage * sinf(0.40f)) < 1e-5f);
-    assert(fabsf(obs.e_beta - omega_e * cfg.flux_linkage * cosf(0.40f)) < 1e-5f);
+    assert(fabsf(obs.e_alpha + omega_e * cfg.flux_linkage * sinf(0.40f)) < fabsf(omega_e * cfg.flux_linkage) * 0.000025f + 1e-6f);
+    assert(fabsf(obs.e_beta - omega_e * cfg.flux_linkage * cosf(0.40f)) < fabsf(omega_e * cfg.flux_linkage) * 0.000025f + 1e-6f);
 
     /* 零电流、额定电频率：理想反电势应让观测角跟着真角走。 */
     theta = 0.40f;
@@ -180,7 +180,7 @@ int main(void)
         pmsm_voltage(0.2f, omega_e, 0.0f, &cfg, &v_alpha, &v_beta, &i_alpha, &i_beta);
         Motor_Luenberger_Step(&a, &cfg, v_alpha, v_beta, i_alpha, i_beta, dt, &out);
         assert(fabsf(Motor_Luenberger_GetAngle(&b) - 2.0f) < 1e-5f);
-        assert(fabsf(b.e_beta - omega_e * cfg.flux_linkage * cosf(2.0f)) < 1e-5f);
+        assert(fabsf(b.e_beta - omega_e * cfg.flux_linkage * cosf(2.0f)) < fabsf(omega_e * cfg.flux_linkage) * 0.000025f + 1e-6f);
     }
 
     Motor_Luenberger_Reset(NULL);

@@ -3,10 +3,17 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'Scripts'))
-from sensorless_observe_test import observation_collapsed, validate_plan, validate_voltage_limit, validate_voltage_schedule, voltage_near_limit
+from sensorless_observe_test import observation_collapsed, observation_command, validate_plan, validate_voltage_limit, validate_voltage_schedule, voltage_near_limit
 
 
 class ObservePlanTest(unittest.TestCase):
+    def test_brief_safety_query_scope(self):
+        self.assertEqual(observation_command(True, False, [300], 800), 'olrpm brief')
+        self.assertEqual(observation_command(False, True, [300, 600], 800), 'olrpm')
+        for coherent, rpms, maximum in ((True, [300], 800), (False, [600], 800),
+                                        (False, [300, 600], 800), (False, [300], 5000)):
+            with self.assertRaises(ValueError):
+                observation_command(True, coherent, rpms, maximum)
     def test_staged_plan(self):
         validate_plan([300, 800, 1200, 1800, 2400, 3000], 3000, 10)
         validate_plan([300, 600], 800, 8)

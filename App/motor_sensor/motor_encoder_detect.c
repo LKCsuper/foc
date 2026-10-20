@@ -15,6 +15,7 @@ extern "C" {
 #include "motor_encoder.h"
 #include "motor_param.h"
 #include "motor_math.h"
+#include "motor_foc.h"
 #include "motor.h"
 #include "motor_protect.h"
 #include "hal_motor.h"
@@ -116,6 +117,7 @@ void Motor_Encoder_DetectWithSave(bool save_to_flash)
     uint16_t direction_start;
     bool inverted = false;
     float measured;
+    float sine, cosine;
     float forced;
     float diff;
     float sin_sum = 0.0f;
@@ -186,8 +188,9 @@ void Motor_Encoder_DetectWithSave(bool save_to_flash)
                     measured = Motor_Encoder_GetMechAngle() * pole_pairs;
                     forced = fmodf(s_encoder_detect.theta_rad, 2.0f * (float)M_PI);
                     diff = measured - forced;
-                    sin_sum += sinf(diff);
-                    cos_sum += cosf(diff);
+                    sincos_f32(diff, &sine, &cosine);
+                    sin_sum += sine;
+                    cos_sum += cosine;
                 }
                 for (step = scan_points; step > 0U && !Motor_Protect_IsFaultLatched(); step--) {
                     s_encoder_detect.theta_rad = scan_range * (float)(step - 1U) / (float)scan_points;
@@ -198,8 +201,9 @@ void Motor_Encoder_DetectWithSave(bool save_to_flash)
                     measured = Motor_Encoder_GetMechAngle() * pole_pairs;
                     forced = fmodf(s_encoder_detect.theta_rad, 2.0f * (float)M_PI);
                     diff = measured - forced;
-                    sin_sum += sinf(diff);
-                    cos_sum += cosf(diff);
+                    sincos_f32(diff, &sine, &cosine);
+                    sin_sum += sine;
+                    cos_sum += cosine;
                 }
                 success = !Motor_Protect_IsFaultLatched() && Motor_MT6701_IsValid() &&
                           (fabsf(sin_sum) + fabsf(cos_sum) > 1.0f);

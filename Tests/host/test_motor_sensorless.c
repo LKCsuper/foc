@@ -10,6 +10,11 @@
 extern bool host_observer_step_active;
 extern motor_observer_step_sample_t host_observer_step;
 extern unsigned host_observer_step_count;
+extern float host_speed_feedback_rpm;
+extern bool host_speed_feedback_valid;
+extern unsigned host_speed_feedback_calls;
+extern mc_fault_code host_protect_fault;
+extern unsigned host_protect_fault_calls;
 
 static void check_parameter_lower_bounds(void)
 {
@@ -396,6 +401,61 @@ int main(void)
         assert(memcmp(&a, &b, sizeof(a)) == 0);
         EXPECT_COMMON_ASSERT(Motor_Sensorless_GetLightSnapshotState(&a, NULL));
         assert(memcmp(&a, &b, sizeof(a)) == 0);
+    }
+    /* 冷态默认入口不再积分，但速度反馈仍保持无效；已积分的实例撤销授权时仍先清零。 */
+    {
+        MOTOR_PARAM_S cold = {0};
+        unsigned feedback_calls;
+        unsigned fault_calls;
+        cold.ol_enable = true;
+        cold.ol_mode = MOTOR_OL_MODE_IF;
+        cold.sensorless_enable = true;
+        cold.sensorless_takeover = true;
+        cold.sensorless_motor_r = 0.4f;
+        cold.sensorless_motor_l = 0.0008f;
+        cold.sensorless_flux_linkage = 0.0023f;
+        cold.sensorless_observer_gain = 0.0f;
+        cold.ol_pole_pairs = 7.0f;
+        cold.ol_max_rpm = 6000.0f;
+        cold.ol_current_rpm = 300.0f;
+        cold.ia = 0.2f;
+        cold.ib = -0.1f;
+        cold.ic = -0.1f;
+        Motor_Sensorless_Init();
+        Motor_Sensorless_SetAppliedVoltage(1.0f, 0.2f);
+        Motor_Sensorless_Update(&cold, 0.000067f);
+        assert(Motor_Sensorless_GetFluxMagnitude() > 0.0f);
+        cold.sensorless_takeover = false;
+        fault_calls = host_protect_fault_calls;
+        Motor_Sensorless_Update(&cold, 0.000067f);
+        assert(Motor_Sensorless_GetFluxMagnitude() == 0.0f);
+        assert(Motor_Sensorless_GetState() == MOTOR_SENSORLESS_OPEN_LOOP);
+        assert(host_protect_fault_calls == fault_calls);
+        feedback_calls = host_speed_feedback_calls;
+        Motor_Sensorless_Update(&cold, 0.000067f);
+        assert(Motor_Sensorless_GetFluxMagnitude() == 0.0f);
+        assert(host_speed_feedback_calls == feedback_calls + 1U);
+        assert(!host_speed_feedback_valid && host_speed_feedback_rpm == 0.0f);
+        assert(fabsf(Motor_Sensorless_GetControlAngle(0.4f) - 0.4f) < 1e-6f);
+        host_observer_step_active = true;
+        host_observer_step_count = 0U;
+        cold.sensorless_takeover = true;
+        Motor_Sensorless_Update(&cold, 0.000067f);
+        Motor_Sensorless_Update(&cold, 0.000067f);
+        assert(host_observer_step_count == 2U);
+        assert(host_observer_step.previous_dt == 0.000067f);
+        Motor_Sensorless_Init();
+        host_observer_step_active = false;
+        cold.sensorless_takeover = false;
+        Motor_Sensorless_Update(&cold, 0.000067f);
+        host_observer_step_active = true;
+        cold.sensorless_takeover = true;
+        Motor_Sensorless_Update(&cold, 0.000067f);
+        assert(host_observer_step_count == 3U);
+        assert(host_observer_step.previous_dt == 0.0f);
+        host_observer_step_active = false;
+        Motor_Sensorless_Update(&cold, 0.000067f);
+        Motor_Sensorless_Init();
     }
     printf("test_motor_sensorless: pass\n");
     return 0;

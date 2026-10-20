@@ -173,7 +173,8 @@ float sin_f32(float x);
 float cos_f32(float x);
 /**
  * @description: 同一角度共用正弦表索引与插值比例，计算 sin 与 cos。
- * @detail: 不缓存跨拍状态，不访问硬件。输出指针不可为空。
+ * @detail: ±64 rad 内查表插值；超范围及非有限输入回退标准库，保留异常传播。
+ *          不缓存跨拍状态，不访问硬件。输出指针不可为空。
  * @param {float} x        输入角度 (rad)
  * @param {float *} sine   输出正弦值，不可为空
  * @param {float *} cosine 输出余弦值，不可为空
@@ -181,6 +182,17 @@ float cos_f32(float x);
  * @author: lkc
  */
 void sincos_f32(float x, float *sine, float *cosine);
+
+/**
+ * @description: 以象限缩减和泰勒多项式计算同角度正余弦，供后端对照。
+ * @detail: ±64 rad 内缩减到约 ±π/4，以 Horner 形式计算 sin 七阶、cos 八阶；
+ *          其他输入回退标准库，保留正负零。输出指针不可为空，不访问硬件。
+ * @param {float} x 输入角度 (rad)
+ * @param {float *} sine 正弦输出
+ * @param {float *} cosine 余弦输出
+ * @return {void} 无
+ */
+void sincos_taylor_f32(float x, float *sine, float *cosine);
 
 /**
  * @description: 计算数据的 CRC-8 校验值。

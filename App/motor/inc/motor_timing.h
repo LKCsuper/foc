@@ -343,9 +343,10 @@ typedef enum {
     MOTOR_TIMING_CURRENT_TARGET,   /* 电流目标计算，含在IF_CURRENT内 */
     MOTOR_TIMING_CURRENT_PI,       /* 双轴PI，不含矢量限幅 */
     MOTOR_TIMING_CURRENT_LIMIT,    /* 矢量限幅及积分抗饱和 */
-    MOTOR_TIMING_SENSE_FRAME,      /* Sense_Update 整段，含在 SAMPLE 内 */
-    MOTOR_TIMING_SENSOR_FEEDBACK,  /* SensorUpdate_Step 整段，含在 SAMPLE 内 */
-    MOTOR_TIMING_PROTECTION,       /* Protect_Run 整段，含在 SAMPLE 内 */
+    MOTOR_TIMING_SENSE_FRAME,      /* Sense_Update；仅使能的无感 I/F 细分拍，含在 SAMPLE 内 */
+    MOTOR_TIMING_SENSOR_FEEDBACK,  /* SensorUpdate_Step；仅使能的无感 I/F 细分拍，含在 SAMPLE 内 */
+    MOTOR_TIMING_PROTECTION,       /* Protect_Run；仅使能的无感 I/F 细分拍，含在 SAMPLE 内 */
+    MOTOR_TIMING_VOLTAGE_REBUILD,  /* 无感 I/F 的 PWM 平均电压重建，含在 OUTPUT 内；不含反 Park、SVM 和比较值提交 */
     MOTOR_TIMING_STAGE_COUNT       /* 分段总数，仅作数组维度，不参与记录 */
 } motor_timing_stage_t;
 typedef struct {
@@ -420,6 +421,8 @@ void Motor_Timing_ProfileEnd(void);
  *          该段样本数已经达到 256 时，先清掉该段的 sum/count/max，再计入本拍。
  *          跳过的 ADC 回调不会调用本函数。CONTROL 与 OBSERVER、TRANSPORT 的时间互相包含；
  *          BLEND/CLOSED 与 OBSERVER 是同一段耗时，平均值不能相加。
+ *          SENSE/SENSOR/PROTECTION 只在使能的无感 I/F 细分拍计入，停机拍留在 SAMPLE。
+ *          VOLTAGE_REBUILD 含在 OUTPUT 内，不能与 OUTPUT 相加。
  * @param {motor_timing_stage_t} stage 阶段编号
  * @param {uint32_t} start_us          阶段开始时间戳 (us)
  * @return {void} 无
@@ -530,6 +533,10 @@ typedef struct {
     uint32_t over33;         /* 耗时超过 33 us 的次数 */
     uint32_t over66;         /* 耗时超过 66 us 的次数 */
     uint32_t pending;        /* 返回时同一 DMA 标志再次置位的次数 */
+    uint32_t publish;        /* 本回调内实际发布状态帧的次数 */
+    uint32_t publish_sum;    /* 状态发布自身耗时累计 (us)，已含在 full 或 skip 内 */
+    uint32_t publish_max;    /* 单次状态发布最长耗时 (us) */
+    uint32_t publish_on_full; /* 状态发布落在完整控制拍的次数 */
 } motor_callback_t;
 
 /**
@@ -554,6 +561,61 @@ void Motor_Timing_CallbackBegin(uint32_t time_us);
  * @author: lkc
  */
 void Motor_Timing_CallbackEnd(uint32_t time_us, bool pending);
+
+/**
+ * @description: 标记本回调是完整控制拍还是跳过拍。
+ * @detail: 仅细分诊断开启时由 FOC 入口调用。须在 CallbackEnd 之前。不改控制。
+ * @param {bool} full true=本回调执行了完整控制
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Timing_CallbackClassify(bool full);
+
+/**
+ * @description: 记下本回调内一次状态发布的自身耗时。
+ * @detail: elapsed_us 只含快照发布，不含分频计数。同一回调只记最后一次。不改控制。
+ * @param {uint32_t} elapsed_us 状态发布耗时 (us)
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Timing_CallbackPublish(uint32_t elapsed_us);
+
+/**
+ * @description: 同一运行窗口内的拍型耗时，以及它们落在任务唤醒等待中的部分。
+ * @detail: full/skip 的唤醒累计是中断函数体时间，状态发布是其中的子集，不能与 full/skip 相加。
+ *          worst_* 来自同一次最长唤醒，worst_full_us 与 worst_skip_us 之和等于该次 DMA 累计。
+ */
+typedef struct {
+    uint32_t publish_count, publish_sum_us, publish_max_us, publish_on_full;
+    uint32_t wake_count, wake_delay_sum_us, wake_dma_sum_us;
+    uint32_t wake_full_count, wake_full_sum_us;
+    uint32_t wake_skip_count, wake_skip_sum_us;
+    uint32_t wake_publish_count, wake_publish_sum_us;
+    uint32_t worst_delay_us, worst_dma_us;
+    uint32_t worst_full_count, worst_full_us;
+    uint32_t worst_skip_count, worst_skip_us;
+    uint32_t worst_publish_count, worst_publish_us;
+} motor_split_diag_t;
+
+/**
+ * @description: 打开完整拍、跳过拍和状态发布的同窗口细分，并武装唤醒重叠。
+ * @detail: 关闭性能统计和分段采样，保留回调耗时与速度任务节拍。不改控制周期、增益或任务优先级。
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Timing_SplitReset(void);
+
+/**
+ * @description: 拷贝拍型细分与唤醒重叠。
+ * @detail: 进入临界区。out 不可为空，违反约定触发 COMMON_ASSERT。
+ * @param {motor_split_diag_t *} out 输出，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Timing_SplitGet(motor_split_diag_t *out);
+
+/** @brief 细分诊断开关。关闭时 FOC 入口不调用分类。 */
+extern volatile uint8_t g_motor_timing_split_active;
 
 /**
  * @description: 拷贝 DMA 回调耗时统计。
@@ -789,6 +851,12 @@ typedef struct {
 } motor_wake_probe_t;
 
 typedef struct {
+    uint32_t sequence, time_us, previous_us;
+    motor_wake_probe_t wake, previous_wake;
+    uint32_t phase_valid, before_wait_us, phase_us[4];
+} motor_task_gap_event_t;
+
+typedef struct {
     uint32_t count, last_us, max_gap_us;
     bool allowed;
     float target, feedback, iq;
@@ -801,6 +869,43 @@ typedef struct {
     uint32_t pi_over_1ms, pi_over_streak, pi_over_streak_max;
     motor_wake_probe_t worst_pi_wake, worst_wake;
 } motor_speed_task_diag_t;
+
+typedef struct {
+    uint32_t magic, version, sequence, state;
+    uint32_t mode;
+    uint32_t task_count, task_max_gap_us, pi_count, pi_no_update, pi_max_gap_us;
+    uint32_t pi_over_1ms, pi_streak_max, wake_late_max_ticks;
+    uint32_t phase_max_us[4], pi_gap_bins[6];
+    motor_wake_probe_t worst_pi_wake, worst_wake;
+    uint32_t irq[2][8];
+    uint32_t task_gap_bins[6];
+    motor_task_gap_event_t worst_gap;
+} motor_schedule_debug_t;
+
+extern volatile motor_schedule_debug_t g_motor_schedule_debug;
+
+typedef struct {
+    uint32_t count, min_us, max_us, last_us;
+    uint64_t sum_us;
+    uint64_t dma_sum_us;
+    uint32_t max_wall_dma_us, max_wall_dma_count;
+} motor_task_runtime_debug_t;
+
+extern volatile motor_task_runtime_debug_t g_motor_task_runtime_debug;
+
+/** @brief 开始一次外环任务执行计时，不包含周期休眠。 */
+void Motor_Timing_TaskRuntimeBegin(void);
+/** @brief 结束本轮计时，累计包含中断抢占的墙钟耗时。 */
+void Motor_Timing_TaskRuntimeEnd(void);
+
+/**
+ * @description: 停止调度统计并发布供调试器读取的固定布局快照。
+ * @detail: 仅供停机后的命令任务调用；不停止电机。state=2 且 sequence 为偶数才有效。
+ *          mode bit0=任务模式、bit1=唤醒探测、bit2=性能计时、bit3=冻结前采集开启。
+ *          IRQ 每行依次为 seen/count/sum/max/first/last/tick_pending/switch_pending。
+ * @return {void} 无
+ */
+void Motor_Timing_ScheduleDebugFreeze(void);
 /**
  * @description: 打开目标 tick 到任务唤醒的 DMA 探测。
  * @detail: 先做 SpeedTaskReset，再允许 WakeProbeArm。探测是插桩，不改任务调度。
@@ -974,6 +1079,12 @@ typedef struct {
     float speed_target, speed_feedback, speed_iq;
     uint32_t task_tick, task_phase, task_phase_age_us;
 } motor_trace_light_sample_t;
+
+/**
+ * @brief 在短临界区仅填充轻量轨迹需要的任务字段。
+ * @param sample 非空，本拍 time_us 已填写；其余非任务字段保持不变。
+ */
+void Motor_Timing_SpeedTaskCaptureLight(motor_trace_light_sample_t *sample);
 /**
  * @description: 按接管触发方式武装轻量轨迹。
  * @detail: 样本比完整记录短，仍复用同一缓冲。触发后每 8 拍记录，配额 384 条。不停止电机。
@@ -1119,6 +1230,20 @@ bool Motor_Timing_TraceGet(unsigned index, motor_trace_sample_t *sample);
  * @author: lkc
  */
 void Motor_Timing_RecordRuntime(uint32_t start_time_us);
+
+#define MOTOR_TIMING_ISR_PROFILE 1U
+#define MOTOR_TIMING_ISR_RUNTIME 2U
+#define MOTOR_TIMING_ISR_PAIR 4U
+#define MOTOR_TIMING_ISR_FAULT 8U
+#define MOTOR_TIMING_ISR_COMPACT 16U
+#define MOTOR_TIMING_ISR_TRACE 32U
+
+/**
+ * @description: 汇总本控制拍需要执行的诊断入口。
+ * @detail: 供 ADC 中断读取；仅跳过未开启的诊断，具体记录函数仍负责到期判断与冻结检查。
+ * @return {uint32_t} MOTOR_TIMING_ISR_* 位掩码，不改变采集状态
+ */
+uint32_t Motor_Timing_IsrFeatures(void);
 
 /**
  * @description: 计算 ADC/保护用采样周期。
