@@ -20,9 +20,12 @@ FIELDS = ('magic', 'version', 'sequence', 'state', 'address', 'sample_bytes',
           'capacity', 'stride', 'head', 'count', 'fault', 'first_us', 'last_us', 'descriptor_bytes')
 
 
+RAM_RANGES = ((0x20000000, 0x20020000), (0x10000000, 0x10010000))  # SRAM1+2, CCM
+
+
 def check_ram(address, size):
-    if address % 4 or size <= 0 or not 0x20000000 <= address < address + size <= 0x20020000:
-        raise ValueError('Read outside STM32F405 normal SRAM or unaligned address')
+    if address % 4 or size <= 0 or not any(low <= address < address + size <= high for low, high in RAM_RANGES):
+        raise ValueError('Read outside STM32F405 SRAM/CCM or unaligned address')
 
 
 def descriptor_address(map_text):

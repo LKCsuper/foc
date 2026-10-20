@@ -86,7 +86,7 @@
 | `App/motor/calibration/`                                   | 偏移/R/L/磁链检测 `motor_detect*.c`、校准 ISR、自整定           |
 | `App/motor/joint/`                                         | 关节控制、命令协议与超时保护集成                                 |
 | `App/motor/diagnostic/motor_timing.c`                      | 控制周期、实际频率、分段计时及 ISR 平均/最大耗时；`motor_timing.h` 汇总诊断子头文件 |
-| `App/motor/diagnostic/motor_diag_handoff.c`、`motor_diag_schedule.c`、`motor_diag_trace.c` | 交接短窗口采样、调度/任务/回调节拍诊断、运行与故障轨迹；跨文件共享状态只在同目录私有头 `motor_timing_internal.h` |
+| `App/motor/diagnostic/motor_diag_handoff.c`、`motor_diag_schedule.c`、`motor_diag_trace.c` | 交接短窗口采样、调度/任务/回调节拍诊断、运行与故障轨迹；跨文件共享状态只在同目录私有头 `motor_timing_internal.h`；52 KB 轨迹缓冲固定在 CCM `0x10000000`（DMA 不可达，上电不清零，只按记录条数读取） |
 | `App/motor/diagnostic/motor_fast_vf.c`                     | 历史快速 V/F 实机诊断路径，不与正常控制编排混写                  |
 | `App/motor/observer/`                                      | FOC 无感观测（sensorless / flux / luenberger / ekf / smo / hfi） |
 | `App/motor/bldc/`                                          | 六步 BLDC 与悬空相 BEMF，与 FOC 无感不是同一条路径               |

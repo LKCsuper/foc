@@ -17,13 +17,19 @@
 /* 只优化诊断计数和样本复制的调用开销，不改变浮点规则或控制节拍。 */
 #pragma O2
 #endif
+#if defined(__CC_ARM)
+/* CCM 只有 CPU 和调试口可访问，DMA 不可达；此缓冲只由 CPU 读写，不得交给 DMA。 */
+#define MOTOR_TRACE_STORAGE_CCM __attribute__((at(0x10000000), zero_init))
+#else
+#define MOTOR_TRACE_STORAGE_CCM
+#endif
 /* 记录格式互斥，共用已有存储，不新增环形缓冲区。 */
 static union {
     motor_trace_sample_t full[MOTOR_TRACE_CAPACITY];
     motor_trace_light_sample_t light[MOTOR_TRACE_CAPACITY];
     motor_trace_compact_sample_t compact[MOTOR_TRACE_COMPACT_CAPACITY];
     motor_fault_trace_sample_t fault[MOTOR_TRACE_CAPACITY];
-} s_trace_storage;
+} s_trace_storage MOTOR_TRACE_STORAGE_CCM;
 typedef char motor_trace_compact_size_check_t[sizeof(motor_trace_compact_sample_t) == 32U ? 1 : -1];
 typedef char motor_trace_storage_size_check_t[
     sizeof(s_trace_storage) == sizeof(motor_trace_sample_t) * MOTOR_TRACE_CAPACITY ? 1 : -1];

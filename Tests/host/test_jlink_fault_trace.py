@@ -101,9 +101,12 @@ class JlinkFaultTests(unittest.TestCase):
         script = read_script(Path('dump.bin'), 0x20000100, 56)
         self.assertEqual([line.split()[0] for line in script.splitlines()], ['connect', 'savebin', 'q'])
         self.assertIn('0x20000100 0x38', script)
-        for address, size in ((0x08000000, 56), (0x20000001, 56), (0x2001fffc, 8), (0x20000000, 0)):
+        for address, size in ((0x08000000, 56), (0x20000001, 56), (0x2001fffc, 8), (0x20000000, 0),
+                              (0x1000fffc, 8), (0x0fffffc0, 0x80)):
             with self.assertRaises(ValueError):
                 check_ram(address, size)
+        check_ram(0x10000000, 512 * 84)
+        check_ram(0x10000000, 0x10000)
         with self.assertRaises(ValueError):
             read_script(Path('bad"file.bin'), 0x20000100, 56)
 
