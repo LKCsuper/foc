@@ -10,6 +10,7 @@ extern "C" {
 #include <string.h>
 #include "includes.h"
 #include "motor_bldc.h"
+#if MOTOR_CFG_CMD_BLDC
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -381,6 +382,7 @@ int Cmd_Bldc(int argc, char *argv[])
            direction == MOTOR_BLDC_DIRECTION_CCW ? "CCW" : "CW");
     return 0;
 }
+#endif /* MOTOR_CFG_CMD_BLDC */
 
 #ifdef __cplusplus
 }

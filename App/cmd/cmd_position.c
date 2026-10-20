@@ -8,6 +8,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
 #include "common_assert.h"
+#if MOTOR_CFG_CMD
 /* Private define ------------------------------------------------------------*/
 #define POS_TEST_DWELL_DEFAULT_MS 2000U
 #define POS_TEST_DWELL_MIN_MS     500U
@@ -348,6 +349,7 @@ int Cmd_Position(int argc, char *argv[])
     }
     return 0;
 }
+#endif /* MOTOR_CFG_CMD */
 #ifdef __cplusplus
 }
 #endif

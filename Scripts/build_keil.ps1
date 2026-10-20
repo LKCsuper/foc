@@ -4,6 +4,9 @@
 #   .\build_keil.ps1 -Action rebuild
 #   .\build_keil.ps1 -Project Boot -Action clean
 #   .\build_keil.ps1 -Uv4 "D:\path\UV4\UV4.exe"
+#   .\build_keil.ps1 -Variant min -Defines "MOTOR_CFG_DIAG=0","MOTOR_CFG_CMD=0"
+#
+# -Variant 用临时工程副本追加宏定义，输出到 ..\build\<Variant>\，不改 foc.uvprojx 和默认输出。
 #
 # 实现位于 Scripts/build_keil.ps1；根目录 build_keil.ps1 仅作转发入口。
 # UV4 退出码: 0=成功 1=仅警告 2=错误 3=致命；默认 0/1 视为通过，-StrictWarnings 时警告也失败。
@@ -19,7 +22,11 @@ param(
 
     [string]$Target = "",
 
-    [switch]$StrictWarnings
+    [switch]$StrictWarnings,
+
+    [string]$Variant = "",
+
+    [string[]]$Defines = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -107,6 +114,33 @@ $uv4Path = Resolve-Uv4Path -Explicit $Uv4
 $logDir = Join-Path $root ".build\keil"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $logFile = Join-Path $logDir ("{0}_{1}.log" -f $Project.ToLowerInvariant(), $Action)
+$variantProject = ""
+
+if ($Defines.Count -gt 0 -and !$Variant) {
+    throw "-Defines requires -Variant so variant objects do not mix with the default build"
+}
+if ($Variant) {
+    if ($Project -ne "Foc") { throw "-Variant is only supported for the Foc project" }
+    if ($Variant -notmatch '^[A-Za-z0-9_]+$') { throw "Variant name must be [A-Za-z0-9_]+" }
+    $text = Get-Content -LiteralPath $info.Uvprojx -Raw -Encoding UTF8
+    $defineMatch = [regex]::Match($text, '<Define>(USE_STDPERIPH_DRIVER[^<]*)</Define>')
+    if (!$defineMatch.Success) { throw "C compiler <Define> not found in $($info.Uvprojx)" }
+    $extra = ($Defines | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join ','
+    $newDefine = if ($extra) { "$($defineMatch.Groups[1].Value),$extra" } else { $defineMatch.Groups[1].Value }
+    $text = $text.Remove($defineMatch.Index, $defineMatch.Length).Insert($defineMatch.Index, "<Define>$newDefine</Define>")
+    $outDir = "..\..\..\build\$Variant\"
+    $text = $text -replace '<OutputDirectory>[^<]*</OutputDirectory>', "<OutputDirectory>$outDir</OutputDirectory>"
+    $text = $text -replace '<ListingPath>[^<]*</ListingPath>', "<ListingPath>$outDir</ListingPath>"
+    $variantProject = Join-Path (Split-Path $info.Uvprojx -Parent) ("foc_variant_{0}.uvprojx" -f $Variant)
+    [IO.File]::WriteAllText($variantProject, $text, (New-Object Text.UTF8Encoding($false)))
+    $info = @{
+        Uvprojx = $variantProject
+        DefaultTarget = $info.DefaultTarget
+        OutHint = (Join-Path (Split-Path $root -Parent) "build\$Variant\foc.axf")
+    }
+    $logFile = Join-Path $logDir ("foc_{0}_{1}.log" -f $Variant, $Action)
+    Write-Host "Variant: $Variant ($newDefine)"
+}
 
 $flag = switch ($Action) {
     "build" { "-b" }
@@ -124,6 +158,10 @@ Write-Host "Log:     $logFile"
 $argsList = @($flag, $info.Uvprojx, "-t", $Target, "-o", $logFile, "-j0")
 $proc = Start-Process -FilePath $uv4Path -ArgumentList $argsList -Wait -PassThru -NoNewWindow
 $code = $proc.ExitCode
+if ($variantProject) {
+    Get-ChildItem -LiteralPath (Split-Path $variantProject -Parent) -Filter ("foc_variant_{0}.*" -f $Variant) |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+}
 $logText = ""
 
 if (Test-Path -LiteralPath $logFile) {

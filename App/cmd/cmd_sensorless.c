@@ -26,6 +26,7 @@ extern "C" {
 #include "hal_motor.h"
 #include <math.h>
 #include <stdarg.h>/* Private functions ---------------------------------------------------------*/
+#if MOTOR_CFG_CMD
 /**
  * @description: slstats 命令 — 打印到达目标转速后的观测统计。
  * @detail: 停机后仍保留上次窗口。分箱和均值只用于诊断，不改变接管判定。
@@ -685,6 +686,7 @@ int Cmd_SensorlessPhase(int argc, char *argv[])
     PRINTF("Sensorless phase offset set to %.4f rad\n", motor.sensorless_phase_offset);
     return 0;
 }
+#endif /* MOTOR_CFG_CMD */
 #ifdef __cplusplus
 }
 #endif

@@ -8,6 +8,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
 #include "common_assert.h"
+#if MOTOR_CFG_CMD_JOINT
 /* Private define ------------------------------------------------------------*/
 #define JOINT_TEST_DWELL_DEFAULT_MS 2000U
 #define JOINT_TEST_DWELL_MIN_MS     500U
@@ -905,6 +906,7 @@ int Cmd_Joint(int argc, char *argv[])
     }
     return 0;
 }
+#endif /* MOTOR_CFG_CMD_JOINT */
 
 #ifdef __cplusplus
 }

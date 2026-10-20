@@ -10,6 +10,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#if MOTOR_CFG_CMD
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -142,6 +143,7 @@ int Cmd_Motor_Duty(int argc, char *argv[])
 }
 
 /* Cmd_Motor_Duty 注册在 command.c 命令表中 */
+#endif /* MOTOR_CFG_CMD */
 #ifdef __cplusplus
 }
 #endif

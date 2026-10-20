@@ -12,6 +12,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "motor_config.h"
 #include "motor_param.h"
 
 #define MOTOR_TRACE_CAPACITY 512U
@@ -88,6 +89,7 @@ typedef struct {
 
 extern volatile motor_fault_debug_descriptor_t g_motor_fault_debug;
 
+#if MOTOR_CFG_DIAG
 /**
  * @description: 停机任务里武装故障前分频环形记录。
  * @detail: 复用完整轨迹 RAM，并暂停性能统计。已有故障须由应用拒绝武装，本函数不清除故障。
@@ -153,6 +155,7 @@ void Motor_Timing_FaultTraceFreeze(unsigned fault);
  * @author: lkc
  */
 bool Motor_Timing_FaultTraceGet(unsigned index, motor_fault_trace_sample_t *sample);
+#endif
 #define MOTOR_TRACE_COMPACT_CAPACITY \
     (MOTOR_TRACE_CAPACITY * sizeof(motor_trace_sample_t) / sizeof(motor_trace_compact_sample_t))
 #define MOTOR_TRACE_COMPACT_STRIDE 30U
@@ -163,6 +166,7 @@ bool Motor_Timing_FaultTraceGet(unsigned index, motor_fault_trace_sample_t *samp
 #define MOTOR_TRACE_COMPACT_FAULT 512U
 #define MOTOR_TRACE_COMPACT_TASK_GAP 1024U
 #define MOTOR_TRACE_COMPACT_STOP 2048U
+#if MOTOR_CFG_DIAG
 /**
  * @description: 停机时武装紧凑飞行记录。
  * @detail: 复用完整缓冲，每条 32 字节。默认关闭性能统计，CadenceReset 可再打开。
@@ -220,6 +224,7 @@ void Motor_Timing_TracePushCompact(const motor_trace_compact_sample_t *sample);
  * @author: lkc
  */
 bool Motor_Timing_TraceGetCompact(unsigned index, motor_trace_compact_sample_t *sample);
+#endif
 
 /* 轻量记录：96字节，附速度任务证据；仍小于完整记录，不增大union缓冲。 */
 typedef struct {
@@ -233,6 +238,7 @@ typedef struct {
     uint32_t task_tick, task_phase, task_phase_age_us;
 } motor_trace_light_sample_t;
 
+#if MOTOR_CFG_DIAG
 /**
  * @description: 按接管触发方式武装轻量轨迹。
  * @detail: 样本比完整记录短，仍复用同一缓冲。触发后每 8 拍记录，配额 384 条。不停止电机。
@@ -369,6 +375,39 @@ unsigned Motor_Timing_TraceCount(void);
  * @author: lkc
  */
 bool Motor_Timing_TraceGet(unsigned index, motor_trace_sample_t *sample);
+#else
+/* 诊断关闭：武装命令不生效，Due 恒为 false，控制路径不再填样本。 */
+static inline bool Motor_Timing_FaultTraceDue(uint32_t time_us, bool running, bool force)
+{
+    (void)time_us;
+    (void)running;
+    (void)force;
+    return false;
+}
+static inline void Motor_Timing_FaultTracePush(const motor_fault_trace_sample_t *sample) { (void)sample; }
+static inline void Motor_Timing_FaultTraceFreeze(unsigned fault) { (void)fault; }
+static inline bool Motor_Timing_TraceIsCompact(void) { return false; }
+static inline bool Motor_Timing_TraceCompactIsActive(void) { return false; }
+static inline bool Motor_Timing_TraceCompactDue(uint32_t time_us, unsigned state, unsigned fault, bool running)
+{
+    (void)time_us;
+    (void)state;
+    (void)fault;
+    (void)running;
+    return false;
+}
+static inline void Motor_Timing_TracePushCompact(const motor_trace_compact_sample_t *sample) { (void)sample; }
+static inline void Motor_Timing_TraceArmLight(void) {}
+static inline void Motor_Timing_TraceArmFlight(void) {}
+static inline bool Motor_Timing_TraceIsLight(void) { return false; }
+static inline void Motor_Timing_TracePushLight(const motor_trace_light_sample_t *sample) { (void)sample; }
+static inline void Motor_Timing_TraceArm(void) {}
+static inline void Motor_Timing_TraceArmEntry(void) {}
+static inline void Motor_Timing_TraceArmEntryFast(void) {}
+static inline void Motor_Timing_TraceStop(void) {}
+static inline bool Motor_Timing_TraceDue(unsigned state) { (void)state; return false; }
+static inline void Motor_Timing_TracePush(const motor_trace_sample_t *sample) { (void)sample; }
+#endif
 
 #ifdef __cplusplus
 }

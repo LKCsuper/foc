@@ -15,6 +15,7 @@
 #include "motor_bldc_six_step.h"
 #include "motor_protect.h"
 #include "motor_detect.h"
+#if MOTOR_CFG_BLDC
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_BLDC_AUTO_DUTY_MIN 0.08f
 #define MOTOR_BLDC_AUTO_DUTY_MAX 0.10f
@@ -239,3 +240,4 @@ void Motor_Bldc_RunIsr(MOTOR_PARAM_S *motor_param)
         Motor_BldcIsr_Step(&s_sensorless, motor_param, s_sample_upward);
     }
 }
+#endif /* MOTOR_CFG_BLDC */

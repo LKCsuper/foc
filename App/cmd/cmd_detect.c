@@ -12,6 +12,7 @@ extern "C" {
 #include "motor_detect_offset.h"
 #include "motor_crit.h"
 #include "motor_bldc.h"
+#if MOTOR_CFG_CMD
 /* Private typedef -----------------------------------------------------------*/
 typedef enum tagDetectType {
     DETECT_NONE,
@@ -27,17 +28,19 @@ typedef enum tagDetectType {
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+static volatile bool s_detect_motor_task_running;
+#if MOTOR_CFG_IDENTIFY
 static float s_detect_motor_current_a;
 static float s_detect_motor_erpm;
 static float s_detect_flux_current_a;
 static bool s_detect_full_parameters;
 static bool s_detect_flux_scan;
-static volatile bool s_detect_motor_task_running;
 static const osThreadAttr_t s_detect_motor_task_attr = {
     .name = "Motor Detect",
     .priority = PRI_INIT,
     .stack_size = 3072U,
 };
+#endif
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -53,10 +56,12 @@ static void Detect_PrintUsage(void)
     PRINTF("  detect offset ram set ADC0 ADC1 ADC2 (stopped, +/-1 count, RAM only)\n");
     PRINTF("  detect hall | detect 2\n");
     PRINTF("  detect phase | detect 3   — UVW order vs hall steps\n");
+#if MOTOR_CFG_IDENTIFY
     PRINTF("  detect rl [test_current_A]\n");
     PRINTF("  detect motor [rl_current_A] [electrical_rpm] [flux_current_A]\n");
     PRINTF("  detect fluxscan [rl_current_A] [max_eRPM 900..3000] [flux_current_A]\n");
     PRINTF("  detect show\n");
+#endif
     PRINTF("  detect abort\n");
 }
 
@@ -67,6 +72,7 @@ static bool Detect_ParseFloat(const char *text, float *value)
     return end != text && *end == '\0' && isfinite(*value);
 }
 
+#if MOTOR_CFG_IDENTIFY
 static void Detect_PrintMotorResult(const motor_detect_result_t *result)
 {
     PRINTF("\n===== Motor Parameter Detect =====\n");
@@ -124,6 +130,7 @@ static void Detect_MotorTask(void *argument)
     s_detect_motor_task_running = false;
     osThreadExit();
 }
+#endif
 
 /**
  * @description: 解析 detect 子命令
@@ -138,10 +145,12 @@ static DETECT_TYPE Detect_ParseType(int argc, char *argv[])
     if (strcmp(argv[1], "1") == 0 || strcmp(argv[1], "offset") == 0) return DETECT_OFFSET;
     if (strcmp(argv[1], "2") == 0 || strcmp(argv[1], "hall") == 0) return DETECT_HALL;
     if (strcmp(argv[1], "3") == 0 || strcmp(argv[1], "phase") == 0) return DETECT_PHASE;
+#if MOTOR_CFG_IDENTIFY
     if (strcmp(argv[1], "fluxscan") == 0) return DETECT_FLUX_SCAN;
     if (strcmp(argv[1], "motor") == 0) return DETECT_MOTOR;
     if (strcmp(argv[1], "rl") == 0) return DETECT_RL;
     if (strcmp(argv[1], "show") == 0) return DETECT_SHOW;
+#endif
     if (strcmp(argv[1], "abort") == 0) return DETECT_ABORT;
     return DETECT_NONE;
 }
@@ -158,7 +167,9 @@ int Cmd_Detect(int argc, char *argv[])
     DETECT_TYPE detect_type = Detect_ParseType(argc, argv);
     bool success = false;
     motor_phase_order_report_t phase_report;
+#if MOTOR_CFG_IDENTIFY
     motor_detect_result_t motor_result;
+#endif
 
     if (detect_type == DETECT_NONE) {
         Detect_PrintUsage();
@@ -199,6 +210,7 @@ int Cmd_Detect(int argc, char *argv[])
     case DETECT_PHASE:
         success = Motor_PhaseOrder_Detect(&phase_report) == MOTOR_PHASE_ORDER_OK;
         break;
+#if MOTOR_CFG_IDENTIFY
     case DETECT_RL:
     case DETECT_MOTOR:
     case DETECT_FLUX_SCAN: {
@@ -239,6 +251,7 @@ int Cmd_Detect(int argc, char *argv[])
         Detect_PrintMotorResult(&motor_result);
         success = true;
         break;
+#endif
     case DETECT_ABORT:
         success = s_detect_motor_task_running || Motor_Detect_IsActive();
         DETECT_Abort();
@@ -259,6 +272,7 @@ int Cmd_Detect(int argc, char *argv[])
 }
 
 /* Cmd_Detect 注册在 command.c 命令表中 */
+#endif /* MOTOR_CFG_CMD */
 
 #ifdef __cplusplus
 }

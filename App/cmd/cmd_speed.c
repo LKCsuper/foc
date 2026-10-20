@@ -26,6 +26,7 @@ extern "C" {
 #include "hal_motor.h"
 #include <math.h>
 #include <stdarg.h>/* Private functions ---------------------------------------------------------*/
+#if MOTOR_CFG_CMD
 #define SPEED_TEST_DWELL_DEFAULT_MS 2000U
 #define SPEED_TEST_DWELL_MIN_MS     500U
 #define SPEED_TEST_DWELL_MAX_MS     10000U
@@ -548,6 +549,7 @@ int Cmd_SpeedBrake(int argc, char *argv[])
     PRINTF("Speed braking %s\n", motor.speed_allow_braking ? "enabled" : "disabled");
     return 0;
 }
+#endif /* MOTOR_CFG_CMD */
 #ifdef __cplusplus
 }
 #endif

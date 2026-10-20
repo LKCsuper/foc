@@ -9,6 +9,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
 #include "common_assert.h"
+#if MOTOR_CFG_CMD
 /* Private define ------------------------------------------------------------*/
 #define TASK_STAT_SLOTS     20U
 #define TASK_WATCH_MIN_MS   200U
@@ -502,6 +503,7 @@ int Cmd_Task_Show(int argc, char *argv[])
     task_print_frame(s_task_now, nnow, NULL, 0U, total_now, 0U, false);
     return 0;
 }
+#endif /* MOTOR_CFG_CMD */
 
 #ifdef __cplusplus
 }

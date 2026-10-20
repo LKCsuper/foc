@@ -108,6 +108,7 @@ static volatile uint32_t s_offset_down_n = 0U;
 static volatile uint32_t s_offset_up_n = 0U;
 static motor_detect_offset_t s_offset_down;
 static motor_detect_offset_t s_offset_up;
+#if MOTOR_CFG_IDENTIFY
 typedef enum {
     MOTOR_DETECT_STAGE_IDLE = 0,
     MOTOR_DETECT_STAGE_RESISTANCE,
@@ -176,7 +177,9 @@ typedef struct {
 
 static motor_detect_control_t s_detect_control;
 static motor_detect_result_t s_detect_result = {.version = MOTOR_DETECT_RESULT_VERSION};
+#endif
 static volatile bool s_detect_abort_requested;
+#if MOTOR_CFG_IDENTIFY
 static bool s_flux_scan;
 static float s_flux_reference_dt;
 /* scan专用滑行轨迹，ISR只存储，关桥后在任务中打印。 */
@@ -200,6 +203,7 @@ static void Detect_PrintFluxTrace(void)
                (double)s_flux_trace[i].age, (unsigned)s_flux_trace[i].count);
     }
 }
+#endif /* MOTOR_CFG_IDENTIFY */
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -251,6 +255,7 @@ static void Detect_PrintEdgeMeans(const char *tag, const motor_detect_offset_t *
            (double)((st->sum_max - st->sum_min) * Hal_Motor_CurrentScale()));
 }
 
+#if MOTOR_CFG_IDENTIFY
 static float Detect_Clamp(float value, float minimum, float maximum)
 {
     if (value < minimum) return minimum;
@@ -742,6 +747,7 @@ static void Detect_RunFluxStep(MOTOR_PARAM_S *motor_param, float dt)
         s_detect_control.samples = 0U;
     }
 }
+#endif /* MOTOR_CFG_IDENTIFY */
 
 /**
  * @description: 等待 ISR 在升降沿各采满 samples_per_phase；零点采用下降沿。
@@ -929,6 +935,7 @@ void Motor_Detect_IsrFeed(bool pwm_down)
     motor_detect_offset_t *st;
     volatile uint32_t *count_vis;
 
+#if MOTOR_CFG_IDENTIFY
     if (s_detect_control.stage != MOTOR_DETECT_STAGE_IDLE) {
         float dt;
 
@@ -965,6 +972,7 @@ void Motor_Detect_IsrFeed(bool pwm_down)
         }
         return;
     }
+#endif
 
     if (!s_offset_isr_enable) return;
     if (pwm_down) {
@@ -981,6 +989,7 @@ void Motor_Detect_IsrFeed(bool pwm_down)
     *count_vis = st->count;
 }
 
+#if MOTOR_CFG_IDENTIFY
 static bool Detect_RunStage(motor_detect_stage_t stage, float current_a, uint32_t timeout_ms)
 {
     uint32_t waited_ms = 0U;
@@ -1419,6 +1428,7 @@ void DETECT_GetResult(motor_detect_result_t *result)
         Motor_Crit_Exit(primask);
     }
 }
+#endif /* MOTOR_CFG_IDENTIFY */
 
 void DETECT_Abort(void)
 {

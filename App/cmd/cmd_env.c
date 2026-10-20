@@ -12,6 +12,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#if MOTOR_CFG_CMD
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -42,6 +43,7 @@ int Cmd_Saveparam(int argc, char **argv)
     return 0;
 }
 /* Cmd_Saveparam 注册在 command.c 命令表中 */
+#endif /* MOTOR_CFG_CMD */
 
 #ifdef __cplusplus
 }

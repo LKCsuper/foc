@@ -11,6 +11,7 @@ extern "C" {
 #include <stddef.h>
 #include <string.h>
 #include "motor_joint_protocol.h"
+#if MOTOR_CFG_JOINT
 /* Private define ------------------------------------------------------------*/
 #define JOINT_CMD_HEAD0 (0xFEU)
 #define JOINT_CMD_HEAD1 (0xEEU)
@@ -215,6 +216,7 @@ bool Motor_JointProtocol_EncodeStatus(uint8_t frame[MOTOR_JOINT_STATUS_FRAME_SIZ
     Joint_WriteU32(&frame[36], crc);
     return true;
 }
+#endif /* MOTOR_CFG_JOINT */
 
 #ifdef __cplusplus
 }

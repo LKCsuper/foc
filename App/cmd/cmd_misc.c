@@ -11,6 +11,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#if MOTOR_CFG_CMD
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 /**
@@ -26,6 +27,7 @@ int CMD_Reset(int argc, char *argv[])
 }
 
 /* CMD_Reset 注册在 command.c 命令表中 */
+#endif /* MOTOR_CFG_CMD */
 #ifdef __cplusplus
 }
 #endif

@@ -18,6 +18,7 @@ extern "C" {
 #define CMD_BUF_SIZE        160U        /* 单行输入缓冲 */
 #define CMD_MAX_ARGS        8U          /* 最多参数个数（含命令名） */
 #define CMD_HISTORY_COUNT   8U          /* 最近执行的命令条数 */
+#if MOTOR_CFG_CMD
 /* Private macro -------------------------------------------------------------*/
 /* -- 前向声明：所有命令函数统一签名 int func(int argc, char *argv[]) ----------*/
 
@@ -83,8 +84,12 @@ extern int Cmd_SensorlessTest(int argc, char *argv[]);
 static const cmd_entry_t s_cmd_table[] = {
     /* 偏移校准 / 霍尔检测 */
     { "detect",     Cmd_Detect,             "detect offset/hall/phase or motor R/L" },
+#if MOTOR_CFG_CMD_IDENTIFY
     { "pitune",     Cmd_Autotune,           "preview PI: <bandwidth_Hz> <total_delay_us> [margin_deg]" },
+#endif
+#if MOTOR_CFG_CMD_BLDC
     { "bldc",       Cmd_Bldc,               "BLDC: start/open | stop | exit | status" },
+#endif
     /* Flash 存储 */
     { "saveparam",  Cmd_Saveparam,          "save motor params to Flash" },
     /* 开环 V/F 控制 */
@@ -93,12 +98,14 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olrpm",      Cmd_OlRpm,              "rpm/current diagnostics; brief for safety line only" },
     { "slstats",    Cmd_SensorlessStats,    "sensorless steady-window counters retained after stop" },
     { "sltest",     Cmd_SensorlessTest,     "[--3508] [--trace=off|lite|flight|entry|entryfast] [hold_s [rpm...]], stopped only" },
+#if MOTOR_CFG_CMD_DIAG
     { "sltrace",    Cmd_SensorlessTrace,    "RAM trace fault|debug|compact|lite|flight|arm|entry|entryfast|show (stopped only)" },
     { "slhandoff",  Cmd_SensorlessHandoff,  "arm|phase|phaselong|step|pair|half|show; half capture STOPPED ONLY" },
     { "slcadence",  Cmd_SensorlessCadence,  "timing reset|split|lean|task|probe|stop|debug|show|currentbench|trigbench|irqtest on/off" },
     { "olsnap",     Cmd_OlSnap,             "short Id/Iq/RPM/fault snapshot while running" },
     { "olcurdiag",  Cmd_OlCurrentDiag,      "Hall current errors by sector since last start" },
     { "curtest",    Cmd_CurrentTest,        "static D-axis current-loop test [A] [ms]" },
+#endif
     { "olboost",    Cmd_OlBoost,            "openloop V/F boost voltage <V>" },
     { "olkvf",      Cmd_OlKvf,              "openloop V/F slope <V/Hz>" },
     { "olramp",     Cmd_OlRamp,             "openloop V/F ramp rate <rpm/s>" },
@@ -126,7 +133,9 @@ static const cmd_entry_t s_cmd_table[] = {
     { "spiq",       Cmd_SpeedIqLimit,       "set speed PI Iq limit <A>" },
     { "spbrake",    Cmd_SpeedBrake,         "allow speed loop braking <0/1>" },
     { "pos",        Cmd_Position,           "encoder position loop: status|zero|set|move|test" },
+#if MOTOR_CFG_CMD_JOINT
     { "joint",      Cmd_Joint,              "joint control: set|test|slow|hybridtest [rpm]|iqtest" },
+#endif
     /* 无感观测器 */
     { "slenable",   Cmd_SensorlessEnable,   "enable sensorless observer <0/1>" },
     { "sltakeover", Cmd_SensorlessTakeover, "allow observer angle takeover <0/1>" },
@@ -159,8 +168,11 @@ const osThreadAttr_t taskCmdAttr = {
     .stack_mem  = &taskCmdStack,
     .stack_size = sizeof(taskCmdStack),
 };
+#endif /* MOTOR_CFG_CMD */
 
+/* 串口接收中断按句柄是否为空决定投递，命令行关闭时保持为空。 */
 QueueHandle_t queueCmdHandle;
+#if MOTOR_CFG_CMD
 #define CMD_QUEUE_LENGTH    8
 #define CMD_QUEUE_SIZE      sizeof(CMD_QUEUE_ITEM)
 /* 初始化任务退出前其动态栈仍占堆；固定容量命令队列使用静态存储，避免创建失败后失去串口入口。 */
@@ -478,6 +490,7 @@ void Command_Init(void)
     COMMON_ASSERT(queueCmdHandle != NULL);
     COMMON_ASSERT(osThreadNew(Cmd_Task, NULL, &taskCmdAttr) != NULL);
 }
+#endif /* MOTOR_CFG_CMD */
 
 #ifdef __cplusplus
 }

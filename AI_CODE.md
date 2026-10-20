@@ -105,6 +105,29 @@
 
 当前功率板 BM75/HD75 的全部 MCU IO、原理图网络名与作用见 `Doc/sch/BM75_IO定义.md`（原稿 `BM75_Core.pdf`、`BM75_MOS.pdf`）。改引脚、ADC 通道、门极使能或滤波开关前先核对该文档，不要用 BM60 配置或未使用的 DRV8323 宏代替原理图。
 
+### 3.3 编译期模块选择
+
+框架面向带硬件 FPU 的 MCU（Cortex-M4F/M33F/M7、GD32F3/F4、AT32F4 等），算法保持 `float`；无 FPU 芯片不在支持范围。可选模块由 `App/motor/inc/motor_config.h` 的开关决定，默认全开（与历史固件逐对象一致）。工程可定义 `MOTOR_CONFIG_USER_FILE` 指向自己的配置头，或直接在编译宏中覆盖。开关只能为 0 或 1，否则 `#error`。
+
+| 开关                 | 关闭后移除                                                       | BM75 实测节省（单独关闭，Code / ZI） |
+| -------------------- | ---------------------------------------------------------------- | ------------------------------------ |
+| `MOTOR_CFG_DIAG`     | 交接/调度/轨迹诊断、CCM 轨迹缓冲、`cmd_motor_diag`；保留基本 ISR 计时 | 32.6 KB / 58.6 KB                    |
+| `MOTOR_CFG_BLDC`     | 六步 BLDC 控制、BLDC HAL/BSP、`cmd_bldc`                         | 14.1 KB / 1.5 KB                     |
+| `MOTOR_CFG_JOINT`    | 关节控制、协议、轨迹、`cmd_joint`                                | 11.2 KB / 1.2 KB                     |
+| `MOTOR_CFG_IDENTIFY` | R/L/磁链检测与 PI 自整定；电流偏移校准与霍尔标定常开             | 13.5 KB / 1.8 KB                     |
+| `MOTOR_CFG_CMD`      | 串口命令行及全部 `cmd_*.c`；只保留 C API（启动/停止/设定目标）   | 104.4 KB / 30.5 KB                   |
+
+全部关闭：Code 69.2 KB、RO 4.0 KB、RW 0.8 KB、ZI 38.0 KB（全开为 193.3 / 24.5 / 1.6 / 129.4 KB）。
+
+规则：
+
+- 机制为整个 `.c` 包在 `#if MOTOR_CFG_xxx` 中，头文件 `#else` 提供 `static inline` 空实现；工程文件列表不随开关变化。只给模块外实际调用的函数做空实现（`.build/module_deps.py` 可列出跨模块调用）。
+- 只包入口 `.c` 与对应命令 `.c`；纯内部文件无人引用时由链接器剔除，主机测试仍可单独编译它们。但 armlink 在剔除前检查未定义符号，所以凡调用被关闭 API 的文件都必须一起包住。
+- 命令行相关 `.c` 用派生宏 `MOTOR_CFG_CMD_DIAG` / `_BLDC` / `_JOINT` / `_IDENTIFY`（= `MOTOR_CFG_CMD && 模块`）。
+- 带空实现的模块头自行 `#include "motor_config.h"`，因为核心模块不包含 `includes.h`。
+- 关闭 CMD 后 `queueCmdHandle` 保持为空，串口接收中断据此不投递；`Bsp_Usart_TxDmaPoll` 不再由命令任务轮询，应用若依赖串口 DMA 打印需自行调用。
+- 构建变体：`.\build_keil.ps1 -Variant <名> -Defines "MOTOR_CFG_DIAG=0",...`，产物在 `..\build\<名>\`，临时工程构建后删除。改动模块边界后至少验证默认构建逐对象不变及全关构建 0 错误。
+
 ## 4. 数据归属与公共 API
 
 ### 4.1 数据分组

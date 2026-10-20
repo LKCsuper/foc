@@ -14,6 +14,8 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
+
+#include "motor_config.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 
@@ -35,6 +37,7 @@ typedef struct {
  */
 void Cmd_FormatUptime(char *buf, unsigned buf_size);
 
+#if MOTOR_CFG_CMD
 /**
  * @description: 初始化命令行框架。
  * @detail: 创建串口命令消息队列并启动命令处理任务。
@@ -42,6 +45,10 @@ void Cmd_FormatUptime(char *buf, unsigned buf_size);
  * @author: lkc
  */
 void Command_Init(void);
+#else
+/* 命令行关闭：不建队列、不建任务；串口接收中断看到空队列句柄后丢弃输入。 */
+static inline void Command_Init(void) {}
+#endif
 
 typedef struct {
     ULONG len;

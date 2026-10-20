@@ -18,6 +18,7 @@ extern "C" {
 #include "motor_param.h"
 #include "motor_crit.h"
 #include "hal_motor.h"
+#if MOTOR_CFG_JOINT
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_JOINT_KP_DEFAULT_V_PER_DEG (0.15f)
 #define MOTOR_JOINT_KD_DEFAULT_V_PER_RPM (0.02f)
@@ -878,6 +879,7 @@ bool Motor_Joint_IsEnabled(void)
 {
     return s_joint.enabled;
 }
+#endif /* MOTOR_CFG_JOINT */
 
 #ifdef __cplusplus
 }

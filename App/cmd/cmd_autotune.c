@@ -7,6 +7,7 @@
 #include "printf_color.h"
 #include <math.h>
 #include <stdlib.h>
+#if MOTOR_CFG_CMD_IDENTIFY
 
 static bool Autotune_ParsePositive(const char *text, float *value)
 {
@@ -88,3 +89,4 @@ int Cmd_Autotune(int argc, char *argv[])
     PRINTF("Shared gains need both-axis validation. No gains applied or saved.\n");
     return 0;
 }
+#endif /* MOTOR_CFG_CMD_IDENTIFY */

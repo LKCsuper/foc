@@ -10,6 +10,11 @@ typedef unsigned motor_feedback_source_t;
 static bool s_execute;
 static unsigned s_runs, s_publishes, s_gates;
 volatile uint8_t g_motor_timing_split_active;
+
+static bool Motor_Timing_SplitIsActive(void)
+{
+    return g_motor_timing_split_active != 0U;
+}
 static unsigned s_class_full, s_class_skip, s_publish_notes;
 void Motor_Timing_CallbackClassify(bool full)
 {

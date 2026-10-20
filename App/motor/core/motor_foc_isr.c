@@ -868,7 +868,7 @@ static void Motor_FocIsr_PublishStatus(const MOTOR_PARAM_S *motor_param)
     s_status_publish_divider++;
     if (s_status_publish_divider >= MOTOR_STATUS_PUBLISH_DIVIDER) {
         s_status_publish_divider = 0U;
-        if (g_motor_timing_split_active) {
+        if (Motor_Timing_SplitIsActive()) {
             uint32_t publish_start = Hal_Motor_TimeUs();
             Motor_StatusSnapshotPublishFromIsr(motor_param);
             Motor_Timing_CallbackPublish(Hal_Motor_TimeUs() - publish_start);
@@ -895,8 +895,8 @@ void Motor_FocIsr_Step(MOTOR_PARAM_S *motor_param)
     feedback_source = Motor_Feedback_GetSourceDefault();
     if (Motor_FocIsr_ShouldExecuteControl(feedback_source)) {
         Motor_FocIsr_Run(motor_param, feedback_source, Hal_Motor_TimeUs());
-        if (g_motor_timing_split_active) Motor_Timing_CallbackClassify(true);
-    } else if (g_motor_timing_split_active) {
+        if (Motor_Timing_SplitIsActive()) Motor_Timing_CallbackClassify(true);
+    } else if (Motor_Timing_SplitIsActive()) {
         Motor_Timing_CallbackClassify(false);
     }
     Motor_FocIsr_PublishStatus(motor_param);

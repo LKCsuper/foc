@@ -81,6 +81,7 @@ volatile uint32_t s_profile_max[MOTOR_TIMING_STAGE_COUNT];
 uint32_t Motor_Timing_IsrFeatures(void)
 {
     uint32_t features = 0U;
+#if MOTOR_CFG_DIAG
     if (s_performance_enabled || (s_cadence_active && !s_task_only) || (s_trace_active && !s_trace_compact))
         features |= MOTOR_TIMING_ISR_PROFILE;
     if (s_performance_enabled) features |= MOTOR_TIMING_ISR_RUNTIME;
@@ -90,6 +91,9 @@ uint32_t Motor_Timing_IsrFeatures(void)
         else if (s_trace_compact) features |= MOTOR_TIMING_ISR_COMPACT;
         else features |= MOTOR_TIMING_ISR_TRACE;
     }
+#else
+    if (s_performance_enabled) features |= MOTOR_TIMING_ISR_PROFILE | MOTOR_TIMING_ISR_RUNTIME;
+#endif
     return features;
 }
 

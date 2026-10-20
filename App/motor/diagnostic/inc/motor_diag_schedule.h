@@ -12,6 +12,8 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "motor_config.h"
+#include "motor_config.h"
 #include "motor_param.h"
 #include "motor_diag_trace.h"
 
@@ -30,6 +32,7 @@ typedef struct {
     uint32_t bins[8]; /* <=50,60,73,90,110,150,250,>250 us */
 } motor_cadence_t;
 
+#if MOTOR_CFG_DIAG
 /**
  * @description: 清零节拍、回调和分段耗时窗口，并重新允许采集。
  * @detail: 临界区内清零。不清环形诊断，也不清上一次时间基准；之后第一次 Note/CallbackBegin 丢掉首个间隔。
@@ -74,6 +77,7 @@ void Motor_Timing_CadenceNote(uint32_t time_us, bool upward);
  * @author: lkc
  */
 void Motor_Timing_CadenceGet(motor_cadence_t *out);
+#endif
 
 /**
  * @description: Begin 到 End 之间的 DMA 回调耗时统计。
@@ -101,6 +105,7 @@ typedef struct {
     uint32_t publish_on_full; /* 状态发布落在完整控制拍的次数 */
 } motor_callback_t;
 
+#if MOTOR_CFG_DIAG
 /**
  * @description: 标记一次 DMA 回调开始，并统计回调入口间隔。
  * @detail: 随 CadenceReset 启用；统计和轨迹均关闭则立即返回。轨迹启用时仍保存起点并清除 full，
@@ -141,6 +146,7 @@ void Motor_Timing_CallbackClassify(bool full);
  * @author: lkc
  */
 void Motor_Timing_CallbackPublish(uint32_t elapsed_us);
+#endif
 
 /**
  * @description: 同一运行窗口内的拍型耗时，以及它们落在任务唤醒等待中的部分。
@@ -159,6 +165,7 @@ typedef struct {
     uint32_t worst_publish_count, worst_publish_us;
 } motor_split_diag_t;
 
+#if MOTOR_CFG_DIAG
 /**
  * @description: 打开完整拍、跳过拍和状态发布的同窗口细分，并武装唤醒重叠。
  * @detail: 关闭性能统计和分段采样，保留回调耗时与速度任务节拍。不改控制周期、增益或任务优先级。
@@ -178,6 +185,12 @@ void Motor_Timing_SplitGet(motor_split_diag_t *out);
 
 /** @brief 细分诊断开关。关闭时 FOC 入口不调用分类。 */
 extern volatile uint8_t g_motor_timing_split_active;
+
+/**
+ * @description: 查询拍型细分诊断是否开启。
+ * @return {bool} true=FOC 入口应调用 CallbackClassify/CallbackPublish
+ */
+static inline bool Motor_Timing_SplitIsActive(void) { return g_motor_timing_split_active != 0U; }
 
 /**
  * @description: 拷贝 DMA 回调耗时统计。
@@ -203,6 +216,7 @@ void Motor_Timing_CallbackStop(void);
  * @author: lkc
  */
 bool Motor_Timing_CallbackIsActive(void);
+#endif
 
 typedef struct {
     uint32_t valid, delay_us, dma_count, dma_us;
@@ -251,6 +265,7 @@ typedef struct {
 
 extern volatile motor_task_runtime_debug_t g_motor_task_runtime_debug;
 
+#if MOTOR_CFG_DIAG
 /** @brief 开始一次外环任务执行计时，不包含周期休眠。 */
 void Motor_Timing_TaskRuntimeBegin(void);
 /** @brief 结束本轮计时，累计包含中断抢占的墙钟耗时。 */
@@ -313,11 +328,13 @@ bool Motor_Timing_WakeProbeDmaDue(void);
  * @author: lkc
  */
 void Motor_Timing_WakeProbeDmaNote(uint32_t start_us, uint32_t end_us);
+#endif
 typedef struct {
     uint32_t count, first_us, last_us, sum_us, max_us, tick_pending, switch_pending;
     uint32_t seen;
 } motor_irq_diag_t;
 #define MOTOR_TIMING_IRQ_STRIDE 31U
+#if MOTOR_CFG_DIAG
 /**
  * @description: 判断本次 IRQ 是否允许记一次耗时。
  * @detail: 节拍统计开启且不是只统计速度任务时，每次调用都加总次数。每 31 次放行一次计时。
@@ -430,6 +447,72 @@ void Motor_Timing_SpeedPiNote(uint32_t time_us, bool updated);
  * @param sample 非空，本拍 time_us 已填写；其余非任务字段保持不变。
  */
 void Motor_Timing_SpeedTaskCaptureLight(motor_trace_light_sample_t *sample);
+#else
+/* 诊断关闭：节拍/唤醒/任务统计恒为未开启，ISR 和任务里的调用编译为空。 */
+static inline void Motor_Timing_CadenceStop(void) {}
+static inline void Motor_Timing_CadenceNote(uint32_t time_us, bool upward)
+{
+    (void)time_us;
+    (void)upward;
+}
+static inline void Motor_Timing_CallbackBegin(uint32_t time_us) { (void)time_us; }
+static inline void Motor_Timing_CallbackEnd(uint32_t time_us, bool pending)
+{
+    (void)time_us;
+    (void)pending;
+}
+static inline void Motor_Timing_CallbackClassify(bool full) { (void)full; }
+static inline void Motor_Timing_CallbackPublish(uint32_t elapsed_us) { (void)elapsed_us; }
+static inline bool Motor_Timing_SplitIsActive(void) { return false; }
+static inline bool Motor_Timing_CallbackIsActive(void) { return false; }
+static inline void Motor_Timing_TaskRuntimeBegin(void) {}
+static inline void Motor_Timing_TaskRuntimeEnd(void) {}
+static inline void Motor_Timing_WakeProbeArm(uint32_t deadline_tick) { (void)deadline_tick; }
+static inline bool Motor_Timing_WakeProbeArmed(void) { return false; }
+static inline void Motor_Timing_WakeProbeTick(uint32_t next_tick) { (void)next_tick; }
+static inline bool Motor_Timing_WakeProbeDmaDue(void) { return false; }
+static inline void Motor_Timing_WakeProbeDmaNote(uint32_t start_us, uint32_t end_us)
+{
+    (void)start_us;
+    (void)end_us;
+}
+static inline bool Motor_Timing_IrqDue(unsigned kind) { (void)kind; return false; }
+static inline void Motor_Timing_IrqNote(unsigned kind, uint32_t start_us, uint32_t end_us, unsigned pending)
+{
+    (void)kind;
+    (void)start_us;
+    (void)end_us;
+    (void)pending;
+}
+static inline void Motor_Timing_SpeedTaskStage(uint32_t time_us, uint32_t tick, uint32_t phase)
+{
+    (void)time_us;
+    (void)tick;
+    (void)phase;
+}
+static inline void Motor_Timing_SpeedTaskWake(uint32_t time_us, uint32_t tick, uint32_t deadline_tick)
+{
+    (void)time_us;
+    (void)tick;
+    (void)deadline_tick;
+}
+static inline void Motor_Timing_SpeedTaskNote(uint32_t time_us, bool allowed, float target, float feedback, float iq)
+{
+    (void)time_us;
+    (void)allowed;
+    (void)target;
+    (void)feedback;
+    (void)iq;
+}
+static inline bool Motor_Timing_SpeedTaskIsActive(void) { return false; }
+static inline void Motor_Timing_SpeedTaskHeartbeat(uint32_t time_us) { (void)time_us; }
+static inline void Motor_Timing_SpeedPiNote(uint32_t time_us, bool updated)
+{
+    (void)time_us;
+    (void)updated;
+}
+static inline void Motor_Timing_SpeedTaskCaptureLight(motor_trace_light_sample_t *sample) { (void)sample; }
+#endif
 
 #ifdef __cplusplus
 }

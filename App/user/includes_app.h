@@ -12,6 +12,9 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "includes_platform.h"
 
+/* 模块选择 */
+#include "motor_config.h"
+
 /* types */
 #include "motor_types.h"
 

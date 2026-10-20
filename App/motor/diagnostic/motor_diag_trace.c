@@ -17,6 +17,7 @@
 /* 只优化诊断计数和样本复制的调用开销，不改变浮点规则或控制节拍。 */
 #pragma O2
 #endif
+#if MOTOR_CFG_DIAG
 #if defined(__CC_ARM)
 /* CCM 只有 CPU 和调试口可访问，DMA 不可达；此缓冲只由 CPU 读写，不得交给 DMA。 */
 #define MOTOR_TRACE_STORAGE_CCM __attribute__((at(0x10000000), zero_init))
@@ -570,3 +571,4 @@ bool Motor_Timing_TraceGetLight(unsigned index, motor_trace_light_sample_t *samp
     *sample = s_trace_storage.light[(first + index) % MOTOR_TRACE_CAPACITY];
     return true;
 }
+#endif /* MOTOR_CFG_DIAG */

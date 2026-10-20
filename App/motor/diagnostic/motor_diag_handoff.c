@@ -17,6 +17,7 @@
 /* 只优化诊断计数和样本复制的调用开销，不改变浮点规则或控制节拍。 */
 #pragma O2
 #endif
+#if MOTOR_CFG_DIAG
 static union {
     motor_handoff_sample_t handoff[MOTOR_HANDOFF_CAPACITY];
     motor_phase_sample_t phase[MOTOR_HANDOFF_CAPACITY];
@@ -433,3 +434,4 @@ bool Motor_Timing_HandoffGet(unsigned index, motor_handoff_sample_t *out)
     *out = s_capture.handoff[(first + index) % MOTOR_HANDOFF_CAPACITY];
     return true;
 }
+#endif /* MOTOR_CFG_DIAG */

@@ -14,6 +14,8 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
+
+#include "motor_config.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 typedef enum {
@@ -103,6 +105,7 @@ typedef struct {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
+#if MOTOR_CFG_JOINT
 /**
  * @description: 用当前累计计数作为零点，并装入默认刚度、阻尼和电压上限。
  * @return {void} 无
@@ -236,6 +239,13 @@ bool Motor_Joint_SubmitCurrentCommand(const motor_joint_current_command_t *comma
  * @author: lkc
  */
 bool Motor_Joint_IsEnabled(void);
+#else
+/* 关节关闭：永不使能；关闭请求视为成功，使能请求返回失败。 */
+static inline void Motor_Joint_Init(void) {}
+static inline bool Motor_Joint_Enable(bool enable) { return !enable; }
+static inline void Motor_Joint_Run(float dt) { (void)dt; }
+static inline bool Motor_Joint_IsEnabled(void) { return false; }
+#endif
 
 #ifdef __cplusplus
 }

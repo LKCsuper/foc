@@ -9,6 +9,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#if MOTOR_CFG_CMD
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 显示三路 Hall 传感器电平
@@ -26,6 +27,7 @@ int Cmd_Show(int argc, char *argv[])
 }
 
 /* Cmd_Show 注册在 command.c 命令表中 */
+#endif /* MOTOR_CFG_CMD */
 #ifdef __cplusplus
 }
 #endif

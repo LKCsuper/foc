@@ -17,6 +17,7 @@
 /* 只优化诊断计数和样本复制的调用开销，不改变浮点规则或控制节拍。 */
 #pragma O2
 #endif
+#if MOTOR_CFG_DIAG
 volatile uint32_t s_speed_complete_us;
 bool s_cadence_active;
 bool s_task_only;
@@ -837,3 +838,4 @@ void Motor_Timing_CadenceGet(motor_cadence_t *out)
     *out = s_cadence;
     Motor_Crit_Exit(key);
 }
+#endif /* MOTOR_CFG_DIAG */

@@ -11,12 +11,14 @@ extern "C" {
 #include <stdbool.h>
 
 #include "motor_bldc_status.h"
+#include "motor_config.h"
 #include "motor_param.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
+#if MOTOR_CFG_BLDC
 
 /**
  * @description: 以反电势闭环方式启动默认 BLDC 实例。
@@ -94,6 +96,11 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status);
  * @return {void} 无
  */
 void Motor_Bldc_RunIsr(MOTOR_PARAM_S *motor_param);
+#else
+/* BLDC 关闭：永不占用 PWM 出口，ADC 中断始终走 FOC。 */
+static inline bool Motor_Bldc_IsSelected(void) { return false; }
+static inline void Motor_Bldc_RunIsr(MOTOR_PARAM_S *motor_param) { (void)motor_param; }
+#endif
 
 /* Private functions ---------------------------------------------------------*/
 #ifdef __cplusplus

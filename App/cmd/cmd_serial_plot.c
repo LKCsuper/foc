@@ -9,6 +9,7 @@ extern "C" {
 #include "includes.h"
 #include "common_assert.h"
 #include "motor_foc.h"
+#if MOTOR_CFG_CMD
 /* Private typedef -----------------------------------------------------------*/
 typedef enum {
     PLOT_MODE_NONE = 0,
@@ -218,6 +219,7 @@ int Cmd_Serial_Plot(int argc, char *argv[])
     Plot_PrintHelp();
     return -1;
 }
+#endif /* MOTOR_CFG_CMD */
 
 #ifdef __cplusplus
 }

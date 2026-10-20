@@ -12,6 +12,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "motor_config.h"
 #include "motor_param.h"
 
 typedef struct {
@@ -46,6 +47,7 @@ typedef struct {
     motor_pair_frame_t previous, current;
     float v_alpha, v_beta;
 } motor_pair_sample_t;
+#if MOTOR_CFG_DIAG
 /**
  * @description: 停机时武装连续两帧配对记录。
  * @detail: 复用 32 条缓冲，每 450 拍抽取一对。回调寄存器不是 ADC 触发锁存值。不改控制。
@@ -299,6 +301,38 @@ unsigned Motor_Timing_HandoffCount(void);
  * @author: lkc
  */
 bool Motor_Timing_HandoffGet(unsigned index, motor_handoff_sample_t *out);
+#else
+/* 诊断关闭：只保留控制路径调用到的入口，恒为未武装，不写任何样本。 */
+static inline bool Motor_Timing_PairHalfMode(void) { return false; }
+static inline bool Motor_Timing_PairActive(void) { return false; }
+static inline bool Motor_Timing_PairFrame(const motor_pair_frame_t *frame) { (void)frame; return false; }
+static inline void Motor_Timing_PairPush(float v_alpha, float v_beta) { (void)v_alpha; (void)v_beta; }
+static inline bool Motor_Timing_ObserverStepActive(void) { return false; }
+static inline bool Motor_Timing_ObserverStepDue(void) { return false; }
+static inline void Motor_Timing_ObserverStepPush(const motor_observer_step_sample_t *sample) { (void)sample; }
+static inline bool Motor_Timing_PhaseDue(bool completed) { (void)completed; return false; }
+static inline void Motor_Timing_PhasePush(const motor_phase_sample_t *sample) { (void)sample; }
+static inline void Motor_Timing_HandoffStop(void) {}
+static inline void Motor_Timing_HandoffMark(void) {}
+static inline bool Motor_Timing_HandoffDue(void) { return false; }
+static inline void Motor_Timing_HandoffBefore(const MOTOR_PARAM_S *motor, float theta, float delta, float id, float iq,
+                                              float dt)
+{
+    (void)motor;
+    (void)theta;
+    (void)delta;
+    (void)id;
+    (void)iq;
+    (void)dt;
+}
+static inline void Motor_Timing_HandoffTransport(const MOTOR_PARAM_S *motor) { (void)motor; }
+static inline void Motor_Timing_HandoffAfter(const MOTOR_PARAM_S *motor, float vd, float vq)
+{
+    (void)motor;
+    (void)vd;
+    (void)vq;
+}
+#endif
 
 #ifdef __cplusplus
 }

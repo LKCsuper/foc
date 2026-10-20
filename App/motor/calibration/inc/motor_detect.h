@@ -10,6 +10,8 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
 #include <stdbool.h>
+
+#include "motor_config.h"
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_DETECT_RESULT_VERSION (6U)
 #define MOTOR_DETECT_INDUCTANCE_DIRECTIONS (6U)
@@ -94,6 +96,7 @@ bool DETECT_Hall(void);
  */
 bool Motor_Detect_IsActive(void);
 
+#if MOTOR_CFG_IDENTIFY
 /**
  * @description: 检测相电阻和 dq 相电感；只更新 RAM 结果，不应用、不保存。
  * @detail: 调用方应在后台任务中调用。过程会固定转子并注入短脉冲。
@@ -112,6 +115,7 @@ bool DETECT_MotorFluxScan(float current_a, float max_erpm, float flux_current_a,
 
 /** 读取最近一次 R/L 检测结果。 */
 void DETECT_GetResult(motor_detect_result_t *result);
+#endif
 
 /** 请求中止当前 R/L 检测。 */
 void DETECT_Abort(void);

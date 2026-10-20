@@ -23,7 +23,9 @@ extern "C" {
 #include "motor_mt6701.h"
 #include "hal_motor.h"
 #include <math.h>
-#include <stdarg.h>/* Private functions ---------------------------------------------------------*/
+#include <stdarg.h>
+#if MOTOR_CFG_CMD_DIAG
+/* Private functions ---------------------------------------------------------*/
 static MOTOR_PARAM_S test_motor;
 
 /**
@@ -1349,6 +1351,7 @@ int Cmd_OlCurrentDiag(int argc, char *argv[])
     Bsp_Usart_Flush();
     return 0;
 }
+#endif /* MOTOR_CFG_CMD_DIAG */
 #ifdef __cplusplus
 }
 #endif
