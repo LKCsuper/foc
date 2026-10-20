@@ -430,6 +430,19 @@ void Motor_Timing_ProfileEnd(void);
  */
 void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start_us);
 
+/*
+ * 分段计时一对宏：BEGIN 记下段起点，END 在本拍计时有效时记入该段。
+ * active 为假时不读时基，start 置 0。宏不改控制量；段内提前 return 则该段不计入。
+ *   MOTOR_PROFILE_BEGIN(profile, start);
+ *   ...本段计算...
+ *   MOTOR_PROFILE_END(profile, MOTOR_TIMING_xxx, start);
+ */
+#define MOTOR_PROFILE_BEGIN(active, start) ((start) = (active) ? Motor_Timing_ProfileTimeUs() : 0U)
+#define MOTOR_PROFILE_END(active, stage, start)                                                                        \
+    do {                                                                                                               \
+        if (active) Motor_Timing_ProfileRecord((stage), (start));                                                      \
+    } while (0)
+
 /**
  * @description: 读出一个阶段当前窗口的样本数和峰值。
  * @detail: 本函数进入临界区。输出指针不可为空并由 COMMON_ASSERT 检查，stage 非法则直接返回。CadenceReset 会清这些数组。

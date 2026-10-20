@@ -1112,14 +1112,15 @@ static const motor_feedback_sample_t *Motor_Control_RunIfDrag(motor_control_t *c
     bool sensored = Motor_Feedback_IsSensoredSource(Motor_Feedback_GetSourceDefault());
     bool was_latched;
     bool profile = Motor_Timing_ProfileDetailedIsActive();
-    uint32_t stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+    uint32_t stage_start;
+    MOTOR_PROFILE_BEGIN(profile, stage_start);
 
     Motor_Control_UpdateDragCurrent(ctrl, dt);
     Motor_Control_UpdateSpeed(motor, dt, sensored || Motor_Sensorless_IsTakeoverComplete());
     Motor_Control_StartupIf(ctrl, motor);
     Motor_Control_UpdateTheta(ctrl, motor, dt);
     ctrl->current_frame_correction = 0.0f;
-    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_DRAG_ANGLE, stage_start);
+    MOTOR_PROFILE_END(profile, MOTOR_TIMING_DRAG_ANGLE, stage_start);
 
     if (sensored) {
         float open = motor->ol_theta + ctrl->startup.if_start.phase_boost;
@@ -1140,7 +1141,7 @@ static const motor_feedback_sample_t *Motor_Control_RunIfDrag(motor_control_t *c
         }
     }
 
-    stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+    MOTOR_PROFILE_BEGIN(profile, stage_start);
     was_latched = ctrl->speed_loop_latched;
     if (Motor_Control_SpeedLoopReady(ctrl, motor)) {
         if (!was_latched) {
@@ -1153,7 +1154,7 @@ static const motor_feedback_sample_t *Motor_Control_RunIfDrag(motor_control_t *c
         Motor_SpeedLoop_Reset();
     }
 
-    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_SPEED_GATE, stage_start);
+    MOTOR_PROFILE_END(profile, MOTOR_TIMING_SPEED_GATE, stage_start);
     return sensored ? feedback_out : NULL;
 }
 
@@ -1201,21 +1202,21 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
         return Motor_Control_PublishTheta(motor, result);
     }
 
-    stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+    MOTOR_PROFILE_BEGIN(profile, stage_start);
     Motor_Control_NormalizeConfig(motor);
-    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CONFIG, stage_start);
+    MOTOR_PROFILE_END(profile, MOTOR_TIMING_CONFIG, stage_start);
 
     if (motor->ol_mode == MOTOR_OL_MODE_IF) {
-        stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+        MOTOR_PROFILE_BEGIN(profile, stage_start);
         if (Motor_Control_RunHfi(ctrl, motor, v_bus, &hfi_result)) return Motor_Control_PublishTheta(motor, hfi_result);
         Motor_Control_AdvanceIfStartup(ctrl, motor, dt);
-        if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_STARTUP, stage_start);
+        MOTOR_PROFILE_END(profile, MOTOR_TIMING_STARTUP, stage_start);
         if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
             current_feedback = Motor_Control_RunIfDrag(ctrl, motor, dt, &sensored_feedback);
         }
-        stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+        MOTOR_PROFILE_BEGIN(profile, stage_start);
         result = Motor_Control_RunIf(ctrl, motor, v_bus, dt, current_feedback);
-        if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_IF_CURRENT, stage_start);
+        MOTOR_PROFILE_END(profile, MOTOR_TIMING_IF_CURRENT, stage_start);
         return Motor_Control_PublishTheta(motor, result);
     }
 

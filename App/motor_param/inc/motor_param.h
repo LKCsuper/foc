@@ -87,6 +87,12 @@ typedef struct motor_param {
 
     float theta; /* 电角度 (rad) */
 
+    /* 最近一次 Park 的电角度及其正余弦，同实例反 Park 角度原码相同时复用；仅控制上下文写。
+     * 有效标志 park_sincos_valid 放在 ol_enable 后的对齐空洞里。 */
+    float park_theta;      /* rad */
+    float park_sin;
+    float park_cos;
+
     /* ---- runtime: 调制与占空 ---- */
     float modD;
     float modQ;
@@ -112,6 +118,9 @@ typedef struct motor_param {
 
     /* ---- command ---- */
     bool ol_enable; /* open-loop enable */
+    /* ---- runtime ---- */
+    bool park_sincos_valid; /* 占用 ol_mode 前的对齐空洞；RW_IRAM1 余量只有几十字节，不要挪 */
+    /* ---- command ---- */
     int ol_mode;             /* MOTOR_OL_MODE_VF 或 MOTOR_OL_MODE_IF */
     float ol_target_rpm;     /* 目标转速 RPM */
     /* ---- config ---- */

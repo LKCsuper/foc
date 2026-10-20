@@ -55,9 +55,22 @@ void Motor_Sensorless_SetModulatedVoltage(float alpha, float beta)
     s_reconstructed_beta = beta;
     s_reconstruction_calls++;
 }
+static unsigned s_inverse_park_calls;
+static unsigned s_inverse_park_sincos_calls;
+static float s_reuse_sine;
+static float s_reuse_cosine;
 void inverse_park(float vd, float vq, float theta, float *alpha, float *beta)
 {
     (void)theta;
+    s_inverse_park_calls++;
+    *alpha = vd;
+    *beta = vq;
+}
+void inverse_park_sincos(float vd, float vq, float sine, float cosine, float *alpha, float *beta)
+{
+    s_inverse_park_sincos_calls++;
+    s_reuse_sine = sine;
+    s_reuse_cosine = cosine;
     *alpha = vd;
     *beta = vq;
 }
@@ -291,6 +304,28 @@ int main(void)
         assert(s_pwm_a == 11U && s_pwm_b == 33U && s_pwm_c == 22U);
         assert(s_applied_alpha == -2.0f && s_applied_beta == 3.0f);
         assert(s_vesc_alpha == -2.0f && s_vesc_beta == 3.0f);
+    }
+    /* 同实例 Park 角度原码相同才复用正余弦；角度不同、正负零不同或未做过 Park 都按 theta 重算。 */
+    {
+        unsigned direct = s_inverse_park_calls;
+        unsigned reused = s_inverse_park_sincos_calls;
+        motor.ol_mode = MOTOR_OL_MODE_VF;
+        motor.park_theta = 1.0f;
+        motor.park_sin = 0.25f;
+        motor.park_cos = 0.75f;
+        motor.park_sincos_valid = true;
+        Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+        assert(s_inverse_park_sincos_calls == reused + 1U && s_inverse_park_calls == direct);
+        assert(s_reuse_sine == 0.25f && s_reuse_cosine == 0.75f);
+        Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.5f, 24.0f);
+        assert(s_inverse_park_calls == direct + 1U);
+        motor.park_theta = 0.0f;
+        Motor_OutputVoltage(&motor, 2.0f, -3.0f, -0.0f, 24.0f);
+        assert(s_inverse_park_calls == direct + 2U);
+        motor.park_theta = 1.0f;
+        motor.park_sincos_valid = false;
+        Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+        assert(s_inverse_park_calls == direct + 3U && s_inverse_park_sincos_calls == reused + 1U);
     }
     puts("test_motor_output: pass");
     return 0;

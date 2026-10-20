@@ -321,6 +321,25 @@ static inline bool utils_saturate_vector_2d(float *x, float *y, float max) {
 	return retval;
 }
 
+/**
+ * @description: 按 IEEE754 原码判断两个浮点数是否完全相同。
+ * @detail: 正负零视为不同，原码相同的 NaN 视为相同。用于判断同角度三角值能否复用。
+ * @param {float} a  第一个值
+ * @param {float} b  第二个值
+ * @return {bool} true=原码相同
+ * @author: lkc
+ */
+static inline bool utils_float_same_bits(float a, float b) {
+	union {
+		float value;
+		uint32_t bits;
+	} ua, ub;
+
+	ua.value = a;
+	ub.value = b;
+	return ua.bits == ub.bits;
+}
+
 #ifdef __cplusplus
 }
 #endif

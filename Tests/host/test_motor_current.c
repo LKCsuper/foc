@@ -51,6 +51,22 @@ int main(void)
     unsigned i;
 
     check_target_limit_equivalence();
+    /* Park 正余弦按实例记录：同角度原码不重算，换角度或正负零都重算。 */
+    memset(&a, 0, sizeof(a));
+    a.ia = 1.0f;
+    a.ib = a.ic = -0.5f;
+    Motor_Current_FeedbackUpdateDq(&a, 0.6f);
+    assert(a.park_sincos_valid && a.park_theta == 0.6f);
+    assert(a.park_sin == sinf(0.6f) && a.park_cos == cosf(0.6f));
+    assert(fabsf(a.Id - cosf(0.6f)) < 1e-6f && fabsf(a.Iq + sinf(0.6f)) < 1e-6f);
+    a.park_sin = 0.25f;
+    Motor_Current_FeedbackUpdateDq(&a, 0.6f);
+    assert(a.park_sin == 0.25f);
+    Motor_Current_FeedbackUpdateDq(&a, 0.0f);
+    assert(a.park_theta == 0.0f && !signbit(a.park_theta) && a.park_sin == 0.0f && a.park_cos == 1.0f);
+    a.park_cos = 0.5f;
+    Motor_Current_FeedbackUpdateDq(&a, -0.0f);
+    assert(signbit(a.park_theta) && a.park_cos == 1.0f);
     memset(&a, 0, sizeof(a));
     memset(&b, 0, sizeof(b));
     a.ol_current_kp = 0.2f;

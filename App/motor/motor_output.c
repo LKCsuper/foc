@@ -33,7 +33,32 @@ static float s_observer_current_b;
 static float s_observer_current_c;
 /* Private function prototypes -----------------------------------------------*/
 static void Motor_OutputCommit(MOTOR_PARAM_S *motor);
+static void Motor_OutputInversePark(const MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float *v_alpha,
+                                    float *v_beta);
 /* Private functions ---------------------------------------------------------*/
+
+/**
+ * @description: 反 Park，同实例本拍 Park 角度原码相同时复用其正余弦。
+ * @detail: 角度不同或该实例尚未做过 Park 时按 theta 直接计算，结果与 inverse_park 一致。
+ *          调用者保证 motor 与输出指针非空。
+ * @param {const MOTOR_PARAM_S *} motor 电机对象，读取 park_* 字段
+ * @param {float} vd                    D 轴电压 (V)
+ * @param {float} vq                    Q 轴电压 (V)
+ * @param {float} theta_rad             电角度 (rad)
+ * @param {float *} v_alpha             输出 α 轴电压 (V)
+ * @param {float *} v_beta              输出 β 轴电压 (V)
+ * @return {void} 无
+ * @author: lkc
+ */
+static void Motor_OutputInversePark(const MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float *v_alpha,
+                                    float *v_beta)
+{
+    if (motor->park_sincos_valid && utils_float_same_bits(motor->park_theta, theta_rad)) {
+        inverse_park_sincos(vd, vq, motor->park_sin, motor->park_cos, v_alpha, v_beta);
+    } else {
+        inverse_park(vd, vq, theta_rad, v_alpha, v_beta);
+    }
+}
 
 /**
  * @description: 设置仅 RAM 的观测电压死区补偿比例。
@@ -147,7 +172,7 @@ void Motor_OutputVoltageVf(MOTOR_PARAM_S *motor, float vd, float vq, float theta
 
     COMMON_ASSERT(motor != NULL);
     period = Hal_Motor_PwmPeriodCounts();
-    inverse_park(vd, vq, theta_rad, &v_alpha, &v_beta);
+    Motor_OutputInversePark(motor, vd, vq, theta_rad, &v_alpha, &v_beta);
     Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
     svm_hqd(v_alpha, v_beta, v_bus, period, &motor->duty1, &motor->duty2, &motor->duty3, &sector);
     Motor_OutputCommit(motor);
@@ -174,7 +199,7 @@ void Motor_OutputVoltageSensoredIf(MOTOR_PARAM_S *motor, float vd, float vq, flo
 
     COMMON_ASSERT(motor != NULL);
     period = Hal_Motor_PwmPeriodCounts();
-    inverse_park(vd, vq, theta_rad, &v_alpha, &v_beta);
+    Motor_OutputInversePark(motor, vd, vq, theta_rad, &v_alpha, &v_beta);
     Motor_Sensorless_SetAppliedVoltage(v_alpha, v_beta);
     foc_svm_from_voltage(-v_alpha, -v_beta, v_bus, MOTOR_FOC_SVM_MAX_DUTY, period, &motor->duty1,
                          &motor->duty2, &motor->duty3, &sector);
@@ -206,7 +231,7 @@ void Motor_OutputVoltageSensorlessIf(MOTOR_PARAM_S *motor, float vd, float vq, f
 
     COMMON_ASSERT(motor != NULL);
     period = Hal_Motor_PwmPeriodCounts();
-    inverse_park(vd, vq, theta_rad, &v_alpha, &v_beta);
+    Motor_OutputInversePark(motor, vd, vq, theta_rad, &v_alpha, &v_beta);
     /* 暂存与调制输入同符号的指令，供 SetModulatedVoltage 比较；之后用重建电压覆盖。 */
     Motor_Sensorless_SetAppliedVoltage(-v_alpha, -v_beta);
     foc_svm_from_voltage(-v_alpha, -v_beta, v_bus, MOTOR_FOC_SVM_MAX_DUTY, period, &motor->duty1,

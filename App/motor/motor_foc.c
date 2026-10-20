@@ -19,43 +19,9 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-static uint32_t s_shared_sincos_bits;
-static float s_shared_sine;
-static float s_shared_cosine;
-static uint8_t s_shared_sincos_valid;
 /* Private function prototypes -----------------------------------------------*/
-static void Motor_Foc_LoadSinCos(float theta, float *sine, float *cosine);
 /* Private functions ---------------------------------------------------------*/
 
-/**
- * @description: 取出与上一拍相同电角度的正弦和余弦。
- * @detail: 同一拍 Park 与反 Park 使用同一角度时不再查表。比较的是浮点原码，
- *          正负零不合并。角度不同或尚未计算时调用 sincos_f32，结果与直接调用一致。
- * @param {float} theta     电角度 (rad)
- * @param {float *} sine    输出正弦，不可为空
- * @param {float *} cosine  输出余弦，不可为空
- * @return {void} 无
- * @author: lkc
- */
-static void Motor_Foc_LoadSinCos(float theta, float *sine, float *cosine)
-{
-    union {
-        float value;
-        uint32_t bits;
-    } angle;
-
-    angle.value = theta;
-    if (s_shared_sincos_valid && angle.bits == s_shared_sincos_bits) {
-        *sine = s_shared_sine;
-        *cosine = s_shared_cosine;
-        return;
-    }
-    sincos_f32(theta, sine, cosine);
-    s_shared_sincos_bits = angle.bits;
-    s_shared_sine = *sine;
-    s_shared_cosine = *cosine;
-    s_shared_sincos_valid = 1U;
-}
 /**
  * @description: Clarke 变换，将三相电流投影到 αβ 静止坐标系。
  * @detail: 三电阻采样时使用完整 Clarke；两电阻硬件按 Ia/Ib 假设三相平衡。
@@ -129,9 +95,26 @@ void inverse_clarke(float Ialpha, float Ibeta, float *Ia, float *Ib, float *Ic)
 void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq)
 {
 	float s, c;
-	Motor_Foc_LoadSinCos(Theta, &s, &c);
-	*Id =   Ialpha * c + Ibeta * s;
-	*Iq = - Ialpha * s + Ibeta * c;
+	sincos_f32(Theta, &s, &c);
+	park_transform_sincos(Ialpha, Ibeta, s, c, Id, Iq);
+}
+
+/**
+ * @description: Park 变换，使用调用者已算好的同角度正弦和余弦。
+ * @detail: 纯计算，无内部状态。sine/cosine 必须来自同一电角度。
+ * @param {float} Ialpha  α 轴电流 (A)
+ * @param {float} Ibeta   β 轴电流 (A)
+ * @param {float} sine    电角度正弦
+ * @param {float} cosine  电角度余弦
+ * @param {float} *Id     输出 d 轴电流 (A)
+ * @param {float} *Iq     输出 q 轴电流 (A)
+ * @return {void} 无
+ * @author: lkc
+ */
+void park_transform_sincos(float Ialpha, float Ibeta, float sine, float cosine, float *Id, float *Iq)
+{
+	*Id =   Ialpha * cosine + Ibeta * sine;
+	*Iq = - Ialpha * sine + Ibeta * cosine;
 }
 
 /**
@@ -147,12 +130,27 @@ void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq
 void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float *mod_beta)
 {
 	float s, c;
-	Motor_Foc_LoadSinCos(Theta, &s, &c);
+	sincos_f32(Theta, &s, &c);
+	inverse_park_sincos(mod_d, mod_q, s, c, mod_alpha, mod_beta);
+}
+
+/**
+ * @description: 逆 Park 变换，使用调用者已算好的同角度正弦和余弦。
+ * @detail: 纯计算，无内部状态。极性与 inverse_park 相同。sine/cosine 必须来自同一电角度。
+ * @param {float} mod_d      d 轴电压 (V)
+ * @param {float} mod_q      q 轴电压 (V)
+ * @param {float} sine       电角度正弦
+ * @param {float} cosine     电角度余弦
+ * @param {float} *mod_alpha 输出 α 轴电压 (V)
+ * @param {float} *mod_beta  输出 β 轴电压 (V)
+ * @return {void} 无
+ * @author: lkc
+ */
+void inverse_park_sincos(float mod_d, float mod_q, float sine, float cosine, float *mod_alpha, float *mod_beta)
+{
 	/* 保持当前功率板已经上板验证过的电压矢量极性（3e5d564）。 */
-	*mod_alpha = -(mod_d * c - mod_q * s);
-	*mod_beta  = -(mod_d * s + mod_q * c);
-	
-	return;
+	*mod_alpha = -(mod_d * cosine - mod_q * sine);
+	*mod_beta  = -(mod_d * sine + mod_q * cosine);
 }
 
 /**

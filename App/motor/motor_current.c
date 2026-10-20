@@ -189,6 +189,8 @@ void Motor_Current_GetReconstructDiag(int *last_phase, uint32_t *samples, uint32
 /**
  * @description: 三相电流变换到 αβ，再变换到 d/q，写回反馈字段。
  * @detail: 读 ia/ib/ic (A)，写 Ialpha/Ibeta/Id/Iq (A)。不改相电流，不输出 PWM。
+ *          同时把 theta 及其正余弦记入 park_*，供同一实例的反 Park 复用；
+ *          theta 原码与上次相同时不重算三角函数。
  *          motor 不可为空，违反约定触发 COMMON_ASSERT。
  * @param {MOTOR_PARAM_S *} motor 电机对象，含 ia/ib/ic (A)
  * @param {float} theta           Park 用电角度 (rad)
@@ -199,7 +201,12 @@ void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
 {
     COMMON_ASSERT(motor != NULL);
     clarke_transform(motor->ia, motor->ib, motor->ic, &motor->Ialpha, &motor->Ibeta);
-    park_transform(motor->Ialpha, motor->Ibeta, theta, &motor->Id, &motor->Iq);
+    if (!motor->park_sincos_valid || !utils_float_same_bits(motor->park_theta, theta)) {
+        sincos_f32(theta, &motor->park_sin, &motor->park_cos);
+        motor->park_theta = theta;
+        motor->park_sincos_valid = true;
+    }
+    park_transform_sincos(motor->Ialpha, motor->Ibeta, motor->park_sin, motor->park_cos, &motor->Id, &motor->Iq);
 }
 
 /**
@@ -386,16 +393,16 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
     iq_err = iq_target - motor->Iq;
     vq_int_before = motor->ol_vq_int;
     profile = Motor_Timing_ProfileDetailedIsActive();
-    stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+    MOTOR_PROFILE_BEGIN(profile, stage_start);
     v.vd = Motor_Current_PI_Run(id_target, motor->Id, &motor->ol_vd_int, motor->ol_current_kp, motor->ol_current_ki, dt,
                                 v_limit);
     v.vq = Motor_Current_PI_Run(iq_target, motor->Iq, &motor->ol_vq_int, motor->ol_current_kp, motor->ol_current_ki, dt,
                                 v_limit);
-    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CURRENT_PI, stage_start);
+    MOTOR_PROFILE_END(profile, MOTOR_TIMING_CURRENT_PI, stage_start);
 
-    stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+    MOTOR_PROFILE_BEGIN(profile, stage_start);
     Motor_Current_LimitVoltage(motor, &v, id_target - motor->Id, iq_err, v_limit);
-    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CURRENT_LIMIT, stage_start);
+    MOTOR_PROFILE_END(profile, MOTOR_TIMING_CURRENT_LIMIT, stage_start);
     vq_step = motor->ol_vq_int - vq_int_before;
     if (s_pi_samples < UINT32_MAX) {
         s_pi_samples++;
@@ -499,20 +506,21 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
     if (motor == NULL) return voltage;
 
     profile = Motor_Timing_ProfileDetailedIsActive();
-    stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+    MOTOR_PROFILE_BEGIN(profile, stage_start);
     Motor_Current_FeedbackUpdateDq(motor, theta);
-    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CURRENT_PARK, stage_start);
-    stage_start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+    MOTOR_PROFILE_END(profile, MOTOR_TIMING_CURRENT_PARK, stage_start);
+    MOTOR_PROFILE_BEGIN(profile, stage_start);
     Motor_Current_GetTargets(motor, ctx, &id_target, &iq_target);
     capture = Motor_Timing_HandoffDue();
     if (capture) Motor_Timing_HandoffBefore(motor, theta, ctx != NULL ? ctx->frame_correction : 0.0f,
                                            id_target, iq_target, dt);
-    if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_CURRENT_TARGET, stage_start);
+    MOTOR_PROFILE_END(profile, MOTOR_TIMING_CURRENT_TARGET, stage_start);
     if (ctx != NULL && ctx->frame_correction != 0.0f) {
-        uint32_t start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
+        uint32_t start;
+        MOTOR_PROFILE_BEGIN(profile, start);
         Motor_Current_TransportPi(motor, ctx->frame_correction, motor->id_target, motor->iq_target,
                                   id_target, iq_target);
-        if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_TRANSPORT, start);
+        MOTOR_PROFILE_END(profile, MOTOR_TIMING_TRANSPORT, start);
     }
     if (id_target_out != NULL) {
         *id_target_out = id_target;

@@ -72,6 +72,20 @@ void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
 void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq);
 
 /**
+ * @description: Park 变换，使用调用者已算好的同角度正弦和余弦。
+ * @detail: 纯计算，无内部状态。sine/cosine 必须来自同一电角度。
+ * @param {float} Ialpha  α 轴电流 (A)
+ * @param {float} Ibeta   β 轴电流 (A)
+ * @param {float} sine    电角度正弦
+ * @param {float} cosine  电角度余弦
+ * @param {float} *Id     输出 d 轴电流 (A)
+ * @param {float} *Iq     输出 q 轴电流 (A)
+ * @return {void} 无
+ * @author: lkc
+ */
+void park_transform_sincos(float Ialpha, float Ibeta, float sine, float cosine, float *Id, float *Iq);
+
+/**
  * @description: 逆 Park 变换，将 dq 电压/调制量变换到 αβ 坐标系。
  * @param {float} mod_d      d 轴分量 (V 或占空比调制量)
  * @param {float} mod_q      q 轴分量 (V 或占空比调制量)
@@ -82,6 +96,20 @@ void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq
  * @author: lkc
  */
 void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float *mod_beta);
+
+/**
+ * @description: 逆 Park 变换，使用调用者已算好的同角度正弦和余弦。
+ * @detail: 纯计算，无内部状态。极性与 inverse_park 相同。sine/cosine 必须来自同一电角度。
+ * @param {float} mod_d      d 轴电压 (V)
+ * @param {float} mod_q      q 轴电压 (V)
+ * @param {float} sine       电角度正弦
+ * @param {float} cosine     电角度余弦
+ * @param {float} *mod_alpha 输出 α 轴电压 (V)
+ * @param {float} *mod_beta  输出 β 轴电压 (V)
+ * @return {void} 无
+ * @author: lkc
+ */
+void inverse_park_sincos(float mod_d, float mod_q, float sine, float cosine, float *mod_alpha, float *mod_beta);
 
 /**
  * @description: Clarke 逆变换，将 αβ 电压还原为三相相电压。

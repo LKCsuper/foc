@@ -77,124 +77,6 @@ static void Motor_Protect_MapInput(motor_protect_input_t *input, const MOTOR_PAR
 
 
 /**
- * @description: 过流去抖检测（三相电流峰值）。
- * @detail: 只推进过流计时并返回是否满窗，不锁存故障、不停 PWM。
- *          state 或 motor 为空返回 false。软件去抖不能代替硬件过流关断。
- * @param {motor_protect_state_t *} state 状态对象；空则忽略
- * @param {const MOTOR_PARAM_S *} motor   采样电流 (A)
- * @param {float} dt                      本拍时间 (s)，通常为 ADC 周期
- * @return {bool} true=条件已持续超过 over_current_time
- * @author: lkc
- */
-bool Motor_Protect_CheckOverCurrentState(motor_protect_state_t *state, const MOTOR_PARAM_S *motor, float dt)
-{
-    motor_protect_input_t input;
-    if (state == NULL || motor == NULL) { return false; }
-    Motor_Protect_MapInput(&input, motor);
-    return Motor_Protect_CheckOverCurrentInputState(state, &input, dt);
-}
-
-
-/**
- * @description: 欠压去抖检测。
- * @detail: 仅在使能且目标转速非零时累计，只返回是否满窗，不锁存、不停 PWM。
- *          state 或 motor 为空返回 false。
- * @param {motor_protect_state_t *} state 状态对象；空则忽略
- * @param {const MOTOR_PARAM_S *} motor   母线电压 (V) 与使能来源
- * @param {float} dt                      本拍时间 (s)
- * @return {bool} true=欠压已持续超过 under_voltage_time
- * @author: lkc
- */
-bool Motor_Protect_CheckUnderVoltageState(motor_protect_state_t *state, const MOTOR_PARAM_S *motor, float dt)
-{
-    motor_protect_input_t input;
-    if (state == NULL || motor == NULL) { return false; }
-    Motor_Protect_MapInput(&input, motor);
-    return Motor_Protect_CheckUnderVoltageInputState(state, &input, dt);
-}
-
-
-/**
- * @description: 堵转去抖检测。
- * @detail: 高目标、近零实测速、大电流，且速度反馈有效时才累计。
- *          只返回是否满窗，不锁存、不停 PWM。state 或 motor 为空返回 false。
- * @param {motor_protect_state_t *} state 状态对象；空则忽略
- * @param {const MOTOR_PARAM_S *} motor   目标转速 (RPM) 与电流 (A)
- * @param {float} dt                      本拍时间 (s)
- * @return {bool} true=堵转条件已持续超过 stall_time
- * @author: lkc
- */
-bool Motor_Protect_CheckStallState(motor_protect_state_t *state, const MOTOR_PARAM_S *motor, float dt)
-{
-    motor_protect_input_t input;
-    if (state == NULL || motor == NULL) { return false; }
-    Motor_Protect_MapInput(&input, motor);
-    return Motor_Protect_CheckStallInputState(state, &input, dt);
-}
-
-
-/**
- * @description: 失速去抖检测。
- * @detail: 斜坡跟上目标后，曾达约 50% 再跌破 speed_loss_ratio 才累计。
- *          斜坡未到位不算失速。只返回是否满窗，不锁存、不停 PWM。
- *          state 或 motor 为空返回 false。
- * @param {motor_protect_state_t *} state 状态对象；空则忽略
- * @param {const MOTOR_PARAM_S *} motor   目标与斜坡转速 (RPM)
- * @param {float} dt                      本拍时间 (s)
- * @return {bool} true=失速条件已持续超过 speed_loss_time
- * @author: lkc
- */
-bool Motor_Protect_CheckSpeedLossState(motor_protect_state_t *state, const MOTOR_PARAM_S *motor, float dt)
-{
-    motor_protect_input_t input;
-    if (state == NULL || motor == NULL) { return false; }
-    Motor_Protect_MapInput(&input, motor);
-    return Motor_Protect_CheckSpeedLossInputState(state, &input, dt);
-}
-
-
-/**
- * @description: 按优先级跑完保护并在首次触发时锁存故障与快照。
- * @detail: 优先级：过流 > 欠压 > 堵转 > 失速。已锁存则直接返回 true，不覆盖首因。
- *          state 或 motor 为空返回 false。aux 可为 NULL。不关 PWM。
- * @param {motor_protect_state_t *} state 状态对象；空则忽略
- * @param {const MOTOR_PARAM_S *} motor   电机实时量
- * @param {float} dt                      本拍时间 (s)
- * @param {const motor_protect_aux_t *} aux 锁存用辅助快照；可为 NULL
- * @return {bool} true=当前已锁存故障（含本拍新锁存）
- * @author: lkc
- */
-bool Motor_Protect_RunState(motor_protect_state_t *state, const MOTOR_PARAM_S *motor, float dt,
-                            const motor_protect_aux_t *aux)
-{
-    motor_protect_input_t input;
-    if (state == NULL || motor == NULL) { return false; }
-    Motor_Protect_MapInput(&input, motor);
-    return Motor_Protect_RunInputState(state, &input, dt, aux);
-}
-
-
-/**
- * @description: 由外部模块直接锁存故障。
- * @detail: 不覆盖已有首因，不关 PWM。state 与 motor 不可为空，违反约定触发 COMMON_ASSERT。
- *          fault 为 FAULT_CODE_NONE 时忽略。aux 可为 NULL。
- * @param {motor_protect_state_t *} state 状态对象，不可为空
- * @param {mc_fault_code} fault           故障码；FAULT_CODE_NONE 忽略
- * @param {const MOTOR_PARAM_S *} motor   用于填充快照，不可为空
- * @param {const motor_protect_aux_t *} aux 辅助快照；可为 NULL
- * @return {void} 无
- * @author: lkc
- */
-void Motor_Protect_TriggerFaultState(motor_protect_state_t *state, mc_fault_code fault,
-                                     const MOTOR_PARAM_S *motor, const motor_protect_aux_t *aux)
-{
-    motor_protect_input_t input;
-    COMMON_ASSERT(state != NULL && motor != NULL);
-    Motor_Protect_MapInput(&input, motor);
-    Motor_Protect_TriggerFaultInputState(state, fault, &input, aux);
-}
-
-/**
  * @description: 从无感与速度环采集默认实例的锁存辅助信息。
  * @detail: 过渡期耦合点。State API 不要走这里，由调用者显式填 aux。
  *          aux 与 motor 不可为空，违反约定触发 COMMON_ASSERT。不关 PWM。
@@ -298,11 +180,13 @@ bool Motor_Protect_Run(const MOTOR_PARAM_S *motor, float dt)
 void Motor_Protect_TriggerFault(mc_fault_code fault, const MOTOR_PARAM_S *motor)
 {
     motor_protect_aux_t aux;
+    motor_protect_input_t input;
 
     COMMON_ASSERT(motor != NULL);
     if (fault == FAULT_CODE_NONE) return;
+    Motor_Protect_MapInput(&input, motor);
     Motor_Protect_FillAuxDefault(&aux, motor);
-    Motor_Protect_TriggerFaultState(&s_protect, fault, motor, &aux);
+    Motor_Protect_TriggerFaultInputState(&s_protect, fault, &input, &aux);
 }
 
 /**

@@ -1,12 +1,14 @@
 /*
- * @Description: 电机过流、欠压、堵转与失速保护接口（支持状态实例）
+ * @Description: 电机过流、欠压、堵转与失速保护：默认单实例入口
  * @Author: lkc
  *
  * 学习要点：
- *   1) 保护只“判断并锁存原因”，不停 PWM；关断由 ISR/控制出口在故障后执行。
+ *   1) 保护只“判断并锁存原因”，不停 PWM；关断由 Motor_FocIsr_Protect 在故障后执行。
  *   2) 软件保护带去抖，不能代替硬件过流/短路关断。
- *   3) State API 不读无感/速度环全局；锁存诊断经 motor_protect_aux_t 由调用者注入。
- *   4) 无参包装走默认单实例，内部 FillAuxDefault 仍拉无感（过渡期兼容）。
+ *   3) 判据与优先级（过流 > 欠压 > 堵转 > 失速）在 motor_protect_core.c 的
+ *      Motor_Protect_EvaluateInputState；多实例或主机测试直接用 core 的 *InputState 接口。
+ *   4) 本文件只做默认单实例包装：把 MOTOR_PARAM_S 映射成 core 输入，首次锁存时
+ *      FillAuxDefault 拉取无感/速度环快照（过渡期耦合）。
  */
 #ifndef MOTOR_PROTECT_H
 #define MOTOR_PROTECT_H
@@ -24,94 +26,6 @@ extern "C" {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
-
-
-
-
-/**
- * @description: 过流去抖检测（三相电流峰值）。
- * @detail: 只推进过流计时并返回是否满窗，不锁存故障、不停 PWM。
- *          state 或 motor 为空返回 false。软件去抖不能代替硬件过流关断。
- * @param {motor_protect_state_t *} state 状态对象；空则忽略
- * @param {const MOTOR_PARAM_S *} motor   采样电流 (A)
- * @param {float} dt                      本拍时间 (s)，通常为 ADC 周期
- * @return {bool} true=条件已持续超过 over_current_time
- * @author: lkc
- */
-bool Motor_Protect_CheckOverCurrentState(motor_protect_state_t *state, const MOTOR_PARAM_S *motor, float dt);
-
-/**
- * @description: 欠压去抖检测。
- * @detail: 仅在使能且目标转速非零时累计，只返回是否满窗，不锁存、不停 PWM。
- *          state 或 motor 为空返回 false。
- * @param {motor_protect_state_t *} state 状态对象；空则忽略
- * @param {const MOTOR_PARAM_S *} motor   母线电压 (V) 与使能来源
- * @param {float} dt                      本拍时间 (s)
- * @return {bool} true=欠压已持续超过 under_voltage_time
- * @author: lkc
- */
-bool Motor_Protect_CheckUnderVoltageState(motor_protect_state_t *state, const MOTOR_PARAM_S *motor, float dt);
-
-/**
- * @description: 堵转去抖检测。
- * @detail: 高目标、近零实测速、大电流，且速度反馈有效时才累计。
- *          只返回是否满窗，不锁存、不停 PWM。state 或 motor 为空返回 false。
- * @param {motor_protect_state_t *} state 状态对象；空则忽略
- * @param {const MOTOR_PARAM_S *} motor   目标转速 (RPM) 与电流 (A)
- * @param {float} dt                      本拍时间 (s)
- * @return {bool} true=堵转条件已持续超过 stall_time
- * @author: lkc
- */
-bool Motor_Protect_CheckStallState(motor_protect_state_t *state, const MOTOR_PARAM_S *motor, float dt);
-
-/**
- * @description: 失速去抖检测。
- * @detail: 斜坡跟上目标后，曾达约 50% 再跌破 speed_loss_ratio 才累计。
- *          斜坡未到位不算失速。只返回是否满窗，不锁存、不停 PWM。
- *          state 或 motor 为空返回 false。
- * @param {motor_protect_state_t *} state 状态对象；空则忽略
- * @param {const MOTOR_PARAM_S *} motor   目标与斜坡转速 (RPM)
- * @param {float} dt                      本拍时间 (s)
- * @return {bool} true=失速条件已持续超过 speed_loss_time
- * @author: lkc
- */
-bool Motor_Protect_CheckSpeedLossState(motor_protect_state_t *state, const MOTOR_PARAM_S *motor, float dt);
-
-/**
- * @description: 按优先级跑完保护并在首次触发时锁存故障与快照。
- * @detail: 优先级：过流 > 欠压 > 堵转 > 失速。已锁存则直接返回 true，不覆盖首因。
- *          state 或 motor 为空返回 false。aux 可为 NULL。不关 PWM。
- * @param {motor_protect_state_t *} state 状态对象；空则忽略
- * @param {const MOTOR_PARAM_S *} motor   电机实时量
- * @param {float} dt                      本拍时间 (s)
- * @param {const motor_protect_aux_t *} aux 锁存用辅助快照；可为 NULL
- * @return {bool} true=当前已锁存故障（含本拍新锁存）
- * @author: lkc
- */
-bool Motor_Protect_RunState(motor_protect_state_t *state, const MOTOR_PARAM_S *motor, float dt,
-                            const motor_protect_aux_t *aux);
-
-/**
- * @description: 由外部模块直接锁存故障。
- * @detail: 不覆盖已有首因，不关 PWM。state 与 motor 不可为空，违反约定触发 COMMON_ASSERT。
- *          fault 为 FAULT_CODE_NONE 时忽略。aux 可为 NULL。
- * @param {motor_protect_state_t *} state 状态对象，不可为空
- * @param {mc_fault_code} fault           故障码；FAULT_CODE_NONE 忽略
- * @param {const MOTOR_PARAM_S *} motor   用于填充快照，不可为空
- * @param {const motor_protect_aux_t *} aux 辅助快照；可为 NULL
- * @return {void} 无
- * @author: lkc
- */
-void Motor_Protect_TriggerFaultState(motor_protect_state_t *state, mc_fault_code fault,
-                                     const MOTOR_PARAM_S *motor, const motor_protect_aux_t *aux);
-
-
-
-
-
-
-
-
 
 /**
  * @description: 初始化默认单实例保护模块。

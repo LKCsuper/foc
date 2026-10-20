@@ -26,6 +26,12 @@ void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq
     *Id = Ialpha * c + Ibeta * s;
     *Iq = -Ialpha * s + Ibeta * c;
 }
+
+void park_transform_sincos(float Ialpha, float Ibeta, float sine, float cosine, float *Id, float *Iq)
+{
+    *Id = Ialpha * cosine + Ibeta * sine;
+    *Iq = -Ialpha * sine + Ibeta * cosine;
+}
 #include "motor_timing.h"
 bool Motor_Timing_ProfileIsActive(void) { return false; }
 bool Motor_Timing_HandoffDue(void) { return false; }
