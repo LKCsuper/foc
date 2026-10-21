@@ -309,11 +309,11 @@ int main(void)
     assert(!Motor_Sensorless_IsTakeoverCompleteState(&a));
     assert(!effects.feedback_valid && !effects.prime_speed_iq);
     assert(!effects.request_speed_loss_fault);
-    assert(!a.initialized && a.x_alpha == 0.0f && a.pll_speed_electrical == 0.0f);
+    assert(a.initialized && a.x_alpha != 0.0f);
     assert(fabsf(Motor_Sensorless_GetControlAngleState(&a, motor.ol_theta) - motor.ol_theta) < 1e-6f);
     a.stats.samples = 3U;
     Motor_Sensorless_UpdateState(&a, &motor, 0.00001f, &effects);
-    assert(!a.initialized && a.x_alpha == 0.0f && a.stats.samples == 3U);
+    assert(a.initialized && a.x_alpha != 0.0f && a.stats.samples == 3U);
     assert(!effects.request_speed_loss_fault);
 
     /* 高速撤销授权必须请求故障，不能退回超上限 I/F。 */
@@ -325,9 +325,9 @@ int main(void)
     Motor_Sensorless_UpdateState(&a, &motor, 0.00001f, &effects);
     assert(effects.request_speed_loss_fault && !effects.feedback_valid);
     assert(!Motor_Sensorless_IsClosedLoopState(&a));
-    assert(a.blend == 0.0f && !a.initialized);
+    assert(a.blend == 0.0f && a.initialized);
 
-    /* 重新授权后才积分，并检查相位差诊断。 */
+    /* 重新授权后检查相位差诊断。 */
     motor.sensorless_takeover = true;
     motor.ol_current_rpm = 600.0f;
     Motor_Sensorless_InitState(&a);
@@ -402,7 +402,7 @@ int main(void)
         EXPECT_COMMON_ASSERT(Motor_Sensorless_GetLightSnapshotState(&a, NULL));
         assert(memcmp(&a, &b, sizeof(a)) == 0);
     }
-    /* 冷态默认入口不再积分，但速度反馈仍保持无效；已积分的实例撤销授权时仍先清零。 */
+    /* 未授权时继续观测，但不发布有效速度或切换控制角。 */
     {
         MOTOR_PARAM_S cold = {0};
         unsigned feedback_calls;
@@ -428,12 +428,12 @@ int main(void)
         cold.sensorless_takeover = false;
         fault_calls = host_protect_fault_calls;
         Motor_Sensorless_Update(&cold, 0.000067f);
-        assert(Motor_Sensorless_GetFluxMagnitude() == 0.0f);
+        assert(Motor_Sensorless_GetFluxMagnitude() > 0.0f);
         assert(Motor_Sensorless_GetState() == MOTOR_SENSORLESS_OPEN_LOOP);
         assert(host_protect_fault_calls == fault_calls);
         feedback_calls = host_speed_feedback_calls;
         Motor_Sensorless_Update(&cold, 0.000067f);
-        assert(Motor_Sensorless_GetFluxMagnitude() == 0.0f);
+        assert(Motor_Sensorless_GetFluxMagnitude() > 0.0f);
         assert(host_speed_feedback_calls == feedback_calls + 1U);
         assert(!host_speed_feedback_valid && host_speed_feedback_rpm == 0.0f);
         assert(fabsf(Motor_Sensorless_GetControlAngle(0.4f) - 0.4f) < 1e-6f);

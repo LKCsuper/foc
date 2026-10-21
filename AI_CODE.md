@@ -116,14 +116,20 @@
 | `MOTOR_CFG_JOINT`    | 关节控制、协议、轨迹、`cmd_joint`                                | 11.2 KB / 1.2 KB                     |
 | `MOTOR_CFG_IDENTIFY` | R/L/磁链检测与 PI 自整定；电流偏移校准与霍尔标定常开             | 13.5 KB / 1.8 KB                     |
 | `MOTOR_CFG_CMD`      | 串口命令行及全部 `cmd_*.c`；只保留 C API（启动/停止/设定目标）   | 104.4 KB / 30.5 KB                   |
+| `MOTOR_CFG_SENSORLESS` | FOC 无感观测（sensorless/flux/EKF/SMO/HFI 起步）、`cmd_sensorless`/`hfistart`；控制角回退开环 | 14.2 KB / 0.6 KB |
+| `MOTOR_CFG_ENCODER`  | 编码器/MT6701 采集与任务、`cmd_encoder`；`olfb encoder` 拒绝     | 14.1 KB / 2.5 KB |
+| `MOTOR_CFG_SPEED`    | 速度 PI 默认实例与 `speed`/`sp*` 命令；关闭后 Iq 目标桩为 0     | 8.1 KB / 1.1 KB |
+| `MOTOR_CFG_POSITION` | 编码器位置环与 `pos` 命令                                        | 5.0 KB / 1.1 KB |
 
-全部关闭：Code 69.2 KB、RO 4.0 KB、RW 0.8 KB、ZI 38.0 KB（全开为 193.3 / 24.5 / 1.6 / 129.4 KB）。
+全部关闭：Code 56.2 KB、RO 3.9 KB、RW 0.8 KB、ZI 36.2 KB（全开为 193.3 / 24.5 / 1.6 / 129.4 KB）。Flash 合计 58.8 KB，RAM 合计 36.1 KB。
+
+小资源移植：FOC 无感通常不编入。推荐先关 `MOTOR_CFG_SENSORLESS`（约 14 KB 代码），再按产品关 `DIAG` / `BLDC` / `JOINT` / `IDENTIFY` / `CMD`。编码器、速度环、位置环与无感独立，有感小芯片可只关无感。BLDC 反电势换相由 `MOTOR_CFG_BLDC` 控制，不要与 FOC 无感开关混用。参数结构体字段不随开关删除，避免 Flash 布局分叉。
 
 规则：
 
 - 机制为整个 `.c` 包在 `#if MOTOR_CFG_xxx` 中，头文件 `#else` 提供 `static inline` 空实现；工程文件列表不随开关变化。只给模块外实际调用的函数做空实现（`.build/module_deps.py` 可列出跨模块调用）。
 - 只包入口 `.c` 与对应命令 `.c`；纯内部文件无人引用时由链接器剔除，主机测试仍可单独编译它们。但 armlink 在剔除前检查未定义符号，所以凡调用被关闭 API 的文件都必须一起包住。
-- 命令行相关 `.c` 用派生宏 `MOTOR_CFG_CMD_DIAG` / `_BLDC` / `_JOINT` / `_IDENTIFY`（= `MOTOR_CFG_CMD && 模块`）。
+- 命令行相关 `.c` 用派生宏 `MOTOR_CFG_CMD_DIAG` / `_BLDC` / `_JOINT` / `_IDENTIFY` / `_SENSORLESS` / `_ENCODER` / `_SPEED` / `_POSITION`（= `MOTOR_CFG_CMD && 模块`）。
 - 带空实现的模块头自行 `#include "motor_config.h"`，因为核心模块不包含 `includes.h`。
 - 关闭 CMD 后 `queueCmdHandle` 保持为空，串口接收中断据此不投递；`Bsp_Usart_TxDmaPoll` 不再由命令任务轮询，应用若依赖串口 DMA 打印需自行调用。
 - 构建变体：`.\build_keil.ps1 -Variant <名> -Defines "MOTOR_CFG_DIAG=0",...`，产物在 `..\build\<名>\`，临时工程构建后删除。改动模块边界后至少验证默认构建逐对象不变及全关构建 0 错误。

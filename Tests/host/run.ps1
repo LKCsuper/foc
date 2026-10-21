@@ -316,11 +316,11 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor feedback host compilation failed' }
     & .build/host/test_motor_feedback.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor feedback host tests failed' }
-    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -DMOTOR_MT6701_INTERFACE=1 -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_sensor/motor_mt6701_protocol.c App/motor_sensor/motor_mt6701.c Tests/host/test_motor_mt6701.c -o .build/host/test_motor_mt6701.exe
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -DMOTOR_MT6701_INTERFACE=1 -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_sensor/motor_mt6701_protocol.c App/motor_sensor/motor_mt6701.c Tests/host/test_motor_mt6701.c -o .build/host/test_motor_mt6701.exe
     if ($LASTEXITCODE -ne 0) { throw 'MT6701 host compilation failed' }
     & .build/host/test_motor_mt6701.exe
     if ($LASTEXITCODE -ne 0) { throw 'MT6701 host tests failed' }
-    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -DMOTOR_MT6701_INTERFACE=2 -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_sensor/motor_mt6701_protocol.c App/motor_sensor/motor_mt6701.c Tests/host/test_motor_mt6701_ssi.c -o .build/host/test_motor_mt6701_ssi.exe
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -DMOTOR_MT6701_INTERFACE=2 -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_sensor/motor_mt6701_protocol.c App/motor_sensor/motor_mt6701.c Tests/host/test_motor_mt6701_ssi.c -o .build/host/test_motor_mt6701_ssi.exe
     if ($LASTEXITCODE -ne 0) { throw 'MT6701 SSI host compilation failed' }
     & .build/host/test_motor_mt6701_ssi.exe
     if ($LASTEXITCODE -ne 0) { throw 'MT6701 SSI host tests failed' }

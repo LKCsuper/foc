@@ -11,6 +11,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include "common_assert.h"
+#include "motor_config.h"
 #include <stddef.h>
 #include <stdint.h>
 /* Private define ------------------------------------------------------------*/
@@ -59,15 +60,6 @@ typedef struct {
  * @return {*}
  * @author: lkc
  */
-void MotorHfiStart_Reset(motor_hfi_start_t *state);
-
-/**
- * @description: 校验并规整 HFI 配置参数，使取值合法。
- * @param {motor_hfi_start_config_t} *config  HFI 配置结构体，被原地规整
- * @return {*}
- * @author: lkc
- */
-void MotorHfiStart_NormalizeConfig(motor_hfi_start_config_t *config);
 /** 热路径共享实现；与NormalizeConfig保持同一套规则，不缓存配置。 */
 static inline void MotorHfiStart_NormalizeConfigInline(motor_hfi_start_config_t *config)
 {
@@ -80,6 +72,17 @@ static inline void MotorHfiStart_NormalizeConfigInline(motor_hfi_start_config_t 
     if (config->max_bus_voltage_ratio <= 0.0f || config->max_bus_voltage_ratio > 1.0f)
         config->max_bus_voltage_ratio = 0.20f;
 }
+
+#if MOTOR_CFG_SENSORLESS
+void MotorHfiStart_Reset(motor_hfi_start_t *state);
+
+/**
+ * @description: 校验并规整 HFI 配置参数，使取值合法。
+ * @param {motor_hfi_start_config_t} *config  HFI 配置结构体，被原地规整
+ * @return {*}
+ * @author: lkc
+ */
+void MotorHfiStart_NormalizeConfig(motor_hfi_start_config_t *config);
 
 /**
  * @description: HFI 零速初始位置估计单步，每 FOC 周期调用一次。
@@ -99,6 +102,29 @@ motor_hfi_start_result_t MotorHfiStart_Step(
     float i_beta,
     float v_bus,
     motor_hfi_start_output_t *output);
+#else
+static inline void MotorHfiStart_Reset(motor_hfi_start_t *state) { (void)state; }
+static inline void MotorHfiStart_NormalizeConfig(motor_hfi_start_config_t *config)
+{
+    MotorHfiStart_NormalizeConfigInline(config);
+}
+static inline motor_hfi_start_result_t MotorHfiStart_Step(motor_hfi_start_t *state,
+                                                          const motor_hfi_start_config_t *config, float i_alpha,
+                                                          float i_beta, float v_bus, motor_hfi_start_output_t *output)
+{
+    (void)state;
+    (void)config;
+    (void)i_alpha;
+    (void)i_beta;
+    (void)v_bus;
+    if (output != NULL) {
+        output->apply_voltage = false;
+        output->vd = 0.0f;
+        output->theta = 0.0f;
+    }
+    return MOTOR_HFI_START_SKIPPED;
+}
+#endif
 
 #ifdef __cplusplus
 }

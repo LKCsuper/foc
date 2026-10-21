@@ -1265,6 +1265,7 @@ int Cmd_OlAlign(int argc, char *argv[])
     return 0;
 }
 
+#if MOTOR_CFG_CMD_SENSORLESS
 /**
  * @description: hfistart 命令 — 配置 HFI 高频注入启动参数。
  * @param {int} argc 参数个数
@@ -1318,6 +1319,7 @@ int Cmd_HfiStart(int argc, char *argv[])
            motor.hfi_start_voltage, motor.hfi_start_cycles, motor.hfi_start_min_confidence);
     return 0;
 }
+#endif /* MOTOR_CFG_CMD_SENSORLESS */
 
 
 /* 以下命令均注册在 command.c 命令表中 */

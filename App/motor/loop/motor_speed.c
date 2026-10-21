@@ -13,6 +13,8 @@ extern "C" {
 #include "motor_param.h"
 #include "motor_speed.h"
 #include "motor_protect.h"
+#include "motor_config.h"
+#if MOTOR_CFG_SPEED
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -199,6 +201,7 @@ uint32_t Motor_SpeedLoop_GetUpdateCount(void)
     return s_speed.update_count;
 }
 
+#endif /* MOTOR_CFG_SPEED */
 #ifdef __cplusplus
 }
 #endif

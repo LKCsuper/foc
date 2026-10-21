@@ -237,7 +237,7 @@ void Motor_OutputVoltageSensorlessIf(MOTOR_PARAM_S *motor, float vd, float vq, f
     foc_svm_from_voltage(-v_alpha, -v_beta, v_bus, MOTOR_FOC_SVM_MAX_DUTY, period, &motor->duty1,
                          &motor->duty2, &motor->duty3, &sector);
     if (period != 0U &&
-        (Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_SENSORLESS || motor->sensorless_takeover)) {
+        (Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_SENSORLESS || motor->sensorless_enable)) {
         /* 使用逻辑ABC比较值重建平均电压；交换到物理ACB前计算，不含死区/管压降。 */
         float reconstructed_a;
         float reconstructed_b;

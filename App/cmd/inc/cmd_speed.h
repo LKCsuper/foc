@@ -9,6 +9,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
+#include "motor_config.h"
 /* Private function prototypes -----------------------------------------------*/
 
 /**
@@ -16,7 +17,11 @@ extern "C" {
  * @detail: 仅在命令任务占用测试序列时调用，非阻塞。
  * @return {bool} true 表示用户要求停止
  */
+#if MOTOR_CFG_CMD_SPEED
 bool Cmd_Speed_StopKey(void);
+#else
+static inline bool Cmd_Speed_StopKey(void) { return false; }
+#endif
 
 #ifdef __cplusplus
 }

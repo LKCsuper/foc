@@ -6,6 +6,8 @@ extern "C" {
 #include "common_assert.h"
 #include <math.h>
 #include <stddef.h>
+#include "motor_config.h"
+#if MOTOR_CFG_SPEED
 void Motor_SpeedFfFit_Init(motor_speed_ff_fit_t *fit)
 {
     COMMON_ASSERT(fit != NULL);
@@ -48,6 +50,7 @@ bool Motor_SpeedFfFit_Solve(const motor_speed_ff_fit_t *fit, motor_speed_ff_resu
     result->points = fit->count;
     return true;
 }
+#endif /* MOTOR_CFG_SPEED */
 #ifdef __cplusplus
 }
 #endif

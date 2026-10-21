@@ -14,6 +14,8 @@ extern "C" {
 #include "motor_encoder.h"
 #include "motor_mt6701.h"
 #include "motor_param.h"
+#include "motor_config.h"
+#if MOTOR_CFG_POSITION
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_POSITION_TOLERANCE_DEG           (0.30f)
 /* Private typedef -----------------------------------------------------------*/
@@ -203,6 +205,7 @@ bool Motor_Position_IsEnabled(void)
 {
     return s_runtime.state.enabled;
 }
+#endif /* MOTOR_CFG_POSITION */
 #ifdef __cplusplus
 }
 #endif

@@ -13,6 +13,8 @@ extern "C" {
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
+#include "motor_config.h"
+#if MOTOR_CFG_SENSORLESS
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_LUENBERGER_PI (3.14159265358979323846f)
 #define MOTOR_LUENBERGER_TWO_PI (2.0f * MOTOR_LUENBERGER_PI)
@@ -322,6 +324,7 @@ float Motor_Luenberger_GetSpeedE(const motor_luenberger_t *obs)
     return obs == NULL ? 0.0f : obs->speed_e;
 }
 
+#endif /* MOTOR_CFG_SENSORLESS */
 #ifdef __cplusplus
 }
 #endif

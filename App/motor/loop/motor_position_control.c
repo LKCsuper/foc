@@ -7,6 +7,8 @@
 #include <string.h>
 #include "motor_position_control.h"
 
+#include "motor_config.h"
+#if MOTOR_CFG_POSITION
 /**
  * @description: 把数值钳到对称区间。
  * @param {float} value 待钳位值
@@ -137,3 +139,4 @@ bool Motor_PositionControl_Step(motor_position_control_t *control,
                                        config->voltage_limit_v);
     return true;
 }
+#endif /* MOTOR_CFG_POSITION */

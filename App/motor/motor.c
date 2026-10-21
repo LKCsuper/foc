@@ -10,6 +10,7 @@ extern "C" {
 #include <math.h>
 #include <string.h>
 #include "motor.h"
+#include "motor_config.h"
 #include "motor_param.h"
 #include "motor_settings.h"
 #include "motor_protect.h"
@@ -282,6 +283,16 @@ motor_result_t Motor_SetFeedbackSource(motor_feedback_source_t source)
         source != MOTOR_FEEDBACK_SRC_ENCODER && source != MOTOR_FEEDBACK_SRC_HALL) {
         return MOTOR_ERR_INVALID;
     }
+#if !MOTOR_CFG_SENSORLESS
+    if (source == MOTOR_FEEDBACK_SRC_SENSORLESS) {
+        return MOTOR_ERR_INVALID;
+    }
+#endif
+#if !MOTOR_CFG_ENCODER
+    if (source == MOTOR_FEEDBACK_SRC_ENCODER) {
+        return MOTOR_ERR_INVALID;
+    }
+#endif
     Motor_Feedback_SetSourceDefault(source);
     return MOTOR_OK;
 }
@@ -308,6 +319,16 @@ motor_result_t Motor_ApplyProfileSensor(void)
         source = MOTOR_FEEDBACK_SRC_SENSORLESS;
         break;
     }
+#if !MOTOR_CFG_ENCODER
+    if (source == MOTOR_FEEDBACK_SRC_ENCODER) {
+        source = MOTOR_FEEDBACK_SRC_OPENLOOP;
+    }
+#endif
+#if !MOTOR_CFG_SENSORLESS
+    if (source == MOTOR_FEEDBACK_SRC_SENSORLESS) {
+        source = MOTOR_FEEDBACK_SRC_OPENLOOP;
+    }
+#endif
     return Motor_SetFeedbackSource(source);
 }
 

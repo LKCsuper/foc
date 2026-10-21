@@ -5,6 +5,8 @@
 #include <string.h>
 #include "motor_position_core.h"
 
+#include "motor_config.h"
+#if MOTOR_CFG_POSITION
 static int32_t SignedCount(uint32_t count)
 {
     return count <= INT32_MAX ? (int32_t)count : -1 - (int32_t)(UINT32_MAX - count);
@@ -158,3 +160,4 @@ void Motor_PositionCore_Snapshot(const motor_position_runtime_t *runtime, const 
     snapshot->target_rpm = feedback_valid ? fmaxf(-snapshot->max_rpm,
         fminf(snapshot->kp_rpm_per_deg * snapshot->error_deg, snapshot->max_rpm)) : 0.0f;
 }
+#endif /* MOTOR_CFG_POSITION */

@@ -13,6 +13,8 @@ extern "C" {
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
+#include "motor_config.h"
+#if MOTOR_CFG_SENSORLESS
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_EKF_PI (3.14159265358979323846f)
 #define MOTOR_EKF_TWO_PI (2.0f * MOTOR_EKF_PI)
@@ -454,6 +456,7 @@ float Motor_Ekf_GetSpeedE(const motor_ekf_t *obs)
     return obs == NULL ? 0.0f : obs->speed_e;
 }
 
+#endif /* MOTOR_CFG_SENSORLESS */
 #ifdef __cplusplus
 }
 #endif

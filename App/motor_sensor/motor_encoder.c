@@ -16,6 +16,8 @@ extern "C" {
 #include "motor.h"
 #include "hal_sensor.h"
 #include "motor_mt6701.h"
+#include "motor_config.h"
+#if MOTOR_CFG_ENCODER
 /* Private define ------------------------------------------------------------*/
 #ifndef MOTOR_ENCODER_INVERTED
 #define MOTOR_ENCODER_INVERTED (false)
@@ -337,6 +339,7 @@ void Motor_Encoder_ApplyCalibration(float offset_rad, bool inverted, bool valid)
     Motor_Encoder_ApplyCalibrationState(&s_encoder, offset_rad, inverted, valid);
 }
 
+#endif /* MOTOR_CFG_ENCODER */
 #ifdef __cplusplus
 }
 #endif

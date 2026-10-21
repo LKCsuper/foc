@@ -23,6 +23,8 @@ extern "C" {
 #include "motor_mt6701.h"
 #include "motor_anticogging.h"
 #include "flash_storage.h"
+#include "motor_config.h"
+#if MOTOR_CFG_ENCODER
 /* Private variables ---------------------------------------------------------*/
 static struct {
     volatile bool active;
@@ -260,6 +262,7 @@ void Motor_Encoder_Detect(void)
     Motor_Encoder_DetectWithSave(true);
 }
 
+#endif /* MOTOR_CFG_ENCODER */
 #ifdef __cplusplus
 }
 #endif

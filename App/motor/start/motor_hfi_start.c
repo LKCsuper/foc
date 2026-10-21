@@ -11,6 +11,8 @@ extern "C" {
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
+#include "motor_config.h"
+#if MOTOR_CFG_SENSORLESS
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_HFI_START_PI                   (3.14159265358979323846f)
 #define MOTOR_HFI_START_TWO_PI               (2.0f * MOTOR_HFI_START_PI)
@@ -177,6 +179,7 @@ motor_hfi_start_result_t MotorHfiStart_Step(
     return MOTOR_HFI_START_RUNNING;
 }
 
+#endif /* MOTOR_CFG_SENSORLESS */
 #ifdef __cplusplus
 }
 #endif

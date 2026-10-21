@@ -29,16 +29,22 @@ extern "C" {
 /* cmd_show_param.c   */ extern int Cmd_Show(int argc, char *argv[]);
 /* cmd_task.c         */ extern int Cmd_Task_Show(int argc, char *argv[]);
 /* cmd_duty.c         */ extern int Cmd_Motor_Duty(int argc, char *argv[]);
+#if MOTOR_CFG_CMD_ENCODER
 /* cmd_encoder.c      */ extern int Cmd_Motor_Encoder(int argc, char *argv[]);
+#endif
 /* cmd_serial_plot.c  */ extern int Cmd_Serial_Plot(int argc, char *argv[]);
 /* cmd_bldc.c         */ extern int Cmd_Bldc(int argc, char *argv[]);
+#if MOTOR_CFG_CMD_POSITION
 /* cmd_position.c     */ extern int Cmd_Position(int argc, char *argv[]);
+#endif
 /* cmd_joint.c        */ extern int Cmd_Joint(int argc, char *argv[]);
 /* cmd_openloop.c    */ extern int Cmd_Motor_OpenLoop(int argc, char *argv[]);
 /* cmd_openloop.c    */ extern int Cmd_OlSpeed(int argc, char *argv[]);
 /* cmd_openloop.c    */ extern int Cmd_OlStatus(int argc, char *argv[]);
 /* cmd_openloop.c    */ extern int Cmd_OlRpm(int argc, char *argv[]);
+#if MOTOR_CFG_CMD_SENSORLESS
 /* cmd_sensorless.c  */ extern int Cmd_SensorlessStats(int argc, char *argv[]);
+#endif
 /* cmd_motor_diag.c  */ extern int Cmd_SensorlessTrace(int argc, char *argv[]);
 /* cmd_motor_diag.c  */ extern int Cmd_SensorlessHandoff(int argc, char *argv[]);
 /* cmd_motor_diag.c  */ extern int Cmd_SensorlessCadence(int argc, char *argv[]);
@@ -63,13 +69,18 @@ extern "C" {
 /* cmd_openloop.c    */ extern int Cmd_OlKi(int argc, char *argv[]);
 /* cmd_openloop.c    */ extern int Cmd_OlPhase(int argc, char *argv[]);
 /* cmd_openloop.c    */ extern int Cmd_OlAlign(int argc, char *argv[]);
+#if MOTOR_CFG_CMD_SENSORLESS
 /* cmd_openloop.c    */ extern int Cmd_HfiStart(int argc, char *argv[]);
+#endif
+#if MOTOR_CFG_CMD_SPEED
 /* cmd_speed.c       */ extern int Cmd_SpeedStatus(int argc, char *argv[]);
 /* cmd_speed.c       */ extern int Cmd_SpeedEnable(int argc, char *argv[]);
 /* cmd_speed.c       */ extern int Cmd_SpeedKp(int argc, char *argv[]);
 /* cmd_speed.c       */ extern int Cmd_SpeedKi(int argc, char *argv[]);
 /* cmd_speed.c       */ extern int Cmd_SpeedIqLimit(int argc, char *argv[]);
 /* cmd_speed.c       */ extern int Cmd_SpeedBrake(int argc, char *argv[]);
+#endif
+#if MOTOR_CFG_CMD_SENSORLESS
 /* cmd_sensorless.c  */ extern int Cmd_SensorlessEnable(int argc, char *argv[]);
 /* cmd_sensorless.c  */ extern int Cmd_SensorlessTakeover(int argc, char *argv[]);
 /* cmd_sensorless.c  */ extern int Cmd_SensorlessRpm(int argc, char *argv[]);
@@ -79,6 +90,7 @@ extern "C" {
 extern int Cmd_SensorlessDeadtime(int argc, char *argv[]);
 extern int Cmd_SensorlessTest(int argc, char *argv[]);
 /* cmd_sensorless.c  */ extern int Cmd_SensorlessPhase(int argc, char *argv[]);
+#endif
 
 /* -- 命令表 ----------------------------------------------------------------*/
 static const cmd_entry_t s_cmd_table[] = {
@@ -96,8 +108,10 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olspeed",    Cmd_OlSpeed,            "openloop V/F speed set <rpm>" },
     { "olstatus",   Cmd_OlStatus,           "show openloop current and fault status" },
     { "olrpm",      Cmd_OlRpm,              "rpm/current diagnostics; brief for safety line only" },
+#if MOTOR_CFG_CMD_SENSORLESS
     { "slstats",    Cmd_SensorlessStats,    "sensorless steady-window counters retained after stop" },
     { "sltest",     Cmd_SensorlessTest,     "[--3508] [--trace=off|lite|flight|entry|entryfast] [hold_s [rpm...]], stopped only" },
+#endif
 #if MOTOR_CFG_CMD_DIAG
     { "sltrace",    Cmd_SensorlessTrace,    "RAM trace fault|debug|compact|lite|flight|arm|entry|entryfast|show (stopped only)" },
     { "slhandoff",  Cmd_SensorlessHandoff,  "arm|phase|phaselong|step|pair|half|show; half capture STOPPED ONLY" },
@@ -124,7 +138,10 @@ static const cmd_entry_t s_cmd_table[] = {
     { "olki",       Cmd_OlKi,               "openloop current Ki" },
     { "olphase",    Cmd_OlPhase,            "openloop start phase boost <deg>" },
     { "olalign",    Cmd_OlAlign,            "startup rotor alignment config" },
+#if MOTOR_CFG_CMD_SENSORLESS
     { "hfistart",   Cmd_HfiStart,           "HFI startup: <0|1> <V> <cycles> [confidence]" },
+#endif
+#if MOTOR_CFG_CMD_SPEED
     /* 速度环 */
     { "speed",      Cmd_SpeedStatus,        "speed status/test, or ff detect [max_rpm]" },
     { "spenable",   Cmd_SpeedEnable,        "enable speed PI loop <0/1>" },
@@ -132,10 +149,14 @@ static const cmd_entry_t s_cmd_table[] = {
     { "spki",       Cmd_SpeedKi,            "set speed PI Ki" },
     { "spiq",       Cmd_SpeedIqLimit,       "set speed PI Iq limit <A>" },
     { "spbrake",    Cmd_SpeedBrake,         "allow speed loop braking <0/1>" },
+#endif
+#if MOTOR_CFG_CMD_POSITION
     { "pos",        Cmd_Position,           "encoder position loop: status|zero|set|move|test" },
+#endif
 #if MOTOR_CFG_CMD_JOINT
     { "joint",      Cmd_Joint,              "joint control: set|test|slow|hybridtest [rpm]|iqtest" },
 #endif
+#if MOTOR_CFG_CMD_SENSORLESS
     /* 无感观测器 */
     { "slenable",   Cmd_SensorlessEnable,   "enable sensorless observer <0/1>" },
     { "sltakeover", Cmd_SensorlessTakeover, "allow observer angle takeover <0/1>" },
@@ -145,12 +166,15 @@ static const cmd_entry_t s_cmd_table[] = {
     { "slobs",      Cmd_SensorlessObserver, "set observer and PLL gains" },
     { "sldt",       Cmd_SensorlessDeadtime, "RAM observer deadtime fraction, stopped only" },
     { "slphase",    Cmd_SensorlessPhase,    "set observer phase offset <deg>" },
+#endif
     /* 杂项 */
     { "show",       Cmd_Show,               "show hall sensor state" },
     { "task",       Cmd_Task_Show,          "task [watch [ms]]: stack, heap, CPU; key stops" },
     { "reset",      CMD_Reset,              "software reset MCU" },
     { "duty",       Cmd_Motor_Duty,         "duty cycle control: create/destory/set/start/stop" },
+#if MOTOR_CFG_CMD_ENCODER
     { "encoder",    Cmd_Motor_Encoder,      "AB encoder show/reset/detect" },
+#endif
     { "plot",       Cmd_Serial_Plot,        "VOFA JustFloat: create current|speed|pos|sine" },
     { "openloop",   Cmd_Motor_OpenLoop,     "openloop background task create" },
 };

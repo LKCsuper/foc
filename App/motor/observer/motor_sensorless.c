@@ -23,6 +23,8 @@ extern "C" {
 #include "motor_speed.h"
 #include "motor_protect.h"
 #include "motor_crit.h"
+#include "motor_config.h"
+#if MOTOR_CFG_SENSORLESS
 #if defined(__CC_ARM)
 /* 减少观测与接管路径调用开销，保持原浮点模式。 */
 #pragma O2
@@ -63,7 +65,7 @@ extern "C" {
  * 重要限制：电机静止或转速很低时，反电动势信息太弱，观测结果不可信。
  * 所以系统必须先用 I/F 强制角度让电机转起来，满足磁链、转速、方向、
  * 相位和持续时间条件后，才允许观测角度渐变接管电流环。
- * 未授权接管时本拍直接返回，不积分磁链、不跑 PLL；重新授权后从冷态 Seed。
+ * 观测开关控制磁链与 PLL 计算；接管授权只决定是否允许估算角控制电机。
  *
  * 本文件只负责“估算与接管判断”。真正的 D/Q 电流 PI 和 SVPWM 仍在
  * motor_it.c 中执行，速度 PI 则在 motor_speed.c 中执行。
@@ -335,29 +337,6 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
 
     if (dt <= 0.0f || !motor->sensorless_enable || motor->ol_mode != MOTOR_OL_MODE_IF || !motor->ol_enable) {
         Motor_Sensorless_ResetState(rt);
-        if (effects != NULL) {
-            effects->feedback_valid = false;
-        }
-        return;
-    }
-
-    /*
-     * 未授权接管时不做磁链积分和 PLL，I/F 继续使用强制角。
-     * 已闭环且转速高于开环安全上限时仍请求失速故障，然后清成冷态。
-     * 已经是冷态的拍只留下清零的副作用，避免每拍重复复位。
-     * 重新授权后从 Seed 建立，不沿用这段停算期间的旧磁链。
-     */
-    if (!motor->sensorless_takeover) {
-        bool above_open_loop_limit = rt->state == MOTOR_SENSORLESS_CLOSED &&
-                                     motor->sensorless_openloop_max_rpm > 0.0f &&
-                                     fabsf(motor->ol_current_rpm) > motor->sensorless_openloop_max_rpm;
-
-        if (above_open_loop_limit && effects != NULL) {
-            effects->request_speed_loss_fault = true;
-        }
-        if (rt->initialized || rt->state != MOTOR_SENSORLESS_OPEN_LOOP) {
-            Motor_Sensorless_ResetState(rt);
-        }
         if (effects != NULL) {
             effects->feedback_valid = false;
         }
@@ -921,23 +900,7 @@ void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
 {
     static float previous_ia, previous_ib, previous_ic, previous_dt;
     motor_observer_step_sample_t step;
-    bool step_active;
-    /*
-     * 未授权且已经是冷态时，磁链和 PLL 不再前进。本拍只把速度反馈保持为无效，
-     * 堵转/失速计时因此继续清零。闭环中撤销授权、或观测器尚未冷下来时仍走完整入口。
-     */
-    if (motor != NULL && !motor->sensorless_takeover && !s_sensorless.initialized &&
-        s_sensorless.state == MOTOR_SENSORLESS_OPEN_LOOP && motor->ol_enable && motor->sensorless_enable &&
-        motor->ol_mode == MOTOR_OL_MODE_IF && !Motor_Timing_ObserverStepActive() &&
-        !Motor_Timing_PhaseMode()) {
-        bool profile = Motor_Timing_ProfileIsActive();
-        uint32_t start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
-        previous_dt = 0.0f;
-        Motor_SpeedFeedback_Set(0.0f, false);
-        if (profile) Motor_Timing_ProfileRecord(MOTOR_TIMING_OBSERVER, start);
-        return;
-    }
-    step_active = Motor_Timing_ObserverStepActive();
+    bool step_active = Motor_Timing_ObserverStepActive();
     bool step_due = step_active && Motor_Timing_ObserverStepDue();
     motor_sensorless_effects_t effects;
     float pll_before = s_sensorless.pll_angle;
@@ -1114,6 +1077,7 @@ bool Motor_Sensorless_IsTakeoverComplete(void)
     return Motor_Sensorless_IsTakeoverCompleteState(&s_sensorless);
 }
 
+#endif /* MOTOR_CFG_SENSORLESS */
 #ifdef __cplusplus
 }
 #endif

@@ -12,6 +12,8 @@ extern "C" {
 #include "motor_mt6701_protocol.h"
 #include "hal_sensor.h"
 #include "hal_motor.h"
+#include "motor_config.h"
+#if MOTOR_CFG_ENCODER
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_MT6701_I2C_ADDRESS_7BIT (0x06U)
 #define MOTOR_MT6701_REG_ANGLE_MSB     (0x03U)
@@ -213,6 +215,7 @@ const char *Motor_MT6701_InterfaceName(void)
 #endif
 }
 
+#endif /* MOTOR_CFG_ENCODER */
 #ifdef __cplusplus
 }
 #endif

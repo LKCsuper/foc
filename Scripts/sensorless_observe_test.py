@@ -41,6 +41,15 @@ def observation_collapsed(previous, current):
     return previous is not None and previous > 500 and current < previous * .25
 
 
+def read_observation(run, command):
+    for _ in range(2):
+        reply = run(command)
+        match = re.search(r"rpm obs=([-\d.]+).*?tgt=([-\d.]+).*?iq=([-\d.]+).*?tk=(\d).*?fault=(\d+)", reply)
+        if match:
+            return reply, match
+    raise RuntimeError("连续两次观测回包不完整，停止测试")
+
+
 def observation_command(brief, coherent, rpms, maximum):
     if brief and (coherent or rpms != [300] or maximum > 800):
         raise ValueError('精简安全查询仅用于单档300RPM对照，不能同时请求同拍角度校验')
@@ -184,10 +193,7 @@ def main():
                 tracking_good = 0
                 for _ in range(args.samples):
                     shell.drain(0.7)
-                    reply = run(poll_command)
-                    match = re.search(r"rpm obs=([-\d.]+).*?tgt=([-\d.]+).*?iq=([-\d.]+).*?tk=(\d).*?fault=(\d+)", reply)
-                    if not match:
-                        raise RuntimeError("观测回包不完整，停止测试")
+                    reply, match = read_observation(run, poll_command)
                     obs, target, iq, takeover, fault = map(float, match.groups())
                     if target != rpm:
                         raise RuntimeError("目标配置发生变化或控制器重启，停止测试")

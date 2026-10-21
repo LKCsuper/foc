@@ -154,6 +154,7 @@ int main(void)
     assert(s_applied_alpha == 0.0f && s_applied_beta == 0.0f && s_commit_calls == 1U);
 
     motor.ol_mode = MOTOR_OL_MODE_IF;
+    motor.sensorless_enable = true;
     motor.sensorless_takeover = true;
     s_source = MOTOR_FEEDBACK_SRC_ENCODER;
     Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
@@ -289,7 +290,7 @@ int main(void)
     s_profile_detailed = false;
     Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
     assert(s_voltage_records == 1U);
-    /* 未授权接管时不重建，比较值和 SVM 输入保持原符号。 */
+    /* 仅观测时仍重建电压，比较值和 SVM 输入保持原符号。 */
     motor.sensorless_takeover = false;
     motor.ol_enable = true;
     motor.ol_mode = MOTOR_OL_MODE_IF;
@@ -299,11 +300,17 @@ int main(void)
         unsigned reconstructions = s_reconstruction_calls;
         unsigned records = s_voltage_records;
         Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
-        assert(s_reconstruction_calls == reconstructions);
-        assert(s_voltage_records == records);
+        assert(s_reconstruction_calls == reconstructions + 1U);
+        assert(s_voltage_records == records + 1U);
         assert(s_pwm_a == 11U && s_pwm_b == 33U && s_pwm_c == 22U);
-        assert(s_applied_alpha == -2.0f && s_applied_beta == 3.0f);
+        assert(s_command_alpha == -2.0f && s_command_beta == 3.0f);
         assert(s_vesc_alpha == -2.0f && s_vesc_beta == 3.0f);
+        motor.sensorless_enable = false;
+        Motor_OutputVoltage(&motor, 2.0f, -3.0f, 1.0f, 24.0f);
+        assert(s_reconstruction_calls == reconstructions + 1U);
+        assert(s_voltage_records == records + 1U);
+        assert(s_applied_alpha == -2.0f && s_applied_beta == 3.0f);
+        motor.sensorless_enable = true;
     }
     /* 同实例 Park 角度原码相同才复用正余弦；角度不同、正负零不同或未做过 Park 都按 theta 重算。 */
     {

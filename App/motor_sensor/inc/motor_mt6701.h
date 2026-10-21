@@ -10,6 +10,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
+#include "motor_config.h"
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_MT6701_COUNTS_PER_REV (16384U)
 #define MOTOR_MT6701_INTERFACE_I2C  (1U)
@@ -45,6 +46,7 @@ typedef struct {
  * @return {*}
  * @author: lkc
  */
+#if MOTOR_CFG_ENCODER
 void Motor_MT6701_Init(void);
 
 /**
@@ -83,6 +85,20 @@ uint32_t Motor_MT6701_GetSampleSequence(void);
  * @author: lkc
  */
 const char *Motor_MT6701_InterfaceName(void);
+#else
+static inline void Motor_MT6701_Init(void) {}
+static inline bool Motor_MT6701_Poll(void) { return false; }
+static inline void Motor_MT6701_GetStatus(motor_mt6701_status_t *status)
+{
+    if (status != NULL) {
+        motor_mt6701_status_t zero = {0};
+        *status = zero;
+    }
+}
+static inline bool Motor_MT6701_IsValid(void) { return false; }
+static inline uint32_t Motor_MT6701_GetSampleSequence(void) { return 0U; }
+static inline const char *Motor_MT6701_InterfaceName(void) { return "off"; }
+#endif
 #ifdef __cplusplus
 }
 #endif

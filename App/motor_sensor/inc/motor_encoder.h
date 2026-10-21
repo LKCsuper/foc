@@ -15,6 +15,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
 #include <stdbool.h>
+#include "motor_config.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 #include "motor_encoder_core.h"
@@ -28,6 +29,7 @@ extern "C" {
  * @return {*}
  * @author: lkc
  */
+#if MOTOR_CFG_ENCODER
 void Motor_Encoder_RuntimeInit(motor_encoder_runtime_t *rt, uint32_t counts_per_rev, bool inverted);
 
 /**
@@ -239,6 +241,37 @@ bool Motor_Encoder_DetectGetTargets(float *theta_rad, float *id_target, float *i
  * @author: lkc
  */
 void Motor_Encoder_ApplyCalibration(float offset_rad, bool inverted, bool valid);
+#else
+static inline void Motor_Encoder_Init(void) {}
+static inline uint16_t Motor_Encoder_GetCount(void) { return 0U; }
+static inline void Motor_Encoder_Update(float dt_s) { (void)dt_s; }
+static inline void Motor_Encoder_UpdateReference(float dt_s) { (void)dt_s; }
+static inline float Motor_Encoder_GetMechAngle(void) { return 0.0f; }
+static inline float Motor_Encoder_GetElecAngle(void) { return 0.0f; }
+static inline float Motor_Encoder_GetMechRpm(void) { return 0.0f; }
+static inline float Motor_Encoder_GetRawMechRpm(void) { return 0.0f; }
+static inline float Motor_Encoder_GetSampleAge(void) { return 0.0f; }
+static inline uint32_t Motor_Encoder_GetSampleTimeUs(void) { return 0U; }
+static inline bool Motor_Encoder_IsSignalFault(void) { return true; }
+static inline uint32_t Motor_Encoder_GetAccumulatedCount(void) { return 0U; }
+static inline bool Motor_Encoder_IsSpeedValid(void) { return false; }
+static inline bool Motor_Encoder_IsZeroValid(void) { return false; }
+static inline bool Motor_Encoder_IsCompareEnabled(void) { return false; }
+static inline bool Motor_Encoder_DetectIsActive(void) { return false; }
+static inline bool Motor_Encoder_DetectGetTargets(float *theta_rad, float *id_target, float *iq_target)
+{
+    (void)theta_rad;
+    (void)id_target;
+    (void)iq_target;
+    return false;
+}
+static inline void Motor_Encoder_ApplyCalibration(float offset_rad, bool inverted, bool valid)
+{
+    (void)offset_rad;
+    (void)inverted;
+    (void)valid;
+}
+#endif
 /* Private functions ---------------------------------------------------------*/
 #ifdef __cplusplus
 }

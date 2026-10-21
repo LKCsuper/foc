@@ -5,7 +5,7 @@
  * 学习要点：
  *   1) 静止/极低速时反电动势弱，观测角不可信 → 必须先 I/F 起转再接管。
  *   2) OPEN_LOOP/LOCKING 仍用强制角；CLOSED 才渐变使用 PLL 角。
- *   3) 未授权接管时不积分；授权后才计算，算了仍不等于已经接管。
+ *   3) 观测开关与接管授权独立；未授权时仍可观测，但估算角不控制电机。
  *   4) State API 通过 effects 报告“要发速度反馈/预置 Iq/锁存失速”，
  *      不在核心里直接调速度环/保护（默认包装负责落地）。
  */
@@ -17,6 +17,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
+#include "motor_config.h"
 #include "motor_param.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
@@ -25,12 +26,12 @@ extern "C" {
  * 无感控制状态。注意“观测器正在计算”不等于“观测器已经接管”：
  *
  *   OPEN_LOOP
- *     电流环完全使用 I/F 强制角度。未授权接管时观测器保持冷态；
- *     已授权但磁链、转速、方向或相位至少有一项不满足时才后台积分。
+ *     电流环完全使用 I/F 强制角度；观测是否积分由观测开关决定。
+ *     观测已开启时后台积分，接管仍需独立授权并满足锁定条件。
  *
  *   LOCKING
- *     已授权且所有接管条件当前均满足，但还要连续保持 sensorless_lock_time。
- *     此状态仍然使用 I/F 角度。未授权时不会停留在这里空转积分。
+ *     所有锁定条件当前均满足，但还要连续保持 sensorless_lock_time 并获得接管授权。
+ *     此状态仍然使用 I/F 角度；未授权时不允许进入 CLOSED。
  *
  *   CLOSED
  *     已获得 sensorless_takeover 授权并完成锁定，观测角通过渐变参与
@@ -149,6 +150,20 @@ typedef struct {
     motor_sensorless_state_t state;
     motor_sensorless_stats_t stats; /* 到达目标且达到接管速度后最多采集10秒，停机保留 */
 } motor_sensorless_runtime_t;
+
+/**
+ * @description: UpdateState 产生的副作用请求（由包装落地到速度环/保护）。
+ * @detail: 核心不直接调用 Motor_Speed* / Motor_Protect*，便于主机双实例测试。
+ *          类型始终可见：诊断在无感关闭时仍可声明局部变量。
+ */
+typedef struct {
+    bool request_speed_loss_fault; /* 高速失锁：应锁存 MOTOR_SPEED_LOSS */
+    bool feedback_valid;           /* 是否向速度环发布有效转速 */
+    float feedback_rpm;            /* 发布的机械 RPM */
+    bool prime_speed_iq;           /* 切入 CLOSED 时预置速度 PI */
+    float prime_iq;                /* 预置 Iq (A) */
+} motor_sensorless_effects_t;
+#if MOTOR_CFG_SENSORLESS
 void Motor_Sensorless_GetLightSnapshotState(const motor_sensorless_runtime_t *rt,
                                            motor_sensorless_light_snapshot_t *out);
 void Motor_Sensorless_GetLightSnapshot(motor_sensorless_light_snapshot_t *out);
@@ -172,18 +187,6 @@ void Motor_Sensorless_GetStats(motor_sensorless_stats_t *stats);
  * @author: lkc
  */
 void Motor_Sensorless_SetModulatedVoltage(float v_alpha, float v_beta);
-
-/**
- * @description: UpdateState 产生的副作用请求（由包装落地到速度环/保护）。
- * @detail: 核心不直接调用 Motor_Speed* / Motor_Protect*，便于主机双实例测试。
- */
-typedef struct {
-    bool request_speed_loss_fault; /* 高速失锁：应锁存 MOTOR_SPEED_LOSS */
-    bool feedback_valid;           /* 是否向速度环发布有效转速 */
-    float feedback_rpm;            /* 发布的机械 RPM */
-    bool prime_speed_iq;           /* 切入 CLOSED 时预置速度 PI */
-    float prime_iq;                /* 预置 Iq (A) */
-} motor_sensorless_effects_t;
 
 /**
  * @description: 初始化指定观测器运行时状态。
@@ -400,6 +403,54 @@ bool Motor_Sensorless_IsClosedLoop(void);
  * @author: lkc
  */
 bool Motor_Sensorless_IsTakeoverComplete(void);
+#else
+/* 无感关闭：控制角回退开环，观测状态保持 OPEN_LOOP。 */
+static inline void Motor_Sensorless_GetLightSnapshot(motor_sensorless_light_snapshot_t *out)
+{
+    if (out != NULL) {
+        motor_sensorless_light_snapshot_t zero = {0};
+        *out = zero;
+    }
+}
+static inline void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_t *diagnostics)
+{
+    if (diagnostics != NULL) {
+        motor_sensorless_diagnostics_t zero = {0};
+        *diagnostics = zero;
+    }
+}
+static inline void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
+                                                motor_sensorless_effects_t *effects)
+{
+    (void)rt;
+    (void)motor;
+    (void)dt;
+    (void)effects;
+}
+static inline void Motor_Sensorless_Init(void) {}
+static inline void Motor_Sensorless_Reset(void) {}
+static inline void Motor_Sensorless_SetAppliedVoltage(float v_alpha, float v_beta)
+{
+    (void)v_alpha;
+    (void)v_beta;
+}
+static inline void Motor_Sensorless_SetModulatedVoltage(float v_alpha, float v_beta)
+{
+    (void)v_alpha;
+    (void)v_beta;
+}
+static inline void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
+{
+    (void)motor;
+    (void)dt;
+}
+static inline float Motor_Sensorless_GetControlAngle(float open_loop_angle) { return open_loop_angle; }
+static inline motor_sensorless_state_t Motor_Sensorless_GetState(void) { return MOTOR_SENSORLESS_OPEN_LOOP; }
+static inline float Motor_Sensorless_GetFluxMagnitude(void) { return 0.0f; }
+static inline float Motor_Sensorless_GetMechanicalRpm(void) { return 0.0f; }
+static inline float Motor_Sensorless_GetPhaseError(void) { return 0.0f; }
+static inline bool Motor_Sensorless_IsTakeoverComplete(void) { return false; }
+#endif
 
 #ifdef __cplusplus
 }

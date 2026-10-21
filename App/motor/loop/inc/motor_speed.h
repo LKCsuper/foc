@@ -15,6 +15,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
+#include "motor_config.h"
 #include "motor_param.h"
 #include "motor_speed_core.h"
 /* Private define ------------------------------------------------------------*/
@@ -29,6 +30,7 @@ extern "C" {
  * @return {*}
  * @author: lkc
  */
+#if MOTOR_CFG_SPEED
 void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, float dt);
 
 /**
@@ -126,6 +128,44 @@ bool Motor_SpeedLoop_GetSnapshot(motor_speed_snapshot_t *snapshot);
  * @return {uint32_t} PI更新计数，可回绕
  */
 uint32_t Motor_SpeedLoop_GetUpdateCount(void);
+#else
+static inline void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, float dt)
+{
+    (void)state;
+    (void)motor;
+    (void)dt;
+}
+static inline void Motor_Speed_Init(void) {}
+static inline void Motor_SpeedFeedback_Set(float rpm, bool valid)
+{
+    (void)rpm;
+    (void)valid;
+}
+static inline void Motor_SpeedLoop_Run(MOTOR_PARAM_S *motor, float dt)
+{
+    (void)motor;
+    (void)dt;
+}
+static inline void Motor_SpeedLoop_RunScheduled(MOTOR_PARAM_S *motor, float dt)
+{
+    (void)motor;
+    (void)dt;
+}
+static inline void Motor_SpeedLoop_SetRunAllowed(bool allowed) { (void)allowed; }
+static inline void Motor_SpeedLoop_Reset(void) {}
+static inline void Motor_SpeedLoop_PrimeIq(float iq) { (void)iq; }
+static inline float Motor_SpeedLoop_GetIqTarget(void) { return 0.0f; }
+static inline float Motor_SpeedLoop_GetMeasuredRpm(void) { return 0.0f; }
+static inline float Motor_SpeedLoop_GetError(void) { return 0.0f; }
+static inline bool Motor_SpeedLoop_IsFeedbackValid(void) { return false; }
+static inline bool Motor_SpeedLoop_IsRunAllowed(void) { return false; }
+static inline bool Motor_SpeedLoop_GetSnapshot(motor_speed_snapshot_t *snapshot)
+{
+    (void)snapshot;
+    return false;
+}
+static inline uint32_t Motor_SpeedLoop_GetUpdateCount(void) { return 0U; }
+#endif
 /* Private functions ---------------------------------------------------------*/
 #ifdef __cplusplus
 }

@@ -24,8 +24,10 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 static StackType_t s_pid_stack[MOTOR_TASK_PID_STACK_WORDS];
 static StaticTask_t s_pid_tcb;
+#if MOTOR_CFG_ENCODER
 static StackType_t s_encoder_stack[MOTOR_TASK_ENCODER_STACK_WORDS];
 static StaticTask_t s_encoder_tcb;
+#endif
 static const osThreadAttr_t s_pid_attr = {
     .name = "foc pid",
     /* 速度/位置环必须抢占 Shell 的浮点格式化和串口排队，避免打印改变控制周期。 */
@@ -36,6 +38,7 @@ static const osThreadAttr_t s_pid_attr = {
     .stack_size = sizeof(s_pid_stack),
 };
 static osThreadId_t s_pid_thread;
+#if MOTOR_CFG_ENCODER
 static const osThreadAttr_t s_encoder_attr = {
     .name = "mt6701",
     /* 编码器反馈优先于 Shell；每拍事务有界并主动延时，不会持续占用 CPU。 */
@@ -46,13 +49,17 @@ static const osThreadAttr_t s_encoder_attr = {
     .stack_size = sizeof(s_encoder_stack),
 };
 static osThreadId_t s_encoder_thread;
+#endif
 /* Private function prototypes -----------------------------------------------*/
+static void Motor_Task_Pid(void *argument);
+#if MOTOR_CFG_ENCODER
 static uint32_t Motor_Task_EncoderPeriodTicks(void);
 static void Motor_Task_DelayNextTick(uint32_t *tick, uint32_t period);
-static void Motor_Task_Pid(void *argument);
 static void Motor_Task_Encoder(void *argument);
+#endif
 /* Private functions ---------------------------------------------------------*/
 
+#if MOTOR_CFG_ENCODER
 /**
  * @description: 推进周期基准并休眠到下一拍。
  * @detail: 用有符号 tick 差判断是否错过本拍，计数回绕后仍成立。错过则把基准拉到 now，避免连续补拍。
@@ -71,6 +78,7 @@ static void Motor_Task_DelayNextTick(uint32_t *tick, uint32_t period)
     *tick += period;
     (void)osDelayUntil(*tick);
 }
+#endif /* MOTOR_CFG_ENCODER */
 
 /**
  * @description: foc pid 任务：睡眠到下一拍后运行速度 PI。
@@ -142,6 +150,7 @@ static void Motor_Task_Pid(void *argument)
     }
 }
 
+#if MOTOR_CFG_ENCODER
 /**
  * @description: 按 MT6701 轮询频率计算采集周期。
  * @detail: MOTOR_MT6701_POLL_HZ 是编译期常量，tick 频率在内核启动后不变，任务里只算一次。
@@ -198,6 +207,7 @@ static void Motor_Task_Encoder(void *argument)
         }
     }
 }
+#endif /* MOTOR_CFG_ENCODER */
 
 /**
  * @description: 启动速度/位置外环任务，只创建一次
@@ -216,6 +226,7 @@ void Motor_Task_Start(void)
         }
     }
 
+#if MOTOR_CFG_ENCODER
     // 创建编码器任务
     if (s_encoder_thread == NULL) {
         s_encoder_thread = osThreadNew(Motor_Task_Encoder, NULL, &s_encoder_attr);
@@ -223,6 +234,7 @@ void Motor_Task_Start(void)
             PRINTF("mt6701 task create failed\r\n");
         }
     }
+#endif
 }
 
 #ifdef __cplusplus

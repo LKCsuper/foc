@@ -3,10 +3,29 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'Scripts'))
-from sensorless_observe_test import observation_collapsed, observation_command, validate_plan, validate_voltage_limit, validate_voltage_schedule, voltage_near_limit
+from sensorless_observe_test import observation_collapsed, observation_command, read_observation, validate_plan, validate_voltage_limit, validate_voltage_schedule, voltage_near_limit
 
 
 class ObservePlanTest(unittest.TestCase):
+    def test_read_observation_retries_only_missing_fields(self):
+        valid = 'rpm obs=300.0 tgt=300 iq=1.0 tk=0 fault=0'
+        replies = iter([valid.replace('fault=0', 'fault0'), valid])
+        calls = []
+        def run(command):
+            calls.append(command)
+            return next(replies)
+        reply, match = read_observation(run, 'olrpm')
+        self.assertEqual(reply, valid)
+        self.assertEqual(calls, ['olrpm', 'olrpm'])
+        self.assertEqual(match[5], '0')
+        with self.assertRaises(RuntimeError):
+            read_observation(lambda command: 'missing', 'olrpm')
+        calls.clear()
+        replies = iter([valid.replace('fault=0', 'fault=1')])
+        _, match = read_observation(run, 'olrpm')
+        self.assertEqual(match[5], '1')
+        self.assertEqual(calls, ['olrpm'])
+
     def test_brief_safety_query_scope(self):
         self.assertEqual(observation_command(True, False, [300], 800), 'olrpm brief')
         self.assertEqual(observation_command(False, True, [300, 600], 800), 'olrpm')

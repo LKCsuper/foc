@@ -13,6 +13,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
+#include "motor_config.h"
 #include "motor_position_core.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
@@ -24,6 +25,7 @@ extern "C" {
  * @return {void} 无
  * @author: lkc
  */
+#if MOTOR_CFG_POSITION
 void Motor_Position_Init(void);
 
 /**
@@ -99,6 +101,38 @@ void Motor_Position_GetState(motor_position_state_t *state);
  * @author: lkc
  */
 bool Motor_Position_IsEnabled(void);
+#else
+static inline void Motor_Position_Init(void) {}
+static inline void Motor_Position_Zero(void) {}
+static inline bool Motor_Position_Enable(bool enable)
+{
+    (void)enable;
+    return false;
+}
+static inline bool Motor_Position_SetTargetDeg(float target_deg)
+{
+    (void)target_deg;
+    return false;
+}
+static inline bool Motor_Position_MoveDeg(float delta_deg)
+{
+    (void)delta_deg;
+    return false;
+}
+static inline bool Motor_Position_SetKp(float kp_rpm_per_deg)
+{
+    (void)kp_rpm_per_deg;
+    return false;
+}
+static inline bool Motor_Position_SetMaxRpm(float max_rpm)
+{
+    (void)max_rpm;
+    return false;
+}
+static inline void Motor_Position_Run(float dt) { (void)dt; }
+static inline void Motor_Position_GetState(motor_position_state_t *state) { (void)state; }
+static inline bool Motor_Position_IsEnabled(void) { return false; }
+#endif
 /* Private functions ---------------------------------------------------------*/
 #ifdef __cplusplus
 }

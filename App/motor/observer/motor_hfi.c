@@ -13,6 +13,8 @@ extern "C" {
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
+#include "motor_config.h"
+#if MOTOR_CFG_SENSORLESS
 /* Private define ------------------------------------------------------------*/
 #define MOTOR_HFI_PI (3.14159265358979323846f)
 #define MOTOR_HFI_TWO_PI (2.0f * MOTOR_HFI_PI)
@@ -209,6 +211,7 @@ float Motor_Hfi_GetSpeedE(const motor_hfi_t *hfi)
     return hfi == NULL ? 0.0f : hfi->speed_e;
 }
 
+#endif /* MOTOR_CFG_SENSORLESS */
 #ifdef __cplusplus
 }
 #endif
