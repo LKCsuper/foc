@@ -140,9 +140,96 @@ bool Hal_Motor_StoppedIrqTestEnd(bool restore_gate)
  * @return {*}
  * @author: lkc
  */
+hal_motor_pwm_window_t g_hal_motor_pwm_window;
+static bool s_pwm_window_running;
+static bool s_pwm_window_waiting;
+static uint32_t s_pwm_window_ready_us;
+static uint32_t s_pwm_window_stride = 1U;
+static uint32_t s_pwm_window_skip;
+
+void Hal_Motor_PwmWindowEnable(bool enable)
+{
+    g_hal_motor_pwm_window.enabled = 0U;
+    s_pwm_window_running = false;
+    s_pwm_window_waiting = false;
+    if (enable) {
+        s_pwm_window_stride = 1U;
+        s_pwm_window_skip = 0U;
+        g_hal_motor_pwm_window.count = 0U;
+        __DMB();
+        g_hal_motor_pwm_window.enabled = 1U;
+    }
+}
+
+static void Hal_Motor_PwmWindowReserveWithStride(uint32_t stride)
+{
+    Hal_Motor_PwmWindowEnable(false);
+    g_hal_motor_pwm_window.count = 0U;
+    s_pwm_window_stride = stride;
+    s_pwm_window_skip = 0U;
+    __DMB();
+    g_hal_motor_pwm_window.enabled = 2U;
+}
+
+void Hal_Motor_PwmWindowReserve(void) { Hal_Motor_PwmWindowReserveWithStride(1U); }
+void Hal_Motor_PwmWindowReserveLong(void) { Hal_Motor_PwmWindowReserveWithStride(997U); }
+uint32_t Hal_Motor_PwmWindowStride(void) { return s_pwm_window_stride; }
+
+void Hal_Motor_PwmWindowPoll(bool running, bool ready)
+{
+    uint32_t now;
+    if (g_hal_motor_pwm_window.enabled == 0U) return;
+    if (!running) {
+        if (s_pwm_window_running) g_hal_motor_pwm_window.enabled = 0U;
+        s_pwm_window_waiting = false;
+        return;
+    }
+    s_pwm_window_running = true;
+    if (g_hal_motor_pwm_window.enabled != 2U) return;
+    if (!ready) {
+        s_pwm_window_waiting = false;
+        return;
+    }
+    now = Hal_Motor_TimeUs();
+    if (!s_pwm_window_waiting) {
+        s_pwm_window_ready_us = now;
+        s_pwm_window_waiting = true;
+    } else if ((uint32_t)(now - s_pwm_window_ready_us) >= 1000000U) {
+        __DMB();
+        g_hal_motor_pwm_window.enabled = 1U;
+    }
+}
+
 void Hal_Motor_PwmSetDuty(uint32_t duty_a, uint32_t duty_b, uint32_t duty_c)
 {
+    hal_motor_pwm_window_frame_t frame;
+    uint32_t index = g_hal_motor_pwm_window.count;
+    bool capture = g_hal_motor_pwm_window.enabled == 1U && index < HAL_MOTOR_PWM_WINDOW_CAPACITY;
+    if (capture) {
+        if (s_pwm_window_skip != 0U) {
+            s_pwm_window_skip--;
+            capture = false;
+        } else {
+            s_pwm_window_skip = s_pwm_window_stride - 1U;
+        }
+    }
+    if (capture) {
+        frame.before_us = Hal_Motor_TimeUs();
+        frame.before_cr1 = TIM1->CR1;
+        frame.before_count = TIM1->CNT;
+    }
     TIMER_UPDATE_DUTY_M1(duty_a, duty_b, duty_c);
+    if (capture) {
+        frame.after_count = TIM1->CNT;
+        frame.after_cr1 = TIM1->CR1;
+        frame.after_us = Hal_Motor_TimeUs();
+        frame.period = TIM1->ARR;
+        g_hal_motor_pwm_window.frames[index] = frame;
+        __DMB();
+        g_hal_motor_pwm_window.count = index + 1U;
+        if (index + 1U == HAL_MOTOR_PWM_WINDOW_CAPACITY)
+            g_hal_motor_pwm_window.enabled = 0U;
+    }
 }
 
 /**

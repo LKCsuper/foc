@@ -5,6 +5,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "motor_timing.h"
 #include "motor_timing_internal.h"
+#include "motor_diag_phase.h"
 #include "common_assert.h"
 
 #include <stddef.h>
@@ -18,6 +19,159 @@
 #pragma O2
 #endif
 #if MOTOR_CFG_DIAG
+motor_phase_debug_t g_motor_phase_debug;
+volatile uint32_t g_motor_phase_active;
+static bool s_phase_seeded;
+static bool s_phase_down;
+static uint32_t s_phase_post;
+static uint32_t s_phase_start_us;
+static bool s_phase_irq_open;
+static uint32_t s_phase_irq_start_us;
+static uint32_t s_phase_irq_slot;
+static uint32_t s_phase_irq_sequence;
+static bool s_phase_platform_running;
+static bool s_phase_platform_waiting;
+static uint32_t s_phase_platform_us;
+
+void Motor_Timing_PhaseEdgeArm(void)
+{
+    uint32_t key = Motor_Crit_Enter();
+    g_motor_phase_active = 0U;
+    memset(&g_motor_phase_debug, 0, sizeof(g_motor_phase_debug));
+    g_motor_phase_debug.magic = 0x50484153U;
+    g_motor_phase_debug.version = 2U;
+    s_phase_seeded = false;
+    s_phase_post = 0U;
+    s_phase_irq_open = false;
+    s_phase_irq_sequence = 0U;
+    s_phase_platform_running = false;
+    s_phase_platform_waiting = false;
+    g_motor_phase_active = 1U;
+    Motor_Crit_Exit(key);
+}
+
+void Motor_Timing_PhaseEdgeReserve3000(void)
+{
+    Motor_Timing_PhaseEdgeArm();
+    g_motor_phase_active = 3U;
+}
+
+void Motor_Timing_PhaseEdgePoll(bool running, bool ready, uint32_t time_us)
+{
+    if (g_motor_phase_active != 3U) return;
+    if (!running) {
+        if (s_phase_platform_running) {
+            g_motor_phase_active = 0U;
+            g_motor_phase_debug.reason = 2U;
+        }
+        s_phase_platform_waiting = false;
+        return;
+    }
+    s_phase_platform_running = true;
+    if (!ready) {
+        s_phase_platform_waiting = false;
+        return;
+    }
+    if (!s_phase_platform_waiting) {
+        s_phase_platform_waiting = true;
+        s_phase_platform_us = time_us;
+    } else if ((uint32_t)(time_us - s_phase_platform_us) >= 1000000U) {
+        g_motor_phase_active = 1U;
+    }
+}
+
+void Motor_Timing_PhaseEdgeStop(void)
+{
+    uint32_t key = Motor_Crit_Enter();
+    g_motor_phase_active = 0U;
+    if (g_motor_phase_debug.reason == 0U) g_motor_phase_debug.reason = 2U;
+    Motor_Crit_Exit(key);
+}
+
+void Motor_Timing_PhaseIrqBegin(uint32_t time_us)
+{
+    s_phase_irq_start_us = time_us;
+    s_phase_irq_sequence = 0U;
+    s_phase_irq_open = true;
+}
+
+void Motor_Timing_PhaseIrqEnd(uint32_t time_us, uint32_t dma_status, uint32_t adc_status,
+                              uint32_t remaining, uint32_t pending)
+{
+    motor_phase_event_t *event;
+    if (!s_phase_irq_open) return;
+    s_phase_irq_open = false;
+    if (s_phase_irq_sequence == 0U) return;
+    event = &g_motor_phase_debug.events[s_phase_irq_slot];
+    if (event->sequence != s_phase_irq_sequence) return;
+    event->irq_exit_us = time_us;
+    event->dma_status = dma_status;
+    event->adc_status = adc_status;
+    event->dma_remaining = remaining;
+    event->irq_pending = pending;
+    event->flags |= 2U;
+}
+
+void Motor_Timing_PhaseMarkStatus(void)
+{
+    motor_phase_event_t *event;
+    if (!s_phase_irq_open || s_phase_irq_sequence == 0U) return;
+    event = &g_motor_phase_debug.events[s_phase_irq_slot];
+    if (event->sequence == s_phase_irq_sequence) event->flags |= 4U;
+}
+
+void Motor_Timing_PhaseEdgeNote(uint32_t time_us, uint32_t count, uint32_t cr1,
+                            uint32_t divider, uint32_t flags, bool running)
+{
+    motor_phase_event_t *event;
+    bool down = (cr1 & 16U) != 0U;
+    bool post = g_motor_phase_active == 2U;
+    if (g_motor_phase_active == 0U || g_motor_phase_active == 3U) return;
+    if (!running) {
+        if (g_motor_phase_debug.seen != 0U) {
+            g_motor_phase_active = 0U;
+            if (g_motor_phase_debug.reason == 0U) g_motor_phase_debug.reason = 2U;
+        }
+        return;
+    }
+    if (g_motor_phase_debug.seen == 0U) s_phase_start_us = time_us;
+    g_motor_phase_debug.seen++;
+    event = &g_motor_phase_debug.events[g_motor_phase_debug.head];
+    event->sequence = g_motor_phase_debug.seen;
+    event->time_us = time_us;
+    event->count = count;
+    event->cr1 = cr1;
+    event->divider = divider;
+    event->flags = flags;
+    event->irq_entry_us = s_phase_irq_open ? s_phase_irq_start_us : 0U;
+    event->irq_exit_us = 0U;
+    event->dma_status = 0U;
+    event->adc_status = 0U;
+    event->dma_remaining = 0U;
+    event->irq_pending = 0U;
+    if (s_phase_irq_open) {
+        s_phase_irq_slot = g_motor_phase_debug.head;
+        s_phase_irq_sequence = event->sequence;
+    }
+    g_motor_phase_debug.head = (g_motor_phase_debug.head + 1U) % MOTOR_PHASE_CAPACITY;
+    if (g_motor_phase_debug.count < MOTOR_PHASE_CAPACITY) g_motor_phase_debug.count++;
+    if ((flags & 1U) != 0U) {
+        if (s_phase_seeded && down != s_phase_down && !post) {
+            g_motor_phase_debug.trigger_sequence = g_motor_phase_debug.seen;
+            g_motor_phase_debug.reason = 1U;
+            s_phase_post = 16U;
+            g_motor_phase_active = 2U;
+        }
+        s_phase_down = down;
+        s_phase_seeded = true;
+    }
+    if (post && --s_phase_post == 0U) g_motor_phase_active = 0U;
+    if (g_motor_phase_active == 1U && (uint32_t)(time_us - s_phase_start_us) >= 10000000U) {
+        g_motor_phase_debug.reason = 3U;
+        g_motor_phase_active = 0U;
+    }
+}
+
 volatile uint32_t s_speed_complete_us;
 bool s_cadence_active;
 bool s_task_only;

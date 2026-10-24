@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>台架</title>
+<style>
+  :root {
+    --chassis: #1c1a17;
+    --rail: #161411;
+    --ink: #1c1915;
+    --paper: #f4f0e6;
+    --rule: #d8d0c2;
+    --muted: #8d8478;
+    --chassis-text: #e6e0d4;
+    --chassis-dim: #9a9186;
+    --iq: #8d3a30;
+    --id: #1d665c;
+    --hair: #3a342c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--chassis);
+    color: var(--chassis-text);
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+  }
+  .bench {
+    display: grid;
+    grid-template-columns: 196px 1fr 268px;
+    height: 100%;
+    min-height: 640px;
+  }
+  .rail, .side {
+    padding: 22px 18px;
+    background: var(--rail);
+  }
+  .side { border-left: 1px solid var(--hair); }
+  .rail { border-right: 1px solid var(--hair); }
+  h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+  .port {
+    margin-top: 6px;
+    color: var(--chassis-dim);
+    font-family: Consolas, "Cascadia Mono", monospace;
+    font-size: 12px;
+  }
+  .cmds { margin-top: 28px; display: flex; flex-direction: column; gap: 4px; }
+  button.cmd {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    width: 100%;
+    padding: 8px 0;
+    border: 0;
+    border-top: 1px solid var(--hair);
+    background: transparent;
+    color: var(--chassis-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  button.cmd:last-child { border-bottom: 1px solid var(--hair); }
+  button.cmd code {
+    font-family: Consolas, "Cascadia Mono", monospace;
+    font-size: 13px;
+  }
+  button.cmd span { color: var(--chassis-dim); font-size: 12px; }
+  button.cmd.on code { color: #f4f0e6; }
+  .note {
+    margin-top: 22px;
+    color: var(--chassis-dim);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .sheet {
+    background: var(--paper);
+    color: var(--ink);
+    margin: 18px;
+    padding: 18px 18px 14px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .sheet-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+  }
+  .sheet h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: #5c564c; }
+  .swatch { display: inline-block; width: 18px; height: 2px; margin-right: 6px; vertical-align: middle; }
+  .swatch.iq { background: var(--iq); }
+  .swatch.id { background: var(--id); }
+  svg.scope { width: 100%; height: auto; margin-top: 8px; display: block; }
+  .axis-note {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2px;
+    color: #6e675c;
+    font-size: 12px;
+    font-family: Consolas, "Cascadia Mono", monospace;
+  }
+  .readings {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+  }
+  .readings b {
+    display: block;
+    font-family: Consolas, "Cascadia Mono", monospace;
+    font-size: 18px;
+    font-weight: 500;
+  }
+  .readings span { color: #6e675c; font-size: 12px; }
+  .cap {
+    margin: 10px 0 0;
+    color: #6e675c;
+    font-size: 12px;
+  }
+  .side h3 {
+    margin: 18px 0 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--chassis-dim);
+  }
+  .side h3:first-child { margin-top: 0; }
+  dl { margin: 0; }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--hair);
+    font-size: 13px;
+  }
+  .row dt { color: var(--chassis-dim); }
+  .row dd {
+    margin: 0;
+    font-family: Consolas, "Cascadia Mono", monospace;
+    text-align: right;
+  }
+  .fault-name { color: #e7b2ab; }
+  pre.log {
+    margin: 0;
+    white-space: pre-wrap;
+    font-family: Consolas, "Cascadia Mono", monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--chassis-text);
+  }
+</style>
+</head>
+<body>
+<div class="bench">
+  <aside class="rail">
+    <h1>台架</h1>
+    <div class="port">COM17 · 115200</div>
+    <div class="cmds">
+      <button class="cmd" id="b-start" type="button"><code>olstart</code><span>起转</span></button>
+      <button class="cmd" id="b-stop" type="button"><code>olstop</code><span>停</span></button>
+      <button class="cmd" id="b-snap" type="button"><code>olsnap</code><span>快照</span></button>
+      <button class="cmd" id="b-fault" type="button"><code>olfault</code><span>故障</span></button>
+    </div>
+    <p class="note">界面稿。按钮只切换这张画面，串口还没接上。</p>
+  </aside>
+
+  <main class="sheet">
+    <div class="sheet-head">
+      <h2 id="chart-title">Id、Iq</h2>
+      <div class="legend">
+        <span><i class="swatch iq"></i>Iq</span>
+        <span><i class="swatch id"></i>Id</span>
+      </div>
+    </div>
+    <svg class="scope" id="scope" viewBox="0 0 640 280" role="img" aria-label="Id 与 Iq 随时间变化，单位安培"></svg>
+    <div class="axis-note"><span>0</span><span>时间 (s)</span><span>2.0</span></div>
+    <div class="readings" id="readings"></div>
+    <p class="cap" id="cap"></p>
+  </main>
+
+  <aside class="side">
+    <h3>这一拍</h3>
+    <dl id="now"></dl>
+    <h3>电机</h3>
+    <dl>
+      <div class="row"><dt>R</dt><dd>0.474 Ω</dd></div>
+      <div class="row"><dt>L</dt><dd>0.112 mH</dd></div>
+      <div class="row"><dt>ψf</dt><dd>2.390 mWb</dd></div>
+      <div class="row"><dt>电流环</dt><dd>15 kHz</dd></div>
+    </dl>
+    <h3>上次快照</h3>
+    <pre class="log" id="log"></pre>
+  </aside>
+</div>
+<script>
+const N = 80;
+const W = 640, H = 280, L = 46, R = 12, T = 12, B = 22;
+const Y0 = -0.15, Y1 = 0.85;
+
+function wave(mode) {
+  const id = [], iq = [];
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1) * 2;
+    if (mode === "stop") {
+      id.push(0.004 * Math.sin(t * 18));
+      iq.push(0.006 * Math.sin(t * 11));
+    } else if (mode === "fault") {
+      const fall = Math.min(1, Math.max(0, (t - 1.05) / 0.95));
+      id.push(-0.028 + 0.008 * Math.sin(t * 9.1) + (-0.012) * fall);
+      iq.push(0.609 + 0.02 * Math.sin(t * 6.3) + (0.110 - 0.609) * fall);
+    } else {
+      id.push(-0.028 + 0.012 * Math.sin(t * 9.1) + 0.004 * Math.sin(t * 23));
+      iq.push(0.609 + 0.035 * Math.sin(t * 6.3) + 0.012 * Math.sin(t * 17));
+    }
+  }
+  return { id, iq };
+}
+
+function xOf(i) { return L + (i / (N - 1)) * (W - L - R); }
+function yOf(v) { return T + (1 - (v - Y0) / (Y1 - Y0)) * (H - T - B); }
+function path(arr) {
+  return arr.map((v, i) => (i ? "L" : "M") + xOf(i).toFixed(1) + " " + yOf(v).toFixed(1)).join(" ");
+}
+
+const scenes = {
+  run: {
+    title: "Id、Iq",
+    cap: "按 300 RPM 开环记录的形态画出。来源：台架界面稿，不是实时采样。",
+    readings: [
+      ["0.609", "Iq (A)"],
+      ["−0.028", "Id (A)"],
+      ["300", "转速 (RPM)"],
+      ["24.0", "母线 (V)"]
+    ],
+    now: [
+      ["模式", "开环 I/F"],
+      ["无感", "观察，未接管"],
+      ["故障", "NONE"]
+    ],
+    log: "Id, Iq     : -0.028 0.609 A\n目标       : 0.00 0.60 A\nMeas RPM   : 300.0\nV_bus      : 24.0 V\nFault      : NONE (CLEAR)",
+    mark: false
+  },
+  stop: {
+    title: "Id、Iq",
+    cap: "停机。电流在零附近。来源：台架界面稿。",
+    readings: [
+      ["0.000", "Iq (A)"],
+      ["0.000", "Id (A)"],
+      ["0", "转速 (RPM)"],
+      ["24.1", "母线 (V)"]
+    ],
+    now: [
+      ["模式", "停机"],
+      ["无感", "未积分"],
+      ["故障", "NONE"]
+    ],
+    log: "已停。桥输出在中点等待下一次 olstart。",
+    mark: false
+  },
+  fault: {
+    title: "Id、Iq  ·  故障拍",
+    cap: "曲线停在第一次锁存的那一拍，后面的采样不再覆盖。来源：台架界面稿。",
+    readings: [
+      ["0.110", "Iq (A)"],
+      ["−0.040", "Id (A)"],
+      ["42", "转速 (RPM)"],
+      ["23.6", "母线 (V)"]
+    ],
+    now: [
+      ["模式", "开环 I/F"],
+      ["无感", "已授权，失锁"],
+      ["故障", "SPEED_LOSS", true]
+    ],
+    log: "Fault      : MOTOR_SPEED_LOSS\n目标/斜坡  : 3000 / 3000 RPM\n实测       : 42 RPM\n电流峰值   : 1.8 A\nId, Iq     : -0.040 0.110 A",
+    mark: true
+  }
+};
+
+let mode = "run";
+
+function draw() {
+  const s = scenes[mode];
+  const { id, iq } = wave(mode);
+  const svg = document.getElementById("scope");
+  const parts = [];
+  for (let a = 0; a <= 0.8; a += 0.2) {
+    const y = yOf(a);
+    parts.push('<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W - R) + '" y2="' + y.toFixed(1) + '" stroke="#e4ddd0" stroke-width="1"/>');
+    parts.push('<text x="' + (L - 8) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end" fill="#6e675c" font-size="11" font-family="Consolas, monospace">' + a.toFixed(1) + '</text>');
+  }
+  parts.push('<text x="14" y="16" fill="#6e675c" font-size="11" font-family="Segoe UI, Microsoft YaHei, sans-serif">A</text>');
+  parts.push('<path d="' + path(id) + '" fill="none" stroke="#1d665c" stroke-width="1.5"/>');
+  parts.push('<path d="' + path(iq) + '" fill="none" stroke="#8d3a30" stroke-width="1.6"/>');
+  if (s.mark) {
+    const x = xOf(N - 1);
+    parts.push('<line x1="' + x.toFixed(1) + '" y1="' + T + '" x2="' + x.toFixed(1) + '" y2="' + (H - B) + '" stroke="#8d3a30" stroke-width="1"/>');
+  }
+  svg.innerHTML = parts.join("");
+  document.getElementById("chart-title").textContent = s.title;
+  document.getElementById("cap").textContent = s.cap;
+  document.getElementById("readings").innerHTML = s.readings.map(function (r) {
+    return "<div><b>" + r[0] + "</b><span>" + r[1] + "</span></div>";
+  }).join("");
+  document.getElementById("now").innerHTML = s.now.map(function (r) {
+    const cls = r[2] ? ' class="fault-name"' : "";
+    return '<div class="row"><dt>' + r[0] + '</dt><dd' + cls + '>' + r[1] + '</dd></div>';
+  }).join("");
+  document.getElementById("log").textContent = s.log;
+  document.getElementById("b-start").classList.toggle("on", mode === "run");
+  document.getElementById("b-stop").classList.toggle("on", mode === "stop");
+  document.getElementById("b-fault").classList.toggle("on", mode === "fault");
+}
+
+document.getElementById("b-start").onclick = function () { mode = "run"; draw(); };
+document.getElementById("b-stop").onclick = function () { mode = "stop"; draw(); };
+document.getElementById("b-snap").onclick = function () { draw(); };
+document.getElementById("b-fault").onclick = function () { mode = mode === "fault" ? "run" : "fault"; draw(); };
+draw();
+</script>
+</body>
+</html>

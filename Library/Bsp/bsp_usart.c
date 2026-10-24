@@ -467,6 +467,25 @@ void Bsp_Usart_PutChar(UCHAR cKey)
  *         每块只进入一次短临界区，避免 printf/fputc 逐字节反复关中断。
  * @return 已入队字节数。
  */
+bool Bsp_Usart_TryWriteFrame(const UCHAR *data, ULONG len)
+{
+    uint32_t key;
+    bool accepted = false;
+    if (data == NULL || len == 0U || len > 96U || !sgbUsartTxDmaReady) return false;
+    key = __get_PRIMASK();
+    __disable_irq();
+    Bsp_Usart_TxDmaPollLocked();
+    if (ringbuf_free(&s_usart_tx) >= len) {
+        accepted = ringbuf_write(&s_usart_tx, data, len) == len;
+        if (accepted) sgulUsartTxBytes += len;
+        Bsp_Usart_TxDmaStartLocked();
+    } else {
+        sgulUsartTxDrops += len;
+    }
+    if (key == 0U) __enable_irq();
+    return accepted;
+}
+
 ULONG Bsp_Usart_Write(const UCHAR *data, ULONG len)
 {
 	ULONG written = 0U;

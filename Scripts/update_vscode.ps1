@@ -10,9 +10,23 @@ $targets = @($project.Project.Targets.Target | Where-Object { $_.TargetName -eq 
 if ($targets.Count -ne 1) { throw "Keil target not found or ambiguous: $Target" }
 $keilTarget = $targets[0]
 
+function Get-CanonicalPath([string]$Path) {
+    $full = [IO.Path]::GetFullPath($Path)
+    $current = [IO.Path]::GetPathRoot($full)
+    $rest = $full.Substring($current.Length)
+    foreach ($part in ($rest -split '\\' | Where-Object { $_ })) {
+        $match = @(Get-ChildItem -LiteralPath $current -Force | Where-Object { $_.Name -eq $part })
+        if ($match.Count -ne 1) {
+            throw "Cannot resolve path component '$part' under $current"
+        }
+        $current = $match[0].FullName
+    }
+    return $current
+}
+
 function ConvertTo-WorkspacePath([string]$Path) {
-    $absolute = [IO.Path]::GetFullPath((Join-Path $projectDir $Path))
-    $prefix = $repoRoot.TrimEnd('\') + '\'
+    $absolute = Get-CanonicalPath ([IO.Path]::GetFullPath((Join-Path $projectDir $Path)))
+    $prefix = (Get-CanonicalPath $repoRoot).TrimEnd('\') + '\'
     if (!$absolute.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Path outside workspace: $Path"
     }

@@ -58,7 +58,8 @@ bool Hal_Motor_StoppedIrqTestCheck(bool masked);
 bool Hal_Motor_StoppedIrqTestEnd(bool restore_gate);
 
 /**
- * @description: 设置三相 PWM 比较值（尚未生效，须再 Commit）。
+ * @description: 设置三相 PWM 预装载比较值。
+ * @detail: STM32F4 开启 OCxPE 时在后续 UEV 装载，不以 Commit 调用作为占空比生效时间。
  * @param {uint32_t} duty_a  A 相比较值，范围 [0, period]
  * @param {uint32_t} duty_b  B 相比较值，范围 [0, period]
  * @param {uint32_t} duty_c  C 相比较值，范围 [0, period]
@@ -68,8 +69,8 @@ bool Hal_Motor_StoppedIrqTestEnd(bool restore_gate);
 void Hal_Motor_PwmSetDuty(uint32_t duty_a, uint32_t duty_b, uint32_t duty_c);
 
 /**
- * @description: 提交 PWM 更新，使三相占空比在同一更新时刻生效。
- * @detail: STM32 上为 TIM COM 事件；无预装载需求的平台可为空操作。
+ * @description: 提交 PWM 通道控制更新。
+ * @detail: STM32 上发送 COM，更新预装载的通道使能/模式；CCR 占空比仍由 UEV 装载。
  * @return {*}
  * @author: lkc
  */
@@ -77,6 +78,39 @@ void Hal_Motor_PwmCommit(void);
 /** 停机设置软件提交计数，enable时清零；不改变定时器。计数不代表硬件装载事件。 */
 void Hal_Motor_PwmDiagnosticEnable(bool enable);
 uint32_t Hal_Motor_PwmDiagnosticSequence(void);
+
+typedef struct {
+    uint32_t before_us;
+    uint32_t after_us;
+    uint32_t before_cr1;
+    uint32_t before_count;
+    uint32_t after_count;
+    uint32_t after_cr1;
+    uint32_t period;
+} hal_motor_pwm_window_frame_t;
+
+#define HAL_MOTOR_PWM_WINDOW_CAPACITY 32U
+typedef struct {
+    volatile uint32_t enabled;
+    volatile uint32_t count;
+    hal_motor_pwm_window_frame_t frames[HAL_MOTOR_PWM_WINDOW_CAPACITY];
+} hal_motor_pwm_window_t;
+
+extern hal_motor_pwm_window_t g_hal_motor_pwm_window;
+
+/** 停机时启停有限 PWM 写入窗口采集；enable 清零并采集接下来 32 次写入。
+ * 仅 STM32F4 移植层提供；寄存器逐项读取，不是硬件锁存或实际 CCR 生效证明。
+ * 满后自动关闭，可在停机后通过 JTAG 读取；禁止采集中修改 count/frames。
+ */
+void Hal_Motor_PwmWindowEnable(bool enable);
+/** 停机预约：enabled=2 等待，1 采集，0 停止；调用前须确认无并发运行控制。 */
+void Hal_Motor_PwmWindowReserve(void);
+/** 停机预约长窗口：每 997 次写入记录一次，32 帧在 15kHz 下约跨 2.06s。 */
+void Hal_Motor_PwmWindowReserveLong(void);
+/** 返回当前或已完成窗口的写入步长；停止不清除该元数据。 */
+uint32_t Hal_Motor_PwmWindowStride(void);
+/** 控制 ISR 推进预约；ready 连续 1s 才开始，运行开始后再次停机取消剩余采集。 */
+void Hal_Motor_PwmWindowPoll(bool running, bool ready);
 
 /**
  * @description: 输出三相中点占空比并提交（各 period/2）。

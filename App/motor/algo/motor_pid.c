@@ -32,26 +32,7 @@ extern "C" {
 float Motor_Current_PI_Run(float target, float measured, float *v_int,
                            float kp, float ki, float dt, float v_limit)
 {
-    // 电流误差 = 目标电流 - 实测电流
-    float Ierr = target - measured;
-
-    /* 积分累加 */
-    *v_int += Ierr * ki * dt;
-
-    /* PI 输出 = 积分 + 比例 */
-    float v_out = *v_int + Ierr * kp;
-
-    /* 输出限幅 + 积分抗饱和（clamping） */
-    if (v_out > v_limit) {
-        v_out = v_limit;
-        /* 限幅时回退积分，防止 windup */
-        *v_int = v_limit - Ierr * kp;
-    } else if (v_out < -v_limit) {
-        v_out = -v_limit;
-        *v_int = -v_limit - Ierr * kp;
-    }
-
-    return v_out;
+    return Motor_Current_PI_RunError(target - measured, v_int, kp, ki, dt, v_limit);
 }
 #ifdef __cplusplus
 }

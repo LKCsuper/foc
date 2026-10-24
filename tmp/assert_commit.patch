@@ -1,0 +1,2613 @@
+--- a/App/cmd/cmd_joint.c
++++ b/App/cmd/cmd_joint.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "includes.h"
++#include "common_assert.h"
+ /* Private define ------------------------------------------------------------*/
+ #define JOINT_TEST_DWELL_DEFAULT_MS 2000U
+ #define JOINT_TEST_DWELL_MIN_MS     500U
+@@ -64,9 +65,8 @@
+  */
+ static void joint_emit_buf(const char *buf, uint32_t len)
+ {
+-    if ((buf == NULL) || (len == 0U)) {
+-        return;
+-    }
++    COMMON_ASSERT(buf != NULL);
++    if ((len == 0U)) return;
+     (void)Bsp_Usart_Write((const UCHAR *)buf, (ULONG)len);
+ }
+ 
+@@ -78,9 +78,7 @@
+  */
+ static void joint_emit_str(const char *text)
+ {
+-    if (text == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(text != NULL);
+     joint_emit_buf(text, (uint32_t)strlen(text));
+ }
+ 
+--- a/App/cmd/cmd_openloop.c
++++ b/App/cmd/cmd_openloop.c
+@@ -18,6 +18,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "includes.h"
++#include "common_assert.h"
+ #include "motor_control.h"
+ #include "motor_foc_isr.h"
+ #include "motor_timing.h"
+@@ -2424,9 +2425,8 @@
+  */
+ static void speed_emit_buf(const char *buf, uint32_t len)
+ {
+-    if ((buf == NULL) || (len == 0U)) {
+-        return;
+-    }
++    COMMON_ASSERT(buf != NULL);
++    if ((len == 0U)) return;
+     (void)Bsp_Usart_Write((const UCHAR *)buf, (ULONG)len);
+ }
+ 
+@@ -2437,9 +2437,7 @@
+  */
+ static void speed_emit_str(const char *text)
+ {
+-    if (text == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(text != NULL);
+     speed_emit_buf(text, (uint32_t)strlen(text));
+ }
+ 
+--- a/App/cmd/cmd_position.c
++++ b/App/cmd/cmd_position.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "includes.h"
++#include "common_assert.h"
+ /* Private define ------------------------------------------------------------*/
+ #define POS_TEST_DWELL_DEFAULT_MS 2000U
+ #define POS_TEST_DWELL_MIN_MS     500U
+@@ -43,9 +44,8 @@
+  */
+ static void pos_emit_buf(const char *buf, uint32_t len)
+ {
+-    if ((buf == NULL) || (len == 0U)) {
+-        return;
+-    }
++    COMMON_ASSERT(buf != NULL);
++    if ((len == 0U)) return;
+     (void)Bsp_Usart_Write((const UCHAR *)buf, (ULONG)len);
+ }
+ 
+@@ -56,9 +56,7 @@
+  */
+ static void pos_emit_str(const char *text)
+ {
+-    if (text == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(text != NULL);
+     pos_emit_buf(text, (uint32_t)strlen(text));
+ }
+ 
+--- a/App/cmd/cmd_serial_plot.c
++++ b/App/cmd/cmd_serial_plot.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "includes.h"
++#include "common_assert.h"
+ /* Private typedef -----------------------------------------------------------*/
+ typedef enum {
+     PLOT_MODE_NONE = 0,
+@@ -41,9 +42,8 @@
+  */
+ static void Vofa_SendJustFloat(const float *ch, uint32_t n)
+ {
+-    if (ch == NULL || n == 0U || n > PLOT_MAX_CH) {
+-        return;
+-    }
++    COMMON_ASSERT(ch != NULL);
++    if (n == 0U || n > PLOT_MAX_CH) return;
+     Bsp_Usart_PutBuf((const UCHAR *)ch, n * (ULONG)sizeof(float));
+     Bsp_Usart_PutBuf(s_justfloat_tail, 4U);
+ }
+--- a/App/cmd/cmd_task.c
++++ b/App/cmd/cmd_task.c
+@@ -8,6 +8,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "includes.h"
++#include "common_assert.h"
+ /* Private define ------------------------------------------------------------*/
+ #define TASK_STAT_SLOTS     20U
+ #define TASK_WATCH_MIN_MS   200U
+@@ -51,9 +52,8 @@
+  */
+ static void task_emit(const char *buf, uint32_t len)
+ {
+-    if ((buf == NULL) || (len == 0U)) {
+-        return;
+-    }
++    COMMON_ASSERT(buf != NULL);
++    if ((len == 0U)) return;
+     (void)Bsp_Usart_Write((const UCHAR *)buf, len);
+ }
+ 
+@@ -64,9 +64,7 @@
+  */
+ static void task_emit_str(const char *text)
+ {
+-    if (text == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(text != NULL);
+     task_emit(text, (uint32_t)strlen(text));
+ }
+ 
+--- a/App/cmd/command.c
++++ b/App/cmd/command.c
+@@ -12,6 +12,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "includes.h"
++#include "common_assert.h"
+ /* Private typedef -----------------------------------------------------------*/
+ /* Private define ------------------------------------------------------------*/
+ #define CMD_BUF_SIZE        160U        /* 单行输入缓冲 */
+@@ -216,9 +217,8 @@
+     unsigned sec;
+     unsigned ms;
+ 
+-    if ((buf == NULL) || (buf_size == 0U)) {
+-        return;
+-    }
++    COMMON_ASSERT(buf != NULL);
++    if ((buf_size == 0U)) return;
+ 
+     us = Hal_Motor_TimeUs();
+     sec = (unsigned)(us / 1000000UL);
+--- a/App/motor/motor_anticogging.c
++++ b/App/motor/motor_anticogging.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <math.h>
++#include "common_assert.h"
+ #include <string.h>
+ #include "motor_anticogging.h"
+ /* Private define ------------------------------------------------------------*/
+@@ -238,7 +239,7 @@
+ void Motor_Anticogging_GetStatus(motor_anticogging_status_t *status)
+ {
+     uint16_t i;
+-    if (status == NULL) return;
++    COMMON_ASSERT(status != NULL);
+     status->learning = s_learning;
+     status->calibrated = s_calibrated;
+     status->enabled = s_enabled;
+--- a/App/motor/motor_control.c
++++ b/App/motor/motor_control.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <math.h>
++#include "common_assert.h"
+ #include <string.h>
+ #include <stddef.h>
+ 
+@@ -144,9 +145,7 @@
+  */
+ void Motor_Control_Init(motor_control_t *ctrl)
+ {
+-    if (ctrl == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(ctrl != NULL);
+     memset(ctrl, 0, sizeof(*ctrl));
+     ctrl->startup.alignment.stopped = true;
+     ctrl->startup.if_start.first_cycle = true;
+@@ -164,9 +163,7 @@
+  */
+ void Motor_Control_ResetRuntime(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
+ {
+-    if (motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL);
+     /* 与 Motor_ClearRuntimeControl 一致：清斜坡与 d/q 积分，保留命令目标。 */
+     motor->ol_current_rpm = 0.0f;
+     motor->ol_vd_int = 0.0f;
+@@ -246,9 +243,7 @@
+     motor_alignment_config_t alignment_config;
+     motor_hfi_start_config_t hfi_config;
+ 
+-    if (motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL);
+ 
+     if (motor->ol_pole_pairs < 1.0f) {
+         motor->ol_pole_pairs = 1.0f;
+@@ -392,9 +387,7 @@
+     float step;
+     float pole_pairs;
+ 
+-    if (motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL);
+ 
+     target = motor->ol_target_rpm;
+     if (motor->speed_enable) {
+@@ -444,9 +437,7 @@
+  */
+ void Motor_Control_UpdateTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float dt)
+ {
+-    if (ctrl == NULL || motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(ctrl != NULL && motor != NULL);
+     motor->ol_theta += RPM2RADPS_f(ctrl->startup.if_start.angle_rpm) * motor->ol_pole_pairs * dt;
+     utils_norm_angle_rad(&motor->ol_theta);
+ }
+@@ -637,9 +628,7 @@
+ {
+     bool dragging;
+ 
+-    if (ctrl == NULL || motor == NULL || ctx == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(ctrl != NULL && motor != NULL && ctx != NULL);
+     dragging = ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP;
+     memset(ctx, 0, sizeof(*ctx));
+     ctx->frame_correction = ctrl->current_frame_correction;
+@@ -697,9 +686,7 @@
+ {
+     const float soft_time_s = 0.8f;
+ 
+-    if (ctrl == NULL || motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(ctrl != NULL && motor != NULL);
+     if (!motor->ol_enable) {
+         ctrl->startup.soft_current_scale = 0.0f;
+         return;
+@@ -723,9 +710,8 @@
+ {
+     const float transition_time_s = 0.25f;
+ 
+-    if (ctrl == NULL || dt <= 0.0f) {
+-        return;
+-    }
++    COMMON_ASSERT(ctrl != NULL);
++    if (dt <= 0.0f) return;
+     ctrl->startup.drag_current_scale += dt / transition_time_s;
+     if (ctrl->startup.drag_current_scale > 1.0f) {
+         ctrl->startup.drag_current_scale = 1.0f;
+--- a/App/motor/motor_current.c
++++ b/App/motor/motor_current.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stddef.h>
++#include "common_assert.h"
+ #include <stdint.h>
+ #include <string.h>
+ #include <math.h>
+@@ -127,9 +128,7 @@
+  */
+ void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
+ {
+-    if (motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL);
+     clarke_transform(motor->ia, motor->ib, motor->ic, &motor->Ialpha, &motor->Ibeta);
+     park_transform(motor->Ialpha, motor->Ibeta, theta, &motor->Id, &motor->Iq);
+ }
+@@ -199,9 +198,7 @@
+ {
+     motor_current_target_ctx_t local;
+ 
+-    if (motor == NULL || id_target == NULL || iq_target == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL && id_target != NULL && iq_target != NULL);
+ 
+     if (ctx == NULL) {
+         memset(&local, 0, sizeof(local));
+@@ -247,9 +244,7 @@
+  */
+ void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, float id_err, float iq_err, float v_limit)
+ {
+-    if (motor == NULL || v == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL && v != NULL);
+ 
+     /*
+      * 单独限制 vd/vq 不够，合成矢量可能超限。
+@@ -327,9 +322,7 @@
+ {
+     uint32_t primask;
+ 
+-    if (diag == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(diag != NULL);
+     primask = Motor_Crit_Enter();
+     diag->samples = s_pi_samples;
+     diag->clamp_samples = s_pi_clamp_samples;
+@@ -363,7 +356,8 @@
+                                float new_id, float new_iq)
+ {
+     float c, s, vd, vq;
+-    if (motor == NULL || !isfinite(delta)) return;
++    COMMON_ASSERT(motor != NULL);
++    if (!isfinite(delta)) return;
+     c = cos_f32(delta);
+     s = sin_f32(delta);
+     vd = motor->ol_vd_int;
+@@ -445,9 +439,7 @@
+ void Motor_Current_ApplySpeedFeedforward(motor_dq_voltage_t *v, float omega_e, float inductance, float flux,
+                                          float id_ref, float iq_ref, float v_limit)
+ {
+-    if (v == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(v != NULL);
+     if (!isfinite(omega_e) || !isfinite(inductance) || !isfinite(flux) || !isfinite(id_ref) || !isfinite(iq_ref)) {
+         return;
+     }
+--- a/App/motor/motor_foc.c
++++ b/App/motor/motor_foc.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stdint.h>
++#include "common_assert.h"
+ #include <stddef.h>
+ #include <math.h>
+ #include "motor_foc.h"
+@@ -422,9 +423,7 @@
+     float mod_beta;
+     uint32_t mid;
+ 
+-    if (tAout == NULL || tBout == NULL || tCout == NULL || svm_sector == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(tAout != NULL && tBout != NULL && tCout != NULL && svm_sector != NULL);
+ 
+     mid = period / 2U;
+     if (v_bus <= 0.0f || period == 0U) {
+@@ -479,9 +478,7 @@
+     float T1 = 0.0f;
+     float T2 = 0.0f;
+ 
+-    if (pTcmp1 == NULL || pTcmp2 == NULL || pTcmp3 == NULL || pSector == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(pTcmp1 != NULL && pTcmp2 != NULL && pTcmp3 != NULL && pSector != NULL);
+     if (Udc <= 0.0f || Tpwm == 0U) {
+         *pTcmp1 = 0U;
+         *pTcmp2 = 0U;
+--- a/App/motor/motor_foc_divider.c
++++ b/App/motor/motor_foc_divider.c
+@@ -11,6 +11,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_foc_divider.h"
++#include "common_assert.h"
+ #include <stddef.h>
+ /* Private define ------------------------------------------------------------*/
+ /* Private typedef -----------------------------------------------------------*/
+@@ -28,9 +29,7 @@
+  */
+ void Motor_FocDivider_Init(motor_foc_divider_t *state, int divider)
+ {
+-    if (state == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(state != NULL);
+     state->skip = 0;
+     state->divider = (divider > 0) ? divider : 1;
+ }
+--- a/App/motor/motor_foc_isr.c
++++ b/App/motor/motor_foc_isr.c
+@@ -4,6 +4,7 @@
+  */
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_foc_isr.h"
++#include "common_assert.h"
+ 
+ #include <stddef.h>
+ #include <stdint.h>
+@@ -59,7 +60,7 @@
+ void Motor_FocIsr_CaptureTraceSample(const MOTOR_PARAM_S *motor_param, float vd, float vq, motor_trace_sample_t *sample)
+ {
+     motor_sensorless_diagnostics_t d;
+-    if (motor_param == NULL || sample == NULL) return;
++    COMMON_ASSERT(motor_param != NULL && sample != NULL);
+     Motor_Sensorless_GetDiagnostics(&d);
+     sample->time_us = Hal_Motor_TimeUs();
+     sample->flags = (unsigned)d.state | (d.flux_ok ? 4U : 0U) | (d.direction_ok ? 8U : 0U) |
+@@ -382,9 +383,7 @@
+  */
+ void Motor_FocIsr_Step(MOTOR_PARAM_S *motor_param)
+ {
+-    if (motor_param == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor_param != NULL);
+ 
+     Motor_FocIsr_Run(motor_param);
+     s_status_publish_divider++;
+--- a/App/motor/motor_fw.c
++++ b/App/motor/motor_fw.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_fw.h"
++#include "common_assert.h"
+ #include <math.h>
+ #include <stddef.h>
+ /* Private define ------------------------------------------------------------*/
+@@ -24,9 +25,7 @@
+  */
+ void Motor_Fw_Reset(motor_fw_t *fw)
+ {
+-    if (fw == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(fw != NULL);
+     fw->id = 0.0f;
+     fw->last_vd = 0.0f;
+     fw->last_vq = 0.0f;
+--- a/App/motor/motor_output.c
++++ b/App/motor/motor_output.c
+@@ -7,6 +7,7 @@
+ #endif
+ 
+ #include <stdbool.h>
++#include "common_assert.h"
+ #include <stddef.h>
+ #include <stdint.h>
+ #include <math.h>
+@@ -95,9 +96,7 @@
+ {
+     uint32_t mid;
+ 
+-    if (motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL);
+     mid = Hal_Motor_PwmPeriodCounts() / 2U;
+     motor->duty1 = mid;
+     motor->duty2 = mid;
+@@ -131,9 +130,7 @@
+     bool sensored_if;
+     bool sensorless_if;
+ 
+-    if (motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL);
+     period = Hal_Motor_PwmPeriodCounts();
+     inverse_park(vd, vq, theta_rad, &v_alpha, &v_beta);
+     feedback_source = Motor_Feedback_GetSourceDefault();
+@@ -228,9 +225,7 @@
+  */
+ void Motor_OutputApplyControlResult(MOTOR_PARAM_S *motor, float v_bus, const motor_control_result_t *result)
+ {
+-    if (motor == NULL || result == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL && result != NULL);
+     if (result->action == MOTOR_CONTROL_ACTION_SAFE) {
+         Motor_OutputSafe(motor);
+     } else if (result->action == MOTOR_CONTROL_ACTION_OUTPUT_DQ) {
+--- a/App/motor/motor_position_core.c
++++ b/App/motor/motor_position_core.c
+@@ -1,5 +1,6 @@
+ /* 位置命令、多圈零点与混合控制状态；不访问硬件或全局电机。 */
+ #include <math.h>
++#include "common_assert.h"
+ #include <stddef.h>
+ #include <string.h>
+ #include "motor_position_core.h"
+@@ -39,14 +40,14 @@
+ 
+ void Motor_PositionCore_ClearHold(motor_position_runtime_t *runtime)
+ {
+-    if (runtime == NULL) return;
++    COMMON_ASSERT(runtime != NULL);
+     Motor_PositionControl_Reset(&runtime->control);
+     runtime->state.voltage_hold_mode = true;
+ }
+ 
+ void Motor_PositionCore_Zero(motor_position_runtime_t *runtime, uint32_t count)
+ {
+-    if (runtime == NULL) return;
++    COMMON_ASSERT(runtime != NULL);
+     runtime->state.origin_count = SignedCount(count);
+     runtime->state.position_deg = 0.0f;
+     runtime->state.target_deg = 0.0f;
+@@ -149,7 +150,8 @@
+ void Motor_PositionCore_Snapshot(const motor_position_runtime_t *runtime, const motor_position_config_t *config,
+                                  uint32_t count, bool feedback_valid, motor_position_state_t *snapshot)
+ {
+-    if (runtime == NULL || config == NULL || snapshot == NULL || config->counts_per_rev == 0U) return;
++    COMMON_ASSERT(runtime != NULL && config != NULL && snapshot != NULL);
++    if (config->counts_per_rev == 0U) return;
+     *snapshot = runtime->state;
+     snapshot->position_deg = PositionDeg(runtime, config, count);
+     snapshot->error_deg = snapshot->target_deg - snapshot->position_deg;
+--- a/App/motor/motor_protect.c
++++ b/App/motor/motor_protect.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <math.h>
++#include "common_assert.h"
+ #include <string.h>
+ #include <stdbool.h>
+ 
+@@ -109,7 +110,7 @@
+                                      const MOTOR_PARAM_S *motor, const motor_protect_aux_t *aux)
+ {
+     motor_protect_input_t input;
+-    if (state == NULL || motor == NULL) { return; }
++    COMMON_ASSERT(state != NULL && motor != NULL);
+     Motor_Protect_MapInput(&input, motor);
+     Motor_Protect_TriggerFaultInputState(state, fault, &input, aux);
+ }
+@@ -129,9 +130,7 @@
+ {
+     motor_sensorless_diagnostics_t sensorless_diagnostics;
+ 
+-    if (aux == NULL || motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(aux != NULL && motor != NULL);
+ 
+     memset(aux, 0, sizeof(*aux));
+     Motor_Sensorless_GetDiagnostics(&sensorless_diagnostics);
+@@ -208,9 +207,8 @@
+ {
+     motor_protect_aux_t aux;
+ 
+-    if (fault == FAULT_CODE_NONE || motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL);
++    if (fault == FAULT_CODE_NONE) return;
+     Motor_Protect_FillAuxDefault(&aux, motor);
+     Motor_Protect_TriggerFaultState(&s_protect, fault, motor, &aux);
+ }
+--- a/App/motor/motor_protect_core.c
++++ b/App/motor/motor_protect_core.c
+@@ -1,5 +1,6 @@
+ /* 独立保护判据与故障锁存，无硬件或全局控制依赖。 */
+ #include <math.h>
++#include "common_assert.h"
+ #include <string.h>
+ #include "motor_protect_core.h"
+ 
+@@ -73,9 +74,8 @@
+ static void Motor_Protect_LatchFaultInputState(motor_protect_state_t *state, mc_fault_code fault, const motor_protect_input_t *motor,
+                                           const motor_protect_aux_t *aux)
+ {
+-    if (state == NULL || motor == NULL || state->fault_latched) {
+-        return;
+-    }
++    COMMON_ASSERT(state != NULL && motor != NULL);
++    if (state->fault_latched) return;
+ 
+     /* 电机本体量：电流/母线/斜坡/积分，与保护侧速度反馈。 */
+     state->snapshot.current_peak = Motor_Protect_CurrentPeak(motor);
+@@ -133,9 +133,7 @@
+  */
+ void Motor_Protect_InitState(motor_protect_state_t *state, const motor_protect_config_t *config)
+ {
+-    if (state == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(state != NULL);
+     memset(state, 0, sizeof(*state));
+     state->config = (config != NULL) ? *config : s_default_config;
+     state->fault = FAULT_CODE_NONE;
+@@ -151,9 +149,7 @@
+ {
+     motor_protect_config_t cfg;
+ 
+-    if (state == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(state != NULL);
+     cfg = state->config;
+     memset(state, 0, sizeof(*state));
+     state->config = cfg;
+@@ -171,9 +167,7 @@
+  */
+ void Motor_Protect_SetSpeedFeedbackState(motor_protect_state_t *state, float rpm, bool valid)
+ {
+-    if (state == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(state != NULL);
+     state->speed_rpm = rpm;
+     state->speed_valid = valid;
+     if (!valid) {
+@@ -361,9 +355,8 @@
+ void Motor_Protect_TriggerFaultInputState(motor_protect_state_t *state, mc_fault_code fault, const motor_protect_input_t *motor,
+                                      const motor_protect_aux_t *aux)
+ {
+-    if (fault == FAULT_CODE_NONE || state == NULL || motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(state != NULL && motor != NULL);
++    if (fault == FAULT_CODE_NONE) return;
+     Motor_Protect_LatchFaultInputState(state, fault, motor, aux);
+ }
+ 
+--- a/App/motor/motor_sense.c
++++ b/App/motor/motor_sense.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stddef.h>
++#include "common_assert.h"
+ #include "motor_sense.h"
+ #include "motor_math.h"
+ #if defined(__CC_ARM)
+@@ -53,9 +54,7 @@
+     float current_offset1;
+     float current_offset2;
+ 
+-    if (m == NULL || sample == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(m != NULL && sample != NULL);
+ 
+     m->currentAdc[0] = sample->current_adc[0];
+     m->currentAdc[1] = sample->current_adc[1];
+@@ -109,9 +108,7 @@
+ {
+     hal_motor_sample_t sample;
+ 
+-    if (m == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(m != NULL);
+     if (!Hal_Motor_SampleCapture(&sample)) {
+         return;
+     }
+--- a/App/motor/motor_snapshot.c
++++ b/App/motor/motor_snapshot.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <string.h>
++#include "common_assert.h"
+ #include "motor.h"
+ #include "motor_feedback.h"
+ #include "motor_speed.h"
+@@ -67,9 +68,7 @@
+ {
+     motor_status_t snap;
+ 
+-    if (motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL);
+     if (!s_motor_status_initialized) {
+         SEQLOCK_INIT(&s_motor_status_channel);
+         s_motor_status_initialized = true;
+--- a/App/motor/motor_speed.c
++++ b/App/motor/motor_speed.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stdbool.h>
++#include "common_assert.h"
+ #include <stddef.h>
+ 
+ #include "motor_param.h"
+@@ -28,7 +29,7 @@
+ static void Motor_SpeedLoop_RunInternal(motor_speed_state_t *state, MOTOR_PARAM_S *motor, float dt, bool scheduled)
+ {
+     motor_speed_input_t input;
+-    if (state == NULL || motor == NULL) { return; }
++    COMMON_ASSERT(state != NULL && motor != NULL);
+     input.enabled = motor->speed_enable && motor->ol_mode == MOTOR_OL_MODE_IF && motor->ol_enable;
+     input.inhibited = motor->position_voltage_hold || motor->joint_voltage_hold || motor->joint_current_hold;
+     input.allow_braking = motor->speed_allow_braking;
+--- a/App/motor/motor_speed_core.c
++++ b/App/motor/motor_speed_core.c
+@@ -1,5 +1,6 @@
+ /* 速度控制核心：标准C，无硬件或全局电机依赖。 */
+ #include <math.h>
++#include "common_assert.h"
+ #include <string.h>
+ #include "motor_speed_core.h"
+ #define MOTOR_SPEED_LIMIT_DECAY_S 0.100f
+@@ -45,9 +46,7 @@
+  */
+ void Motor_Speed_InitState(motor_speed_state_t *state)
+ {
+-    if (state == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(state != NULL);
+     memset(state, 0, sizeof(*state));
+ }
+ 
+@@ -62,9 +61,7 @@
+  */
+ void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool valid)
+ {
+-    if (state == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(state != NULL);
+     state->measured_rpm = valid ? rpm : 0.0f;
+     state->feedback_valid = valid;
+     if (!valid) {
+@@ -80,9 +77,7 @@
+  */
+ void Motor_SpeedLoop_ResetState(motor_speed_state_t *state)
+ {
+-    if (state == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(state != NULL);
+     Motor_Speed_ClearPi(state);
+     state->zero_brake_active = false;
+     state->zero_brake_released = false;
+@@ -98,9 +93,7 @@
+  */
+ void Motor_SpeedLoop_PrimeIqState(motor_speed_state_t *state, float iq)
+ {
+-    if (state == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(state != NULL);
+     state->integral = iq;
+     state->iq_target = iq;
+     state->loop_time = 0.0f;
+--- a/App/motor/motor_speed_ff_detect.c
++++ b/App/motor/motor_speed_ff_detect.c
+@@ -3,11 +3,12 @@
+ extern "C" {
+ #endif
+ #include "motor_speed_ff_detect.h"
++#include "common_assert.h"
+ #include <math.h>
+ #include <stddef.h>
+ void Motor_SpeedFfFit_Init(motor_speed_ff_fit_t *fit)
+ {
+-    if (fit == NULL) return;
++    COMMON_ASSERT(fit != NULL);
+     fit->count = 0U;
+     fit->sum_x = fit->sum_y = fit->sum_xx = fit->sum_xy = fit->sum_yy = 0.0f;
+ }
+--- a/App/motor/motor_timing.c
++++ b/App/motor/motor_timing.c
+@@ -4,6 +4,7 @@
+  */
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_timing.h"
++#include "common_assert.h"
+ 
+ #include <stddef.h>
+ #include <math.h>
+@@ -315,7 +316,8 @@
+ void Motor_Timing_IrqGet(unsigned kind, motor_irq_diag_t *out)
+ {
+     uint32_t key;
+-    if (kind >= 2U || out == NULL) return;
++    COMMON_ASSERT(out != NULL);
++    if (kind >= 2U) return;
+     key = Motor_Crit_Enter();
+     *out = s_irq_diag[kind];
+     Motor_Crit_Exit(key);
+@@ -449,7 +451,7 @@
+ void Motor_Timing_SpeedTaskGet(motor_speed_task_diag_t *out)
+ {
+     uint32_t key;
+-    if (out == NULL) return;
++    COMMON_ASSERT(out != NULL);
+     key = Motor_Crit_Enter();
+     *out = s_speed_task;
+     Motor_Crit_Exit(key);
+@@ -541,7 +543,7 @@
+ void Motor_Timing_CallbackGet(motor_callback_t *out)
+ {
+     uint32_t key;
+-    if (out == NULL) return;
++    COMMON_ASSERT(out != NULL);
+     key = Motor_Crit_Enter();
+     *out = s_callback;
+     Motor_Crit_Exit(key);
+@@ -666,7 +668,7 @@
+ void Motor_Timing_CadenceGet(motor_cadence_t *out)
+ {
+     uint32_t key;
+-    if (out == NULL) return;
++    COMMON_ASSERT(out != NULL);
+     key = Motor_Crit_Enter();
+     *out = s_cadence;
+     Motor_Crit_Exit(key);
+@@ -743,7 +745,8 @@
+ void Motor_Timing_TracePushCompact(const motor_trace_compact_sample_t *sample)
+ {
+     motor_trace_compact_sample_t *destination;
+-    if (!Motor_Timing_TraceCompactIsActive() || sample == NULL) return;
++    COMMON_ASSERT(sample != NULL);
++    if (!Motor_Timing_TraceCompactIsActive()) return;
+     destination = &s_trace_storage.compact[s_trace_head];
+     *destination = *sample;
+     destination->flags = s_compact_flags;
+@@ -861,7 +864,8 @@
+ void Motor_Timing_TracePush(const motor_trace_sample_t *sample)
+ {
+     motor_trace_sample_t *destination;
+-    if (!s_trace_active || s_trace_light || s_trace_compact || sample == NULL) return;
++    COMMON_ASSERT(sample != NULL);
++    if (!s_trace_active || s_trace_light || s_trace_compact) return;
+     destination = &s_trace[s_trace_head];
+     *destination = *sample;
+     destination->gap_max_us = s_trace_gap_max;
+@@ -896,7 +900,8 @@
+ void Motor_Timing_TracePushLight(const motor_trace_light_sample_t *sample)
+ {
+     motor_trace_light_sample_t *destination;
+-    if (!s_trace_active || !s_trace_light || sample == NULL) return;
++    COMMON_ASSERT(sample != NULL);
++    if (!s_trace_active || !s_trace_light) return;
+     if (s_trace_flight) {
+         if (s_trace_entry_trigger && s_flight_entry_count < MOTOR_TRACE_FLIGHT_ENTRY) {
+             destination = &s_trace_storage.light[s_flight_entry_count++];
+@@ -1022,7 +1027,8 @@
+ void Motor_Timing_ProfileDetail(motor_timing_stage_t stage, uint32_t *count, uint32_t *maximum)
+ {
+     uint32_t key;
+-    if ((unsigned)stage >= MOTOR_TIMING_STAGE_COUNT || count == NULL || maximum == NULL) return;
++    COMMON_ASSERT(count != NULL && maximum != NULL);
++    if ((unsigned)stage >= MOTOR_TIMING_STAGE_COUNT) return;
+     key = Motor_Crit_Enter();
+     *count = s_profile_count[stage];
+     *maximum = s_profile_max[stage];
+@@ -1032,7 +1038,7 @@
+ {
+     unsigned index;
+     uint32_t key;
+-    if (out == NULL) return;
++    COMMON_ASSERT(out != NULL);
+     key = Motor_Crit_Enter();
+     for (index = 0U; index < MOTOR_TIMING_STAGE_COUNT; index++) {
+         out->count[index] = s_profile_count[index];
+@@ -1053,7 +1059,7 @@
+ void Motor_Timing_ProfileGet(float average_us[MOTOR_TIMING_STAGE_COUNT], uint32_t *samples)
+ {
+     unsigned i;
+-    if (average_us == NULL) return;
++    COMMON_ASSERT(average_us != NULL);
+     for (i = 0U; i < MOTOR_TIMING_STAGE_COUNT; ++i) {
+         uint32_t count = s_profile_count[i];
+         average_us[i] = count ? (float)s_profile_sum[i] / (float)count : 0.0f;
+--- a/App/motor_param/motor_detect_offset.c
++++ b/App/motor_param/motor_detect_offset.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stddef.h>
++#include "common_assert.h"
+ #include <math.h>
+ #include <string.h>
+ #include "motor_detect_offset.h"
+@@ -50,9 +51,7 @@
+ void Motor_Detect_OffsetReset(motor_detect_offset_t *st, bool cal_undriven, uint32_t samples_per_phase,
+                               float adc_full_scale)
+ {
+-    if (st == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(st != NULL);
+     memset(st, 0, sizeof(*st));
+     st->cal_undriven = cal_undriven;
+     st->samples_per_phase =
+@@ -181,9 +180,8 @@
+     float abs_max;
+     uint8_t i;
+ 
+-    if (st == NULL || st->samples_per_phase == 0U) {
+-        return;
+-    }
++    COMMON_ASSERT(st != NULL);
++    if (st->samples_per_phase == 0U) return;
+ 
+     n = (float)st->samples_per_phase;
+     for (i = 0U; i < 3U; i++) {
+@@ -241,9 +239,8 @@
+     float n;
+     uint8_t i;
+ 
+-    if (st == NULL || st->samples_per_phase == 0U) {
+-        return;
+-    }
++    COMMON_ASSERT(st != NULL);
++    if (st->samples_per_phase == 0U) return;
+     n = (float)st->samples_per_phase;
+     for (i = 0U; i < 3U; i++) {
+         st->volt_undriven_offset[i] = st->u_sum[i] / n;
+@@ -262,9 +259,7 @@
+ {
+     uint8_t i;
+ 
+-    if (st == NULL || motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(st != NULL && motor != NULL);
+     for (i = 0U; i < 3U; i++) {
+         motor->currentOffset[i] = st->current_offset[i];
+         motor->voltOffset[i] = st->volt_offset[i];
+--- a/App/motor_sensor/motor_encoder_core.c
++++ b/App/motor_sensor/motor_encoder_core.c
+@@ -1,5 +1,6 @@
+ /* 编码器纯算法：绝对计数、回绕、PLL、零点；不访问硬件或全局电机。 */
+ #include "motor_encoder_core.h"
++#include "common_assert.h"
+ #include <math.h>
+ #include <stddef.h>
+ #ifndef M_PI
+@@ -33,9 +34,7 @@
+ 
+ void Motor_Encoder_ApplyCalibrationState(motor_encoder_runtime_t *rt, float offset_rad, bool inverted, bool valid)
+ {
+-    if (rt == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(rt != NULL);
+     rt->inverted = inverted;
+     rt->elec_offset_rad = valid ? Motor_Encoder_Wrap2Pi(offset_rad) : 0.0f;
+     rt->zero_valid = valid;
+@@ -273,9 +272,7 @@
+  */
+ void Motor_Encoder_UpdateState(motor_encoder_runtime_t *rt, uint16_t count, float dt_s)
+ {
+-    if (rt == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(rt != NULL);
+ 
+     if (!rt->have_last || rt->pll_inverted != rt->inverted || dt_s < MOTOR_ENCODER_DT_MIN_S ||
+         dt_s > MOTOR_ENCODER_DT_MAX_S || (dt_s * 2.0f * rt->config.pll_bandwidth_rad_s) >= 1.0f) {
+@@ -344,9 +341,8 @@
+ {
+     float cpr;
+ 
+-    if (rt == NULL || !rt->have_last || dt_s < MOTOR_ENCODER_DT_MIN_S || dt_s > MOTOR_ENCODER_DT_MAX_S) {
+-        return;
+-    }
++    COMMON_ASSERT(rt != NULL);
++    if (!rt->have_last || dt_s < MOTOR_ENCODER_DT_MIN_S || dt_s > MOTOR_ENCODER_DT_MAX_S) return;
+     if (!Motor_Encoder_PllPredict(rt, dt_s)) {
+         return;
+     }
+@@ -514,9 +510,7 @@
+  */
+ void Motor_Encoder_MarkZeroState(motor_encoder_runtime_t *rt, uint16_t count, float pole_pairs)
+ {
+-    if (rt == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(rt != NULL);
+     rt->elec_offset_rad = 0.0f;
+     rt->elec_offset_rad = Motor_Encoder_GetElecAngleState(rt, count, pole_pairs);
+     rt->zero_valid = true;
+@@ -530,9 +524,7 @@
+  */
+ void Motor_Encoder_ClearZeroState(motor_encoder_runtime_t *rt)
+ {
+-    if (rt == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(rt != NULL);
+     rt->elec_offset_rad = 0.0f;
+     rt->zero_valid = false;
+     rt->have_last = false;
+--- a/App/motor_sensor/motor_feedback.c
++++ b/App/motor_sensor/motor_feedback.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stddef.h>
++#include "common_assert.h"
+ #include "motor_feedback.h"
+ #include "motor_sensorless.h"
+ #include "motor_encoder.h"
+@@ -29,9 +30,7 @@
+  */
+ void Motor_Feedback_Reset(motor_feedback_t *fb)
+ {
+-    if (fb == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(fb != NULL);
+     fb->source = MOTOR_FEEDBACK_SRC_SENSORLESS;
+ }
+ 
+@@ -44,9 +43,7 @@
+  */
+ void Motor_Feedback_SetSource(motor_feedback_t *fb, motor_feedback_source_t source)
+ {
+-    if (fb == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(fb != NULL);
+     fb->source = source;
+ }
+ 
+@@ -77,9 +74,7 @@
+     motor_feedback_source_t src;
+     bool encoder_fault;
+ 
+-    if (out == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(out != NULL);
+ 
+     out->elec_angle_rad = open_loop_theta;
+     out->mech_rpm = 0.0f;
+--- a/App/motor_sensor/motor_hall_angle.c
++++ b/App/motor_sensor/motor_hall_angle.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stddef.h>
++#include "common_assert.h"
+ #include <math.h>
+ #include "motor_hall_angle.h"
+ #include "motor_math.h"
+@@ -111,9 +112,8 @@
+     float half_back;
+     float half_fwd;
+ 
+-    if (st == NULL || st->direction == 0 || !st->speed_valid || fabsf(st->mech_rpm_fast) < 1.0f) {
+-        return;
+-    }
++    COMMON_ASSERT(st != NULL);
++    if (st->direction == 0 || !st->speed_valid || fabsf(st->mech_rpm_fast) < 1.0f) return;
+ 
+     rpm_abs = fabsf(st->mech_rpm_fast);
+     if (rpm_abs <= MOTOR_HALL_INTERP_START_RPM) {
+@@ -378,9 +378,7 @@
+ {
+     int i;
+ 
+-    if (st == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(st != NULL);
+     st->last_state = -1;
+     st->have_state = false;
+     st->theta_rad = 0.0f;
+@@ -419,9 +417,7 @@
+     float d_theta;
+     float elec_rps;
+ 
+-    if (st == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(st != NULL);
+     if (dt_s < 0.0f) {
+         dt_s = 0.0f;
+     }
+--- a/App/motor_sensor/motor_hall_diag.c
++++ b/App/motor_sensor/motor_hall_diag.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stdint.h>
++#include "common_assert.h"
+ #include <stdbool.h>
+ #include <string.h>
+ #include <math.h>
+@@ -63,9 +64,7 @@
+ {
+     uint32_t primask;
+ 
+-    if (sectors == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(sectors != NULL);
+     primask = __get_PRIMASK();
+     __disable_irq();
+     memcpy(sectors, s_hall_current_diag, sizeof(s_hall_current_diag));
+@@ -84,9 +83,7 @@
+ {
+     uint32_t primask;
+ 
+-    if (out == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(out != NULL);
+     primask = __get_PRIMASK();
+     __disable_irq();
+     *out = s_hall_current_worst;
+@@ -105,9 +102,7 @@
+ {
+     uint32_t primask;
+ 
+-    if (out == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(out != NULL);
+     primask = __get_PRIMASK();
+     __disable_irq();
+     *out = s_hall_current_worst_id;
+@@ -126,9 +121,7 @@
+ {
+     uint32_t primask;
+ 
+-    if (out == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(out != NULL);
+     primask = __get_PRIMASK();
+     __disable_irq();
+     *out = s_hall_edge_diag;
+--- a/App/motor_sensor/motor_mt6701.c
++++ b/App/motor_sensor/motor_mt6701.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stddef.h>
++#include "common_assert.h"
+ #include "motor_mt6701.h"
+ #include "motor_mt6701_protocol.h"
+ #include "hal_sensor.h"
+@@ -163,9 +164,7 @@
+  */
+ void Motor_MT6701_GetStatus(motor_mt6701_status_t *status)
+ {
+-    if (status == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(status != NULL);
+     status->raw_angle = s_mt6701.raw_angle;
+     status->magnetic_status = s_mt6701.magnetic_status;
+     status->success_count = s_mt6701.success_count;
+--- a/App/motor_sensor/motor_sensor_update.c
++++ b/App/motor_sensor/motor_sensor_update.c
+@@ -7,6 +7,7 @@
+ #endif
+ 
+ #include <stddef.h>
++#include "common_assert.h"
+ #include <stdint.h>
+ #include "motor_sensor_update.h"
+ #include "motor_anticogging.h"
+@@ -31,9 +32,7 @@
+  */
+ void Motor_SensorUpdate_Step(MOTOR_PARAM_S *motor, motor_feedback_source_t source, float dt_s)
+ {
+-    if (motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL);
+ 
+     if (source == MOTOR_FEEDBACK_SRC_ENCODER || Motor_Encoder_IsCompareEnabled()) {
+         if (source == MOTOR_FEEDBACK_SRC_ENCODER) {
+--- a/App/motor/bldc/motor_bldc_isr.c
++++ b/App/motor/bldc/motor_bldc_isr.c
+@@ -3,6 +3,7 @@
+  * @Author: lkc
+  */
+ #include <stddef.h>
++#include "common_assert.h"
+ #include "motor_bldc_isr.h"
+ #include "motor_protect.h"
+ #include "motor_sense.h"
+@@ -26,9 +27,7 @@
+     float dt;
+     float phase_voltage[3];
+ 
+-    if (sensorless == NULL || motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(sensorless != NULL && motor != NULL);
+     runtime_start = Hal_Motor_TimeUs();
+     Motor_Sense_Update(motor);
+     dt = Motor_Timing_GetAdcDt(motor);
+--- a/App/motor/bldc/motor_bldc_sensorless.c
++++ b/App/motor/bldc/motor_bldc_sensorless.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stddef.h>
++#include "common_assert.h"
+ #include <string.h>
+ #include "motor_bldc_sensorless.h"
+ /* Private define ------------------------------------------------------------*/
+@@ -572,9 +573,7 @@
+  */
+ void Motor_BldcSensorless_DefaultConfig(motor_bldc_sensorless_config_t *config)
+ {
+-    if (config == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(config != NULL);
+     memset(config, 0, sizeof(*config));
+     config->align_time_s = 0.20f;
+     config->startup_duty = 0.08f;
+@@ -734,9 +733,7 @@
+  */
+ void Motor_BldcSensorless_Stop(motor_bldc_sensorless_t *control)
+ {
+-    if (control == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(control != NULL);
+     if (control->commutator != NULL) {
+         Motor_BldcSixStep_Stop(control->commutator);
+     }
+--- a/App/motor/bldc/motor_bldc_six_step.c
++++ b/App/motor/bldc/motor_bldc_six_step.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stddef.h>
++#include "common_assert.h"
+ #include <string.h>
+ #include "motor_bldc_six_step.h"
+ /* Private define ------------------------------------------------------------*/
+@@ -134,9 +135,7 @@
+         MOTOR_BLDC_SIX_STEP_INVALID, 0U, 4U, 5U, 2U, 1U, 3U, MOTOR_BLDC_SIX_STEP_INVALID,
+     };
+ 
+-    if (config == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(config != NULL);
+     memset(config, 0, sizeof(*config));
+     memcpy(config->hall_to_step, hall_to_step, sizeof(hall_to_step));
+     config->commutation_timeout_s = 0.5f;
+@@ -200,9 +199,7 @@
+  */
+ void Motor_BldcSixStep_Stop(motor_bldc_six_step_t *control)
+ {
+-    if (control == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(control != NULL);
+     control->running = false;
+     control->edge_elapsed_s = 0.0f;
+     Motor_BldcSixStep_SetFloating(control);
+@@ -234,9 +231,7 @@
+  */
+ void Motor_BldcSixStep_SetDuty(motor_bldc_six_step_t *control, float duty)
+ {
+-    if (control == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(control != NULL);
+     control->duty = Motor_BldcSixStep_ClampDuty(duty);
+     if (control->running && control->output.step < 6U) {
+         control->output.duty = control->duty;
+--- a/App/motor/calibration/motor_detect_isr.c
++++ b/App/motor/calibration/motor_detect_isr.c
+@@ -4,6 +4,7 @@
+  */
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_detect_isr.h"
++#include "common_assert.h"
+ 
+ #include <stddef.h>
+ 
+@@ -25,9 +26,7 @@
+  */
+ void Motor_DetectIsr_Step(MOTOR_PARAM_S *motor, bool pwm_down)
+ {
+-    if (motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL);
+ 
+     Motor_Sense_Update(motor);
+     Motor_Detect_IsrFeed(pwm_down);
+--- a/App/motor/diagnostic/motor_fast_vf.c
++++ b/App/motor/diagnostic/motor_fast_vf.c
+@@ -4,6 +4,7 @@
+  */
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_fast_vf.h"
++#include "common_assert.h"
+ 
+ #include <math.h>
+ #include <stddef.h>
+@@ -33,9 +34,7 @@
+     float theta_step;
+     float vq;
+ 
+-    if (motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL);
+     rpm = motor->ol_target_rpm;
+     rpm_abs = fabsf(rpm);
+     vq = motor->ol_v_boost;
+--- a/App/motor/diagnostic/motor_fast_vf_isr.c
++++ b/App/motor/diagnostic/motor_fast_vf_isr.c
+@@ -4,6 +4,7 @@
+  */
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_fast_vf.h"
++#include "common_assert.h"
+ 
+ #include <stddef.h>
+ 
+@@ -28,9 +29,7 @@
+ {
+     uint32_t runtime_start;
+ 
+-    if (motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(motor != NULL);
+ 
+     runtime_start = Hal_Motor_TimeUs();
+     if (!Motor_FocIsr_ShouldRun()) {
+--- a/App/motor/inc/motor_alignment.h
++++ b/App/motor/inc/motor_alignment.h
+@@ -10,6 +10,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stdbool.h>
++#include "common_assert.h"
+ #include <stddef.h>
+ /* Private define ------------------------------------------------------------*/
+ /* Private typedef -----------------------------------------------------------*/
+@@ -59,7 +60,7 @@
+ /** 热路径共享实现；与NormalizeConfig保持同一套规则，不缓存配置。 */
+ static inline void MotorAlignment_NormalizeConfigInline(motor_alignment_config_t *config)
+ {
+-    if (config == NULL) return;
++    COMMON_ASSERT(config != NULL);
+     if (config->current < 0.0f) config->current = 0.0f;
+     if (config->duration < 0.0f) config->duration = 0.0f;
+ }
+--- a/App/motor/inc/motor_hfi_start.h
++++ b/App/motor/inc/motor_hfi_start.h
+@@ -10,6 +10,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <stdbool.h>
++#include "common_assert.h"
+ #include <stddef.h>
+ #include <stdint.h>
+ /* Private define ------------------------------------------------------------*/
+@@ -70,7 +71,7 @@
+ /** 热路径共享实现；与NormalizeConfig保持同一套规则，不缓存配置。 */
+ static inline void MotorHfiStart_NormalizeConfigInline(motor_hfi_start_config_t *config)
+ {
+-    if (config == NULL) return;
++    COMMON_ASSERT(config != NULL);
+     if (config->voltage < 0.0f) config->voltage = 0.0f;
+     if (config->cycles_per_axis < 2U) config->cycles_per_axis = 2U;
+     if (config->cycles_per_axis > 32U) config->cycles_per_axis = 32U;
+--- a/App/motor/joint/motor_joint.c
++++ b/App/motor/joint/motor_joint.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <math.h>
++#include "common_assert.h"
+ #include <stddef.h>
+ #include <string.h>
+ #include "motor_joint.h"
+@@ -888,9 +889,7 @@
+     uint32_t primask;
+     uint32_t last_command_us;
+ 
+-    if (state == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(state != NULL);
+     primask = Motor_Crit_Enter();
+     *state = s_joint;
+     last_command_us = s_joint_last_command_us;
+--- a/App/motor/joint/motor_joint_control.c
++++ b/App/motor/joint/motor_joint_control.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <math.h>
++#include "common_assert.h"
+ #include <stddef.h>
+ #include <string.h>
+ #include "motor_joint_control.h"
+@@ -191,9 +192,7 @@
+  */
+ void Motor_JointControl_Reset(motor_joint_control_t *control)
+ {
+-    if (control == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(control != NULL);
+     control->position_error_rad = 0.0f;
+     control->velocity_error_rad_s = 0.0f;
+     control->integral_output = 0.0f;
+--- a/App/motor/observer/motor_ekf.c
++++ b/App/motor/observer/motor_ekf.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_ekf.h"
++#include "common_assert.h"
+ 
+ #include <math.h>
+ #include <stddef.h>
+@@ -219,9 +220,7 @@
+  */
+ void Motor_Ekf_NormalizeConfig(motor_ekf_config_t *config)
+ {
+-    if (config == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(config != NULL);
+     if (!(config->resistance >= 0.0f) || !isfinite(config->resistance)) {
+         config->resistance = 0.0f;
+     }
+@@ -264,9 +263,7 @@
+ {
+     float wrapped;
+ 
+-    if (obs == NULL || config == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(obs != NULL && config != NULL);
+     if (!isfinite(angle) || !isfinite(omega_e) || !isfinite(i_alpha) || !isfinite(i_beta)) {
+         return;
+     }
+--- a/App/motor/observer/motor_flux.c
++++ b/App/motor/observer/motor_flux.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_flux.h"
++#include "common_assert.h"
+ 
+ #include <math.h>
+ #include <stddef.h>
+@@ -104,9 +105,7 @@
+  */
+ void Motor_Flux_NormalizeConfig(motor_flux_config_t *config)
+ {
+-    if (config == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(config != NULL);
+     if (!(config->resistance >= 0.0f) || !isfinite(config->resistance)) {
+         config->resistance = 0.0f;
+     }
+@@ -140,9 +139,7 @@
+     float inductance;
+     float wrapped;
+ 
+-    if (obs == NULL || config == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(obs != NULL && config != NULL);
+     if (!isfinite(angle) || !isfinite(i_alpha) || !isfinite(i_beta)) {
+         return;
+     }
+--- a/App/motor/observer/motor_hfi.c
++++ b/App/motor/observer/motor_hfi.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_hfi.h"
++#include "common_assert.h"
+ 
+ #include <math.h>
+ #include <stddef.h>
+@@ -78,9 +79,7 @@
+  */
+ void Motor_Hfi_NormalizeConfig(motor_hfi_config_t *config)
+ {
+-    if (config == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(config != NULL);
+     if (config->voltage < 0.0f) {
+         config->voltage = 0.0f;
+     }
+@@ -107,9 +106,7 @@
+  */
+ void Motor_Hfi_SeedAngle(motor_hfi_t *hfi, float angle)
+ {
+-    if (hfi == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(hfi != NULL);
+     hfi->angle = Motor_Hfi_WrapTwoPi(angle);
+ }
+ 
+--- a/App/motor/observer/motor_luenberger.c
++++ b/App/motor/observer/motor_luenberger.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_luenberger.h"
++#include "common_assert.h"
+ 
+ #include <math.h>
+ #include <stddef.h>
+@@ -149,9 +150,7 @@
+  */
+ void Motor_Luenberger_NormalizeConfig(motor_luenberger_config_t *config)
+ {
+-    if (config == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(config != NULL);
+     if (!(config->resistance >= 0.0f) || !isfinite(config->resistance)) {
+         config->resistance = 0.0f;
+     }
+@@ -191,9 +190,7 @@
+     float s;
+     float c;
+ 
+-    if (obs == NULL || config == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(obs != NULL && config != NULL);
+     if (!isfinite(angle) || !isfinite(omega_e) || !isfinite(i_alpha) || !isfinite(i_beta)) {
+         return;
+     }
+--- a/App/motor/observer/motor_sensorless.c
++++ b/App/motor/observer/motor_sensorless.c
+@@ -10,6 +10,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include <math.h>
++#include "common_assert.h"
+ #include <string.h>
+ #include <stddef.h>
+ #include <stdbool.h>
+@@ -79,9 +80,7 @@
+  */
+ static void Motor_Sensorless_ApplyEffects(MOTOR_PARAM_S *motor, const motor_sensorless_effects_t *effects)
+ {
+-    if (effects == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(effects != NULL);
+     if (effects->request_speed_loss_fault && motor != NULL) {
+         Motor_Protect_TriggerFault(FAULT_CODE_MOTOR_SPEED_LOSS, motor);
+     }
+@@ -99,9 +98,7 @@
+  */
+ static void Motor_Sensorless_ClearEffects(motor_sensorless_effects_t *effects)
+ {
+-    if (effects == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(effects != NULL);
+     memset(effects, 0, sizeof(*effects));
+ }
+ 
+@@ -215,9 +212,7 @@
+  */
+ void Motor_Sensorless_InitState(motor_sensorless_runtime_t *rt)
+ {
+-    if (rt == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(rt != NULL);
+     memset(rt, 0, sizeof(*rt));
+     rt->state = MOTOR_SENSORLESS_OPEN_LOOP;
+ }
+@@ -230,9 +225,7 @@
+  */
+ void Motor_Sensorless_ResetState(motor_sensorless_runtime_t *rt)
+ {
+-    if (rt == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(rt != NULL);
+     /*
+      * 停机、切换到 V/F、关闭无感或数值异常时调用。
+      * 清零后必须重新经过 Seed、LOCKING 和接管流程，不能沿用旧角度。
+@@ -259,9 +252,7 @@
+      * 周期与新采样电流配对使用。当前尚未补偿死区、管压降和母线纹波，
+      * 因此它是实际电机端电压的近似值，而不是额外生成的测试电压。
+      */
+-    if (rt == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(rt != NULL);
+     rt->applied_v_alpha = v_alpha;
+     rt->applied_v_beta = v_beta;
+ }
+@@ -324,9 +315,7 @@
+      *   - ol_enable=false 表示电机已停机。
+      * 任一条件不满足都清空历史状态，防止下次启动沿用旧磁链和旧角度。
+      */
+-    if (rt == NULL || motor == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(rt != NULL && motor != NULL);
+     Motor_Sensorless_ClearEffects(effects);
+ 
+     if (dt <= 0.0f || !motor->sensorless_enable || motor->ol_mode != MOTOR_OL_MODE_IF || !motor->ol_enable) {
+@@ -778,9 +767,7 @@
+ void Motor_Sensorless_GetDiagnosticsState(const motor_sensorless_runtime_t *rt,
+                                           motor_sensorless_diagnostics_t *diagnostics)
+ {
+-    if (rt == NULL || diagnostics == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(rt != NULL && diagnostics != NULL);
+     diagnostics->flux_ok = rt->flux_ok;
+     diagnostics->speed_ok = rt->speed_ok;
+     diagnostics->direction_ok = rt->direction_ok;
+@@ -804,7 +791,7 @@
+ void Motor_Sensorless_GetLightSnapshotState(const motor_sensorless_runtime_t *rt,
+                                            motor_sensorless_light_snapshot_t *out)
+ {
+-    if (rt == NULL || out == NULL) return;
++    COMMON_ASSERT(rt != NULL && out != NULL);
+     out->state = rt->state;
+     out->flux_ok = rt->flux_ok;
+     out->direction_ok = rt->direction_ok;
+@@ -1015,9 +1002,7 @@
+ {
+     uint32_t primask;
+ 
+-    if (diagnostics == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(diagnostics != NULL);
+     primask = Motor_Crit_Enter();
+     /* 保护路径也在ADC ISR调用；只拷贝诊断字段，不把统计数组搬到中断栈。 */
+     Motor_Sensorless_GetDiagnosticsState(&s_sensorless, diagnostics);
+@@ -1050,9 +1035,7 @@
+ void Motor_Sensorless_GetStats(motor_sensorless_stats_t *stats)
+ {
+     uint32_t primask;
+-    if (stats == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(stats != NULL);
+     primask = Motor_Crit_Enter();
+     *stats = s_sensorless.stats;
+     Motor_Crit_Exit(primask);
+--- a/App/motor/observer/motor_smo.c
++++ b/App/motor/observer/motor_smo.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_smo.h"
++#include "common_assert.h"
+ 
+ #include <math.h>
+ #include <stddef.h>
+@@ -133,9 +134,7 @@
+  */
+ void Motor_Smo_NormalizeConfig(motor_smo_config_t *config)
+ {
+-    if (config == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(config != NULL);
+     if (!(config->resistance >= 0.0f) || !isfinite(config->resistance)) {
+         config->resistance = 0.0f;
+     }
+@@ -181,9 +180,7 @@
+     float s;
+     float c;
+ 
+-    if (obs == NULL || config == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(obs != NULL && config != NULL);
+     if (!isfinite(angle) || !isfinite(omega_e) || !isfinite(i_alpha) || !isfinite(i_beta)) {
+         return;
+     }
+--- a/App/motor/start/motor_alignment.c
++++ b/App/motor/start/motor_alignment.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_alignment.h"
++#include "common_assert.h"
+ #include <stddef.h>
+ #include <string.h>
+ /* Private define ------------------------------------------------------------*/
+@@ -25,7 +26,7 @@
+  */
+ void MotorAlignment_Reset(motor_alignment_t *state)
+ {
+-    if (state == NULL) return;
++    COMMON_ASSERT(state != NULL);
+     memset(state, 0, sizeof(*state));
+     state->stopped = true;
+ }
+@@ -51,7 +52,7 @@
+  */
+ void MotorAlignment_MarkComplete(motor_alignment_t *state)
+ {
+-    if (state == NULL) return;
++    COMMON_ASSERT(state != NULL);
+     state->stopped = false;
+     state->running = false;
+     state->complete = true;
+@@ -67,7 +68,7 @@
+  */
+ void MotorAlignment_MarkSkipped(motor_alignment_t *state)
+ {
+-    if (state == NULL) return;
++    COMMON_ASSERT(state != NULL);
+     state->stopped = false;
+     state->running = false;
+     state->complete = false;
+--- a/App/motor/start/motor_if_start.c
++++ b/App/motor/start/motor_if_start.c
+@@ -7,6 +7,7 @@
+ #endif
+ /* Includes ------------------------------------------------------------------*/
+ #include "motor_if_start.h"
++#include "common_assert.h"
+ #include <math.h>
+ #include <stddef.h>
+ #include <string.h>
+@@ -38,7 +39,7 @@
+  */
+ void MotorIfStart_Reset(motor_if_start_t *state)
+ {
+-    if (state == NULL) return;
++    COMMON_ASSERT(state != NULL);
+     memset(state, 0, sizeof(*state));
+     state->first_cycle = true;
+     state->iq_scale = 1.0f;
+@@ -53,7 +54,7 @@
+  */
+ void MotorIfStart_NormalizeConfig(motor_if_start_config_t *config)
+ {
+-    if (config == NULL) return;
++    COMMON_ASSERT(config != NULL);
+     if (config->min_rpm < 0.0f) config->min_rpm = 0.0f;
+     if (config->min_iq_scale < 0.0f) config->min_iq_scale = 0.0f;
+     if (config->min_iq_scale > 1.0f) config->min_iq_scale = 1.0f;
+@@ -69,7 +70,7 @@
+  */
+ void MotorIfStart_SetNeutral(motor_if_start_t *state)
+ {
+-    if (state == NULL) return;
++    COMMON_ASSERT(state != NULL);
+     state->angle_rpm = 0.0f;
+     state->iq_scale = 1.0f;
+     state->phase_boost = 0.0f;
+@@ -85,7 +86,7 @@
+  */
+ void MotorIfStart_SetVfRpm(motor_if_start_t *state, float rpm)
+ {
+-    if (state == NULL) return;
++    COMMON_ASSERT(state != NULL);
+     state->angle_rpm = rpm;
+     state->iq_scale = 1.0f;
+     state->phase_boost = 0.0f;
+@@ -108,7 +109,7 @@
+ {
+     float scale;
+ 
+-    if (state == NULL || config == NULL || input == NULL) return;
++    COMMON_ASSERT(state != NULL && config != NULL && input != NULL);
+     state->phase_boost = 0.0f;
+ 
+     if (state->first_cycle && input->target_rpm != 0.0f) {
+--- a/Library/Hal/port/stm32f4/hal_motor_stm32f4.c
++++ b/Library/Hal/port/stm32f4/hal_motor_stm32f4.c
+@@ -10,6 +10,7 @@
+ #define HAL_INTERNAL
+ #endif
+ #include "includes.h"
++#include "common_assert.h"
+ #include "hal_motor.h"
+ #include "hal_sensor.h"
+ /* Private typedef -----------------------------------------------------------*/
+@@ -212,9 +213,7 @@
+     uint32_t i;
+     uint32_t n;
+ 
+-    if (dst == NULL) {
+-        return;
+-    }
++    COMMON_ASSERT(dst != NULL);
+     n = (len < max_ch) ? len : max_ch;
+     for (i = 0U; i < n; i++) {
+         dst[i] = ADC_Value[i];
+--- a/App/motor/inc/motor_foc_isr.h
++++ b/App/motor/inc/motor_foc_isr.h
+@@ -12,7 +12,7 @@
+ 
+ #include "motor_param.h"
+ #include "motor_timing.h"
+-/** 读取默认实例完整诊断字段；不改控制/PWM。用于ISR采集及停机基准。 */
++/** 读取默认实例完整诊断字段；不改控制/PWM。motor_param/sample 必须非空，否则断言停住。 */
+ void Motor_FocIsr_CaptureTraceSample(const MOTOR_PARAM_S *motor_param, float vd, float vq,
+                                     motor_trace_sample_t *sample);
+ /* Private define ------------------------------------------------------------*/
+@@ -23,7 +23,7 @@
+ 
+ /**
+  * @description: 推进一次正常 FOC ADC 中断路径，并按约 100 Hz 发布状态快照。
+- * @detail: 在 ADC-DMA 中断调用，不阻塞。motor_param 为空则直接返回。
++ * @detail: 在 ADC-DMA 中断调用，正常路径不阻塞；motor_param 为空表示调用错误，触发断言停住。
+  * @param {MOTOR_PARAM_S *} motor_param 电机采样与保护对象，不可为空
+  * @return {void} 无
+  */
+--- a/App/motor/inc/motor_output.h
++++ b/App/motor/inc/motor_output.h
+@@ -50,7 +50,7 @@
+ 
+ /**
+  * @description: 输出三相中点占空比并提交 PWM。
+- * @detail: 中点不等于关桥，也不保证无转矩。同时清零无感本拍应用电压记录。为空则直接返回。
++ * @detail: 中点不等于关桥，也不保证无转矩。同时清零无感本拍应用电压记录。电机对象不可为空，违反约定触发 COMMON_ASSERT。
+  * @param {MOTOR_PARAM_S *} motor 电机对象，写入 duty1/2/3
+  * @return {void} 无
+  * @author: lkc
+@@ -60,7 +60,7 @@
+ /**
+  * @description: 反 Park 加调制，将 vd/vq 落到三相 PWM。
+  * @detail: 有感 I/F 保持已验证的 VESC SVM。无感 I/F 使用同一套电压换算。V/F 仍用 svm_hqd。
+- *          比较值按当前板 A-C-B 相序提交。为空则直接返回。
++ *          比较值按当前板 A-C-B 相序提交。电机对象不可为空，违反约定触发 COMMON_ASSERT。
+  * @param {MOTOR_PARAM_S *} motor     电机对象，写入 duty1/2/3
+  * @param {float} vd                  D 轴电压 (V)
+  * @param {float} vq                  Q 轴电压 (V)
+@@ -88,7 +88,7 @@
+ /**
+  * @description: 将已经仲裁的控制结果应用到 PWM。
+  * @detail: 调用前须已经过 Motor_Control_ArbitrateOutput。SAFE 走中点，OUTPUT_DQ 走反 Park。
+- *          故障锁存时不得传入 OUTPUT_DQ。motor 或 result 为空则直接返回。
++ *          故障锁存时不得传入 OUTPUT_DQ。motor 和 result 不可为空，违反约定触发 COMMON_ASSERT。
+  * @param {MOTOR_PARAM_S *} motor                  电机对象
+  * @param {float} v_bus                            母线电压 (V)
+  * @param {const motor_control_result_t *} result  仲裁后的输出请求
+--- a/App/motor/inc/motor_current.h
++++ b/App/motor/inc/motor_current.h
+@@ -75,7 +75,7 @@
+ /**
+  * @description: 坐标交接时旋转电流 PI 积分，并补偿目标变化的 P 项。
+  * @detail: 只用于无感渐变等坐标交接。delta 为新电角减旧电角 (rad)，不得传入正常转速积分角。
+- *          由电流环在矢量限幅前调用，不改 PWM。motor 为空或 delta 非有限值时直接返回。
++ *          由电流环在矢量限幅前调用，不改 PWM。motor 不可为空并由 COMMON_ASSERT 检查；delta 非有限值时直接返回。
+  * @param {MOTOR_PARAM_S *} motor 电机对象，读写 ol_vd_int/ol_vq_int (V)
+  * @param {float} delta           交接附加角 (rad)
+  * @param {float} old_id          旧坐标 Id 目标 (A)
+--- a/App/motor/inc/motor_fast_vf.h
++++ b/App/motor/inc/motor_fast_vf.h
+@@ -18,7 +18,7 @@
+ /**
+  * @description: 推进一次简化 V/F 诊断控制拍并提交电压。
+  * @detail: 仅供历史实机基线验证，不代替正常 Motor_Control_Step 路径。
+- *          在控制拍调用。频率或极对数无效时改走中点输出。motor 为空则直接返回。
++ *          在控制拍调用。频率或极对数无效时改走中点输出。motor 不可为空，违反约定触发 COMMON_ASSERT。
+  * @param {MOTOR_PARAM_S *} motor 电机实例，不可为空
+  * @param {float} control_hz 实际控制频率 (Hz)
+  * @return {void} 无
+--- a/App/motor/inc/motor_sensorless.h
++++ b/App/motor/inc/motor_sensorless.h
+@@ -155,7 +155,7 @@
+ 
+ /**
+  * @description: 拷贝默认实例最近一次启动的观测统计。
+- * @detail: 临界区内拷贝默认实例。stats 为空则直接返回。Reset 后统计仍在；
++ * @detail: 临界区内拷贝默认实例。stats 不可为空并由 COMMON_ASSERT 检查。Reset 后统计仍在；
+  *          下次从未初始化进入 Update 时，会在 Seed 之前被清掉。本函数不改变控制状态。
+  * @param {motor_sensorless_stats_t *} stats 输出统计，不可为空
+  * @return {void} 无
+--- a/App/motor/inc/motor_joint.h
++++ b/App/motor/inc/motor_joint.h
+@@ -197,7 +197,7 @@
+ 
+ /**
+  * @description: 复制关节阻抗状态。
+- * @param {motor_joint_state_t *} state  输出，为空则忽略
++ * @param {motor_joint_state_t *} state  输出，不可为空，违反约定触发 COMMON_ASSERT
+  * @return {void} 无
+  * @author: lkc
+  */
+--- a/App/motor/inc/motor_joint_control.h
++++ b/App/motor/inc/motor_joint_control.h
+@@ -93,7 +93,7 @@
+ 
+ /**
+  * @description: 清除积分、误差和输出，配置与命令保持不变。
+- * @param {motor_joint_control_t *} control  控制实例，为空则忽略
++ * @param {motor_joint_control_t *} control  控制实例，不可为空，违反约定触发 COMMON_ASSERT
+  * @return {void} 无
+  * @author: lkc
+  */
+--- a/App/motor/inc/motor_timing.h
++++ b/App/motor/inc/motor_timing.h
+@@ -184,7 +184,7 @@
+ 
+ /**
+  * @description: 读出一个阶段当前窗口的样本数和峰值。
+- * @detail: 本函数进入临界区。stage 非法或输出指针为空则直接返回。CadenceReset 会清这些数组。
++ * @detail: 本函数进入临界区。输出指针不可为空并由 COMMON_ASSERT 检查，stage 非法则直接返回。CadenceReset 会清这些数组。
+  * @param {motor_timing_stage_t} stage 阶段编号
+  * @param {uint32_t *} count           输出样本数，不可为空
+  * @param {uint32_t *} maximum         输出峰值 (us)，不可为空
+@@ -253,7 +253,7 @@
+ 
+ /**
+  * @description: 拷贝控制入口节拍统计。
+- * @detail: 本函数进入临界区。out 为空则直接返回。
++ * @detail: 本函数进入临界区。out 不可为空，违反约定触发 COMMON_ASSERT。
+  * @param {motor_cadence_t *} out 输出，不可为空
+  * @return {void} 无
+  * @author: lkc
+@@ -307,7 +307,7 @@
+ 
+ /**
+  * @description: 拷贝 DMA 回调耗时统计。
+- * @detail: 本函数进入临界区。out 为空则直接返回。
++ * @detail: 本函数进入临界区。out 不可为空，违反约定触发 COMMON_ASSERT。
+  * @param {motor_callback_t *} out 输出，不可为空
+  * @return {void} 无
+  * @author: lkc
+@@ -494,9 +494,9 @@
+ 
+ /**
+  * @description: 写入一条环形诊断，并附上当前窗口的间隔统计。
+- * @detail: active 为 false 或 sample 为空则直接返回。写入后用窗口里的 gap/full/pending/up 覆盖样本对应字段并清窗口。
++ * @detail: sample 不可为空并由 COMMON_ASSERT 检查，active 为 false 时直接返回。写入后用窗口里的 gap/full/pending/up 覆盖样本对应字段并清窗口。
+  *          失锁触发给 flags 加 bit7(128)，接管触发加 bit8(256)。配额减到 0 时清除 active。
+- * @param {const motor_trace_sample_t *} sample 本拍样本；空指针直接返回
++ * @param {const motor_trace_sample_t *} sample 本拍样本；不可为空，违反约定触发 COMMON_ASSERT
+  * @return {void} 无
+  * @author: lkc
+  */
+--- a/App/motor_sensor/inc/motor_sensor_update.h
++++ b/App/motor_sensor/inc/motor_sensor_update.h
+@@ -15,7 +15,7 @@
+  * @description: 按当前反馈源更新编码器或霍尔运行状态。
+  * @detail: 在 FOC 控制拍调用，不写 PWM。编码器失联时按现有条件请求故障。
+  *          霍尔按 MOTOR_HALL_ADC_DIVIDER 分频，dt 累加后交给角度估计；切走霍尔源时清累计。
+- *          motor 为空则直接返回。
++ *          motor 不可为空，违反约定触发 COMMON_ASSERT。
+  * @param {MOTOR_PARAM_S *} motor           电机实例，不可为空
+  * @param {motor_feedback_source_t} source  当前请求的反馈源
+  * @param {float} dt_s                      本控制拍时间 (s)
+--- a/App/motor/inc/motor_bldc_isr.h
++++ b/App/motor/inc/motor_bldc_isr.h
+@@ -12,7 +12,7 @@
+  * @description: 执行一拍 BLDC 采样、保护和 BEMF 换相处理。
+  * @detail: 在 ADC-DMA 中断调用，不阻塞。保护检查每一帧；BEMF 只消费 sample_upward 选定的 PWM 半周期。
+  *          传给无感步进的时间是 2 倍 ADC 周期，对应一个完整 PWM 周期。
+- *          FOC 运行量按 A-C-B 存放，这里恢复为原理图 SENS1/2/3 的 A-B-C。实例为空则直接返回。
++ *          FOC 运行量按 A-C-B 存放，这里恢复为原理图 SENS1/2/3 的 A-B-C。实例不可为空，违反约定触发 COMMON_ASSERT。
+  * @param {motor_bldc_sensorless_t *} sensorless BLDC 无感实例，不可为空
+  * @param {MOTOR_PARAM_S *} motor                电机采样与保护状态，不可为空
+  * @param {bool} sample_upward                   true=使用 PWM 向上计数侧 BEMF 样本
+--- a/Library/Common/common.c
++++ b/Library/Common/common.c
+@@ -18,6 +18,14 @@
+ /* Private function prototypes -----------------------------------------------*/
+ /* Private functions ---------------------------------------------------------*/
+ 
++/* 可能在串口和调度器初始化之前调用，不依赖日志、RTOS 或动态内存。 */
++void Common_AssertFailed(void)
++{
++    __disable_irq();
++    for (;;) {
++    }
++}
++
+ #ifdef __cplusplus
+ }
+ #endif
+--- a/Library/Common/inc/common.h
++++ b/Library/Common/inc/common.h
+@@ -19,6 +19,9 @@
+ */
+ #ifndef COMMON_H 
+ #define COMMON_H 
++/* 始终检查且仅求值一次，允许表达式包含必须执行的初始化调用。
++ * 不随 NDEBUG 或 configASSERT 配置关闭；失败统一进入停机处理。 */
++#include "common_assert.h"
+ /* Includes ------------------------------------------------------------------*/
+ /* Private typedef -----------------------------------------------------------*/
+ /* Private define ------------0.1------------------------------------------------*/
+--- a/AI_CODE.md
++++ b/AI_CODE.md
+@@ -328,6 +328,8 @@
+ - 不无故重排 include；依赖拆分允许对当前文件做必要调整。
+ - `.c` 不加 include guard，C++ 链接兼容放公共头中；不强制 `.c` 包裹 `extern "C"`。
+ - 按根目录 `.clang-format`：4 空格、120 列、Linux 大括号、指针靠右，不全仓格式化，不自动插入花括号改变控制流。
++- 对调用约定要求非空的参数检查，用户偏好 `COMMON_ASSERT(motor != NULL);`，不是单纯把 if/return 压成一行。断言失败会停住，不能机械替换允许空值、可恢复错误或正常状态退出的 return；修改时同步接口约定及验证。
++- 项目自有无返回值接口的必需指针检查统一使用 COMMON_ASSERT；混合状态条件应拆开，正常状态仍返回。核心模块只包含无平台依赖的 common_assert.h，不依赖 includes.h 或 RTOS；MCU 失败入口在 common.c，主机使用 abort 并验证失败路径。
+ - 保留现有中文注释风格。公开 API 写职责、参数/返回、单位、调用上下文；控制模块补充状态、时序及设计原因。
+ - 注释不能把未经验证的行为写成结论，如“三相 50% 必然安全”“软件延时保护能覆盖短路”。
+ - 文件头说明职责即可，空分区可省略；复杂公式说明归一化、符号和适用前提。
+--- a/Scripts/export_reusable_modules.ps1
++++ b/Scripts/export_reusable_modules.ps1
+@@ -18,6 +18,7 @@
+ $taskSrc = Join-Path $Destination 'src'
+ New-Item -ItemType Directory -Force $taskInclude, $taskSrc | Out-Null
+ $taskHeaders = @{}
++$taskHeaders['common_assert.h'] = Join-Path $taskRoot 'Library/Common/inc/common_assert.h'
+ foreach ($taskDir in @('App/motor/inc', 'App/motor_sensor/inc')) {
+     Get-ChildItem (Join-Path $taskRoot $taskDir) -Filter '*.h' | ForEach-Object {
+         if ($taskHeaders.ContainsKey($_.Name)) { throw "Duplicate header: $($_.Name)" }
+--- a/Doc/doc/模块独立复用.md
++++ b/Doc/doc/模块独立复用.md
+@@ -1,6 +1,8 @@
+ # 模块独立复用
+ 
+ 统一原则：算法拿到状态、配置、输入和时间间隔，返回结果；硬件读写、任务调度、日志、Flash和全局电机接入留在适配层。纯算法不需要为不存在的硬件提供空HAL函数。保留现有源码和版权，不建立第二份算法副本。
++
++无返回值接口的必需指针现在使用 `COMMON_ASSERT`，空指针不再被静默忽略。导出会附带纯 C 的 `common_assert.h`：主机失败调用 `abort()`；ARM 移植工程需提供 `Common_AssertFailed(void)` 的不返回实现（当前 STM32 工程在 common.c 中关中断并停住）。该接口不要求 RTOS 或日志。带错误码返回的输入校验和明确可选指针仍按原约定处理。
+ 
+ ## 已能独立导出的算法
+ 
+@@ -25,7 +27,7 @@
+ 
+ ## 编码器：独立使用两份文件
+ 
+-最小依赖：`motor_encoder_core.c`、`motor_encoder_core.h`和标准C数学库。不会初始化GPIO、SPI、I²C、定时器，也不会自动驱动电机或保存Flash。
++最小依赖：`motor_encoder_core.c`、`motor_encoder_core.h`、`common_assert.h`和标准C数学库。不会初始化GPIO、SPI、I²C、定时器，也不会自动驱动电机或保存Flash。
+ 
+ ```c
+ #include "motor_encoder_core.h"
+--- a/Tests/host/run.ps1
++++ b/Tests/host/run.ps1
+@@ -9,7 +9,7 @@
+         $Compiler = Join-Path $root '.build/tools/ziglang/zig.exe'
+         if (!(Test-Path $Compiler)) { throw 'Specify -Compiler path to zig.exe, or install ziglang into .build/tools.' }
+     }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/motor_timing.c Tests/host/test_motor_timing_profile.c -o .build/host/test_motor_timing_profile.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/motor_timing.c Tests/host/test_motor_timing_profile.c -o .build/host/test_motor_timing_profile.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Timing profile host compilation failed' }
+     & .build/host/test_motor_timing_profile.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor timing profile host tests failed' }
+@@ -26,7 +26,7 @@
+     [IO.File]::WriteAllText((Join-Path $root '.build/host/flux_rotation_under_test.inc'),
+         "#define MOTOR_DETECT_FLUX_MIN_RUN_DUTY .03f`n#define MOTOR_DETECT_FLUX_DUTY_COLLAPSE_RATIO .70f`n" + $fluxSource.Substring($rotStart,$rotEnd-$rotStart),[Text.UTF8Encoding]::new($false))
+     [IO.File]::WriteAllText((Join-Path $root '.build/host/flux_reference_under_test.inc'), $refBody, [Text.UTF8Encoding]::new($false))
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/host Tests/host/test_motor_flux_reference.c -o .build/host/test_motor_flux_reference.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -I.build/host Tests/host/test_motor_flux_reference.c -o .build/host/test_motor_flux_reference.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Flux reference compilation failed' }
+     & .build/host/test_motor_flux_reference.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Flux reference tests failed' }
+@@ -39,7 +39,7 @@
+         $fluxSource.Substring($fitStart, $fitEnd - $fitStart) + $fluxSource.Substring($scanStart, $scanEnd - $scanStart), [Text.UTF8Encoding]::new($false))
+     $fluxConstants = ($fluxSource -split "`n" | Where-Object { $_.StartsWith('#define MOTOR_DETECT_') }) -join "`n"
+     [IO.File]::WriteAllText((Join-Path $root '.build/host/flux_scan_constants.inc'), $fluxConstants, [Text.UTF8Encoding]::new($false))
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -I.build/host -IApp/motor/inc -IApp/motor_param/inc Tests/host/test_motor_flux_scan.c -o .build/host/test_motor_flux_scan.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -I.build/host -IApp/motor/inc -IApp/motor_param/inc Tests/host/test_motor_flux_scan.c -o .build/host/test_motor_flux_scan.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Flux scan host compilation failed' }
+     & .build/host/test_motor_flux_scan.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Flux scan host tests failed' }
+@@ -50,232 +50,232 @@
+     if ($sltestStart -lt 0 -or $sltestEnd -le $sltestStart) { throw 'sltest command boundaries missing' }
+     [IO.File]::WriteAllText((Join-Path (Get-Location) '.build/host/sltest_under_test.inc'),
+         $sltestSource.Substring($sltestStart, $sltestEnd - $sltestStart), [Text.UTF8Encoding]::new($false))
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -I.build/host -IApp/motor/inc -IApp/motor_param/inc -IApp/motor_sensor/inc Tests/host/test_sensorless_speed_command.c -o .build/host/test_sensorless_speed_command.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -I.build/host -IApp/motor/inc -IApp/motor_param/inc -IApp/motor_sensor/inc Tests/host/test_sensorless_speed_command.c -o .build/host/test_sensorless_speed_command.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Sensorless speed command host compilation failed' }
+     & .build/host/test_sensorless_speed_command.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Sensorless speed command host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE "-Dassert_param(x)=((void)0)" -IApp/motor/inc App/motor/motor_foc.c App/motor/motor_utils.c Tests/host/test_motor_fast_math.c -o .build/host/test_motor_fast_math.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE "-Dassert_param(x)=((void)0)" -IApp/motor/inc App/motor/motor_foc.c App/motor/motor_utils.c Tests/host/test_motor_fast_math.c -o .build/host/test_motor_fast_math.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Fast math host compilation failed' }
+     & .build/host/test_motor_fast_math.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Fast math host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IThirtyLibrary/common_code/lib/seqlock -IThirtyLibrary/common_code/lib/ringbuf -IThirtyLibrary/common_code/lib/textbuf ThirtyLibrary/common_code/lib/seqlock/seqlock.c ThirtyLibrary/common_code/lib/seqlock/seqlock_test.c ThirtyLibrary/common_code/lib/ringbuf/ringbuf.c ThirtyLibrary/common_code/lib/ringbuf/ringbuf_test.c ThirtyLibrary/common_code/lib/textbuf/textbuf.c ThirtyLibrary/common_code/lib/textbuf/textbuf_test.c Tests/host/test_common_code.c -o .build/host/test_common_code.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -IThirtyLibrary/common_code/lib/seqlock -IThirtyLibrary/common_code/lib/ringbuf -IThirtyLibrary/common_code/lib/textbuf ThirtyLibrary/common_code/lib/seqlock/seqlock.c ThirtyLibrary/common_code/lib/seqlock/seqlock_test.c ThirtyLibrary/common_code/lib/ringbuf/ringbuf.c ThirtyLibrary/common_code/lib/ringbuf/ringbuf_test.c ThirtyLibrary/common_code/lib/textbuf/textbuf.c ThirtyLibrary/common_code/lib/textbuf/textbuf_test.c Tests/host/test_common_code.c -o .build/host/test_common_code.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Common-code host compilation failed' }
+     & .build/host/test_common_code.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Common-code host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -Wno-unused-variable -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Common/inc App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_settings.c -o .build/host/test_motor_settings.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -Wno-unused-variable -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Common/inc App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_settings.c -o .build/host/test_motor_settings.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Host compilation failed' }
+     & .build/host/test_motor_settings.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc Tests/host/test_motor_2804_profile.c -o .build/host/test_motor_2804_profile.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc Tests/host/test_motor_2804_profile.c -o .build/host/test_motor_2804_profile.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor 2804 profile host compilation failed' }
+     & .build/host/test_motor_2804_profile.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor 2804 profile host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -Wno-unused-variable -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Common/inc App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_settings.c -o .build/host/test_motor_settings_2804.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -Wno-unused-variable -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Common/inc App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_settings.c -o .build/host/test_motor_settings_2804.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor 2804 settings compilation failed' }
+     & .build/host/test_motor_settings_2804.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor 2804 settings tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -Wno-int-to-void-pointer-cast -ITests/host/stubs -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_anticogging.c App/motor_param/motor_settings.c App/motor_param/flash_storage.c Tests/host/stubs/hal_flash_host.c Tests/host/test_flash_storage.c -o .build/host/test_flash_storage.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -Wno-int-to-void-pointer-cast -ITests/host/stubs -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_anticogging.c App/motor_param/motor_settings.c App/motor_param/flash_storage.c Tests/host/stubs/hal_flash_host.c Tests/host/test_flash_storage.c -o .build/host/test_flash_storage.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Flash host compilation failed' }
+     & .build/host/test_flash_storage.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Flash host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IThirtyLibrary/common_code/lib/seqlock -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Common/inc -ILibrary/Hal/inc ThirtyLibrary/common_code/lib/seqlock/seqlock.c App/motor/motor.c App/motor/motor_anticogging.c App/motor/motor_snapshot.c App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_api.c -o .build/host/test_motor_api.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IThirtyLibrary/common_code/lib/seqlock -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Common/inc -ILibrary/Hal/inc ThirtyLibrary/common_code/lib/seqlock/seqlock.c App/motor/motor.c App/motor/motor_anticogging.c App/motor/motor_snapshot.c App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_api.c -o .build/host/test_motor_api.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor API host compilation failed' }
+     & .build/host/test_motor_api.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor API host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_speed_core.c App/motor/motor_speed.c Tests/host/test_motor_speed.c -o .build/host/test_motor_speed.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_speed_core.c App/motor/motor_speed.c Tests/host/test_motor_speed.c -o .build/host/test_motor_speed.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor speed host compilation failed' }
+     & .build/host/test_motor_speed.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor speed host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_speed_ff_detect.c Tests/host/test_motor_speed_ff_detect.c -lm -o .build/host/test_motor_speed_ff_detect.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_speed_ff_detect.c Tests/host/test_motor_speed_ff_detect.c -lm -o .build/host/test_motor_speed_ff_detect.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor speed FF detect host compilation failed' }
+     & .build/host/test_motor_speed_ff_detect.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor speed FF detect host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_trajectory.c Tests/host/test_motor_trajectory.c -o .build/host/test_motor_trajectory.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_trajectory.c Tests/host/test_motor_trajectory.c -o .build/host/test_motor_trajectory.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor trajectory host compilation failed' }
+     & .build/host/test_motor_trajectory.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor trajectory host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/motor_timing.c Tests/host/test_motor_timing.c -o .build/host/test_motor_timing.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/motor_timing.c Tests/host/test_motor_timing.c -o .build/host/test_motor_timing.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor timing host compilation failed' }
+     & .build/host/test_motor_timing.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor timing host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_output_core.c App/motor/motor_output.c Tests/host/test_motor_output.c -o .build/host/test_motor_output.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_output_core.c App/motor/motor_output.c Tests/host/test_motor_output.c -o .build/host/test_motor_output.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor output host compilation failed' }
+     & .build/host/test_motor_output.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor output host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE "-Dassert_param(x)=((void)0)" -IApp/motor/inc App/motor/motor_foc.c App/motor/motor_utils.c Tests/host/test_linear_svm_voltage.c -o .build/host/test_linear_svm_voltage.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE "-Dassert_param(x)=((void)0)" -IApp/motor/inc App/motor/motor_foc.c App/motor/motor_utils.c Tests/host/test_linear_svm_voltage.c -o .build/host/test_linear_svm_voltage.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Linear SVM voltage compilation failed' }
+     & .build/host/test_linear_svm_voltage.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Linear SVM voltage tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/diagnostic/motor_fast_vf.c Tests/host/test_motor_fast_vf.c -o .build/host/test_motor_fast_vf.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/diagnostic/motor_fast_vf.c Tests/host/test_motor_fast_vf.c -o .build/host/test_motor_fast_vf.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor fast VF host compilation failed' }
+     & .build/host/test_motor_fast_vf.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor fast VF host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/diagnostic/motor_fast_vf_isr.c Tests/host/test_motor_fast_vf_isr.c -o .build/host/test_motor_fast_vf_isr.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/diagnostic/motor_fast_vf_isr.c Tests/host/test_motor_fast_vf_isr.c -o .build/host/test_motor_fast_vf_isr.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor fast VF ISR host compilation failed' }
+     & .build/host/test_motor_fast_vf_isr.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor fast VF ISR host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/bldc/motor_bldc_isr.c Tests/host/test_motor_bldc_isr.c -o .build/host/test_motor_bldc_isr.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/bldc/motor_bldc_isr.c Tests/host/test_motor_bldc_isr.c -o .build/host/test_motor_bldc_isr.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC ISR host compilation failed' }
+     & .build/host/test_motor_bldc_isr.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC ISR host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/bldc/motor_bldc_defaults.c Tests/host/test_motor_bldc_defaults.c -o .build/host/test_motor_bldc_defaults.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/bldc/motor_bldc_defaults.c Tests/host/test_motor_bldc_defaults.c -o .build/host/test_motor_bldc_defaults.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC defaults host compilation failed' }
+     & .build/host/test_motor_bldc_defaults.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC defaults host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/bldc/motor_bldc_status.c Tests/host/test_motor_bldc_status.c -o .build/host/test_motor_bldc_status.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/bldc/motor_bldc_status.c Tests/host/test_motor_bldc_status.c -o .build/host/test_motor_bldc_status.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC status host compilation failed' }
+     & .build/host/test_motor_bldc_status.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC status host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor_sensor/motor_sensor_update.c Tests/host/test_motor_sensor_update.c -o .build/host/test_motor_sensor_update.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor_sensor/motor_sensor_update.c Tests/host/test_motor_sensor_update.c -o .build/host/test_motor_sensor_update.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor sensor update host compilation failed' }
+     & .build/host/test_motor_sensor_update.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor sensor update host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_position_core.c App/motor/motor_position_control.c App/motor/motor_position.c Tests/host/test_motor_position.c -o .build/host/test_motor_position.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_position_core.c App/motor/motor_position_control.c App/motor/motor_position.c Tests/host/test_motor_position.c -o .build/host/test_motor_position.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor position host compilation failed' }
+     & .build/host/test_motor_position.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor position host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/joint/motor_joint_control.c Tests/host/test_motor_joint_control.c -o .build/host/test_motor_joint_control.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/joint/motor_joint_control.c Tests/host/test_motor_joint_control.c -o .build/host/test_motor_joint_control.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor joint control host compilation failed' }
+     & .build/host/test_motor_joint_control.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor joint control host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/joint/motor_joint_protocol.c Tests/host/test_motor_joint_protocol.c -o .build/host/test_motor_joint_protocol.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/joint/motor_joint_protocol.c Tests/host/test_motor_joint_protocol.c -o .build/host/test_motor_joint_protocol.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor joint protocol host compilation failed' }
+     & .build/host/test_motor_joint_protocol.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor joint protocol host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_trajectory.c App/motor/joint/motor_joint_control.c App/motor/joint/motor_joint.c Tests/host/test_motor_joint.c -o .build/host/test_motor_joint.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_trajectory.c App/motor/joint/motor_joint_control.c App/motor/joint/motor_joint.c Tests/host/test_motor_joint.c -o .build/host/test_motor_joint.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor joint host compilation failed' }
+     & .build/host/test_motor_joint.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor joint host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_trajectory.c App/motor/joint/motor_joint_control.c App/motor/joint/motor_joint.c Tests/host/test_motor_joint_trajectory.c -o .build/host/test_motor_joint_trajectory.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/motor_trajectory.c App/motor/joint/motor_joint_control.c App/motor/joint/motor_joint.c Tests/host/test_motor_joint_trajectory.c -o .build/host/test_motor_joint_trajectory.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor joint trajectory host compilation failed' }
+     & .build/host/test_motor_joint_trajectory.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor joint trajectory host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_protect_core.c App/motor/motor_protect.c Tests/host/stubs/protect_deps.c Tests/host/test_motor_protect.c -o .build/host/test_motor_protect.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_protect_core.c App/motor/motor_protect.c Tests/host/stubs/protect_deps.c Tests/host/test_motor_protect.c -o .build/host/test_motor_protect.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor protect host compilation failed' }
+     & .build/host/test_motor_protect.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor protect host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_foc_divider.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c Tests/host/test_motor_startup.c -o .build/host/test_motor_startup.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_foc_divider.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c Tests/host/test_motor_startup.c -o .build/host/test_motor_startup.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor startup host compilation failed' }
+     & .build/host/test_motor_startup.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor startup host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/observer/motor_sensorless.c Tests/host/stubs/sensorless_math.c Tests/host/stubs/sensorless_deps.c Tests/host/test_motor_sensorless.c -o .build/host/test_motor_sensorless.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/observer/motor_sensorless.c Tests/host/stubs/sensorless_math.c Tests/host/stubs/sensorless_deps.c Tests/host/test_motor_sensorless.c -o .build/host/test_motor_sensorless.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor sensorless host compilation failed' }
+     & .build/host/test_motor_sensorless.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor sensorless host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/observer/motor_sensorless.c Tests/host/stubs/sensorless_math.c Tests/host/stubs/sensorless_deps.c Tests/host/test_sensorless_known_angle.c -o .build/host/test_sensorless_known_angle.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/observer/motor_sensorless.c Tests/host/stubs/sensorless_math.c Tests/host/stubs/sensorless_deps.c Tests/host/test_sensorless_known_angle.c -o .build/host/test_sensorless_known_angle.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Known-angle sensorless compilation failed' }
+     & .build/host/test_sensorless_known_angle.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Known-angle sensorless tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DSENSORLESS_REAL_MATH -IApp/motor_param/inc -IApp/motor/inc App/motor/observer/motor_sensorless.c App/motor/motor_math.c Tests/host/stubs/sensorless_math.c Tests/host/stubs/sensorless_deps.c Tests/host/test_sensorless_known_angle.c -o .build/host/test_sensorless_real_math.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DSENSORLESS_REAL_MATH -IApp/motor_param/inc -IApp/motor/inc App/motor/observer/motor_sensorless.c App/motor/motor_math.c Tests/host/stubs/sensorless_math.c Tests/host/stubs/sensorless_deps.c Tests/host/test_sensorless_known_angle.c -o .build/host/test_sensorless_real_math.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Real-math sensorless compilation failed' }
+     & .build/host/test_sensorless_real_math.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Real-math sensorless tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_current.c App/motor/motor_pid.c Tests/host/stubs/current_math.c Tests/host/test_motor_current.c -o .build/host/test_motor_current.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor/motor_current.c App/motor/motor_pid.c Tests/host/stubs/current_math.c Tests/host/test_motor_current.c -o .build/host/test_motor_current.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor current host compilation failed' }
+     & .build/host/test_motor_current.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor current host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_fw.c Tests/host/test_motor_fw.c -o .build/host/test_motor_fw.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_fw.c Tests/host/test_motor_fw.c -o .build/host/test_motor_fw.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor FW host compilation failed' }
+     & .build/host/test_motor_fw.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor FW host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_hfi.c Tests/host/test_motor_hfi.c -o .build/host/test_motor_hfi.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_hfi.c Tests/host/test_motor_hfi.c -o .build/host/test_motor_hfi.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor HFI host compilation failed' }
+     & .build/host/test_motor_hfi.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor HFI host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_flux.c Tests/host/test_motor_flux.c -o .build/host/test_motor_flux.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_flux.c Tests/host/test_motor_flux.c -o .build/host/test_motor_flux.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor flux host compilation failed' }
+     & .build/host/test_motor_flux.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor flux host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_luenberger.c Tests/host/test_motor_luenberger.c -o .build/host/test_motor_luenberger.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_luenberger.c Tests/host/test_motor_luenberger.c -o .build/host/test_motor_luenberger.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor Luenberger host compilation failed' }
+     & .build/host/test_motor_luenberger.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor Luenberger host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_ekf.c Tests/host/test_motor_ekf.c -o .build/host/test_motor_ekf.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_ekf.c Tests/host/test_motor_ekf.c -o .build/host/test_motor_ekf.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor EKF host compilation failed' }
+     & .build/host/test_motor_ekf.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor EKF host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_smo.c Tests/host/test_motor_smo.c -o .build/host/test_motor_smo.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/observer/motor_smo.c Tests/host/test_motor_smo.c -o .build/host/test_motor_smo.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor SMO host compilation failed' }
+     & .build/host/test_motor_smo.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor SMO host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_output_core.c App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=2 -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_output_core.c App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor control host compilation failed' }
+     & .build/host/test_motor_control.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor control host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -DMOTOR_CONTROL_HOLD_ONLY -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_output_core.c App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control_hold_2804.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_SELECTED_MODEL=3 -DMOTOR_CONTROL_HOLD_ONLY -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor/motor_output_core.c App/motor/motor_control.c App/motor/motor_anticogging.c App/motor/motor_fw.c App/motor/start/motor_alignment.c App/motor/start/motor_if_start.c App/motor/start/motor_hfi_start.c App/motor_sensor/motor_feedback.c Tests/host/test_motor_control.c -o .build/host/test_motor_control_hold_2804.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor control 2804 hold compilation failed' }
+     & .build/host/test_motor_control_hold_2804.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor control 2804 hold tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_anticogging.c Tests/host/test_motor_anticogging.c -o .build/host/test_motor_anticogging.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/motor_anticogging.c Tests/host/test_motor_anticogging.c -o .build/host/test_motor_anticogging.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor anticogging host compilation failed' }
+     & .build/host/test_motor_anticogging.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor anticogging host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/motor_sense.c Tests/host/test_motor_sense.c -o .build/host/test_motor_sense.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/motor_sense.c Tests/host/test_motor_sense.c -o .build/host/test_motor_sense.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor sense host compilation failed' }
+     & .build/host/test_motor_sense.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor sense host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor_param/motor_detect_offset.c Tests/host/test_motor_detect_offset.c -o .build/host/test_motor_detect_offset.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc App/motor_param/motor_detect_offset.c Tests/host/test_motor_detect_offset.c -o .build/host/test_motor_detect_offset.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor detect offset host compilation failed' }
+     & .build/host/test_motor_detect_offset.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor detect offset host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/calibration/motor_detect_isr.c Tests/host/test_motor_detect_isr.c -o .build/host/test_motor_detect_isr.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -ILibrary/Hal/inc App/motor/calibration/motor_detect_isr.c Tests/host/test_motor_detect_isr.c -o .build/host/test_motor_detect_isr.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor detect ISR host compilation failed' }
+     & .build/host/test_motor_detect_isr.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor detect ISR host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor_sensor/motor_feedback.c Tests/host/test_motor_feedback.c -o .build/host/test_motor_feedback.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_param/inc -IApp/motor/inc -IApp/motor_sensor/inc App/motor_sensor/motor_feedback.c Tests/host/test_motor_feedback.c -o .build/host/test_motor_feedback.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor feedback host compilation failed' }
+     & .build/host/test_motor_feedback.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor feedback host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -DMOTOR_MT6701_INTERFACE=1 -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_sensor/motor_mt6701_protocol.c App/motor_sensor/motor_mt6701.c Tests/host/test_motor_mt6701.c -o .build/host/test_motor_mt6701.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -DMOTOR_MT6701_INTERFACE=1 -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_sensor/motor_mt6701_protocol.c App/motor_sensor/motor_mt6701.c Tests/host/test_motor_mt6701.c -o .build/host/test_motor_mt6701.exe
+     if ($LASTEXITCODE -ne 0) { throw 'MT6701 host compilation failed' }
+     & .build/host/test_motor_mt6701.exe
+     if ($LASTEXITCODE -ne 0) { throw 'MT6701 host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -DMOTOR_MT6701_INTERFACE=2 -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_sensor/motor_mt6701_protocol.c App/motor_sensor/motor_mt6701.c Tests/host/test_motor_mt6701_ssi.c -o .build/host/test_motor_mt6701_ssi.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -DMOTOR_MT6701_INTERFACE=2 -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor_sensor/motor_mt6701_protocol.c App/motor_sensor/motor_mt6701.c Tests/host/test_motor_mt6701_ssi.c -o .build/host/test_motor_mt6701_ssi.exe
+     if ($LASTEXITCODE -ne 0) { throw 'MT6701 SSI host compilation failed' }
+     & .build/host/test_motor_mt6701_ssi.exe
+     if ($LASTEXITCODE -ne 0) { throw 'MT6701 SSI host tests failed' }
+     # 仅核心+标准C，无HAL、motor参数或MT6701替身，证明可独立链接。
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/motor_sensor/inc App/motor_sensor/motor_encoder_core.c Tests/host/test_motor_encoder_core.c -o .build/host/test_motor_encoder_core.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -IApp/motor_sensor/inc App/motor_sensor/motor_encoder_core.c Tests/host/test_motor_encoder_core.c -o .build/host/test_motor_encoder_core.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Encoder standalone compilation failed' }
+     & .build/host/test_motor_encoder_core.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Encoder standalone tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_ENCODER_HOST_TEST -IApp/motor_sensor/inc -IApp/motor/inc -IApp/motor_param/inc -ILibrary/Hal/inc App/motor_sensor/motor_encoder_core.c App/motor_sensor/motor_encoder.c Tests/host/stubs/motor_mt6701_stub.c Tests/host/test_motor_encoder.c -o .build/host/test_motor_encoder.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_ENCODER_HOST_TEST -IApp/motor_sensor/inc -IApp/motor/inc -IApp/motor_param/inc -ILibrary/Hal/inc App/motor_sensor/motor_encoder_core.c App/motor_sensor/motor_encoder.c Tests/host/stubs/motor_mt6701_stub.c Tests/host/test_motor_encoder.c -o .build/host/test_motor_encoder.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor encoder host compilation failed' }
+     & .build/host/test_motor_encoder.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor encoder host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_sensor/inc -IApp/motor/inc -IApp/motor_param/inc App/motor_sensor/motor_hall_angle.c Tests/host/test_motor_hall_angle.c -o .build/host/test_motor_hall_angle.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor_sensor/inc -IApp/motor/inc -IApp/motor_param/inc App/motor_sensor/motor_hall_angle.c Tests/host/test_motor_hall_angle.c -o .build/host/test_motor_hall_angle.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor hall angle host compilation failed' }
+     & .build/host/test_motor_hall_angle.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor hall angle host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/bldc/motor_bldc_six_step.c Tests/host/test_motor_bldc_six_step.c -o .build/host/test_motor_bldc_six_step.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/bldc/motor_bldc_six_step.c Tests/host/test_motor_bldc_six_step.c -o .build/host/test_motor_bldc_six_step.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC six-step host compilation failed' }
+     & .build/host/test_motor_bldc_six_step.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC six-step host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/bldc/motor_bldc_six_step.c App/motor/bldc/motor_bldc_sensorless.c Tests/host/test_motor_bldc_sensorless.c -o .build/host/test_motor_bldc_sensorless.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IApp/motor/inc App/motor/bldc/motor_bldc_six_step.c App/motor/bldc/motor_bldc_sensorless.c Tests/host/test_motor_bldc_sensorless.c -o .build/host/test_motor_bldc_sensorless.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC sensorless host compilation failed' }
+     & .build/host/test_motor_bldc_sensorless.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor BLDC sensorless host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_PHASE_ORDER_HOST_TEST -IApp/motor_sensor/inc App/motor_sensor/motor_phase_order.c Tests/host/test_motor_phase_order.c -o .build/host/test_motor_phase_order.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_PHASE_ORDER_HOST_TEST -IApp/motor_sensor/inc App/motor_sensor/motor_phase_order.c Tests/host/test_motor_phase_order.c -o .build/host/test_motor_phase_order.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor phase order host compilation failed' }
+     & .build/host/test_motor_phase_order.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Motor phase order host tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE "-Dassert_param(x)=((void)0)" -IApp/motor/inc App/motor/motor_foc.c App/motor/motor_utils.c Examples/01_transform/main.c -o .build/host/example_01_transform.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE "-Dassert_param(x)=((void)0)" -IApp/motor/inc App/motor/motor_foc.c App/motor/motor_utils.c Examples/01_transform/main.c -o .build/host/example_01_transform.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Example 01 transform compilation failed' }
+     & .build/host/example_01_transform.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Example 01 transform failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/motor_speed_core.c Tests/host/test_motor_speed_core.c -o .build/host/test_motor_speed_core.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/motor_speed_core.c Tests/host/test_motor_speed_core.c -o .build/host/test_motor_speed_core.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Speed standalone compilation failed' }
+     & .build/host/test_motor_speed_core.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Speed standalone tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/motor_protect_core.c App/motor/motor_position_control.c Tests/host/test_motor_control_cores.c -o .build/host/test_motor_control_cores.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/motor_protect_core.c App/motor/motor_position_control.c Tests/host/test_motor_control_cores.c -o .build/host/test_motor_control_cores.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Protection/position standalone compilation failed' }
+     & .build/host/test_motor_control_cores.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Protection/position standalone tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/motor_position_core.c App/motor/motor_position_control.c Tests/host/test_motor_position_core.c -o .build/host/test_motor_position_core.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/motor_position_core.c App/motor/motor_position_control.c Tests/host/test_motor_position_core.c -o .build/host/test_motor_position_core.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Position mode standalone compilation failed' }
+     & .build/host/test_motor_position_core.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Position mode standalone tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/motor_output_core.c Tests/host/test_motor_output_core.c -o .build/host/test_motor_output_core.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -IApp/motor/inc App/motor/motor_output_core.c Tests/host/test_motor_output_core.c -o .build/host/test_motor_output_core.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Output standalone compilation failed' }
+     & .build/host/test_motor_output_core.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Output standalone tests failed' }
+@@ -283,11 +283,11 @@
+     $portableSources = @(Get-Content .build/reusable_modules/source_manifest.json -Raw | ConvertFrom-Json | ForEach-Object {
+         Join-Path '.build/reusable_modules/src' (Split-Path $_ -Leaf)
+     })
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/reusable_modules/include @portableSources Tests/host/test_motor_encoder_core.c -o .build/host/test_reusable_modules.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -I.build/reusable_modules/include @portableSources Tests/host/test_motor_encoder_core.c -o .build/host/test_reusable_modules.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Portable bundle compilation failed' }
+     & .build/host/test_reusable_modules.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Portable bundle tests failed' }
+-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/reusable_modules/include .build/reusable_modules/src/motor_mt6701_protocol.c Tests/host/test_motor_mt6701_protocol.c -o .build/host/test_motor_mt6701_protocol.exe
++    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -I.build/reusable_modules/include .build/reusable_modules/src/motor_mt6701_protocol.c Tests/host/test_motor_mt6701_protocol.c -o .build/host/test_motor_mt6701_protocol.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Standalone protocol compilation failed' }
+     & .build/host/test_motor_mt6701_protocol.exe
+     if ($LASTEXITCODE -ne 0) { throw 'Standalone protocol tests failed' }
+--- a/Tests/host/test_motor_detect_isr.c
++++ b/Tests/host/test_motor_detect_isr.c
+@@ -1,3 +1,4 @@
++#include "test_common_assert.h"
+ #include <assert.h>
+ #include <stdio.h>
+ #include <string.h>
+@@ -26,7 +27,7 @@
+     MOTOR_PARAM_S motor;
+ 
+     memset(&motor, 0, sizeof(motor));
+-    Motor_DetectIsr_Step(NULL, true);
++    EXPECT_COMMON_ASSERT(Motor_DetectIsr_Step(NULL, true));
+     assert(s_sample_calls == 0U && s_feed_calls == 0U);
+ 
+     Motor_DetectIsr_Step(&motor, false);
+--- a/Tests/host/test_motor_ekf.c
++++ b/Tests/host/test_motor_ekf.c
+@@ -1,3 +1,4 @@
++#include "test_common_assert.h"
+ #include <assert.h>
+ #include <math.h>
+ #include <stdio.h>
+@@ -175,8 +176,8 @@
+     }
+ 
+     Motor_Ekf_Reset(NULL);
+-    Motor_Ekf_NormalizeConfig(NULL);
+-    Motor_Ekf_Seed(NULL, &cfg, 1.0f, 1.0f, 0.0f, 0.0f);
++    EXPECT_COMMON_ASSERT(Motor_Ekf_NormalizeConfig(NULL));
++    EXPECT_COMMON_ASSERT(Motor_Ekf_Seed(NULL, &cfg, 1.0f, 1.0f, 0.0f, 0.0f));
+     assert(fabsf(Motor_Ekf_GetAngle(NULL)) < 1e-9f);
+     assert(fabsf(Motor_Ekf_GetSpeedE(NULL)) < 1e-9f);
+     assert(!Motor_Ekf_Step(NULL, &cfg, 0.0f, 0.0f, 0.0f, 0.0f, dt, &out));
+--- a/Tests/host/test_motor_fast_vf_isr.c
++++ b/Tests/host/test_motor_fast_vf_isr.c
+@@ -1,3 +1,4 @@
++#include "test_common_assert.h"
+ #include <assert.h>
+ #include <stdio.h>
+ #include <string.h>
+@@ -37,7 +38,7 @@
+     MOTOR_PARAM_S motor;
+ 
+     memset(&motor, 0, sizeof(motor));
+-    Motor_FastVf_RunIsr(NULL);
++    EXPECT_COMMON_ASSERT(Motor_FastVf_RunIsr(NULL));
+     assert(s_runtime_calls == 0U);
+ 
+     s_time_us = 77U;
+--- a/Tests/host/test_motor_flux.c
++++ b/Tests/host/test_motor_flux.c
+@@ -1,3 +1,4 @@
++#include "test_common_assert.h"
+ #include <assert.h>
+ #include <math.h>
+ #include <stdio.h>
+@@ -179,8 +180,8 @@
+ 
+     /* 空指针安全 */
+     Motor_Flux_Reset(NULL);
+-    Motor_Flux_NormalizeConfig(NULL);
+-    Motor_Flux_Seed(NULL, &cfg, 1.0f, 0.0f, 0.0f);
++    EXPECT_COMMON_ASSERT(Motor_Flux_NormalizeConfig(NULL));
++    EXPECT_COMMON_ASSERT(Motor_Flux_Seed(NULL, &cfg, 1.0f, 0.0f, 0.0f));
+     assert(fabsf(Motor_Flux_GetAngle(NULL)) < 1e-9f);
+     assert(fabsf(Motor_Flux_GetMagnitude(NULL)) < 1e-9f);
+     assert(!Motor_Flux_Step(NULL, &cfg, 0.0f, 0.0f, 0.0f, 0.0f, dt, &out));
+--- a/Tests/host/test_motor_hfi.c
++++ b/Tests/host/test_motor_hfi.c
+@@ -1,3 +1,4 @@
++#include "test_common_assert.h"
+ #include <assert.h>
+ #include <math.h>
+ #include <stdio.h>
+@@ -115,8 +116,8 @@
+ 
+     /* 空指针安全 */
+     Motor_Hfi_Reset(NULL);
+-    Motor_Hfi_NormalizeConfig(NULL);
+-    Motor_Hfi_SeedAngle(NULL, 1.0f);
++    EXPECT_COMMON_ASSERT(Motor_Hfi_NormalizeConfig(NULL));
++    EXPECT_COMMON_ASSERT(Motor_Hfi_SeedAngle(NULL, 1.0f));
+     assert(fabsf(Motor_Hfi_GetAngle(NULL)) < 1e-6f);
+     assert(fabsf(Motor_Hfi_GetSpeedE(NULL)) < 1e-6f);
+     assert(!Motor_Hfi_Step(NULL, &cfg, 0.0f, 0.0f, 24.0f, dt, &out));
+--- a/Tests/host/test_motor_luenberger.c
++++ b/Tests/host/test_motor_luenberger.c
+@@ -1,3 +1,4 @@
++#include "test_common_assert.h"
+ #include <assert.h>
+ #include <math.h>
+ #include <stdio.h>
+@@ -183,8 +184,8 @@
+     }
+ 
+     Motor_Luenberger_Reset(NULL);
+-    Motor_Luenberger_NormalizeConfig(NULL);
+-    Motor_Luenberger_Seed(NULL, &cfg, 1.0f, 1.0f, 0.0f, 0.0f);
++    EXPECT_COMMON_ASSERT(Motor_Luenberger_NormalizeConfig(NULL));
++    EXPECT_COMMON_ASSERT(Motor_Luenberger_Seed(NULL, &cfg, 1.0f, 1.0f, 0.0f, 0.0f));
+     assert(fabsf(Motor_Luenberger_GetAngle(NULL)) < 1e-9f);
+     assert(fabsf(Motor_Luenberger_GetMagnitude(NULL)) < 1e-9f);
+     assert(fabsf(Motor_Luenberger_GetSpeedE(NULL)) < 1e-9f);
+--- a/Tests/host/test_motor_sensorless.c
++++ b/Tests/host/test_motor_sensorless.c
+@@ -1,3 +1,4 @@
++#include "test_common_assert.h"
+ #include <assert.h>
+ #include <math.h>
+ #include <stdio.h>
+@@ -297,7 +298,7 @@
+         assert(snapshot.blend == a.blend && snapshot.loss == a.loss_timer);
+         assert(snapshot.v_alpha == a.applied_v_alpha && snapshot.v_beta == a.applied_v_beta);
+         assert(memcmp(&a, &b, sizeof(a)) == 0);
+-        Motor_Sensorless_GetLightSnapshotState(&a, NULL);
++        EXPECT_COMMON_ASSERT(Motor_Sensorless_GetLightSnapshotState(&a, NULL));
+         assert(memcmp(&a, &b, sizeof(a)) == 0);
+     }
+     printf("test_motor_sensorless: pass\n");
+--- a/Tests/host/test_motor_smo.c
++++ b/Tests/host/test_motor_smo.c
+@@ -1,3 +1,4 @@
++#include "test_common_assert.h"
+ #include <assert.h>
+ #include <math.h>
+ #include <stdio.h>
+@@ -178,8 +179,8 @@
+     }
+ 
+     Motor_Smo_Reset(NULL);
+-    Motor_Smo_NormalizeConfig(NULL);
+-    Motor_Smo_Seed(NULL, &cfg, 1.0f, 1.0f, 0.0f, 0.0f);
++    EXPECT_COMMON_ASSERT(Motor_Smo_NormalizeConfig(NULL));
++    EXPECT_COMMON_ASSERT(Motor_Smo_Seed(NULL, &cfg, 1.0f, 1.0f, 0.0f, 0.0f));
+     assert(fabsf(Motor_Smo_GetAngle(NULL)) < 1e-9f);
+     assert(fabsf(Motor_Smo_GetMagnitude(NULL)) < 1e-9f);
+     assert(fabsf(Motor_Smo_GetSpeedE(NULL)) < 1e-9f);
+--- a/Tests/host/test_motor_timing_profile.c
++++ b/Tests/host/test_motor_timing_profile.c
+@@ -1,3 +1,4 @@
++#include "test_common_assert.h"
+ #include <assert.h>
+ #include <stdio.h>
+ #include <math.h>
+@@ -167,7 +168,7 @@
+         Motor_Timing_ProfileSnapshot(&snapshot);
+         assert(snapshot.count[MOTOR_TIMING_PROTECTION] == 1U);
+         assert(snapshot.max_us[MOTOR_TIMING_PROTECTION] == 2U);
+-        Motor_Timing_ProfileSnapshot(NULL);
++        EXPECT_COMMON_ASSERT(Motor_Timing_ProfileSnapshot(NULL));
+         Motor_Timing_CadenceReset();
+         Motor_Timing_ProfileSnapshot(&snapshot);
+         assert(snapshot.count[MOTOR_TIMING_PROTECTION] == 0U);
+@@ -384,7 +385,7 @@
+         Motor_Timing_IrqGet(1U, &irq);
+         assert(irq.count == 1U);
+         Motor_Timing_IrqNote(2U, 0U, 999U, 3U);
+-        Motor_Timing_IrqGet(0U, NULL);
++        EXPECT_COMMON_ASSERT(Motor_Timing_IrqGet(0U, NULL));
+         Motor_Timing_CadenceReset();
+         Motor_Timing_IrqGet(0U, &irq);
+         assert(irq.count == 0U);
+@@ -407,7 +408,7 @@
+         Motor_Timing_CadenceReset();
+         Motor_Timing_SpeedTaskGet(&task);
+         assert(task.count == 0U && task.max_gap_us == 0U);
+-        Motor_Timing_SpeedTaskGet(NULL);
++        EXPECT_COMMON_ASSERT(Motor_Timing_SpeedTaskGet(NULL));
+     }
+     {
+         motor_control_clock_t clock = {0};
+@@ -464,7 +465,7 @@
+         Motor_Timing_CallbackEnd(t + 270U, true);
+         Motor_Timing_CallbackGet(&cb);
+         assert(cb.count == 3U && cb.pending == 2U);
+-        Motor_Timing_CallbackGet(NULL);
++        EXPECT_COMMON_ASSERT(Motor_Timing_CallbackGet(NULL));
+     }
+     {
+         motor_cadence_t c;
+@@ -480,7 +481,7 @@
+         assert(c.count == 6U && c.sum_us == 682U && c.min_us == 66U && c.max_us == 250U);
+         assert(c.gaps == 1U && c.up == 2U && c.down == 4U);
+         assert(c.bins[2] == 3U && c.bins[4] == 1U && c.bins[5] == 1U && c.bins[6] == 1U);
+-        Motor_Timing_CadenceGet(NULL);
++        EXPECT_COMMON_ASSERT(Motor_Timing_CadenceGet(NULL));
+         Motor_Timing_CadenceReset();
+         Motor_Timing_CadenceGet(&c);
+         assert(c.count == 0U && c.gaps == 0U);
+--- a/Doc/doc/框架重构计划.md
++++ b/Doc/doc/框架重构计划.md
+@@ -1,3 +1,10 @@
++## 2026-10-16：项目自有空指针保护统一 COMMON_ASSERT
++
++- 对自有无返回值接口中原 `if (required_ptr == NULL) return;` 及同类组合检查，共 125 处改为 COMMON_ASSERT；混合运行状态拆出保留原返回。第三方代码、允许空值的可选输出、有错误码返回的校验及正常状态返回不机械改成断言。
++- common_assert.h 为纯接口头，供算法独立复用；ARM/Keil 仍进入 common.c 关中断停住，主机 abort。主机故意传空的测试改为验证 SIGABRT，补充单次求值及 NDEBUG 下仍检查测试；导出包加入公共断言头。
++- 同步接口说明与编译头路径；主机全套与独立导出包通过，NDEBUG 两种模式均确认断言失败及单次求值；Keil 0 错误、0 警告。未烧录，不改变实际板上固件。断言改变的是调用错误行为，不是纯格式修改。
++
++
+ ## 2026-10-16：只读 PI 候选值命令
+ 
+ - 状态：应用入口及主机测试完成，Keil 0 错误、0 警告；未烧录、未上板。

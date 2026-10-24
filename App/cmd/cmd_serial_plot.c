@@ -9,6 +9,7 @@ extern "C" {
 #include "includes.h"
 #include "common_assert.h"
 #include "motor_foc.h"
+#include "cmd_studio.h"
 #if MOTOR_CFG_CMD
 /* Private typedef -----------------------------------------------------------*/
 typedef enum {
@@ -31,6 +32,7 @@ static volatile plot_mode_t s_plot_mode = PLOT_MODE_NONE;
 static const osThreadAttr_t s_plot_attr = {
     .name = "Task Plot",
     .priority = PRI_INIT,
+    .stack_size = 1536U, /* 网页状态帧/快照只在任务栈上构造，不占 ISR 栈。 */
 };
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
@@ -111,11 +113,19 @@ static VOID Serial_PlotTask(VOID *argument)
     (void)argument;
 
     while (1) {
+        Cmd_StudioPoll();
         if (s_plot_mode != PLOT_MODE_NONE) {
             Plot_SendFrame();
         }
         osDelay(pdMS_TO_TICKS(PLOT_PERIOD_MS));
     }
+}
+
+bool Cmd_SerialPlotEnsureTask(void)
+{
+    if (s_plot_mode != PLOT_MODE_NONE) return false;
+    if (s_plot_task == NULL) s_plot_task = osThreadNew(Serial_PlotTask, NULL, &s_plot_attr);
+    return s_plot_task != NULL;
 }
 
 /**
@@ -161,6 +171,11 @@ static plot_mode_t Plot_ParseMode(const char *name)
 int Cmd_Serial_Plot(int argc, char *argv[])
 {
     plot_mode_t mode;
+
+    if (Cmd_StudioIsActive()) {
+        PRINTF("studio active: use studio off before legacy plot\r\n");
+        return -1;
+    }
 
     if (argc < 2) {
         Plot_PrintHelp();

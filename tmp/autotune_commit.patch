@@ -1,0 +1,40 @@
+--- a/App/cmd/command.c
++++ b/App/cmd/command.c
+@@ -21,6 +21,7 @@
+ /* -- 前向声明：所有命令函数统一签名 int func(int argc, char *argv[]) ----------*/
+ 
+ /* cmd_detect.c       */ extern int Cmd_Detect(int argc, char *argv[]);
++/* cmd_autotune.c     */ extern int Cmd_Autotune(int argc, char *argv[]);
+ /* cmd_env.c          */ extern int Cmd_Saveparam(int argc, char *argv[]);
+ /* cmd_misc.c         */ extern int CMD_Reset(int argc, char *argv[]);
+ /* cmd_show_param.c   */ extern int Cmd_Show(int argc, char *argv[]);
+@@ -81,6 +82,7 @@
+ static const cmd_entry_t s_cmd_table[] = {
+     /* 偏移校准 / 霍尔检测 */
+     { "detect",     Cmd_Detect,             "detect offset/hall/phase or motor R/L" },
++    { "pitune",     Cmd_Autotune,           "preview PI: <bandwidth_Hz> <total_delay_us> [margin_deg]" },
+     { "bldc",       Cmd_Bldc,               "BLDC: start/open | stop | exit | status" },
+     /* Flash 存储 */
+     { "saveparam",  Cmd_Saveparam,          "save motor params to Flash" },
+--- a/Doc/doc/框架重构计划.md
++++ b/Doc/doc/框架重构计划.md
+@@ -1,3 +1,19 @@
++## 2026-10-16：只读 PI 候选值命令
++
++- 状态：应用入口及主机测试完成，Keil 0 错误、0 警告；未烧录、未上板。
++- 文件：独立 cmd_autotune.c、command.c 注册 pitune、Keil 引用、命令主机测试。
++- 行为：读取有效 RAM R/L 和 HAL 时基，显式输入带宽/总延时，展示分轴/共享候选值及预算；运行、故障、检测占用和无效输入拒绝。无自动检测、应用或保存。
++- 验证：`Tests/host/run_motor_autotune.ps1` 覆盖计算模块、真实 PI/RL 阶跃与命令拒绝/只读性；`build_keil.ps1` 通过。
++- 限制与下一步：结果未绑定电机身份，换电机需重测；延时须核实。后续独立受限阶跃编排需明确配置恢复及失败退出，尚未实现。
++
++## 2026-10-16：独立电流 PI 模型整定模块
++
++- 状态：第一版模型候选值计算与主机验证完成，不含闭环自动试验或自动应用。
++- 文件：motor_autotune.c/h、独立主机测试与运行入口、Keil 源文件引用；说明见 `电流PI独立自动整定模块.md`。
++- 边界：显式输入 R/L、PI 周期、带宽和总延时；输出分轴与共享候选增益。拒绝采样/延时预算超限及无效数值，不访问硬件或全局电机，不写 Flash。
++- 验证：独立主机测试覆盖真实 PI 与连续 RL 小阶跃、错误输入及失败清零；上板频响、实际总延时和共享增益两轴表现待验证。
++- 下一步：应用侧先展示候选值，再独立编排受限小阶跃验证，不直接接入现有启动或检测中断。
++
+ ## 2026-10-16：电感脉冲全窗口拟合
+ 
+ - 状态：主机验证及 Keil 编译通过，上板待验。

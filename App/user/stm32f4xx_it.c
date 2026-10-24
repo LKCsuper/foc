@@ -22,6 +22,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
+#include "motor_diag_phase.h"
 
 /** @addtogroup STM32F4xx_StdPeriph_Examples
   * @{
@@ -133,6 +134,10 @@ void SysTick_Handler(void)
  */
 void DMA2_Stream4_IRQHandler(void)
 {
+#if MOTOR_CFG_DIAG
+    bool phase_due = g_motor_phase_active == 1U || g_motor_phase_active == 2U;
+    if (phase_due) Motor_Timing_PhaseIrqBegin(Hal_Motor_TimeUs());
+#endif
     bool probe_due = Motor_Timing_WakeProbeDmaDue();
     bool timing_due = Motor_Timing_IrqDue(0U);
     uint32_t start_us = (timing_due || probe_due) ? Hal_Motor_TimeUs() : 0U;
@@ -146,7 +151,16 @@ void DMA2_Stream4_IRQHandler(void)
             ((pending & SCB_ICSR_PENDSTSET_Msk) ? 1U : 0U) |
             ((pending & SCB_ICSR_PENDSVSET_Msk) ? 2U : 0U));
     }
-    
+#if MOTOR_CFG_DIAG
+    if (phase_due) {
+        uint32_t phase_exit_us = Hal_Motor_TimeUs();
+        uint32_t dma_status = DMA2->HISR;
+        uint32_t adc_status = ADC->CSR;
+        uint32_t remaining = DMA2_Stream4->NDTR;
+        uint32_t irq_pending = NVIC_GetPendingIRQ(DMA2_Stream4_IRQn);
+        Motor_Timing_PhaseIrqEnd(phase_exit_us, dma_status, adc_status, remaining, irq_pending);
+    }
+#endif
     return;
 }
 

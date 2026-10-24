@@ -62,6 +62,8 @@ VOID  Bsp_Usart_PutString(const CHAR *cStr);
 ULONG Bsp_Usart_GetChar(UCHAR* cKey);
 VOID  Bsp_Usart_PutChar(UCHAR cKey);
 ULONG Bsp_Usart_Write(const UCHAR *data, ULONG len);
+/* 任务侧整帧非阻塞入队，最多 96 B；空间不足整帧放弃，不等待 DMA。 */
+bool Bsp_Usart_TryWriteFrame(const UCHAR *data, ULONG len);
 VOID  Bsp_Usart_Flush(VOID);
 VOID  Bsp_Usart_Handler(VOID);
 VOID  Bsp_Usart_TxDmaInit(VOID);

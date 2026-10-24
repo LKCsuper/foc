@@ -3,7 +3,7 @@
  * @Author: lkc
  *
  * 学习要点：
- *   1) 保护只“判断并锁存原因”，不停 PWM；关断由 Motor_FocIsr_Protect 在故障后执行。
+ *   1) 保护只“判断并锁存原因”，不改 PWM；故障后由 Motor_FocIsr_Protect 输出三相中点。
  *   2) 软件保护带去抖，不能代替硬件过流/短路关断。
  *   3) 判据与优先级（过流 > 欠压 > 堵转 > 失速）在 motor_protect_core.c 的
  *      Motor_Protect_EvaluateInputState；多实例或主机测试直接用 core 的 *InputState 接口。

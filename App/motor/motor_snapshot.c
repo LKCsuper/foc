@@ -14,6 +14,9 @@ extern "C" {
 #include "motor_foc_isr.h"
 #include "motor_crit.h"
 #include "seqlock.h"
+#if defined(__CC_ARM)
+#pragma O2
+#endif
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -27,8 +30,6 @@ static void Motor_StatusCapture(const MOTOR_PARAM_S *motor, motor_status_t *snap
 
 static void Motor_StatusCapture(const MOTOR_PARAM_S *motor, motor_status_t *snap)
 {
-    motor_speed_snapshot_t speed_snap;
-
     memset(snap, 0, sizeof(*snap));
     snap->enable = motor->ol_enable;
     snap->mode = motor->ol_mode;
@@ -52,12 +53,6 @@ static void Motor_StatusCapture(const MOTOR_PARAM_S *motor, motor_status_t *snap
     snap->vq_int = motor->ol_vq_int;
     snap->speed_enable = motor->speed_enable;
     Motor_Feedback_SampleDefault(motor, motor->ol_theta, &snap->feedback);
-    if (Motor_SpeedLoop_GetSnapshot(&speed_snap)) {
-        snap->current_rpm = speed_snap.target_rpm;
-        snap->measured_rpm = speed_snap.measured_rpm;
-        snap->speed_error = speed_snap.error;
-        snap->speed_iq = speed_snap.iq_target;
-    }
     snap->aligning = Motor_OpenLoop_IsAligning();
     snap->align_elapsed_s = Motor_OpenLoop_GetAlignElapsed();
     snap->fault = Motor_Protect_GetFault();
@@ -90,19 +85,27 @@ motor_result_t Motor_GetStatus(const MOTOR_PARAM_S *motor, motor_status_t *statu
 {
     uint32_t primask;
     motor_status_t snap;
+    motor_speed_snapshot_t speed_snap;
+    bool speed_valid;
 
     if (motor == NULL || status == NULL) return MOTOR_ERR_NULL;
 
-    if (s_motor_status_initialized &&
-        SEQLOCK_TRY_READ(&s_motor_status_channel, &snap, 3U)) {
-        *status = snap;
-        return MOTOR_OK;
+    if (!s_motor_status_initialized ||
+        !SEQLOCK_TRY_READ(&s_motor_status_channel, &snap, 3U)) {
+        primask = Motor_Crit_Enter();
+        Motor_StatusCapture(motor, &snap);
+        Motor_Crit_Exit(primask);
     }
 
     primask = Motor_Crit_Enter();
-    Motor_StatusCapture(motor, &snap);
+    speed_valid = Motor_SpeedLoop_GetSnapshot(&speed_snap);
     Motor_Crit_Exit(primask);
-
+    if (speed_valid) {
+        if (snap.speed_enable) snap.current_rpm = speed_snap.target_rpm;
+        snap.measured_rpm = speed_snap.measured_rpm;
+        snap.speed_error = speed_snap.error;
+        snap.speed_iq = speed_snap.iq_target;
+    }
     *status = snap;
     return MOTOR_OK;
 }

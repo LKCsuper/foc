@@ -13,6 +13,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "includes.h"
 #include "common_assert.h"
+#include "cmd_studio.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define CMD_BUF_SIZE        160U        /* 单行输入缓冲 */
@@ -94,6 +95,7 @@ extern int Cmd_SensorlessTest(int argc, char *argv[]);
 
 /* -- 命令表 ----------------------------------------------------------------*/
 static const cmd_entry_t s_cmd_table[] = {
+    { "studio",     Cmd_Studio,             "web: on|off|status|control [token]|start|release|params|set <id> <value>" },
     /* 偏移校准 / 霍尔检测 */
     { "detect",     Cmd_Detect,             "detect offset/hall/phase or motor R/L" },
 #if MOTOR_CFG_CMD_IDENTIFY
@@ -114,7 +116,7 @@ static const cmd_entry_t s_cmd_table[] = {
 #endif
 #if MOTOR_CFG_CMD_DIAG
     { "sltrace",    Cmd_SensorlessTrace,    "RAM trace fault|debug|compact|lite|flight|arm|entry|entryfast|show (stopped only)" },
-    { "slhandoff",  Cmd_SensorlessHandoff,  "arm|phase|phaselong|step|pair|half|show; half capture STOPPED ONLY" },
+    { "slhandoff",  Cmd_SensorlessHandoff,  "arm|phase|phaselong|step|pair|half|pwm|pwmlong|pwmoff|phaseedge|phase3000|phaseoff|show; stopped only" },
     { "slcadence",  Cmd_SensorlessCadence,  "timing reset|split|lean|task|probe|stop|debug|show|currentbench|trigbench|irqtest on/off" },
     { "olsnap",     Cmd_OlSnap,             "short Id/Iq/RPM/fault snapshot while running" },
     { "olcurdiag",  Cmd_OlCurrentDiag,      "Hall current errors by sector since last start" },
@@ -229,6 +231,12 @@ static void cmd_dispatch(char *line)
         token = strtok(NULL, " \t\r\n");
     }
     if (argc == 0) return;
+
+    if (Cmd_StudioOwnsControl() && strcmp(argv[0], "studio") != 0 &&
+        strcmp(argv[0], "olstop") != 0 && strcmp(argv[0], "olstatus") != 0) {
+        printf("studio control active; release before other commands\r\n");
+        return;
+    }
 
     for (i = 0; i < s_cmd_count; i++) {
         if (strcmp(argv[0], s_cmd_table[i].name) == 0) {
@@ -419,6 +427,20 @@ static void cmd_history_down(void)
  */
 static void cmd_handle_char(char c)
 {
+    /* 网页目标帧沿用单行缓冲，只在任务解析；不逐字节回显，不写历史。 */
+    if (s_cmd_escape_state == 3U) {
+        if (c == '\r' || c == '\n') { s_cmd_escape_state=0U; s_cmd_len=0U; }
+        return;
+    }
+    if ((s_cmd_len != 0U && s_cmd_buf[0] == '@') || (s_cmd_len == 0U && c == '@')) {
+        if (c == '\r' || c == '\n') {
+            s_cmd_buf[s_cmd_len]='\0';
+            Cmd_StudioTargetLine(s_cmd_buf);
+            s_cmd_len=0U;
+        } else if (s_cmd_len < CMD_BUF_SIZE-1U) s_cmd_buf[s_cmd_len++]=c;
+        else { s_cmd_escape_state=3U; s_cmd_len=0U; }
+        return;
+    }
     if (s_cmd_escape_state == 1U) {
         s_cmd_escape_state = (c == '[') ? 2U : 0U;
         return;

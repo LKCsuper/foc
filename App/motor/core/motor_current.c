@@ -382,6 +382,7 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
 {
     motor_dq_voltage_t v = {0.0f, 0.0f};
 
+    float id_err;
     float iq_err;
     float vq_int_before;
     float vq_step;
@@ -390,18 +391,19 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
 
     if (motor == NULL) return v;
 
+    id_err = id_target - motor->Id;
     iq_err = iq_target - motor->Iq;
     vq_int_before = motor->ol_vq_int;
     profile = Motor_Timing_ProfileDetailedIsActive();
     MOTOR_PROFILE_BEGIN(profile, stage_start);
-    v.vd = Motor_Current_PI_Run(id_target, motor->Id, &motor->ol_vd_int, motor->ol_current_kp, motor->ol_current_ki, dt,
+    v.vd = Motor_Current_PI_RunError(id_err, &motor->ol_vd_int, motor->ol_current_kp, motor->ol_current_ki, dt,
                                 v_limit);
-    v.vq = Motor_Current_PI_Run(iq_target, motor->Iq, &motor->ol_vq_int, motor->ol_current_kp, motor->ol_current_ki, dt,
+    v.vq = Motor_Current_PI_RunError(iq_err, &motor->ol_vq_int, motor->ol_current_kp, motor->ol_current_ki, dt,
                                 v_limit);
     MOTOR_PROFILE_END(profile, MOTOR_TIMING_CURRENT_PI, stage_start);
 
     MOTOR_PROFILE_BEGIN(profile, stage_start);
-    Motor_Current_LimitVoltage(motor, &v, id_target - motor->Id, iq_err, v_limit);
+    Motor_Current_LimitVoltage(motor, &v, id_err, iq_err, v_limit);
     MOTOR_PROFILE_END(profile, MOTOR_TIMING_CURRENT_LIMIT, stage_start);
     vq_step = motor->ol_vq_int - vq_int_before;
     if (s_pi_samples < UINT32_MAX) {

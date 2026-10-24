@@ -1,0 +1,55 @@
+--- a/App/motor_param/motor_detect.c
++++ b/App/motor_param/motor_detect.c
+@@ -17,6 +17,7 @@
+ #include "cmsis_os2.h"
+ #include "motor_detect.h"
+ #include "motor_detect_offset.h"
++#include "motor_detect_rl_fit.h"
+ #include "flash_storage.h"
+ #include "motor_param.h"
+ #include "motor_sensorless.h"
+@@ -148,6 +149,7 @@
+     uint32_t pulse_count;
+     uint32_t valid_pulses;
+     float pulse_start_current;
++    float pulse_current[MOTOR_DETECT_INDUCTANCE_HALF_CYCLES];
+     float injection_theta;
+     float theta;
+     float electrical_rpm_target;
+@@ -481,15 +483,18 @@
+         if (s_detect_control.pulse_position == 0U) {
+             s_detect_control.pulse_start_current = motor_param->Id;
+         }
++        s_detect_control.pulse_current[s_detect_control.pulse_position] = motor_param->Id;
+         if (s_detect_control.pulse_position >= MOTOR_DETECT_INDUCTANCE_HALF_CYCLES - 1U) {
+             float current_end = motor_param->Id;
+-            float current_mid = 0.5f * (s_detect_control.pulse_start_current + current_end);
+             float slope_dt = (float)(MOTOR_DETECT_INDUCTANCE_HALF_CYCLES - 1U) * dt;
+             float slope = (current_end - s_detect_control.pulse_start_current) / slope_dt;
+-            float effective_voltage = voltage * MOTOR_DETECT_APPLIED_VOLTAGE_SCALE -
+-                                      s_detect_control.measured_resistance * current_mid;
+-            if (fabsf(slope) > MOTOR_DETECT_INDUCTANCE_MIN_SLOPE) {
+-                float inductance = effective_voltage / slope;
++            float inductance;
++            /* 保留原首尾斜率激励门槛；用全窗口磁链积分拟合替代两点相除。
++             * 此处仍为指令电压，未标定的输出延时/压降不能由拟合自动消除。 */
++            if (isfinite(slope) && fabsf(slope) > MOTOR_DETECT_INDUCTANCE_MIN_SLOPE &&
++                Motor_Detect_FitPulse(s_detect_control.pulse_current, MOTOR_DETECT_INDUCTANCE_HALF_CYCLES,
++                                     dt, voltage * MOTOR_DETECT_APPLIED_VOLTAGE_SCALE,
++                                     s_detect_control.measured_resistance, &inductance)) {
+                 if (inductance > MOTOR_DETECT_INDUCTANCE_MIN_H && inductance < MOTOR_DETECT_INDUCTANCE_MAX_H) {
+                     s_detect_control.inductance_sum[direction] += inductance;
+                     s_detect_control.inductance_valid[direction]++;
+--- a/Doc/doc/框架重构计划.md
++++ b/Doc/doc/框架重构计划.md
+@@ -1,3 +1,10 @@
++## 2026-10-16：电感脉冲全窗口拟合
++
++- 状态：主机验证及 Keil 编译通过，上板待验。
++- 修改：motor_detect.c 使用原 8 点窗口的磁链积分/电流拟合，新增 motor_detect_rl_fit.h；外设、注入时序与保护不变。
++- 验证：新增 RL 拟合测试和既有主机回归通过；Keil 0 错误、0 警告。设定噪声场景下 RMSE 降低约 23.6%，不代表实机精度。
++- 限制与下一步：仍使用指令电压、保留原经验系数；未烧录，需验证电压/采样时序、不同脉宽重复性和 ISR 峰值。详见 `电感脉冲全窗口拟合_2026-10-16.md`。
++
+ ## 2026-10-16：配对原始ADC与软件PWM提交
+ 
+ - 新增slhandoff pair：继续复用32条缓冲，每450个选中FOC控制拍记录一对连续控制帧，混合完成后首拍触发，再留27条。每帧含软件采样序号、PWM COM提交调用序号、控制入口微秒时标、原始CURR1/2/3、重构后三相电流、重构相及回调时CNT/CR1/CCR/ARR；另附本拍观测器使用的电压模型输入。

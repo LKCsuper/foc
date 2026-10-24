@@ -72,8 +72,9 @@ motor_result_t Motor_SetCommand(MOTOR_PARAM_S *motor, const motor_command_t *cmd
 
 /**
  * @description: 获取一致的只读运行快照。
- * @detail: 从 ISR 约 100 Hz 发布的 seqlock 双缓冲读取，不关中断。
- *          首帧尚未发布时才使用短临界区回退。可在任务上下文调用。
+ * @detail: 控制/反馈/故障字段从 ISR 约 100 Hz 发布的 seqlock 双缓冲读取。
+ *          速度环显示字段在读取侧用短临界区获取同一速度PI帧，时间点可晚于ISR帧。
+ *          无可读ISR帧时临界区回退捕获；仅在任务上下文调用。
  * @param {const MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {motor_status_t *} status 输出快照，不可为空
  * @return {motor_result_t} MOTOR_OK 或 MOTOR_ERR_NULL

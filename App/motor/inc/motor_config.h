@@ -24,7 +24,7 @@ extern "C" {
 
 /* BLDC 六步换相模式（含其 ADC/TIM/DMA 切换）；关闭后 ISR 只走 FOC。 */
 #ifndef MOTOR_CFG_BLDC
-#define MOTOR_CFG_BLDC 1
+#define MOTOR_CFG_BLDC 0
 #endif
 
 /* 关节模式（单编码器位置/阻抗控制与协议）。 */

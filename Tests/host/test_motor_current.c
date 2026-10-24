@@ -5,6 +5,42 @@
 #include <string.h>
 #include "motor_current.h"
 #include "motor_param.h"
+#include "motor_pid.h"
+
+static void check_pi_equivalence(void)
+{
+    const float values[] = {-20.0f, -2.5f, -0.0f, 0.0f, 0.001f, 1.0f, 20.0f};
+    unsigned error_index, integral_index, limit_index;
+    for (error_index = 0U; error_index < sizeof(values) / sizeof(values[0]); ++error_index) {
+        for (integral_index = 0U; integral_index < sizeof(values) / sizeof(values[0]); ++integral_index) {
+            for (limit_index = 3U; limit_index < sizeof(values) / sizeof(values[0]); ++limit_index) {
+                float error = values[error_index];
+                float expected_integral = values[integral_index];
+                float actual_integral = expected_integral;
+                float limit = values[limit_index];
+                float expected_output, actual_output;
+                expected_integral += error * 18.0f * (1.0f / 15000.0f);
+                expected_output = expected_integral + error * 0.12f;
+                if (expected_output > limit) {
+                    expected_output = limit;
+                    expected_integral = limit - error * 0.12f;
+                } else if (expected_output < -limit) {
+                    expected_output = -limit;
+                    expected_integral = -limit - error * 0.12f;
+                }
+                actual_output = Motor_Current_PI_RunError(error, &actual_integral, 0.12f, 18.0f,
+                                                          1.0f / 15000.0f, limit);
+                assert(fabsf(actual_output - expected_output) <= 2.0f * FLT_EPSILON * fmaxf(1.0f, fabsf(expected_output)));
+                assert(fabsf(actual_integral - expected_integral) <= 2.0f * FLT_EPSILON * fmaxf(1.0f, fabsf(expected_integral)));
+                actual_integral = values[integral_index];
+                actual_output = Motor_Current_PI_Run(error, 0.0f, &actual_integral, 0.12f, 18.0f,
+                                                     1.0f / 15000.0f, limit);
+                assert(fabsf(actual_output - expected_output) <= 2.0f * FLT_EPSILON * fmaxf(1.0f, fabsf(expected_output)));
+                assert(fabsf(actual_integral - expected_integral) <= 2.0f * FLT_EPSILON * fmaxf(1.0f, fabsf(expected_integral)));
+            }
+        }
+    }
+}
 
 static void check_target_limit_equivalence(void)
 {
@@ -51,6 +87,7 @@ int main(void)
     unsigned i;
 
     check_target_limit_equivalence();
+    check_pi_equivalence();
     /* Park 正余弦按实例记录：同角度原码不重算，换角度或正负零都重算。 */
     memset(&a, 0, sizeof(a));
     a.ia = 1.0f;

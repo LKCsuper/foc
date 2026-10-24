@@ -612,7 +612,7 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
 
     COMMON_ASSERT(ctrl != NULL && motor != NULL && ctx != NULL);
     dragging = ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP;
-    memset(ctx, 0, sizeof(*ctx));
+    ctx->id_fw = 0.0f;
     ctx->frame_correction = ctrl->current_frame_correction;
     ctx->alignment_running = !dragging;
     ctx->if_iq_scale = ctrl->startup.if_start.iq_scale;
@@ -714,25 +714,15 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
     float v_limit = Motor_Control_GetVoltageLimit(motor, v_bus);
     motor_current_target_ctx_t ctx;
     motor_dq_voltage_t voltage = {0.0f, 0.0f};
-    bool encoder_speed_voltage_mode;
+    bool encoder_feedback;
     bool encoder_direct_voltage_hold;
     bool encoder_voltage_output;
 
-    if (motor->joint_current_hold &&
-        (feedback == NULL || !feedback->angle_valid ||
-         Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER)) {
-        /* Iq扭矩后端必须使用有效编码器转子角；禁止退回开环角继续施加转矩。 */
-        motor->id_target = 0.0f;
-        motor->iq_target = 0.0f;
-        motor->ol_vd_int = 0.0f;
-        motor->ol_vq_int = 0.0f;
-        return Motor_Control_ResultSafe();
-    }
+    encoder_feedback = Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER;
     encoder_direct_voltage_hold = motor->joint_voltage_hold || motor->position_voltage_hold;
-    if (encoder_direct_voltage_hold &&
-        (feedback == NULL || !feedback->angle_valid ||
-         Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER)) {
-        /* 位置/关节直接电压只能沿已标定的编码器电角输出，失效时禁止退回开环角。 */
+    if ((motor->joint_current_hold || encoder_direct_voltage_hold) &&
+        (feedback == NULL || !feedback->angle_valid || !encoder_feedback)) {
+        /* Iq扭矩后端必须使用有效编码器转子角；禁止退回开环角继续施加转矩。 */
         motor->id_target = 0.0f;
         motor->iq_target = 0.0f;
         motor->ol_vd_int = 0.0f;
@@ -751,37 +741,41 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
      * 会在下面被整段覆盖，积分也会改成实际 Vq。这条路径不再做那段计算。
      * Id/Iq 仍从三相电流更新，供状态显示。
      */
-    encoder_speed_voltage_mode = ctx.speed_loop_active && Motor_Control_EncoderSpeedUsesVoltage(motor->ol_target_rpm);
-    encoder_voltage_output = !motor->joint_current_hold &&
-                             (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER) &&
-                             (encoder_direct_voltage_hold || encoder_speed_voltage_mode);
+    encoder_voltage_output = encoder_feedback && !motor->joint_current_hold &&
+                             (encoder_direct_voltage_hold ||
+                              (ctx.speed_loop_active && Motor_Control_EncoderSpeedUsesVoltage(motor->ol_target_rpm)));
     if (encoder_voltage_output) {
         Motor_Fw_Reset(&ctrl->fw);
         Motor_Current_FeedbackUpdateDq(motor, theta);
-    } else if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
-        float fw_max;
-
-        fw_max = motor->fw_current_max;
-        /* 弱磁关闭时Step直接清零Id，不必每拍计算电流圆的sqrt余量。 */
-        if (fw_max > 0.0f) {
-            float iq_abs;
-            float id_room;
-            if (ctx.speed_loop_active) {
-                iq_abs = fabsf(ctx.speed_iq_target * ctx.soft_current_scale);
-            } else {
-                iq_abs = fabsf(motor->ol_iq_set * ctx.if_iq_scale * ctx.soft_current_scale);
-            }
-            id_room = Motor_Fw_IdRoom(iq_abs, MOTOR_FW_I_BUDGET);
-            if (fw_max > id_room) {
-                fw_max = id_room;
-            }
-        }
-        ctx.id_fw = Motor_Fw_Step(&ctrl->fw, fw_max, motor->fw_duty_start, motor->fw_ramp_a_s, ctrl->fw.last_vd,
-                                  ctrl->fw.last_vq, v_limit, dt);
-        /* 电流目标已按 soft/drag 比例爬升；电压上限不再叠乘 soft，避免积分顶满后过流。 */
-        voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, &motor->id_target, &motor->iq_target);
     } else {
-        Motor_Fw_Reset(&ctrl->fw);
+        if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
+            float fw_max;
+
+            fw_max = motor->fw_current_max;
+            /* 弱磁关闭时Step直接清零Id，不必每拍计算电流圆的sqrt余量。 */
+            if (fw_max > 0.0f) {
+                float iq_abs;
+                float id_room;
+                if (ctx.speed_loop_active) {
+                    iq_abs = fabsf(ctx.speed_iq_target * ctx.soft_current_scale);
+                } else {
+                    iq_abs = fabsf(motor->ol_iq_set * ctx.if_iq_scale * ctx.soft_current_scale);
+                }
+                id_room = Motor_Fw_IdRoom(iq_abs, MOTOR_FW_I_BUDGET);
+                if (fw_max > id_room) {
+                    fw_max = id_room;
+                }
+            }
+            if (fw_max <= 0.0f) {
+                ctrl->fw.id = 0.0f;
+                ctx.id_fw = 0.0f;
+            } else {
+                ctx.id_fw = Motor_Fw_Step(&ctrl->fw, fw_max, motor->fw_duty_start, motor->fw_ramp_a_s,
+                                          ctrl->fw.last_vd, ctrl->fw.last_vq, v_limit, dt);
+            }
+        } else {
+            Motor_Fw_Reset(&ctrl->fw);
+        }
         voltage = Motor_Current_Step(motor, theta, &ctx, dt, v_limit, &motor->id_target, &motor->iq_target);
     }
     if (encoder_voltage_output) {

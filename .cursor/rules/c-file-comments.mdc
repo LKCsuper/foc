@@ -1,0 +1,37 @@
+---
+description: 改 .c 时必须用分区注释骨架，禁止写成学习要点
+globs: "**/*.c"
+alwaysApply: true
+---
+
+# .c 注释
+
+改或新建 `App/` 下的 `.c`，注释按 `App/motor/core/motor_output.c` 和 `App/motor/protect/motor_protect.c`。不要另写一套。
+
+文件头只有 `@Description` 和 `@Author`。接着是分区注释，空分区也留着。`.c` 里不写「学习要点」。
+
+```c
+/*
+ * @Description: 这一文件负责什么
+ * @Author: lkc
+ */
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Includes ------------------------------------------------------------------*/
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* Private function prototypes -----------------------------------------------*/
+/* Private functions ---------------------------------------------------------*/
+#ifdef __cplusplus
+}
+#endif
+```
+
+- 静态函数先在 `Private function prototypes` 声明，实现放在 `Private functions` 下面。
+- 函数定义前用块注释：`@description`、`@detail`、`@param {类型} 名字`（带单位）、`@return {类型}`、`@author: lkc`。
+- 不把块注释改成每个字段的行尾注释。`.h` 里写过的接口，`.c` 的定义前仍然要有这块注释。
+- 不重排已有 `#include`。`.c` 不加 include guard。
+- 中断主路径可以在文件头加简短调用顺序（见 `motor_foc_isr.c`），后面的分区注释仍然要在。

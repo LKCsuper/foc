@@ -1,9 +1,20 @@
-/* 独立保护判据与故障锁存，无硬件或全局控制依赖。 */
+/*
+ * @Description: 过流、欠压、堵转、失速的判据和故障锁存
+ * @Author: lkc
+ */
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Includes ------------------------------------------------------------------*/
 #include <math.h>
 #include "common_assert.h"
 #include <string.h>
 #include "motor_protect_core.h"
-
+/* Private define ------------------------------------------------------------*/
+/* Private typedef -----------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* config 为空时使用。不进 Flash。 */
 static const motor_protect_config_t s_default_config = {
     .over_current = 10.0f,
     .under_voltage = 8.0f,
@@ -16,11 +27,21 @@ static const motor_protect_config_t s_default_config = {
     .stall_time = 1.0f,
     .speed_loss_time = 0.3f,
 };
+/* Private function prototypes -----------------------------------------------*/
+static float Motor_Protect_CurrentPeak(const motor_protect_input_t *motor);
+static bool Motor_Protect_Debounce(bool condition, float dt, float delay, float *timer);
+static bool Motor_Protect_CheckOverCurrentPeak(motor_protect_state_t *state, float peak, float dt);
+static void Motor_Protect_LatchFaultInputState(motor_protect_state_t *state, mc_fault_code fault,
+                                              const motor_protect_input_t *motor, const motor_protect_aux_t *aux);
+static bool Motor_Protect_CheckStallPeak(motor_protect_state_t *state, const motor_protect_input_t *motor, float dt,
+                                         float peak);
+/* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 取三相电流绝对值峰值，用作过流/堵转判据
- * @param {const motor_protect_input_t} *motor  采样电流来源，不可为空
- * @return {float} 三相 |ia/ib/ic| 峰值 (A)
+ * @description: 取三相电流绝对值里最大的一相。
+ * @detail: 过流和堵转都用这个峰值，不用 Id/Iq。调用者保证 motor 非空。
+ * @param {const motor_protect_input_t *} motor 本拍相电流 (A)
+ * @return {float} max(|ia|, |ib|, |ic|) (A)
  * @author: lkc
  */
 static float Motor_Protect_CurrentPeak(const motor_protect_input_t *motor)
@@ -37,13 +58,14 @@ static float Motor_Protect_CurrentPeak(const motor_protect_input_t *motor)
 }
 
 /**
- * @description: 条件去抖：成立则累加 dt，断开则清零；满 delay 返回 true
- * @detail: 用于滤掉采样毛刺；不能代替硬件过流关断
- * @param {bool} condition  本拍保护条件是否成立
- * @param {float} dt        本拍时间 (s)
- * @param {float} delay     去抖门限时间 (s)
- * @param {float} *timer    去抖累计时间 (s)，由调用者持有
- * @return {bool} true=条件已持续满 delay
+ * @description: 条件成立就累加本拍时间，不成立就清零。
+ * @detail: 累加到 delay 返回 true。只负责去抖，不锁存故障，也不能代替硬件过流关断。
+ *          delay 为 0 时，条件成立的第一拍就返回 true。
+ * @param {bool} condition 本拍条件是否成立
+ * @param {float} dt       本拍时间 (s)
+ * @param {float} delay    需要持续的时间 (s)
+ * @param {float *} timer  累计时间 (s)，由调用者持有
+ * @return {bool} true=已经持续满 delay
  * @author: lkc
  */
 static bool Motor_Protect_Debounce(bool condition, float dt, float delay, float *timer)
@@ -56,6 +78,15 @@ static bool Motor_Protect_Debounce(bool condition, float dt, float delay, float 
     return *timer >= delay;
 }
 
+/**
+ * @description: 过流去抖。相电流峰值达到阈值并持续 over_current_time 才返回 true。
+ * @detail: 不看是否使能、目标转速是不是 0。未到时间返回 false，计时继续留在 state 里。
+ * @param {motor_protect_state_t *} state 保护状态
+ * @param {float} peak                    三相电流峰值 (A)
+ * @param {float} dt                      本拍时间 (s)
+ * @return {bool} true=去抖完成，调用者可以锁存过流
+ * @author: lkc
+ */
 static bool Motor_Protect_CheckOverCurrentPeak(motor_protect_state_t *state, float peak, float dt)
 {
     return Motor_Protect_Debounce(peak >= state->config.over_current, dt,
@@ -63,12 +94,14 @@ static bool Motor_Protect_CheckOverCurrentPeak(motor_protect_state_t *state, flo
 }
 
 /**
- * @description: 首次锁存故障：写快照、置 fault_latched；已锁存则忽略（保留首因）
- * @param {motor_protect_state_t} *state  状态对象
- * @param {mc_fault_code} fault           待锁存故障码
- * @param {const motor_protect_input_t} *motor    快照中电机实时量来源
- * @param {const motor_protect_aux_t} *aux  辅助快照；可为 NULL
- * @return {*}
+ * @description: 第一次命中时写下快照并锁存；已经锁存则什么都不改。
+ * @detail: 电流、母线、斜坡、Id/Iq 和积分来自本拍输入。实测转速用保护侧刚注入的速度反馈。
+ *          aux 为空时，无感辅助量写 0，Iq 命令改用输入里的 ol_iq_set。不改 PWM。
+ * @param {motor_protect_state_t *} state       保护状态，不可为空
+ * @param {mc_fault_code} fault                 这次要锁的故障码
+ * @param {const motor_protect_input_t *} motor 本拍电流和母线，不可为空
+ * @param {const motor_protect_aux_t *} aux     无感辅助量；可为空
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Protect_LatchFaultInputState(motor_protect_state_t *state, mc_fault_code fault, const motor_protect_input_t *motor,
@@ -77,7 +110,7 @@ static void Motor_Protect_LatchFaultInputState(motor_protect_state_t *state, mc_
     COMMON_ASSERT(state != NULL && motor != NULL);
     if (state->fault_latched) return;
 
-    /* 电机本体量：电流/母线/斜坡/积分，与保护侧速度反馈。 */
+    /* 电机本体量：电流、母线、斜坡、积分，以及保护侧的速度反馈。 */
     state->snapshot.current_peak = Motor_Protect_CurrentPeak(motor);
     state->snapshot.bus_voltage = motor->v_bus;
     state->snapshot.target_rpm = motor->ol_target_rpm;
@@ -92,7 +125,7 @@ static void Motor_Protect_LatchFaultInputState(motor_protect_state_t *state, mc_
     state->snapshot.speed_loop_enabled = motor->speed_enable;
 
     if (aux != NULL) {
-        /* 调用者注入的无感/Iq 命令快照。 */
+        /* 调用者另外传入的无感和 Iq 命令。 */
         state->snapshot.observer_rpm = aux->observer_rpm;
         state->snapshot.flux = aux->flux;
         state->snapshot.phase_error = aux->phase_error;
@@ -125,10 +158,11 @@ static void Motor_Protect_LatchFaultInputState(motor_protect_state_t *state, mc_
 }
 
 /**
- * @description: 初始化指定保护状态对象，写入阈值并清零计时与锁存
- * @param {motor_protect_state_t} *state  状态对象
- * @param {const motor_protect_config_t} *config  NULL 用默认阈值
- * @return {*}
+ * @description: 清零一块保护状态，并写入阈值。
+ * @detail: config 为空时用本文件的默认阈值。不读硬件。state 为空会触发断言。
+ * @param {motor_protect_state_t *} state         保护状态，不可为空
+ * @param {const motor_protect_config_t *} config 阈值；空则用默认
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Protect_InitState(motor_protect_state_t *state, const motor_protect_config_t *config)
@@ -140,9 +174,10 @@ void Motor_Protect_InitState(motor_protect_state_t *state, const motor_protect_c
 }
 
 /**
- * @description: 清除指定状态的故障锁存与计时（保留配置）
- * @param {motor_protect_state_t} *state  状态对象
- * @return {*}
+ * @description: 清掉故障锁存、快照、速度反馈和全部计时。
+ * @detail: 配置保留。不清 PWM，也不碰别的保护实例。
+ * @param {motor_protect_state_t *} state 保护状态，不可为空
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Protect_ClearFaultState(motor_protect_state_t *state)
@@ -158,11 +193,12 @@ void Motor_Protect_ClearFaultState(motor_protect_state_t *state)
 }
 
 /**
- * @description: 向指定状态注入速度反馈；无效时禁止堵转/失速计时继续累加
- * @param {motor_protect_state_t} *state  状态对象
- * @param {float} rpm   机械转速 (RPM)
- * @param {bool} valid  反馈可信标志
- * @return {*}
+ * @description: 写入本拍机械转速，供堵转和失速使用。
+ * @detail: 过流和欠压不看这个速度。valid 为 false 时清掉堵转计时、失速计时和“曾经跟上”。
+ * @param {motor_protect_state_t *} state 保护状态，不可为空
+ * @param {float} rpm                     机械转速 (RPM)
+ * @param {bool} valid                    true=这拍速度可以拿来判断
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Protect_SetSpeedFeedbackState(motor_protect_state_t *state, float rpm, bool valid)
@@ -178,11 +214,12 @@ void Motor_Protect_SetSpeedFeedbackState(motor_protect_state_t *state, float rpm
 }
 
 /**
- * @description: 过流去抖：|ia/ib/ic| 峰值 ≥ over_current 持续 over_current_time
- * @param {motor_protect_state_t} *state  状态对象
- * @param {const motor_protect_input_t} *motor    三相电流
- * @param {float} dt  本拍时间 (s)
- * @return {bool} true=去抖完成，应锁存过流
+ * @description: 用三相电流做一次过流去抖。
+ * @detail: 只推进过流计时，不锁存。state 或 motor 为空返回 false。
+ * @param {motor_protect_state_t *} state       保护状态
+ * @param {const motor_protect_input_t *} motor 三相电流 (A)
+ * @param {float} dt                            本拍时间 (s)
+ * @return {bool} true=过流已经持续够时间
  * @author: lkc
  */
 bool Motor_Protect_CheckOverCurrentInputState(motor_protect_state_t *state, const motor_protect_input_t *motor, float dt)
@@ -192,11 +229,13 @@ bool Motor_Protect_CheckOverCurrentInputState(motor_protect_state_t *state, cons
 }
 
 /**
- * @description: 欠压去抖：仅在使能且目标转速非零时，v_bus 过低持续 under_voltage_time
- * @param {motor_protect_state_t} *state  状态对象
- * @param {const motor_protect_input_t} *motor    母线与命令
- * @param {float} dt  本拍时间 (s)
- * @return {bool} true=去抖完成，应锁存欠压
+ * @description: 运行中的母线过低，并持续 under_voltage_time，才算欠压。
+ * @detail: 未使能，或者目标转速为 0，本拍不算欠压，计时清零。state 或 motor 为空返回 false。
+ *          这里的欠压要等去抖；母线低于 1 V 时控制直接停，那条不经过本函数。
+ * @param {motor_protect_state_t *} state       保护状态
+ * @param {const motor_protect_input_t *} motor 母线 (V)、使能和目标转速 (RPM)
+ * @param {float} dt                            本拍时间 (s)
+ * @return {bool} true=欠压已经持续够时间
  * @author: lkc
  */
 bool Motor_Protect_CheckUnderVoltageInputState(motor_protect_state_t *state, const motor_protect_input_t *motor, float dt)
@@ -211,11 +250,13 @@ bool Motor_Protect_CheckUnderVoltageInputState(motor_protect_state_t *state, con
 }
 
 /**
- * @description: 堵转去抖：高目标 + 近零实测速 + 大电流（需速度反馈有效）
- * @param {motor_protect_state_t} *state  状态对象
- * @param {const motor_protect_input_t} *motor    目标与电流
- * @param {float} dt  本拍时间 (s)
- * @return {bool} true=去抖完成，应锁存堵转
+ * @description: 高目标、实测几乎停住、电流又不小，持续 stall_time 才算堵转。
+ * @detail: 速度反馈无效时清掉堵转计时并返回 false。三个条件要同时成立。
+ * @param {motor_protect_state_t *} state       保护状态
+ * @param {const motor_protect_input_t *} motor 目标转速 (RPM)
+ * @param {float} dt                            本拍时间 (s)
+ * @param {float} peak                          三相电流峰值 (A)
+ * @return {bool} true=堵转已经持续够时间
  * @author: lkc
  */
 static bool Motor_Protect_CheckStallPeak(motor_protect_state_t *state, const motor_protect_input_t *motor,
@@ -237,6 +278,15 @@ static bool Motor_Protect_CheckStallPeak(motor_protect_state_t *state, const mot
     return Motor_Protect_Debounce(commanded && stopped && loaded, dt, state->config.stall_time, &state->stall_timer);
 }
 
+/**
+ * @description: 用三相电流峰值做一次堵转去抖。
+ * @detail: 只推进堵转计时，不锁存。速度反馈无效时不读电流。state 或 motor 为空返回 false。
+ * @param {motor_protect_state_t *} state       保护状态
+ * @param {const motor_protect_input_t *} motor 目标转速和三相电流
+ * @param {float} dt                            本拍时间 (s)
+ * @return {bool} true=堵转已经持续够时间
+ * @author: lkc
+ */
 bool Motor_Protect_CheckStallInputState(motor_protect_state_t *state, const motor_protect_input_t *motor, float dt)
 {
     if (state == NULL || motor == NULL) return false;
@@ -245,13 +295,14 @@ bool Motor_Protect_CheckStallInputState(motor_protect_state_t *state, const moto
 }
 
 /**
- * @description: 失速去抖：斜坡已跟上目标后，曾达约 50% 再跌破目标×speed_loss_ratio
- * @detail: 斜坡未到位时不算失速。速度环按 VESC 给定爬升时，实测落后斜坡是加速，不是丢速。
- *          150 运转中 olspeed 3000，斜坡未到 3000 前不得锁 MOTOR_SPEED_LOSS。
- * @param {motor_protect_state_t} *state  状态对象
- * @param {const motor_protect_input_t} *motor    目标与斜坡转速
- * @param {float} dt  本拍时间 (s)
- * @return {bool} true=去抖完成，应锁存失速
+ * @description: 斜坡已经跟上目标后，转速曾经到过目标的一半，再跌破目标乘 speed_loss_ratio，才算失速。
+ * @detail: 速度反馈无效、目标还不到堵转门槛、或者斜坡和目标还差 1 RPM 以上，都清掉“曾经跟上”和失速计时。
+ *          斜坡还在爬时，实测落后是加速，不是丢速。例如 150 RPM 运转中把目标改成 3000，斜坡未到 3000 之前不锁失速。
+ *          一半这个比例写死在本函数里，不在配置中。state 或 motor 为空返回 false。
+ * @param {motor_protect_state_t *} state       保护状态
+ * @param {const motor_protect_input_t *} motor 目标转速和斜坡转速 (RPM)
+ * @param {float} dt                            本拍时间 (s)
+ * @return {bool} true=失速已经持续够时间
  * @author: lkc
  */
 bool Motor_Protect_CheckSpeedLossInputState(motor_protect_state_t *state, const motor_protect_input_t *motor, float dt)
@@ -274,13 +325,14 @@ bool Motor_Protect_CheckSpeedLossInputState(motor_protect_state_t *state, const 
         state->speed_loss_timer = 0.0f;
         return false;
     }
-    /* 给定还在爬：新轨迹，清“曾跟上”以免 150→3000 把旧转速当成已经到达高速。 */
+    /* 斜坡还没贴上目标：给定仍在爬。清掉旧的“曾经跟上”，避免 150 直接被当成已经到了 3000。 */
     if (fabsf(motor->ol_current_rpm - motor->ol_target_rpm) > 1.0f) {
         state->speed_was_reached = false;
         state->speed_loss_timer = 0.0f;
         return false;
     }
 
+    /* 50% 写死在这里。到过这一半才允许后面的失速去抖开始计时。 */
     if (speed_abs >= target_abs * 0.5f) {
         state->speed_was_reached = true;
     }
@@ -290,11 +342,16 @@ bool Motor_Protect_CheckSpeedLossInputState(motor_protect_state_t *state, const 
 }
 
 /**
- * @description: 按过流>欠压>堵转>失速推进判定，交由调用者在同拍锁存快照。
- * @param {motor_protect_state_t} *state  状态对象
- * @param {const motor_protect_input_t} *motor    电机实时量
- * @param {float} dt  本拍时间 (s)
- * @return {mc_fault_code} 待锁存故障或已有首因，无故障为 NONE
+ * @description: 推进一拍判定，返回该锁的故障码，自己不写快照。
+ * @detail: 已锁存时不再给四项累加时间，直接返回第一次的故障码。
+ *          未锁存时按过流、欠压、堵转、失速检查；前面一项本拍已经去抖完成，就不再查后面的。
+ *          只有锁存标志、故障码却是 NONE 时，先清掉这个脏状态，避免挡住后面的启动。
+ *          调用者要在同一拍把非 NONE 交给 TriggerFaultInputState 锁存。不要同一拍再跑 RunInputState，否则去抖会被推进两次。
+ *          state 或 motor 为空返回 NONE。
+ * @param {motor_protect_state_t *} state       保护状态
+ * @param {const motor_protect_input_t *} motor 本拍电流、母线和转速
+ * @param {float} dt                            本拍时间 (s)
+ * @return {mc_fault_code} 本拍应锁存的故障；没有则为 NONE；已锁存则是第一次的故障码
  * @author: lkc
  */
 mc_fault_code Motor_Protect_EvaluateInputState(motor_protect_state_t *state, const motor_protect_input_t *motor,
@@ -302,7 +359,7 @@ mc_fault_code Motor_Protect_EvaluateInputState(motor_protect_state_t *state, con
 {
     float peak;
     if (state == NULL || motor == NULL) return FAULT_CODE_NONE;
-    /* 自愈：只有锁存标志、无故障码时清掉脏状态，避免误拦校准/启动 */
+    /* 只有锁存标志、没有故障码，是脏状态。清掉，避免误拦启动。 */
     if (state->fault_latched && state->fault == FAULT_CODE_NONE) {
         state->fault_latched = false;
     }
@@ -321,6 +378,17 @@ mc_fault_code Motor_Protect_EvaluateInputState(motor_protect_state_t *state, con
     return FAULT_CODE_NONE;
 }
 
+/**
+ * @description: 判定本拍，并在第一次命中时锁存快照。
+ * @detail: 已锁存时不再累加去抖，也不改快照。aux 为空时，无感辅助量写 0，Iq 命令用输入里的 ol_iq_set。
+ *          返回值只表示现在有没有锁存。不改 PWM。state 或 motor 为空返回 false。
+ * @param {motor_protect_state_t *} state       保护状态
+ * @param {const motor_protect_input_t *} motor 本拍电流、母线和转速
+ * @param {float} dt                            本拍时间 (s)
+ * @param {const motor_protect_aux_t *} aux     无感辅助量；可为空
+ * @return {bool} true=已经锁存故障
+ * @author: lkc
+ */
 bool Motor_Protect_RunInputState(motor_protect_state_t *state, const motor_protect_input_t *motor, float dt,
                             const motor_protect_aux_t *aux)
 {
@@ -332,12 +400,14 @@ bool Motor_Protect_RunInputState(motor_protect_state_t *state, const motor_prote
 }
 
 /**
- * @description: 外部直接锁存故障（如无感失锁），不覆盖已有首因
- * @param {motor_protect_state_t} *state  状态对象
- * @param {mc_fault_code} fault  故障码
- * @param {const motor_protect_input_t} *motor    快照来源
- * @param {const motor_protect_aux_t} *aux  辅助快照
- * @return {*}
+ * @description: 外部直接锁存一个故障，例如无感失锁。
+ * @detail: 不覆盖已经锁存的第一个原因。fault 为 NONE 时直接返回。不改 PWM。
+ *          state 或 motor 为空会触发断言。
+ * @param {motor_protect_state_t *} state       保护状态，不可为空
+ * @param {mc_fault_code} fault                 故障码；NONE 忽略
+ * @param {const motor_protect_input_t *} motor 快照用的电流和母线，不可为空
+ * @param {const motor_protect_aux_t *} aux     无感辅助量；可为空
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Protect_TriggerFaultInputState(motor_protect_state_t *state, mc_fault_code fault, const motor_protect_input_t *motor,
@@ -349,22 +419,24 @@ void Motor_Protect_TriggerFaultInputState(motor_protect_state_t *state, mc_fault
 }
 
 /**
- * @description: 查询指定状态是否已锁存故障
- * @param {const motor_protect_state_t} *state  状态对象
- * @return {bool} true=已锁存
+ * @description: 查询这块状态是否已经锁存了有效故障。
+ * @detail: 只有锁存标志、故障码却是 NONE 时返回 false。Evaluate 会把这种脏状态清掉。state 为空返回 false。
+ * @param {const motor_protect_state_t *} state 保护状态；可为空
+ * @return {bool} true=已锁存，且故障码不是 NONE
  * @author: lkc
  */
 bool Motor_Protect_IsFaultLatchedState(const motor_protect_state_t *state)
 {
     if (state == NULL) return false;
-    /* 仅当锁存且有有效故障码才算故障；latched+NONE 视为脏状态（未锁存） */
+    /* 锁存标志和故障码都在，才算已经锁住。 */
     return state->fault_latched && state->fault != FAULT_CODE_NONE;
 }
 
 /**
- * @description: 读取指定状态故障码
- * @param {const motor_protect_state_t} *state  状态对象
- * @return {mc_fault_code} 故障码；NULL 返回 NONE
+ * @description: 读取这块状态里的故障码。
+ * @detail: 不区分有没有锁存。未写入过时是 NONE。state 为空返回 NONE。
+ * @param {const motor_protect_state_t *} state 保护状态；可为空
+ * @return {mc_fault_code} 故障码
  * @author: lkc
  */
 mc_fault_code Motor_Protect_GetFaultState(const motor_protect_state_t *state)
@@ -373,10 +445,11 @@ mc_fault_code Motor_Protect_GetFaultState(const motor_protect_state_t *state)
 }
 
 /**
- * @description: 拷贝指定状态故障快照
- * @param {const motor_protect_state_t} *state  状态对象
- * @param {motor_protect_snapshot_t} *snapshot  输出
- * @return {*}
+ * @description: 拷贝这块状态里的故障快照。
+ * @detail: 停机后仍保留，直到 ClearFaultState。state 或 snapshot 为空则不写。
+ * @param {const motor_protect_state_t *} state 保护状态；可为空
+ * @param {motor_protect_snapshot_t *} snapshot 输出；可为空
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Protect_GetSnapshotState(const motor_protect_state_t *state, motor_protect_snapshot_t *snapshot)
@@ -385,3 +458,6 @@ void Motor_Protect_GetSnapshotState(const motor_protect_state_t *state, motor_pr
         *snapshot = state->snapshot;
     }
 }
+#ifdef __cplusplus
+}
+#endif

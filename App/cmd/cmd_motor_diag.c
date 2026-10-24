@@ -12,6 +12,7 @@ extern "C" {
 #include "motor_control.h"
 #include "motor_foc_isr.h"
 #include "motor_timing.h"
+#include "motor_diag_phase.h"
 #include "motor_speed_ff_detect.h"
 #include "motor_crit.h"
 #include "motor_output.h"
@@ -609,6 +610,53 @@ int Cmd_SensorlessHandoff(int argc, char *argv[])
     unsigned index;
     motor_handoff_sample_t sample;
     char row[512];
+    if (argc > 1 && (strcmp(argv[1], "pwm") == 0 || strcmp(argv[1], "pwmlong") == 0 ||
+                     strcmp(argv[1], "phaseedge") == 0 || strcmp(argv[1], "phase3000") == 0)) {
+        motor_command_t command;
+        if (argc != 2 || Motor_GetCommand(&motor, &command) != MOTOR_OK || command.enable || motor.ol_enable ||
+            command.target_rpm != 0.0f || Motor_Position_IsEnabled() || Motor_Joint_IsEnabled() ||
+            Motor_Bldc_IsSelected() || Motor_Detect_IsActive() || Motor_Protect_IsFaultLatched()) {
+            PRINTF("Invalid: slhandoff pwm requires stopped FOC, zero target, no position/joint/detection/fault\n");
+            return -1;
+        }
+        if (strcmp(argv[1], "phase3000") == 0) {
+            Motor_Timing_PhaseEdgeReserve3000();
+            PRINTF("FOC phase reserved: target 3000, ramp within 1%% and observer within 5%% for 1s; not encoder speed\n");
+            return 0;
+        }
+        if (strcmp(argv[1], "phaseedge") == 0) {
+            Motor_Timing_PhaseEdgeArm();
+            PRINTF("FOC callback phase armed: 64 events, freeze 16 callbacks after full-phase change or after 10s\n");
+            return 0;
+        }
+        if (strcmp(argv[1], "pwmlong") == 0) Hal_Motor_PwmWindowReserveLong();
+        else Hal_Motor_PwmWindowReserve();
+        PRINTF("PWM window reserved: 32 rows stride=%lu after ramp within 5%% of target for 1s; not shaft speed\n",
+               (unsigned long)Hal_Motor_PwmWindowStride());
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "phaseoff") == 0) {
+        if (motor.ol_enable) {
+            PRINTF("Invalid: phaseoff requires stopped motor\n");
+            return -1;
+        }
+        Motor_Timing_PhaseEdgeStop();
+        PRINTF("FOC callback phase count=%lu seen=%lu trigger=%lu reason=%lu\n",
+               (unsigned long)g_motor_phase_debug.count, (unsigned long)g_motor_phase_debug.seen,
+               (unsigned long)g_motor_phase_debug.trigger_sequence, (unsigned long)g_motor_phase_debug.reason);
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "pwmoff") == 0) {
+        if (motor.ol_enable) {
+            PRINTF("Invalid: slhandoff pwmoff requires stopped motor\n");
+            return -1;
+        }
+        Hal_Motor_PwmWindowEnable(false);
+        PRINTF("PWM window state=%lu count=%lu/32 stride=%lu; read via JTAG only after stop\n",
+               (unsigned long)g_hal_motor_pwm_window.enabled, (unsigned long)g_hal_motor_pwm_window.count,
+               (unsigned long)Hal_Motor_PwmWindowStride());
+        return 0;
+    }
     if (motor.ol_enable) {
         PRINTF("Invalid: slhandoff requires stopped motor\n");
         return -1;

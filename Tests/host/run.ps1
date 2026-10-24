@@ -40,6 +40,29 @@ try {
     & .build/host/test_rpm_brief.exe
     if ($LASTEXITCODE -ne 0) { throw 'Brief RPM command tests failed' }
     $irqSource = Get-Content Library/Hal/port/stm32f4/hal_motor_stm32f4.c -Raw -Encoding utf8
+    $phaseSource = Get-Content App/motor/diagnostic/motor_diag_schedule.c -Raw -Encoding utf8
+    $phaseCapture = [regex]::Match($phaseSource, '(?s)motor_phase_debug_t g_motor_phase_debug;.*?void Motor_Timing_PhaseEdgeNote\(.*?\r?\n\}')
+    if (!$phaseCapture.Success) { throw 'Phase edge diagnostic missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/phase_edge_under_test.inc'), $phaseCapture.Value, [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/motor/diagnostic/inc -I.build/host Tests/host/test_phase_edge.c -o .build/host/test_phase_edge.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Phase edge compilation failed' }
+    & .build/host/test_phase_edge.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Phase edge tests failed' }
+    $irqEntry = Get-Content App/user/stm32f4xx_it.c -Raw -Encoding utf8
+    $phaseIrq = [regex]::Match($irqEntry, '(?s)void DMA2_Stream4_IRQHandler\(void\)\s*\{.*?\r?\n\}')
+    if (!$phaseIrq.Success) { throw 'Phase IRQ wrapper missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/phase_irq_under_test.inc'), $phaseIrq.Value, [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/host Tests/host/test_phase_irq.c -o .build/host/test_phase_irq.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Phase IRQ wrapper compilation failed' }
+    & .build/host/test_phase_irq.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Phase IRQ wrapper tests failed' }
+    $pwmWindow = [regex]::Match($irqSource, '(?s)hal_motor_pwm_window_t g_hal_motor_pwm_window;.*?void Hal_Motor_PwmSetDuty\(uint32_t duty_a, uint32_t duty_b, uint32_t duty_c\)\s*\{.*?\r?\n\}')
+    if (!$pwmWindow.Success) { throw 'PWM window HAL missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/pwm_window_under_test.inc'), $pwmWindow.Value, [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -ILibrary/Hal/inc -I.build/host Tests/host/test_pwm_window.c -o .build/host/test_pwm_window.exe
+    if ($LASTEXITCODE -ne 0) { throw 'PWM window HAL compilation failed' }
+    & .build/host/test_pwm_window.exe
+    if ($LASTEXITCODE -ne 0) { throw 'PWM window HAL tests failed' }
     $irqTest = [regex]::Match($irqSource, '(?s)static bool s_irq_test_active;.*?bool Hal_Motor_StoppedIrqTestEnd\(bool restore_gate\)\s*\{.*?\r?\n\}')
     if (!$irqTest.Success) { throw 'Stopped IRQ test HAL missing' }
     [IO.File]::WriteAllText((Join-Path $root '.build/host/stopped_irq_test_under_test.inc'), $irqTest.Value, [Text.UTF8Encoding]::new($false))
@@ -160,6 +183,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Flash host compilation failed' }
     & .build/host/test_flash_storage.exe
     if ($LASTEXITCODE -ne 0) { throw 'Flash host tests failed' }
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -IThirtyLibrary/common_code/lib/seqlock -IApp/motor_param/inc @motorInc -IApp/motor_sensor/inc -ILibrary/Hal/inc ThirtyLibrary/common_code/lib/seqlock/seqlock.c Tests/host/test_motor_snapshot.c -o .build/host/test_motor_snapshot.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor snapshot host compilation failed' }
+    & .build/host/test_motor_snapshot.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Motor snapshot host tests failed' }
     & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IThirtyLibrary/common_code/lib/seqlock -IApp/motor_param/inc @motorInc -IApp/motor_sensor/inc -ILibrary/Common/inc -ILibrary/Hal/inc ThirtyLibrary/common_code/lib/seqlock/seqlock.c App/motor/motor.c App/motor/loop/motor_anticogging.c App/motor/motor_snapshot.c App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_api.c -o .build/host/test_motor_api.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor API host compilation failed' }
     & .build/host/test_motor_api.exe

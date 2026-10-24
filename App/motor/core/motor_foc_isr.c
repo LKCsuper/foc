@@ -8,7 +8,7 @@
  *     └─ 未到控制拍（无感/开环按 FOC 分频；有感取 PWM 向下计数侧）→ 只发布状态快照
  *   Motor_FocIsr_Run
  *     1. 采样  Motor_FocIsr_Sample        ADC 帧 → ia/ib/ic、v_bus；控制周期 dt；传感器角度/速度
- *     2. 保护  Motor_FocIsr_Protect       时序异常 / 软件保护锁存 / 母线 < 1V → 复位控制、中点输出、本拍结束
+ *     2. 保护  Motor_FocIsr_Protect       周期无效、软件故障已锁存、或母线 < 1V → 复位控制、三相中点、本拍结束
  *     3. 电流  PrepareCurrentFeedback     高占空比相按 LONGEST_ZERO 重构；必须在保护之后
  *     4. 控制  Motor_Control_Step         启动/选角 → Clarke/Park → d/q PI → 矢量限幅 → vd/vq
  *     5. 输出  ArbitrateAndApply          故障最终仲裁 → 反 Park → SVM → A-C-B 提交 PWM
@@ -40,6 +40,7 @@
 #include "motor_sensor_update.h"
 #include "motor_sense.h"
 #include "motor_timing.h"
+#include "motor_diag_phase.h"
 #include "motor_sensorless.h"
 #include "motor_speed.h"
 #if defined(__CC_ARM)
@@ -295,19 +296,20 @@ static bool Motor_FocIsr_Sample(MOTOR_PARAM_S *motor, motor_feedback_source_t fe
 }
 
 /**
- * @description: FOC 本拍唯一保护入口：按顺序检查三条规则，任一成立即复位控制并中点输出。
- * @detail: 规则 1：控制周期异常 → 锁存 CONTROL_TIMING。
- *          规则 2：软件保护（过流 > 欠压 > 堵转 > 失速，判据见 motor_protect_core.c）已锁存。
- *                  已锁存的故障每拍都按此规则停机，直到 ClearFault。
- *          规则 3：母线低于 1V → 不调制，不等欠压去抖；欠压去抖仍在规则 2 中推进。
- *          故障拍强制写一条故障轨迹并冻结。保护使用原始换算电流，电流重构必须放在本函数之后。
- *          中点输出不等于关桥；硬件过流关断不经过本函数。保护细分只在无感 I/F 运行窗口计入。
+ * @description: 判断本拍能不能进入电流环。
+ * @detail: 下面三件事按顺序看，命中就清掉启动状态并输出三相中点，本拍到此结束。
+ *          中点是 50% 占空比，桥还在导通，不是关桥。硬件过流关断不经过这里。
+ *          1) 控制周期无效：立刻锁存 CONTROL_TIMING。本拍不跑过流/欠压去抖，因为 dt 不能用。
+ *          2) 周期有效：跑软件保护。过流、欠压、堵转、失速谁优先、怎么去抖，见 motor_protect_core.c。
+ *             故障一旦锁存，之后每拍都算命中，直到 ClearFault。第一次锁存时抄一帧电流和定时器计数。
+ *          3) 没有故障、但母线低于 1 V：同样停在中点，不等欠压去抖计满。1 V 和控制允许起转的母线门槛相同。
+ *          这里用的是采样换算后的原始相电流。某一相采样窗不够时的电流重构，在本函数返回 true 之后才做。
  * @param {MOTOR_PARAM_S *} motor 电机运行时，调用者保证非空
- * @param {motor_feedback_source_t} feedback_source 本拍反馈源
- * @param {bool} timing_ok            本拍控制周期是否有效
- * @param {float} control_dt          本拍控制周期 (s)；时序异常时忽略
- * @param {uint32_t} entry_us         控制入口时间 (us)，不是 ADC 采样孔径
- * @return {bool} true=允许继续控制；false=已复位并安全输出
+ * @param {motor_feedback_source_t} feedback_source 本拍反馈源，只用于分段计时是否打开
+ * @param {bool} timing_ok            true=本拍控制周期有效
+ * @param {float} control_dt          本拍控制周期 (s)；周期无效时不使用
+ * @param {uint32_t} entry_us         进入本拍控制的时间 (us)，不是 ADC 采样时刻
+ * @return {bool} true=继续电流环；false=已经输出三相中点
  * @author: lkc
  */
 static bool Motor_FocIsr_Protect(MOTOR_PARAM_S *motor, motor_feedback_source_t feedback_source, bool timing_ok,
@@ -318,11 +320,11 @@ static bool Motor_FocIsr_Protect(MOTOR_PARAM_S *motor, motor_feedback_source_t f
     uint32_t stage_start;
 
     if (!timing_ok) {
-        /* 规则 1 */
+        /* 周期无效，不能拿这个 dt 给过流/欠压去抖。 */
         Motor_Protect_TriggerFault(FAULT_CODE_CONTROL_TIMING, motor);
         faulted = true;
     } else {
-        /* 规则 2 */
+        /* 过流、欠压、堵转、失速。已经锁存的故障这里一直返回 true。 */
         MOTOR_PROFILE_BEGIN(profile, stage_start);
         faulted = Motor_Protect_Run(motor, control_dt);
         if (faulted && Motor_Protect_FaultSampleIsPending())
@@ -331,12 +333,14 @@ static bool Motor_FocIsr_Protect(MOTOR_PARAM_S *motor, motor_feedback_source_t f
         MOTOR_PROFILE_END(profile, MOTOR_TIMING_PROTECTION, stage_start);
     }
     if (faulted) {
+        /* 记下这一拍并冻结轨迹，后面的拍不再覆盖第一次故障。 */
         Motor_FocIsr_RecordFault(motor, entry_us, control_dt, true);
         Motor_Timing_FaultTraceFreeze((unsigned)Motor_Protect_GetFault());
     }
-    /* 规则 3：1V 与控制就绪门槛一致 */
+    /* 没有故障，并且母线至少 1 V，才进入电流环。 */
     if (!faulted && motor->v_bus >= 1.0f) return true;
 
+    /* 有故障，或母线还不到 1 V：清启动状态，三相输出中点。 */
     Motor_Control_ResetRuntime(&s_control, motor);
     Motor_OutputSafe(motor);
     return false;
@@ -829,6 +833,26 @@ static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor_param, motor_feedback_source_t
     bool timing_ok;
     motor_control_result_t result;
 
+#if MOTOR_CFG_DIAG
+    if (g_motor_phase_active == 3U) {
+        bool ready = motor_param->ol_target_rpm == 3000.0f && motor_param->ol_current_rpm >= 2970.0f &&
+                     motor_param->ol_current_rpm <= 3030.0f && motor_param->sensorless_enable;
+        if (ready) {
+            float observed = Motor_Sensorless_GetMechanicalRpm();
+            ready = observed >= 2850.0f && observed <= 3150.0f;
+        }
+        Motor_Timing_PhaseEdgePoll(motor_param->ol_enable, ready, entry_us);
+    }
+    if (g_hal_motor_pwm_window.enabled != 0U) {
+        bool ready = false;
+        if (g_hal_motor_pwm_window.enabled == 2U && motor_param->ol_enable) {
+            float target = motor_param->ol_target_rpm;
+            float error = motor_param->ol_current_rpm - target;
+            ready = target * target >= 1.0f && error * error <= 0.0025f * target * target;
+        }
+        Hal_Motor_PwmWindowPoll(motor_param->ol_enable, ready);
+    }
+#endif
     Motor_FocIsr_DiagBegin(&diag, entry_us);
 
     /* 1. 采样 */
@@ -868,6 +892,9 @@ static void Motor_FocIsr_PublishStatus(const MOTOR_PARAM_S *motor_param)
     s_status_publish_divider++;
     if (s_status_publish_divider >= MOTOR_STATUS_PUBLISH_DIVIDER) {
         s_status_publish_divider = 0U;
+#if MOTOR_CFG_DIAG
+        Motor_Timing_PhaseMarkStatus();
+#endif
         if (Motor_Timing_SplitIsActive()) {
             uint32_t publish_start = Hal_Motor_TimeUs();
             Motor_StatusSnapshotPublishFromIsr(motor_param);
@@ -890,10 +917,32 @@ static void Motor_FocIsr_PublishStatus(const MOTOR_PARAM_S *motor_param)
 void Motor_FocIsr_Step(MOTOR_PARAM_S *motor_param)
 {
     motor_feedback_source_t feedback_source;
+    bool execute;
+#if MOTOR_CFG_DIAG
+    bool phase_active = g_motor_phase_active == 1U || g_motor_phase_active == 2U;
+    uint32_t phase_us = 0U, phase_count = 0U, phase_cr1 = 0U, phase_divider = 0U;
+#endif
     COMMON_ASSERT(motor_param != NULL);
 
     feedback_source = Motor_Feedback_GetSourceDefault();
-    if (Motor_FocIsr_ShouldExecuteControl(feedback_source)) {
+#if MOTOR_CFG_DIAG
+    if (phase_active) {
+        phase_us = Hal_Motor_TimeUs();
+        phase_cr1 = TIM1->CR1;
+        phase_count = TIM1->CNT;
+        phase_divider = (uint32_t)(uint16_t)s_divider.skip << 16;
+    }
+#endif
+    execute = Motor_FocIsr_ShouldExecuteControl(feedback_source);
+#if MOTOR_CFG_DIAG
+    if (phase_active) {
+        phase_divider |= (uint16_t)s_divider.skip;
+        Motor_Timing_PhaseEdgeNote(phase_us, phase_count, phase_cr1, phase_divider,
+                                  (execute ? 1U : 0U) | ((uint32_t)feedback_source << 8) |
+                                  ((uint32_t)(uint16_t)s_divider.divider << 16), motor_param->ol_enable);
+    }
+#endif
+    if (execute) {
         Motor_FocIsr_Run(motor_param, feedback_source, Hal_Motor_TimeUs());
         if (Motor_Timing_SplitIsActive()) Motor_Timing_CallbackClassify(true);
     } else if (Motor_Timing_SplitIsActive()) {

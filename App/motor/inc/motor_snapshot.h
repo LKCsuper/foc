@@ -22,7 +22,7 @@ typedef struct {
     bool enable;
     int mode;
     float target_rpm;  /* RPM */
-    float current_rpm; /* 斜坡转速 RPM */
+    float current_rpm; /* 开环斜坡 RPM；速度环开启时为读取侧速度PI目标 */
     float ia;          /* A */
     float ib;          /* A */
     float ic;          /* A */
@@ -40,7 +40,7 @@ typedef struct {
     float vd_int;      /* V */
     float vq_int;      /* V */
     bool speed_enable;
-    float measured_rpm; /* 速度环反馈 RPM；无效时为 0 */
+    float measured_rpm; /* 读取侧速度环帧反馈 RPM；无效时为 0，可能晚于控制帧 */
     float speed_error;  /* 与 measured_rpm 同一快照时刻的速度误差 RPM */
     float speed_iq;     /* 速度环 Iq 目标 A */
     motor_feedback_sample_t feedback;

@@ -29,6 +29,23 @@ extern "C" {
 float Motor_Current_PI_Run(float target, float measured, float *v_int,
                            float kp, float ki, float dt, float v_limit);
 
+static inline float Motor_Current_PI_RunError(float error, float *v_int,
+                                              float kp, float ki, float dt, float v_limit)
+{
+    float proportional = error * kp;
+    float output;
+    *v_int += error * ki * dt;
+    output = *v_int + proportional;
+    if (output > v_limit) {
+        output = v_limit;
+        *v_int = v_limit - proportional;
+    } else if (output < -v_limit) {
+        output = -v_limit;
+        *v_int = -v_limit - proportional;
+    }
+    return output;
+}
+
 #ifdef __cplusplus
 }
 #endif

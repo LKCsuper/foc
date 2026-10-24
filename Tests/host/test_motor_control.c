@@ -20,6 +20,7 @@ void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start_us)
 }
 
 static float s_last_current_theta;
+static float s_last_id_fw;
 static int s_current_step_calls;
 static int s_sensorless_updates;
 static bool s_speed_fb_valid;
@@ -287,6 +288,7 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
     (void)dt;
     (void)v_limit;
     s_current_step_calls++;
+    s_last_id_fw = ctx != NULL ? ctx->id_fw : 0.0f;
     s_last_current_theta = theta;
     s_last_frame_correction = ctx != NULL ? ctx->frame_correction : 0.0f;
     s_last_alignment_running = ctx != NULL && ctx->alignment_running;
@@ -901,8 +903,29 @@ int main(void)
             result = Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor, &diagnostic_ctx, mode);
             assert(fabsf(result.vd - 0.6f) < 1e-6f);
         }
+        memset(&diagnostic_ctx, 0xa5, sizeof(diagnostic_ctx));
         result = Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor, &diagnostic_ctx, 3U);
         assert(result.vd == 1.0f && result.vq == 1.0f && !diagnostic_ctx.speed_loop_active);
+        assert(!diagnostic_ctx.alignment_running && diagnostic_ctx.alignment_current_scale == 0.0f);
+        assert(diagnostic_ctx.speed_iq_target == 0.0f && diagnostic_ctx.id_fw == 0.0f);
+        assert(diagnostic_ctx.frame_correction == 0.0f);
+        diagnostic_motor.ol_align_enable = true;
+        diagnostic_control.startup.drag_current_scale = 0.25f;
+        memset(&diagnostic_ctx, 0xa5, sizeof(diagnostic_ctx));
+        Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor, &diagnostic_ctx, 3U);
+        assert(diagnostic_ctx.alignment_current_scale == 0.75f && diagnostic_ctx.soft_current_scale == 0.25f);
+        assert(diagnostic_ctx.id_fw == 0.0f && !diagnostic_ctx.alignment_running);
+        diagnostic_control.startup.phase = MOTOR_STARTUP_CURRENT_RAMP;
+        diagnostic_control.startup.soft_current_scale = 0.5f;
+        memset(&diagnostic_ctx, 0xa5, sizeof(diagnostic_ctx));
+        Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor, &diagnostic_ctx, 3U);
+        assert(diagnostic_ctx.alignment_running && diagnostic_ctx.alignment_current_scale == 0.5f);
+        assert(diagnostic_ctx.soft_current_scale == 0.5f && diagnostic_ctx.id_fw == 0.0f);
+        assert(diagnostic_ctx.speed_iq_target == 0.0f && diagnostic_ctx.frame_correction == 0.0f);
+        diagnostic_motor.ol_align_enable = false;
+        diagnostic_control.startup.phase = MOTOR_STARTUP_DRAG_RAMP;
+        diagnostic_control.startup.drag_current_scale = 1.0f;
+        Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor, &diagnostic_ctx, 3U);
         diagnostic_control.fw.id = -0.5f;
         result = Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor, &diagnostic_ctx, 4U);
         assert(result.vd == 0.0f && diagnostic_control.fw.id == 0.0f);
@@ -916,6 +939,28 @@ int main(void)
             assert(s_current_step_calls == previous_calls + 1);
         }
         assert(s_sensorless_updates == previous_updates);
+        {
+            const float limits[] = {0.0f, -0.5f, 1.0f, 0.0f};
+            unsigned limit_index;
+            diagnostic_motor.fw_duty_start = 0.8f;
+            diagnostic_motor.fw_ramp_a_s = 8.0f;
+            diagnostic_control.fw.id = -0.5f;
+            for (limit_index = 0U; limit_index < sizeof(limits) / sizeof(limits[0]); ++limit_index) {
+                motor_fw_t expected = diagnostic_control.fw;
+                float expected_id;
+                diagnostic_motor.fw_current_max = limits[limit_index];
+                diagnostic_control.fw.last_vd = expected.last_vd = 0.0f;
+                diagnostic_control.fw.last_vq = expected.last_vq = 4.0f;
+                expected_id = Motor_Fw_Step(&expected, limits[limit_index], 0.8f, 8.0f,
+                                           0.0f, 4.0f, 4.0f, 1.0f / 15000.0f);
+                result = Motor_Control_IfDiagnosticStep(&diagnostic_control, &diagnostic_motor,
+                                                        &diagnostic_ctx, 6U);
+                assert(diagnostic_control.fw.id == expected.id && s_last_id_fw == expected_id);
+                assert(diagnostic_control.fw.last_vd == result.vd);
+                assert(diagnostic_control.fw.last_vq == result.vq);
+            }
+            diagnostic_motor.fw_current_max = 0.0f;
+        }
         {
             const motor_feedback_source_t sources[] = {MOTOR_FEEDBACK_SRC_OPENLOOP, MOTOR_FEEDBACK_SRC_SENSORLESS,
                                                        MOTOR_FEEDBACK_SRC_ENCODER, MOTOR_FEEDBACK_SRC_HALL};

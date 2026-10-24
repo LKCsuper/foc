@@ -721,6 +721,16 @@
               <FilePath>..\cmd\cmd_serial_plot.c</FilePath>
             </File>
             <File>
+              <FileName>cmd_studio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\cmd_studio.c</FilePath>
+            </File>
+            <File>
+              <FileName>studio_protocol.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cmd\studio_protocol.c</FilePath>
+            </File>
+            <File>
               <FileName>cmd_duty.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\cmd\cmd_duty.c</FilePath>
