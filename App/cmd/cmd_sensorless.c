@@ -160,6 +160,12 @@ static const sltest_profile_t sltest_profile_default = {
 static sltest_profile_t sltest_profile;
 
 
+/**
+ * @description: 打印一帧 sltest 输出：目标/实测转速、Iq 及由占空比重构的 PWM 相电压。
+ * @param {const motor_status_t *} status 当前电机状态快照
+ * @param {float} rpm 机械转速 (RPM)
+ * @return {void} 无
+ */
 static void sltest_print_output(const motor_status_t *status, float rpm)
 {
     float period = (float)Hal_Motor_PwmPeriodCounts();
@@ -172,7 +178,14 @@ static void sltest_print_output(const motor_status_t *status, float rpm)
            status->iq, status->iq_target, status->speed_iq, motor.speed_iq_limit,
            status->id, sqrtf(alpha * alpha + beta * beta), motor.ol_vq_limit, status->v_bus);
 }
-/* phase: 0=拖转，1=等待接管，2=闭环稳定等待，3=统计并检查跟踪。 */
+/**
+ * @description: phase: 0=拖转，1=等待接管，2=闭环稳定等待，3=统计并检查跟踪。
+ * @param {uint32_t} duration_ms duration_ms，单位 ms
+ * @param {float} target 目标机械转速 (RPM)
+ * @param {unsigned} phase 相位信息或相编号
+ * @param {float *} average 输出阶段统计的平均值
+ * @return {bool} true=本阶段监测完成；false=用户中止、保护触发或条件不满足
+ */
 static bool sltest_monitor(uint32_t duration_ms, float target, unsigned phase, float *average)
 {
     uint32_t start = Hal_Motor_TimeUs();
@@ -250,6 +263,9 @@ static bool sltest_monitor(uint32_t duration_ms, float target, unsigned phase, f
  * @description: 无感多速度空载测试，结束/异常/新输入均停机并恢复配置。
  * @detail: sltest [hold_s [rpm1 rpm2 ...]]；默认5s、500/600/700RPM。
  *          沿用当前模型、零偏；600RPM拖转接管后开始分档。PASS仅指固件状态与观测跟踪。
+ * @param {int} argc 命令参数个数
+ * @param {char *[]} argv 命令参数字符串数组
+ * @return {int} 本次计算或查询的结果
  */
 int Cmd_SensorlessTest(int argc, char *argv[])
 {
@@ -624,7 +640,12 @@ int Cmd_SensorlessDeadtime(int argc, char *argv[])
     return 0;
 }
 
-/** slobs：设置观测器和PLL增益，沿用原配置更新流程。 */
+/**
+ * @description: slobs：设置观测器和PLL增益，沿用原配置更新流程。
+ * @param {int} argc 命令参数个数
+ * @param {char *[]} argv 命令参数字符串数组
+ * @return {int} 本次计算或查询的结果
+ */
 int Cmd_SensorlessObserver(int argc, char *argv[])
 {
     motor_config_t cfg;

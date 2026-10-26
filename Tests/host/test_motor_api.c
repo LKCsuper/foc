@@ -1,3 +1,4 @@
+/* 电机 API：命令/配置/状态/运行时的提交、忙拒绝、限幅与发布帧一致性。 */
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -15,27 +16,54 @@ static bool bldc_selected;
 static bool detect_active;
 static int detect_abort_calls;
 
+/**
+ * @description: 主机测试替身：请求中止当前正在进行的 R/L 检测。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void DETECT_Abort(void)
 {
     ++detect_abort_calls;
 }
 
+/**
+ * @description: 主机测试替身：偏移校准时 FOC 不得改占空比编排（ISR 仍采样+软件保护）。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 detect_active
+ */
 bool Motor_Detect_IsActive(void)
 {
     return detect_active;
 }
 
+/**
+ * @description: 主机测试替身：查询 BLDC 是否占用主 PWM 出口。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 bldc_selected
+ */
 bool Motor_Bldc_IsSelected(void)
 {
     return bldc_selected;
 }
 
+/**
+ * @description: 主机测试替身：从最新有效 Flash 槽加载电机配置与校准。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} m 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 bool FlashStorage_Load(MOTOR_PARAM_S *m)
 {
     (void)m;
     return false;
 }
 
+/**
+ * @description: 主机测试替身：把配置/校准保存到当前未使用的一侧槽。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {const MOTOR_PARAM_S *} m 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 true
+ */
 bool FlashStorage_Save(const MOTOR_PARAM_S *m)
 {
     (void)m;
@@ -43,34 +71,70 @@ bool FlashStorage_Save(const MOTOR_PARAM_S *m)
     return true;
 }
 
+/**
+ * @description: 主机测试替身：上电初始化默认单实例速度环，并向保护模块登记无效反馈
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Motor_Speed_Init(void)
 {
 }
 
+/**
+ * @description: 主机测试替身：上电初始化默认单实例观测器。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Motor_Sensorless_Init(void)
 {
 }
 
+/**
+ * @description: 主机测试替身：清除默认实例速度 PI 状态
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Motor_SpeedLoop_Reset(void)
 {
     ++speed_reset_calls;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例实测机械转速
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 123.0f
+ */
 float Motor_SpeedLoop_GetMeasuredRpm(void)
 {
     return 123.0f;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例当前 Iq 目标
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 0.45f
+ */
 float Motor_SpeedLoop_GetIqTarget(void)
 {
     return 0.45f;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例速度误差
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 -7.0f
+ */
 float Motor_SpeedLoop_GetError(void)
 {
     return -7.0f;
 }
 
+/**
+ * @description: 主机测试替身：读取最近一次速度 PI 使用的同一帧目标、反馈、误差和 Iq。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {motor_speed_snapshot_t *} snapshot snapshot 参数
+ * @return {bool} 本实现固定返回 true
+ */
 bool Motor_SpeedLoop_GetSnapshot(motor_speed_snapshot_t *snapshot)
 {
     snapshot->target_rpm = 100.0f;
@@ -80,21 +144,41 @@ bool Motor_SpeedLoop_GetSnapshot(motor_speed_snapshot_t *snapshot)
     return true;
 }
 
+/**
+ * @description: 主机测试替身：查询开环对齐是否仍在进行。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 本实现固定返回 false
+ */
 bool Motor_OpenLoop_IsAligning(void)
 {
     return false;
 }
 
+/**
+ * @description: 主机测试替身：读取当前对齐已用时间。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 本实现固定返回 0.0f
+ */
 float Motor_OpenLoop_GetAlignElapsed(void)
 {
     return 0.0f;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例当前故障码。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {mc_fault_code} 测试记录值 FAULT_CODE_NONE
+ */
 mc_fault_code Motor_Protect_GetFault(void)
 {
     return FAULT_CODE_NONE;
 }
 
+/**
+ * @description: 主机测试替身：查询默认实例是否已锁存故障。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 本实现固定返回 false
+ */
 bool Motor_Protect_IsFaultLatched(void)
 {
     return false;
@@ -104,31 +188,65 @@ static int pwm_start_calls;
 static int pwm_safe_calls;
 static int pwm_stop_calls;
 
+/**
+ * @description: 主机测试替身：启动三相 PWM 输出（模式已配置，不改占空比）。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Hal_Motor_PwmStart(void)
 {
     ++pwm_start_calls;
 }
 
+/**
+ * @description: 主机测试替身：输出三相中点占空比并提交（各 period/2）。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Hal_Motor_PwmSetSafe(void)
 {
     ++pwm_safe_calls;
 }
 
+/**
+ * @description: 主机测试替身：停止三相 PWM 输出（关主通道/互补通道，具体由板级 BSP）。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Hal_Motor_PwmStop(void)
 {
     ++pwm_stop_calls;
 }
 
+/**
+ * @description: 主机测试替身：默认单实例设置来源
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {motor_feedback_source_t} source 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 void Motor_Feedback_SetSourceDefault(motor_feedback_source_t source)
 {
     (void)source;
 }
 
+/**
+ * @description: 主机测试替身：读取默认单实例请求的反馈来源
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {motor_feedback_source_t} 测试记录值 MOTOR_FEEDBACK_SRC_SENSORLESS
+ */
 motor_feedback_source_t Motor_Feedback_GetSourceDefault(void)
 {
     return MOTOR_FEEDBACK_SRC_SENSORLESS;
 }
 
+/**
+ * @description: 主机测试替身：默认单实例采样
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {const MOTOR_PARAM_S *} m 兼容参数，本实现不使用
+ * @param {float} open_loop_theta open_loop_theta 参数
+ * @param {motor_feedback_sample_t *} out 输出缓冲或结果
+ * @return {void} 无
+ */
 void Motor_Feedback_SampleDefault(const MOTOR_PARAM_S *m, float open_loop_theta, motor_feedback_sample_t *out)
 {
     (void)m;
@@ -138,10 +256,19 @@ void Motor_Feedback_SampleDefault(const MOTOR_PARAM_S *m, float open_loop_theta,
     out->used_source = MOTOR_FEEDBACK_SRC_SENSORLESS;
 }
 
+/**
+ * @description: 主机测试替身：默认实例复位
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Motor_Hall_AngleResetDefault(void)
 {
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_command_t cmd;

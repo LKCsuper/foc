@@ -10,8 +10,10 @@
 extern "C" {
 #endif
 
+/* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 
+/* Private typedef -----------------------------------------------------------*/
 /**
  * @description: 位置串级控制配置（不持久化，由调用者每拍传入）
  */
@@ -58,6 +60,7 @@ typedef struct {
     float output_v;   /* 速度 PI 电压 (V)，已限幅 */
 } motor_position_control_output_t;
 
+/* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 按配置检查并清零位置控制状态。
  * @detail: 不访问硬件。配置含非有限值或增益、限幅不满足符号要求时失败，且不改 control。

@@ -1,3 +1,5 @@
+/* 参数设置编解码主机测试：校验、状态隔离与运行中配置约束 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -9,6 +11,13 @@ static int save_calls;
 static int load_mode;
 static motor_settings_t saved;
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 主机测试替身：从最新有效 Flash 槽加载电机配置与校准。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} m 电机实例
+ * @return {bool} true=加载成功；false=无有效槽，调用方应使用默认参数
+ */
 bool FlashStorage_Load(MOTOR_PARAM_S *m)
 {
     if (load_mode) {
@@ -16,19 +25,39 @@ bool FlashStorage_Load(MOTOR_PARAM_S *m)
     }
     return false;
 }
+/**
+ * @description: 主机测试替身：把配置/校准保存到当前未使用的一侧槽。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {const MOTOR_PARAM_S *} m 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 true
+ */
 bool FlashStorage_Save(const MOTOR_PARAM_S *m)
 {
     (void)m;
     ++save_calls;
     return true;
 }
+/**
+ * @description: 主机测试替身：上电初始化默认单实例速度环，并向保护模块登记无效反馈
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Motor_Speed_Init(void)
 {
 }
+/**
+ * @description: 主机测试替身：上电初始化默认单实例观测器。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Motor_Sensorless_Init(void)
 {
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_settings_t settings, decoded, before;

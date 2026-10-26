@@ -20,6 +20,7 @@ extern "C" {
 /* Private typedef -----------------------------------------------------------*/
 #include "motor_encoder_core.h"
 
+/* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 初始化编码器运行时（不访问硬件）
  * @detail: 清零点与速度历史；counts_per_rev 为 0 时按 1 处理
@@ -30,12 +31,19 @@ extern "C" {
  * @author: lkc
  */
 #if MOTOR_CFG_ENCODER
+/**
+ * @description:  项目兼容初始化；独立复用请使用InitState显式传入配置。
+ * @param {motor_encoder_runtime_t *} rt 实例运行状态
+ * @param {uint32_t} counts_per_rev 每机械圈计数
+ * @param {bool} inverted true=方向取反
+ * @return {void} 无
+ */
 void Motor_Encoder_RuntimeInit(motor_encoder_runtime_t *rt, uint32_t counts_per_rev, bool inverted);
 
 /**
  * @description: 初始化 AB 编码器硬件与默认运行时实例
  * @detail: 调用 Hal_Encoder_Init，按硬件每圈计数 RuntimeInit，并将计数清零
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_Init(void);
@@ -50,7 +58,7 @@ uint16_t Motor_Encoder_GetCount(void);
 /**
  * @description: 硬件计数清零，并清除默认实例的电角偏置与速度历史
  * @detail: 清零不等于已完成电角零点标定（zero_valid 会被清掉）
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_Reset(void);
@@ -58,7 +66,7 @@ void Motor_Encoder_Reset(void);
 /**
  * @description: 用 HAL 当前计数与采样间隔更新默认实例转速
  * @param {float} dt_s  控制/采样周期 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_Update(float dt_s);
@@ -237,27 +245,100 @@ bool Motor_Encoder_DetectGetTargets(float *theta_rad, float *id_target, float *i
  * @param {float} offset_rad  电角零点 (rad)；valid 为 false 时忽略
  * @param {bool} inverted     true=机械正方向与计数方向相反
  * @param {bool} valid        true=零点可用
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_ApplyCalibration(float offset_rad, bool inverted, bool valid);
 #else
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Encoder_Init(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {uint16_t} 本实现固定返回 0U
+ */
 static inline uint16_t Motor_Encoder_GetCount(void) { return 0U; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float} dt_s 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Encoder_Update(float dt_s) { (void)dt_s; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float} dt_s 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Encoder_UpdateReference(float dt_s) { (void)dt_s; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {float} 本实现固定返回 0.0f
+ */
 static inline float Motor_Encoder_GetMechAngle(void) { return 0.0f; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {float} 本实现固定返回 0.0f
+ */
 static inline float Motor_Encoder_GetElecAngle(void) { return 0.0f; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {float} 本实现固定返回 0.0f
+ */
 static inline float Motor_Encoder_GetMechRpm(void) { return 0.0f; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {float} 本实现固定返回 0.0f
+ */
 static inline float Motor_Encoder_GetRawMechRpm(void) { return 0.0f; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {float} 本实现固定返回 0.0f
+ */
 static inline float Motor_Encoder_GetSampleAge(void) { return 0.0f; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {uint32_t} 本实现固定返回 0U
+ */
 static inline uint32_t Motor_Encoder_GetSampleTimeUs(void) { return 0U; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 true
+ */
 static inline bool Motor_Encoder_IsSignalFault(void) { return true; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {uint32_t} 本实现固定返回 0U
+ */
 static inline uint32_t Motor_Encoder_GetAccumulatedCount(void) { return 0U; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Encoder_IsSpeedValid(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Encoder_IsZeroValid(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Encoder_IsCompareEnabled(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Encoder_DetectIsActive(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float *} theta_rad 兼容参数，本实现不使用
+ * @param {float *} id_target 兼容参数，本实现不使用
+ * @param {float *} iq_target 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Encoder_DetectGetTargets(float *theta_rad, float *id_target, float *iq_target)
 {
     (void)theta_rad;
@@ -265,6 +346,13 @@ static inline bool Motor_Encoder_DetectGetTargets(float *theta_rad, float *id_ta
     (void)iq_target;
     return false;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float} offset_rad 兼容参数，本实现不使用
+ * @param {bool} inverted 兼容参数，本实现不使用
+ * @param {bool} valid 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Encoder_ApplyCalibration(float offset_rad, bool inverted, bool valid)
 {
     (void)offset_rad;

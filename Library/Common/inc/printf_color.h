@@ -1,7 +1,10 @@
+/* 终端彩色日志打印宏（ANSI 转义序列颜色与格式控制） */
 #ifndef _PRINTF_COLOR_H
 #define _PRINTF_COLOR_H
 
+/* Includes ------------------------------------------------------------------*/
 #include "stdio.h"
+/* Private define ------------------------------------------------------------*/
 #define PRINTF_COLOR            1 //颜色日志输出模式（显示终端需要支持）
 #if PRINTF_COLOR
 /* 字体颜色 */
@@ -36,6 +39,7 @@
 #define WHITE_BACKGROUND                47
 
 /* dis_mode:显示模式 fwd_clor:前景色 bak_clor:背景色 */
+/* Private macro -------------------------------------------------------------*/
 #define COLR_SET(dis_mode, fwd_clor, bak_clor) {\
     printf("\033[%d;%d;%dm",dis_mode, fwd_clor, bak_clor);\
 }

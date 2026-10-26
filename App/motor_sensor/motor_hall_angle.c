@@ -96,6 +96,11 @@ static bool Motor_Hall_NeighborHalfWidths(const int8_t *table, float sector_cent
  * @description: 在当前霍尔扇区内按滤波速度推进电角度
  * @detail: 标定表保存扇区中心。进入扇区时从与上一表项的实际边界起步，并限制不超过下一表项边界。
  *          低于 MOTOR_HALL_INTERP_START_RPM 保持中心，避免低速 60° 锁偏。
+ * @param {motor_hall_angle_t *} st 实例状态，不可为空
+ * @param {const int8_t *} table 八项霍尔电角编码表
+ * @param {float} sector_center 当前扇区中心电角度 (rad)
+ * @param {float} pole_pairs 极对数
+ * @return {void} 无
  */
 static void Motor_Hall_InterpolateTheta(motor_hall_angle_t *st, const int8_t *table, float sector_center,
                                         float pole_pairs)
@@ -204,6 +209,10 @@ static void Motor_Hall_PllReset(motor_hall_angle_t *st)
  * @description: ODrive 式临界阻尼 PLL，把霍尔扇区计数变成连续机械转速
  * @detail: kp=2·bw，ki=0.25·kp²。Hall cpr=6，bw 远低于编码器默认 1000，否则 72 RPM 会打齿。
  *          时基异常（dt·kp≥1）时钉在扇区中心并清速度。
+ * @param {motor_hall_angle_t *} st 实例状态
+ * @param {float} pole_pairs 极对数
+ * @param {float} dt_s 本次推进时间间隔 (s)
+ * @return {void} 无
  */
 static void Motor_Hall_PllRun(motor_hall_angle_t *st, float pole_pairs, float dt_s)
 {
@@ -353,7 +362,7 @@ bool Motor_Hall_DecodeAngle(const int8_t *table, int hall_state, float *theta_ra
 /**
  * @description: 复位霍尔角度运行时
  * @param {motor_hall_angle_t} *st  状态
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_AngleReset(motor_hall_angle_t *st)
@@ -388,7 +397,7 @@ void Motor_Hall_AngleReset(motor_hall_angle_t *st)
  * @param {int} hall_state          当前霍尔 0..7
  * @param {float} pole_pairs        极对数（电转速→机械转速）
  * @param {float} dt_s              本拍时间 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hall_state, float pole_pairs,
@@ -505,7 +514,7 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
 
 /**
  * @description: 默认实例复位
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_AngleResetDefault(void)
@@ -519,7 +528,7 @@ void Motor_Hall_AngleResetDefault(void)
  * @param {int} hall_state       当前霍尔
  * @param {float} pole_pairs     极对数
  * @param {float} dt_s           本拍时间 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_AngleUpdateDefault(const int8_t *table, int hall_state, float pole_pairs, float dt_s)

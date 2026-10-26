@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: BLDC 模式 ADC 板级接口（暂为空）
  * @Version: 1.0
  * @Author: lkc
  * @Date: 2023-10-04 16:27:02

@@ -1,18 +1,18 @@
 /*
- * @Description: 定时器初始化 
+ * @Description: 定时器初始化
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
  * @LastEditTime: 2023-09-30 20:36:17
  * @detail: 逻辑分析仪 死区时间350ns左右 一个周期66.6us 15khz
- * 
- * 
- * 
+ *
+ *
+ *
  * 	TIM_Period 重载值 TIM_Prescaler 预分频值
- * 
- * 
- * 
+ *
+ *
+ *
  */
 #ifdef __cplusplus
 extern "C" {
@@ -30,7 +30,6 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 定时器1 时基初始化（高级定时器，用于电机PWM输出）
- * @detail:
  *   - 对齐方式：中央对齐模式1（CenterAligned1），计数器先向上计数到ARR，再向下计数到0
  *   - PWM频率：f_pwm = SYSTEM_CORE_CLOCK / (2 * TIM_Period)，TIM_Period = SYSTEM_CORE_CLOCK / f_zv
  *     因此 f_pwm = f_zv / 2，传入 f_zv 为期望 PWM 中心频率的 2 倍
@@ -71,7 +70,6 @@ STATIC VOID Bsp_Tim1_Base(ULONG f_zv)
 
 /**
  * @description: 定时器1 输出比较通道初始化（PWM输出配置）
- * @detail:
  *   - PWM模式：PWM1，CNT < CCR 时输出有效电平，CNT >= CCR 时输出无效电平
  *   - 同时使能主输出和互补输出，用于驱动三相半桥（上桥臂 + 下桥臂）
  *   - 初始占空比 50%（Pulse = ARR / 2），上电默认半占空比，避免瞬间电流冲击
@@ -139,7 +137,6 @@ STATIC VOID Bsp_Tim1_OC(VOID)
 
 /**
  * @description: 定时器1 刹车/死区/锁定寄存器配置（高级定时器保护功能）
- * @detail:
  *   本函数配置 TIM1 的 BDTR 寄存器，包含高级定时器特有的保护与安全功能：
  *   1. 死区插入（Dead-Time）：在上下桥臂切换之间插入延迟，防止半桥直通（shoot-through）
  *      死区时间通过 calculate_deadtime() 根据系统时钟和 HW_DEAD_TIME_NSEC 宏计算
@@ -200,7 +197,6 @@ VOID Bsp_Tim1_BDTR(VOID)
 
 /**
  * @description: 定时器1 PWM 初始化（电机1 主PWM输出）
- * @detail:
  *   本函数是电机1 PWM 输出的顶层初始化入口，完成 TIM1 全部配置并启动：
  *   1. 调用 Bsp_Tim1_Base() → 时基初始化（中央对齐、PWM频率 = f_zv/2）
  *   2. 调用 Bsp_Tim1_OC()  → 输出比较通道初始化（互补PWM、占空比50%、极性适配）
@@ -247,7 +243,6 @@ STATIC VOID Bsp_Tim_Pwm1(ULONG f_zv)
 
 /**
  * @description: 停止 PWM 输出（安全关断三相桥臂）
- * @detail:
  *   将指定电机的三相 PWM 输出强制设为无效电平（MOS 全关），用于：
  *   - 初始化阶段：上电后先将所有 MOS 管关闭，等待 FOC 算法就绪
  *   - 紧急停机：检测到故障时快速切断电机驱动
@@ -333,7 +328,6 @@ VOID Bsp_Tim_StopPwm(BOOL is_second)
 
 /**
  * @description: 启动 PWM 输出（从强制无效电平恢复为正常 PWM 模式）
- * @detail:
  *   StopPwm 的反操作，将三相通道从强制无效电平切换回 PWM1 模式，使能互补输出。
  *   调用时机：FOC 算法完成初始化、占空比计算就绪后，调用此函数开始驱动电机。
  *
@@ -432,7 +426,6 @@ VOID Bsp_Tim_StartPwm(BOOL is_second)
 
 /**
  * @description: 定时器8 PWM 初始化（电机2 主PWM输出）
- * @detail:
  *   电机2 的 PWM 初始化，使用 TIM8（高级定时器），配置与 TIM1（电机1）相同的三步骤：
  *   - 时基初始化：中央对齐模式1，PWM频率 = f_zv / 2
  *   - 输出比较通道：互补PWM、四通道、50%初始占空比、预装载使能
@@ -552,8 +545,7 @@ VOID Bsp_Tim_Pwm2(ULONG f_zv)
 
 /**
  * @description: 定时器base
- * @detail: 
- * @return {*}
+ * @return {STATIC VOID} 本次计算或查询的结果
  * @author: lkc
  */
 STATIC VOID Bsp_Tim2_Base(VOID)
@@ -577,8 +569,7 @@ STATIC VOID Bsp_Tim2_Base(VOID)
 
 /**
  * @description: 定时器2 输出捕获
- * @detail: 
- * @return {*}
+ * @return {STATIC VOID} 本次计算或查询的结果
  * @author: lkc
  */
 STATIC VOID Bsp_Tim2_OC(VOID)
@@ -605,8 +596,7 @@ STATIC VOID Bsp_Tim2_OC(VOID)
 
 /**
  * @description: 定时器2中断初始化
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Tim2_NVIC(VOID)
@@ -628,8 +618,7 @@ VOID Bsp_Tim2_NVIC(VOID)
 
 /**
  * @description: 定时器2输出pwm
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Tim2_Pwm(VOID)
@@ -651,8 +640,7 @@ VOID Bsp_Tim2_Pwm(VOID)
 
 /**
  * @description: 触发adc
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Tim1_TrigAdc(VOID)
@@ -664,10 +652,11 @@ VOID Bsp_Tim1_TrigAdc(VOID)
 }
 
 /**
+ * @description: 配置定时器1 触发方式（触发 TIM2 采样时基）
  * @Description: 定时器触发方式
  * @author: lkc
  * @Date: 2023-02-19 10:07:08
- * @return {*}
+ * @return {void} 无
  */
 VOID Bsp_Tim1_Trig(VOID)
 {
@@ -699,6 +688,10 @@ VOID Bsp_Tim1_Trig(VOID)
 }
 
 
+/**
+ * @description: 定时器3 时基初始化（FreeRTOS 运行时间统计计数）
+ * @return {void} 无
+ */
 VOID Bsp_Tim3_Base(VOID)
 {
 	TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
@@ -716,6 +709,10 @@ VOID Bsp_Tim3_Base(VOID)
 	return;
 }
 
+/**
+ * @description: 定时器3 更新中断 NVIC 配置
+ * @return {void} 无
+ */
 VOID Bsp_Tim3_Nvic(VOID)
 {
 	NVIC_InitTypeDef NVIC_InitStre;
@@ -733,8 +730,7 @@ VOID Bsp_Tim3_Nvic(VOID)
 
 /**
  * @description: 定时器统计cpu运行时间
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Tim_RunCount(VOID)
@@ -748,7 +744,6 @@ VOID Bsp_Tim_RunCount(VOID)
 #define TIMER_DT_HZ					BSP_TIM_DT_HZ
 /**
  * @description: 微秒级自由运行时基（TIM5），电机控制通用，非 Hall 专用
- * @detail:
  *   TIM5 32 位向上计数，供 ISR 耗时、采样时标、速度环 dt、命令时间戳共用：
  *   - 定时器时钟：APB1 定时器时钟 = SYSTEM_CORE_CLOCK / 2 = 84 MHz
  *   - 预分频器：84-1 → 计数频率 = 1 MHz（与 BSP_TIM_DT_HZ 一致，1 tick = 1 us）
@@ -807,8 +802,8 @@ float Bsp_Tim_DtSecondElapsedSince(ULONG time)
 
 /**
  * @description: 编码器定时器初始化
- * @detail:  ab脉冲 
- * @return {*}
+ * @detail:  ab脉冲
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Tim4_EncInit(VOID)
@@ -860,7 +855,7 @@ uint16_t Bsp_Tim4_EncGetCount(void)
 /**
  * @description: 设置 AB 编码器计数值
  * @param {uint16_t} count 目标计数
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Bsp_Tim4_EncSetCount(uint16_t count)
@@ -870,8 +865,7 @@ void Bsp_Tim4_EncSetCount(uint16_t count)
 
 /**
  * @description: 定时器霍尔
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Tim3_Hall()
@@ -882,8 +876,7 @@ VOID Bsp_Tim3_Hall()
 
 /**
  * @description: 定时器初始化
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Tim_Init(VOID)

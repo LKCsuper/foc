@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: 时钟与系统基础初始化（PLL 时钟树 / SysTick / 复位）
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
@@ -20,14 +20,15 @@ extern uint32_t SystemCoreClock;
 /* Private functions ---------------------------------------------------------*/
 
 /**
+ * @description: 时钟初始化（HSE 晶振 + PLL）
  * @Description: 时钟初始化
  * @author: lkc
  * @Date: 2023-02-18 10:11:54
- * @param {u32} ulPllm
- * @param {u32} ulPlln
- * @param {u32} ulPllp
- * @param {u32} ulPllq
- * @return {*}
+ * @param {u32} ulPllm PLL 输入分频系数 M
+ * @param {u32} ulPlln PLL 倍频系数 N
+ * @param {u32} ulPllp PLL 主时钟分频系数 P
+ * @param {u32} ulPllq PLL 48 MHz 域分频系数 Q
+ * @return {void} 无
  */
 VOID Bsp_Rcu_Init(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq)
 {
@@ -57,14 +58,13 @@ VOID Bsp_Rcu_Init(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq)
 
 /**
  * @description: systick初始化
- * @detail: 
- * @param {int} ulFzv
- * @return {*}
+ * @param {int} ulFzv 系统节拍频率 (Hz)，作为 SystemCoreClock 的除数
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Sys_Init(ULONG ulFzv)
 {
-	/* 	中断初始化 
+	/* 	中断初始化
 		优先级分组4,4位抢占优先级,4位响应优先级
 		向量表偏移量设置为0x0,中断向量表在flash中
 		配置系统滴答定时器,每1ms中断一次
@@ -85,12 +85,11 @@ VOID Bsp_Sys_Init(ULONG ulFzv)
 
 /**
  * @description: hse设置
- * @detail: 
- * @param {uint32_t} m
- * @param {uint32_t} n
- * @param {uint32_t} p
- * @param {uint32_t} q
- * @return {*}
+ * @param {ULONG} ulPllm PLL 输入分频因子 M
+ * @param {ULONG} ulPlln PLL 倍频因子 N
+ * @param {ULONG} ulPllp 系统时钟分频因子 P
+ * @param {ULONG} ulPllq 外设时钟分频因子 Q
+ * @return {void} 无
  * @author: lkc
  */
 VOID HSE_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq)
@@ -145,12 +144,11 @@ VOID HSE_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq)
 
 /**
  * @description: hsi设置
- * @detail: 
- * @param {uint32_t} m
- * @param {uint32_t} n
- * @param {uint32_t} p
- * @param {uint32_t} q
- * @return {*}
+ * @param {ULONG} ulPllm PLL 输入分频因子 M
+ * @param {ULONG} ulPlln PLL 倍频因子 N
+ * @param {ULONG} ulPllp 系统时钟分频因子 P
+ * @param {ULONG} ulPllq 外设时钟分频因子 Q
+ * @return {void} 无
  * @author: lkc
  */
 VOID HSI_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq)
@@ -208,8 +206,7 @@ VOID HSI_SetSysClock(ULONG ulPllm, ULONG ulPlln, ULONG ulPllp, ULONG ulPllq)
 
 /**
  * @description: 重启设备
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Misc_Reset(VOID)

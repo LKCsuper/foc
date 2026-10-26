@@ -1,7 +1,13 @@
+/* 速度前馈拟合主机测试：V/RPM 斜率与截距，拒绝饱和数据 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include "motor_speed_ff_detect.h"
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_speed_ff_fit_t fit;

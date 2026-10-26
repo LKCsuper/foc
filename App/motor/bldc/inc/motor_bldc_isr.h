@@ -4,10 +4,12 @@
  */
 #ifndef MOTOR_BLDC_ISR_H
 #define MOTOR_BLDC_ISR_H
+/* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include "motor_bldc_sensorless.h"
 #include "motor_param.h"
 
+/* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 执行一拍 BLDC 采样、保护和 BEMF 换相处理。
  * @detail: 在 ADC-DMA 中断调用，不阻塞。保护检查每一帧；BEMF 只消费 sample_upward 选定的 PWM 半周期。

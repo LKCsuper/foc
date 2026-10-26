@@ -59,6 +59,7 @@ float utils_fast_atan2(float y, float x);
  */
 uint32_t utils_crc32c(uint8_t *data, uint32_t len);
 
+/* Private macro -------------------------------------------------------------*/
 /* ========================================================================
  * 基础运算宏
  * ======================================================================== */
@@ -130,6 +131,7 @@ uint32_t utils_crc32c(uint8_t *data, uint32_t len);
 #define UTILS_LP_MOVING_AVG_APPROX(value, sample, N) \
 	UTILS_LP_FAST(value, sample, 2.0f / ((N) + 1.0f))
 
+/* Private define ------------------------------------------------------------*/
 /* ========================================================================
  * 数学常量
  * ======================================================================== */
@@ -147,6 +149,7 @@ uint32_t utils_crc32c(uint8_t *data, uint32_t len);
 #define SIN_MINUS_30_DEG		(-0.5f)            /* sin(-30°) */
 #define ONE_BY_SQRT2			(0.7071067811865475f) /* 1/√2 */
 
+/* Private functions ---------------------------------------------------------*/
 /* ========================================================================
  * 内联工具函数
  * ======================================================================== */
@@ -156,7 +159,7 @@ uint32_t utils_crc32c(uint8_t *data, uint32_t len);
  * @param {float} *value  当前值（就地修改）
  * @param {float} goal    目标值
  * @param {float} step    每拍最大步长（非负）
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static inline void utils_step_towards(float *value, float goal, float step) {
@@ -178,7 +181,7 @@ static inline void utils_step_towards(float *value, float goal, float step) {
 /**
  * @description: 角度归一化到 [0°, 360°) 范围。
  * @param {float} *angle  角度 (deg)，就地修改
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static inline void utils_norm_angle(float *angle) {
@@ -192,7 +195,7 @@ static inline void utils_norm_angle(float *angle) {
 /**
  * @description: 角度归一化到 [-π, π) 范围（弧度）。
  * @param {float} *angle  角度 (rad)，就地修改
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static inline void utils_norm_angle_rad(float *angle) {
@@ -217,7 +220,7 @@ static inline float utils_mech_to_electrical_angle(float mechAngle, int polePair
  * @param {float} *number  输入输出值
  * @param {float} min      下限
  * @param {float} max      上限
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static inline void utils_truncate_number(float *number, float min, float max) {
@@ -233,7 +236,7 @@ static inline void utils_truncate_number(float *number, float min, float max) {
  * @param {int} *number  输入输出值
  * @param {int} min      下限
  * @param {int} max      上限
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static inline void utils_truncate_number_int(int *number, int min, int max) {
@@ -248,7 +251,7 @@ static inline void utils_truncate_number_int(int *number, int min, int max) {
  * @description: 将 float 数值对称钳位到 [-max, max] 区间。
  * @param {float} *number  输入输出值
  * @param {float} max      绝对值上限
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static inline void utils_truncate_number_abs(float *number, float max) {

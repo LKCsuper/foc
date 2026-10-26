@@ -1,3 +1,4 @@
+/* 关节协议：CRC32、命令解码/状态编码的帧结构与位序。 */
 #include <assert.h>
 #include <math.h>
 #include <stdint.h>
@@ -5,12 +6,24 @@
 #include <string.h>
 #include "motor_joint_protocol.h"
 
+/**
+ * @description: 将 16 位测试字段写入字节缓冲区。
+ * @param {uint8_t *} p p 参数
+ * @param {uint16_t} value 待处理值
+ * @return {void} 无
+ */
 static void write_u16(uint8_t *p, uint16_t value)
 {
     p[0] = (uint8_t)(value >> 8);
     p[1] = (uint8_t)value;
 }
 
+/**
+ * @description: 将 32 位测试字段写入字节缓冲区。
+ * @param {uint8_t *} p p 参数
+ * @param {uint32_t} value 待处理值
+ * @return {void} 无
+ */
 static void write_u32(uint8_t *p, uint32_t value)
 {
     p[0] = (uint8_t)(value >> 24);
@@ -19,6 +32,10 @@ static void write_u32(uint8_t *p, uint32_t value)
     p[3] = (uint8_t)value;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     static const uint8_t check[] = "123456789";

@@ -54,7 +54,7 @@ extern "C" {
  * @param {float} Ic  C 相电流 (A)
  * @param {float} *Ialpha  输出 α 轴电流 (A)
  * @param {float} *Ibeta   输出 β 轴电流 (A)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta);
@@ -66,7 +66,7 @@ void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
  * @param {float} Theta   电角度 (rad)
  * @param {float} *Id     输出 d 轴电流 (A)
  * @param {float} *Iq     输出 q 轴电流 (A)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq);
@@ -92,7 +92,7 @@ void park_transform_sincos(float Ialpha, float Ibeta, float sine, float cosine, 
  * @param {float} Theta      电角度 (rad)
  * @param {float} *mod_alpha 输出 α 轴分量
  * @param {float} *mod_beta  输出 β 轴分量
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float *mod_beta);
@@ -118,7 +118,7 @@ void inverse_park_sincos(float mod_d, float mod_q, float sine, float cosine, flo
  * @param {float} *Ia     输出 A 相电压 (V)
  * @param {float} *Ib     输出 B 相电压 (V)
  * @param {float} *Ic     输出 C 相电压 (V)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void inverse_clarke(float Ialpha, float Ibeta, float *Ia, float *Ib, float *Ic);
@@ -144,7 +144,7 @@ int svm(float alpha, float beta, float* tA, float* tB, float* tC);
  * @param {uint32_t} *tBout           输出 B 相比较值
  * @param {uint32_t} *tCout           输出 C 相比较值
  * @param {uint32_t} *svm_sector      输出 SVPWM 扇区号
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
@@ -163,7 +163,7 @@ void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
  * @param {uint32_t} *tBout B 相 CCR
  * @param {uint32_t} *tCout C 相 CCR
  * @param {uint32_t} *svm_sector SVPWM 扇区号 (1~6)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void foc_svm_from_voltage(float v_alpha, float v_beta, float v_bus, float max_duty, uint32_t period,
@@ -179,7 +179,7 @@ void foc_svm_from_voltage(float v_alpha, float v_beta, float v_bus, float max_du
  * @param {uint32_t} *pTcmp2  输出 V 相比较值
  * @param {uint32_t} *pTcmp3  输出 W 相比较值
  * @param {uint32_t} *pSector 输出 SVPWM 扇区号
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void svm_hqd(float Valpha, float Vbeta, float Udc, uint32_t Tpwm, uint32_t *pTcmp1, uint32_t *pTcmp2, uint32_t *pTcmp3, uint32_t *pSector);

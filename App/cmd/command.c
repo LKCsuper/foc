@@ -263,7 +263,7 @@ static uint8_t  s_cmd_escape_state;
  * @description: 把上电以来的时基格式化为 `[T+秒.毫秒s]`。
  * @param {char *} buf 输出缓冲，不可为空
  * @param {unsigned} buf_size 缓冲字节数
- * @return {*}
+ * @return {void} 无
  */
 void Cmd_FormatUptime(char *buf, unsigned buf_size)
 {

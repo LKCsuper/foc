@@ -28,8 +28,7 @@ const osThreadAttr_t taskInitAttr = {
 
 /**
  * @description: 打印电机参数
- * @detail:
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void MOTOR_Param_Print(void)
@@ -52,9 +51,8 @@ void MOTOR_Param_Print(void)
 
 /**
  * @description: 任务初始化
- * @detail:
- * @param {void} *argument
- * @return {*}
+ * @param {void} *argument 任务入口参数；当前初始化任务不使用
+ * @return {void} 无
  * @author: lkc
  */
 void Task_Init(void *argument)
@@ -72,8 +70,7 @@ void Task_Init(void *argument)
 
 /**
  * @description: 主函数
- * @detail:
- * @return {*}
+ * @return {LONG} 程序退出状态；正常主循环通常不返回
  * @author: lkc
  */
 LONG main(VOID)

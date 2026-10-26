@@ -2,12 +2,14 @@
 #ifndef MOTOR_SENSOR_H
 #define MOTOR_SENSOR_H
 
+/* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 初始化编码器、恢复电角校准，并按电机型号设置默认反馈源。
  * @detail: 在 Bsp_Init、MOTOR_Param_Init 后且控制任务启动前调用。

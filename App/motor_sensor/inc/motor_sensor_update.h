@@ -8,9 +8,11 @@
 extern "C" {
 #endif
 
+/* Includes ------------------------------------------------------------------*/
 #include "motor_feedback.h"
 #include "motor_param.h"
 
+/* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 按当前反馈源更新编码器或霍尔运行状态。
  * @detail: 在 FOC 控制拍调用，不写 PWM。编码器失联时按现有条件请求故障。

@@ -1,3 +1,5 @@
+/* 电机保护主机测试：过流/欠压/失速/丢速判定与故障采样捕获 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -7,6 +9,11 @@
 #include "motor_types.h"
 extern unsigned protect_diagnostic_reads;
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 验证过流采样窗口。
+ * @return {void} 无
+ */
 static void test_overcurrent_sampling_window(void)
 {
     motor_protect_state_t state;
@@ -42,6 +49,10 @@ static void test_overcurrent_sampling_window(void)
     assert(fabsf(snapshot.current_peak - 11.187f) < 1.0e-5f);
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_protect_state_t a;

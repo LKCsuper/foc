@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: Boot 应用集成总头，仅供启动程序使用。
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-28 19:28:49

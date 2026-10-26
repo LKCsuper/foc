@@ -44,6 +44,8 @@ static bool Duty_AllowManualPwm(void)
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 占空比循环翻转任务（调试用，非 FOC 主路径）。
+ * @param {VOID *} argument 兼容参数，本实现不使用
+ * @return {void} 无
  * @author: lkc
  */
 VOID Duty_ControlTask(VOID *argument)
@@ -81,6 +83,9 @@ VOID Duty_ControlTask(VOID *argument)
  *   duty set <pct>    设置占空比百分比
  *   duty start        启动 PWM
  *   duty stop         停止 PWM
+ * @param {int} argc 命令参数个数
+ * @param {char *[]} argv 命令参数字符串数组
+ * @return {int} 本次计算或查询的结果
  * @author: lkc
  */
 int Cmd_Motor_Duty(int argc, char *argv[])

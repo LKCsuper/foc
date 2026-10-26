@@ -1,9 +1,13 @@
+/* SVM 电压重建：三相平均电压方程核对真实调制，16/24 V 母线全角扫描。 */
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include "motor_foc.h"
 
-/* 独立三相平均电压方程核对真实调制实现，不使用输出函数桩。 */
+/**
+ * @description: 独立三相平均电压方程核对真实调制实现，不使用输出函数桩。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     unsigned k;

@@ -1,3 +1,4 @@
+/* BLDC 模式 ADC DMA 初始化（DMA2 Stream4） */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -9,7 +10,11 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-VOID Bsp_Dma_Bldc_Init(vCoRoutineAddToDelayedList)
+/**
+ * @description: BLDC 模式 ADC DMA 初始化（DMA2 Stream4 循环搬运 ADC 转换结果）
+ * @return {void} 无
+ */
+VOID Bsp_Dma_Bldc_Init(VOID)
 {
     DMA_InitTypeDef DMA_InitStructure;
 

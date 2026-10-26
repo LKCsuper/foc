@@ -1409,6 +1409,11 @@
           <GroupName>Motor_Sensor</GroupName>
           <Files>
             <File>
+              <FileName>motor_hall_calibration.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\motor_sensor\motor_hall_calibration.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_hall.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\motor_sensor\motor_hall.c</FilePath>

@@ -1,10 +1,21 @@
+/* 基于 RL 模型的电流 PI 初值整定；纯计算，不驱动电机、不应用参数。 */
+/* Includes ------------------------------------------------------------------*/
 #include "motor_autotune.h"
 #include <math.h>
 #include <stddef.h>
 
+/* Private define ------------------------------------------------------------*/
 #define AUTOTUNE_PI (3.14159265358979323846f)
 #define AUTOTUNE_MAX_W_DT (0.2f)
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 按 Kp=L·ωc、Ki=R·ωc 生成 dq 电流 PI 候选初值。
+ * @detail: 纯计算，不驱动电机、不应用参数、不写 Flash；检查 ωc·dt≤0.2 与延时相位裕量预算。
+ * @param {const motor_autotune_config_t *} config 输入配置，不可为空
+ * @param {motor_autotune_result_t *} result 输出结果，不可为空
+ * @return {motor_autotune_status_t} 成功或具体拒绝原因
+ */
 motor_autotune_status_t Motor_Autotune_CurrentPi(const motor_autotune_config_t *config,
                                                motor_autotune_result_t *result)
 {

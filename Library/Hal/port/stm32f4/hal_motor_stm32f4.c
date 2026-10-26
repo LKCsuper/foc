@@ -21,12 +21,31 @@ extern "C" {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 static volatile uint16_t s_encoder_count;
+
+/**
+ * @description: 当前 STM32F4 基线：TIM1 = 168 MHz、PSC = 0。
+ * 与 ADC到PWM生效时序核对_2026-10-21 保持一致；更换时钟树时须同步移植契约。
+ * 此处只描述既有配置，不修改定时器或采样触发。
+ * @param {hal_motor_pwm_phase_t *} phase 输出，不可为空
+ * @return {void} 无
+ */
+void Hal_Motor_PwmPhaseCapture(hal_motor_pwm_phase_t *phase)
+{
+    uint32_t cr1;
+    COMMON_ASSERT(phase != NULL);
+    cr1 = TIM1->CR1;
+    phase->count = TIM1->CNT;
+    phase->period = TIM1->ARR;
+    phase->counts_per_us = 168U;
+    phase->counting_down = (cr1 & TIM_CR1_DIR) != 0U;
+}
+
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 启动三相 PWM 输出
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Motor_PwmStart(void)
@@ -36,7 +55,7 @@ void Hal_Motor_PwmStart(void)
 
 /**
  * @description: 停止三相 PWM 输出
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Motor_PwmStop(void)
@@ -47,7 +66,10 @@ void Hal_Motor_PwmStop(void)
 static bool s_irq_test_active;
 static uint32_t s_irq_test_idle;
 
-/** 返回三相主输出已强制无效且互补输出关闭的停机模式。 */
+/**
+ * @description: 返回三相主输出已强制无效且互补输出关闭的停机模式。
+ * @return {bool} true=寄存器读回符合强制无效、互补通道关闭及引脚复用条件；false=任一条件不满足
+ */
 static bool Hal_Motor_StoppedIrqTestPwmOff(void)
 {
     return (TIM1->CCMR1 & 0x7070U) == 0x4040U && (TIM1->CCMR2 & 0x70U) == 0x40U &&
@@ -132,14 +154,7 @@ bool Hal_Motor_StoppedIrqTestEnd(bool restore_gate)
     return valid;
 }
 
-/**
- * @description: 设置三相 PWM 比较值
- * @param {uint32_t} duty_a
- * @param {uint32_t} duty_b
- * @param {uint32_t} duty_c
- * @return {*}
- * @author: lkc
- */
+/* PWM 写入窗口及预约状态；只记录软件写入时刻，不代表硬件 CCR 生效。 */
 hal_motor_pwm_window_t g_hal_motor_pwm_window;
 static bool s_pwm_window_running;
 static bool s_pwm_window_waiting;
@@ -147,6 +162,11 @@ static uint32_t s_pwm_window_ready_us;
 static uint32_t s_pwm_window_stride = 1U;
 static uint32_t s_pwm_window_skip;
 
+/**
+ * @description:  停机时启停有限 PWM 写入窗口采集；enable 清零并采集接下来 32 次写入。
+ * @param {bool} enable 是否启用
+ * @return {void} 无
+ */
 void Hal_Motor_PwmWindowEnable(bool enable)
 {
     g_hal_motor_pwm_window.enabled = 0U;
@@ -161,6 +181,11 @@ void Hal_Motor_PwmWindowEnable(bool enable)
     }
 }
 
+/**
+ * @description: 按指定步长预约 PWM 写入窗口采集。
+ * @param {uint32_t} stride 采集步长（写入次数）
+ * @return {void} 无
+ */
 static void Hal_Motor_PwmWindowReserveWithStride(uint32_t stride)
 {
     Hal_Motor_PwmWindowEnable(false);
@@ -171,10 +196,28 @@ static void Hal_Motor_PwmWindowReserveWithStride(uint32_t stride)
     g_hal_motor_pwm_window.enabled = 2U;
 }
 
+/**
+ * @description:  停机预约：enabled=2 等待，1 采集，0 停止；调用前须确认无并发运行控制。
+ * @return {void} 无
+ */
 void Hal_Motor_PwmWindowReserve(void) { Hal_Motor_PwmWindowReserveWithStride(1U); }
+/**
+ * @description:  停机预约长窗口：每 997 次写入记录一次，32 帧在 15kHz 下约跨 2.06s。
+ * @return {void} 无
+ */
 void Hal_Motor_PwmWindowReserveLong(void) { Hal_Motor_PwmWindowReserveWithStride(997U); }
+/**
+ * @description:  返回当前或已完成窗口的写入步长；停止不清除该元数据。
+ * @return {uint32_t} 当前值 s_pwm_window_stride
+ */
 uint32_t Hal_Motor_PwmWindowStride(void) { return s_pwm_window_stride; }
 
+/**
+ * @description:  控制 ISR 推进预约；ready 连续 1s 才开始，运行开始后再次停机取消剩余采集。
+ * @param {bool} running 当前是否运行
+ * @param {bool} ready 采集就绪条件
+ * @return {void} 无
+ */
 void Hal_Motor_PwmWindowPoll(bool running, bool ready)
 {
     uint32_t now;
@@ -200,6 +243,13 @@ void Hal_Motor_PwmWindowPoll(bool running, bool ready)
     }
 }
 
+/**
+ * @description: 设置三相 PWM 预装载比较值。
+ * @param {uint32_t} duty_a  A 相比较值，范围 [0, period]
+ * @param {uint32_t} duty_b  B 相比较值，范围 [0, period]
+ * @param {uint32_t} duty_c  C 相比较值，范围 [0, period]
+ * @return {void} 无
+ */
 void Hal_Motor_PwmSetDuty(uint32_t duty_a, uint32_t duty_b, uint32_t duty_c)
 {
     hal_motor_pwm_window_frame_t frame;
@@ -239,13 +289,26 @@ void Hal_Motor_PwmSetDuty(uint32_t duty_a, uint32_t duty_b, uint32_t duty_c)
  */
 static volatile bool s_pwm_diagnostic_enabled;
 static volatile uint32_t s_pwm_diagnostic_sequence;
+/**
+ * @description:  停机设置软件提交计数，enable时清零；不改变定时器。计数不代表硬件装载事件。
+ * @param {bool} enable 是否启用
+ * @return {void} 无
+ */
 void Hal_Motor_PwmDiagnosticEnable(bool enable)
 {
     s_pwm_diagnostic_enabled = false;
     if (enable) s_pwm_diagnostic_sequence = 0U;
     s_pwm_diagnostic_enabled = enable;
 }
+/**
+ * @description:  读取停机诊断软件提交计数（enable 时清零，仅停机诊断使用）。
+ * @return {uint32_t} 当前值 s_pwm_diagnostic_sequence
+ */
 uint32_t Hal_Motor_PwmDiagnosticSequence(void) { return s_pwm_diagnostic_sequence; }
+/**
+ * @description: 提交 PWM 通道控制更新。
+ * @return {void} 无
+ */
 void Hal_Motor_PwmCommit(void)
 {
     TIM_GenerateEvent(TIM1, TIM_EventSource_COM);
@@ -254,7 +317,7 @@ void Hal_Motor_PwmCommit(void)
 
 /**
  * @description: 输出安全中点占空比并提交
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Motor_PwmSetSafe(void)
@@ -268,7 +331,7 @@ void Hal_Motor_PwmSetSafe(void)
 /**
  * @description: 仅使能指定相的互补 PWM
  * @param {uint8_t} phase  1=A，2=B，3=C
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Motor_EnablePhase(uint8_t phase)
@@ -339,7 +402,7 @@ float Hal_Motor_TimeElapsedSec(uint32_t start_us)
 
 /**
  * @description: 捕获本周期一致的采样帧
- * @param {hal_motor_sample_t *} out
+ * @param {hal_motor_sample_t *} out 输出采样帧，不可为空
  * @return {bool} true=成功
  * @author: lkc
  */
@@ -362,7 +425,7 @@ bool Hal_Motor_SampleCapture(hal_motor_sample_t *out)
 
 /**
  * @description: 读取单个 ADC 通道原始值
- * @param {uint8_t} channel
+ * @param {uint8_t} channel ADC DMA 缓冲区通道下标
  * @return {uint16_t} 原始计数
  * @author: lkc
  */
@@ -374,9 +437,9 @@ uint16_t Hal_Motor_AdcRaw(uint8_t channel)
 
 /**
  * @description: 拷贝 ADC DMA 缓冲
- * @param {uint16_t} *dst
- * @param {uint32_t} len
- * @return {*}
+ * @param {uint16_t} *dst 输出 ADC 原始值缓冲
+ * @param {uint32_t} len 最多拷贝的 ADC 通道数量
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Motor_AdcGetRaw(uint16_t *dst, uint32_t len)
@@ -394,7 +457,7 @@ void Hal_Motor_AdcGetRaw(uint16_t *dst, uint32_t len)
 
 /**
  * @description: 读取相电流 ADC 原始值
- * @param {uint8_t} phase
+ * @param {uint8_t} phase 相索引；范围及相序以本接口实现为准
  * @return {uint16_t} ADC 计数
  * @author: lkc
  */
@@ -414,7 +477,7 @@ uint16_t Hal_Motor_CurrentAdc(uint8_t phase)
 
 /**
  * @description: 读取相电压采样点电压
- * @param {uint8_t} phase
+ * @param {uint8_t} phase 相索引；范围及相序以本接口实现为准
  * @return {float} V
  * @author: lkc
  */
@@ -481,7 +544,7 @@ bool Hal_Motor_HasThreeShunts(void)
 
 /**
  * @description: 初始化 MT6701 使用的 I2C2 外设
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Encoder_Init(void)
@@ -502,7 +565,7 @@ uint16_t Hal_Encoder_GetCount(void)
 /**
  * @description: 发布 MT6701 14 位角度快照
  * @param {uint16_t} count 角度计数
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Encoder_SetCount(uint16_t count)
@@ -520,16 +583,32 @@ uint32_t Hal_Encoder_CountsPerRev(void)
     return 16384U;
 }
 
+/**
+ * @description: 读取位置传感器 I2C 寄存器。
+ * @param {uint8_t} address_7bit 7 位设备地址
+ * @param {uint8_t} reg          寄存器地址
+ * @param {uint8_t *} value      输出数据，不可为空
+ * @return {bool} true=读取成功
+ */
 bool Hal_Encoder_I2cReadRegister(uint8_t address_7bit, uint8_t reg, uint8_t *value)
 {
     return Bsp_I2c2_ReadRegister(address_7bit, reg, value);
 }
 
+/**
+ * @description: 初始化位置传感器 SSI 读取接口（MT6701）
+ * @return {void} 无
+ */
 void Hal_Encoder_SsiInit(void)
 {
     Bsp_MT6701_SsiInit();
 }
 
+/**
+ * @description: 读取一帧 24 位 SSI 角度数据
+ * @param {uint32_t *} frame 输出原始帧，不可为空
+ * @return {bool} true=读取成功
+ */
 bool Hal_Encoder_SsiReadFrame(uint32_t *frame)
 {
     return Bsp_MT6701_SsiReadFrame(frame);
@@ -537,8 +616,8 @@ bool Hal_Encoder_SsiReadFrame(uint32_t *frame)
 
 /**
  * @description: 读取三相霍尔原始状态
- * @param {bool} is_second_motor
- * @param {int} samples
+ * @param {bool} is_second_motor 是否选择第二电机霍尔接口；当前支持能力由 HAL 实现决定
+ * @param {int} samples 额外滤波采样次数
  * @return {int} 0~7
  * @author: lkc
  */

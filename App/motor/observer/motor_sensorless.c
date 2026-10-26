@@ -222,7 +222,7 @@ static void Motor_Sensorless_RunPll(motor_sensorless_runtime_t *rt, const MOTOR_
 /**
  * @description: 初始化指定观测器运行时状态。
  * @param {motor_sensorless_runtime_t *} rt  运行时对象
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_InitState(motor_sensorless_runtime_t *rt)
@@ -235,7 +235,7 @@ void Motor_Sensorless_InitState(motor_sensorless_runtime_t *rt)
 /**
  * @description: 复位指定观测器运行时状态。
  * @param {motor_sensorless_runtime_t *} rt  运行时对象
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_ResetState(motor_sensorless_runtime_t *rt)
@@ -256,7 +256,7 @@ void Motor_Sensorless_ResetState(motor_sensorless_runtime_t *rt)
  * @param {motor_sensorless_runtime_t *} rt  运行时对象
  * @param {float} v_alpha  α 轴电压 (V)
  * @param {float} v_beta   β 轴电压 (V)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_SetAppliedVoltageState(motor_sensorless_runtime_t *rt, float v_alpha, float v_beta)
@@ -771,7 +771,8 @@ static inline void Motor_Sensorless_UpdateControlAngle(motor_sensorless_runtime_
  * @param {MOTOR_PARAM_S *} motor  电机参数与采样
  * @param {float} dt  FOC 控制周期 (s)
  * @param {motor_sensorless_effects_t *} effects  副作用输出，可为 NULL
- * @return {*}
+ * @param {motor_observer_step_sample_t *} diagnostic 本拍观测器诊断输出，可空时不记录
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
@@ -888,7 +889,7 @@ float Motor_Sensorless_GetPhaseErrorState(const motor_sensorless_runtime_t *rt)
  * @description: 拷贝指定实例接管诊断。
  * @param {const motor_sensorless_runtime_t *} rt  运行时对象
  * @param {motor_sensorless_diagnostics_t *} diagnostics  输出
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_GetDiagnosticsState(const motor_sensorless_runtime_t *rt,
@@ -915,6 +916,14 @@ void Motor_Sensorless_GetDiagnosticsState(const motor_sensorless_runtime_t *rt,
     diagnostics->state = rt->state;
 }
 
+/**
+ * @description: 拷贝指定实例已计算字段的轻量快照。
+ * @detail: 不求模长、不查询外设，仅复制状态机、磁链/方向判定、PLL 角、磁链、转速、渐变比例等已算量。
+ * @param {const motor_sensorless_runtime_t *} rt  运行时对象，不可为空
+ * @param {motor_sensorless_light_snapshot_t *} out  输出快照，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Sensorless_GetLightSnapshotState(const motor_sensorless_runtime_t *rt,
                                            motor_sensorless_light_snapshot_t *out)
 {
@@ -931,6 +940,12 @@ void Motor_Sensorless_GetLightSnapshotState(const motor_sensorless_runtime_t *rt
     out->v_beta = rt->applied_v_beta;
 }
 
+/**
+ * @description: 拷贝默认实例已计算字段的轻量快照。
+ * @param {motor_sensorless_light_snapshot_t *} out  输出快照，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Sensorless_GetLightSnapshot(motor_sensorless_light_snapshot_t *out)
 {
     Motor_Sensorless_GetLightSnapshotState(&s_sensorless, out);
@@ -960,7 +975,7 @@ bool Motor_Sensorless_IsTakeoverCompleteState(const motor_sensorless_runtime_t *
 
 /**
  * @description: 上电初始化默认单实例观测器，并声明速度反馈无效。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_Init(void)
@@ -971,7 +986,7 @@ void Motor_Sensorless_Init(void)
 
 /**
  * @description: 复位默认实例观测器，并声明速度反馈无效。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_Reset(void)
@@ -984,7 +999,7 @@ void Motor_Sensorless_Reset(void)
  * @description: 记录默认实例本周期实际下发的 α/β 电压。
  * @param {float} v_alpha  α 轴电压 (V)
  * @param {float} v_beta   β 轴电压 (V)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_SetAppliedVoltage(float v_alpha, float v_beta)
@@ -997,7 +1012,8 @@ void Motor_Sensorless_SetAppliedVoltage(float v_alpha, float v_beta)
  * @param {motor_sensorless_runtime_t *} rt  实例状态
  * @param {MOTOR_PARAM_S *} motor  电机实时参数
  * @param {float} dt  控制周期 (s)
- * @return {*}
+ * @param {motor_sensorless_effects_t *} effects  副作用输出；NULL 则忽略
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
@@ -1006,7 +1022,12 @@ void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S 
     Motor_Sensorless_UpdateStateInternal(rt, motor, dt, effects, NULL);
 }
 
-/** 默认实例控制拍入口，dt单位秒；落地副作用，仅显式武装时记录诊断。 */
+/**
+ * @description: 默认实例控制拍入口，dt单位秒；落地副作用，仅显式武装时记录诊断。
+ * @param {MOTOR_PARAM_S *} motor  电机实时参数；R/L/flux 分别使用 Ω、H、Wb
+ * @param {float} dt  控制周期 (s)
+ * @return {void} 无
+ */
 void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
 {
     static float previous_ia, previous_ib, previous_ic, previous_dt;
@@ -1122,7 +1143,7 @@ float Motor_Sensorless_GetPhaseError(void)
 /**
  * @description: 拷贝默认实例接管诊断数据。
  * @param {motor_sensorless_diagnostics_t *} diagnostics  输出
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_t *diagnostics)

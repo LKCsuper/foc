@@ -1,3 +1,4 @@
+/* 三相霍尔传感器板级初始化（TIM3 霍尔接口模式） */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,7 +33,7 @@ extern "C" {
 /**
  * @description: 霍尔传感器初始化
  * @detail: 这种方式只适合高级定时器，但是定时器3并不是高级定时器
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Hall_Init(VOID)

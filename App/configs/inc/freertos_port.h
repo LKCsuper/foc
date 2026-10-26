@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: 应用 FreeRTOS 任务优先级配置。
  * @Date: 2023-02-17 22:55:09
  * @LastEditTime: 2023-10-09 20:34:09
  * @FilePath: \my_foc\App\user\includes.h

@@ -1,8 +1,13 @@
+/* 弱磁：斜坡、滞回退出、电流余量与 current_max=0 关闭。 */
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include "motor_fw.h"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_fw_t fw;

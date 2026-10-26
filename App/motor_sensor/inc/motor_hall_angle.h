@@ -80,7 +80,7 @@ bool Motor_Hall_DecodeAngle(const int8_t *table, int hall_state, float *theta_ra
 /**
  * @description: 复位霍尔角度运行时
  * @param {motor_hall_angle_t} *st  状态
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_AngleReset(motor_hall_angle_t *st);
@@ -92,7 +92,7 @@ void Motor_Hall_AngleReset(motor_hall_angle_t *st);
  * @param {int} hall_state          当前霍尔 0..7
  * @param {float} pole_pairs        极对数（电转速→机械转速）
  * @param {float} dt_s              本拍时间 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hall_state, float pole_pairs,
@@ -100,7 +100,7 @@ void Motor_Hall_AngleUpdate(motor_hall_angle_t *st, const int8_t *table, int hal
 
 /**
  * @description: 默认实例复位
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_AngleResetDefault(void);
@@ -111,7 +111,7 @@ void Motor_Hall_AngleResetDefault(void);
  * @param {int} hall_state       当前霍尔
  * @param {float} pole_pairs     极对数
  * @param {float} dt_s           本拍时间 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_AngleUpdateDefault(const int8_t *table, int hall_state, float pole_pairs, float dt_s);

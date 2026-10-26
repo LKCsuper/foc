@@ -1,11 +1,11 @@
 /*
- * @Description: 
+ * @Description: BLDC 模式 ADC 初始化（三重同步 ADC 与通道映射）
  * @Version: 1.0
  * @Author: lkc
  * @Date: 2023-10-04 16:26:48
  * @LastEditors: lkc
  * @LastEditTime: 2023-10-04 20:11:13
- * @detail: 
+ * @detail:
  */
 #ifdef __cplusplus
 extern "C" {
@@ -21,7 +21,7 @@ extern "C" {
 /**
  * @description: ADC 公共配置
  * @detail: 配置 ADC1/ADC2/ADC3 共享的多 ADC 模式、时钟分频和 DMA 访问方式
- * @return {*}
+ * @return {STATIC VOID} 本次计算或查询的结果
  * @author: lkc
  */
 STATIC VOID Bsp_Adc_Bldc_CommonInit(VOID)
@@ -45,15 +45,13 @@ STATIC VOID Bsp_Adc_Bldc_CommonInit(VOID)
 
 /**
  * @description: adc1 初始化
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
- * 
+ *
  * TIM8_CC1 触发一次
-    ADC1 扫描一串通道
-    ADC2 扫描一串通道
-    ADC3 扫描一串通道
- * 
+ *     ADC1 扫描一串通道
+ *     ADC2 扫描一串通道
+ *     ADC3 扫描一串通道
  */
 VOID Bsp_Adc1_Bldc_Init(VOID)
 {
@@ -80,8 +78,7 @@ VOID Bsp_Adc1_Bldc_Init(VOID)
 
 /**
  * @description: adc2初始化
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Adc2_Bldc_Init(VOID)
@@ -108,8 +105,7 @@ VOID Bsp_Adc2_Bldc_Init(VOID)
 
 /**
  * @description: adc3初始化
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Adc3_Bldc_Init(VOID)
@@ -136,36 +132,34 @@ VOID Bsp_Adc3_Bldc_Init(VOID)
 
 /**
  * @description: adc设置通道
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
- * 
-0:  IN0   SENS1
-1:  IN1   SENS2
-2:  IN2   SENS3
-3:  IN10  CURR1
-4:  IN11  CURR2
-5:  IN12  CURR3
-6:  IN5   ADC_EXT1
-7:  IN6   ADC_EXT2
-8:  IN3   TEMP_PCB
-9:  IN14  TEMP_MOTOR
-10: IN15  Shutdown
-11: IN13  AN_IN
-12: Vrefint
-13: IN0   SENS1
-14: IN1   SENS2
-
-三重同步，采样五次
-rank1: ADC1 + ADC2 + ADC3
-rank2: ADC1 + ADC2 + ADC3
-rank3: ADC1 + ADC2 + ADC3
-rank4: ADC1 + ADC2 + ADC3
-rank5: ADC1 + ADC2 + ADC3
-
-注入组：优先级更高，可以在规则组采样过程中插队
-使用注入组进行采样电流，规则组采样电流只是遵循规则，实际应该还是使用注入组的电流
- * 
+ *
+ * 0:  IN0   SENS1
+ * 1:  IN1   SENS2
+ * 2:  IN2   SENS3
+ * 3:  IN10  CURR1
+ * 4:  IN11  CURR2
+ * 5:  IN12  CURR3
+ * 6:  IN5   ADC_EXT1
+ * 7:  IN6   ADC_EXT2
+ * 8:  IN3   TEMP_PCB
+ * 9:  IN14  TEMP_MOTOR
+ * 10: IN15  Shutdown
+ * 11: IN13  AN_IN
+ * 12: Vrefint
+ * 13: IN0   SENS1
+ * 14: IN1   SENS2
+ *
+ * 三重同步，采样五次
+ * rank1: ADC1 + ADC2 + ADC3
+ * rank2: ADC1 + ADC2 + ADC3
+ * rank3: ADC1 + ADC2 + ADC3
+ * rank4: ADC1 + ADC2 + ADC3
+ * rank5: ADC1 + ADC2 + ADC3
+ *
+ * 注入组：优先级更高，可以在规则组采样过程中插队
+ * 使用注入组进行采样电流，规则组采样电流只是遵循规则，实际应该还是使用注入组的电流
  */
 VOID Bsp_Adc_Bldc_SetChannels(VOID)
 {
@@ -217,9 +211,8 @@ VOID Bsp_Adc_Bldc_SetChannels(VOID)
 }
 
 /**
- * @description: 
- * @detail: 
- * @return {*}
+ * @description: BLDC 模式三 ADC 初始化入口（公共配置 + 注入触发 + 通道映射）
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Adc_Bldc_Init(VOID)

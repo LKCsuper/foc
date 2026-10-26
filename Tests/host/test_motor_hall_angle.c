@@ -18,6 +18,11 @@ static const int k_bm75_seq[6] = {4, 6, 2, 3, 1, 5};
 /* 实机 Hall 每 32 次 ADC 触发更新一次，测试须使用相同 dt。 */
 static const float k_hall_dt = 32.0f / 30000.0f;
 
+/**
+ * @description: 构造六扇区有效霍尔表。
+ * @param {int8_t [MOTOR_HALL_TABLE_SIZE]} table 八项霍尔电角编码表
+ * @return {void} 无
+ */
 static void fill_ready_table(int8_t table[MOTOR_HALL_TABLE_SIZE])
 {
     int i;
@@ -35,6 +40,11 @@ static void fill_ready_table(int8_t table[MOTOR_HALL_TABLE_SIZE])
     /* 0、7 无效 */
 }
 
+/**
+ * @description: 构造 BM75 测试使用的霍尔表。
+ * @param {int8_t [MOTOR_HALL_TABLE_SIZE]} table 八项霍尔电角编码表
+ * @return {void} 无
+ */
 static void fill_bm75_table(int8_t table[MOTOR_HALL_TABLE_SIZE])
 {
     static const uint8_t raw[MOTOR_HALL_TABLE_SIZE] = {255U, 132U, 68U, 102U, 2U, 166U, 33U, 255U};
@@ -45,6 +55,11 @@ static void fill_bm75_table(int8_t table[MOTOR_HALL_TABLE_SIZE])
     }
 }
 
+/**
+ * @description: 将测试角度折回主值区间。
+ * @param {float} x x 参数
+ * @return {float} 测试记录值 x
+ */
 static float wrap_pi(float x)
 {
     while (x > (float)M_PI) {
@@ -56,6 +71,17 @@ static float wrap_pi(float x)
     return x;
 }
 
+/**
+ * @description: 按给定机械转速生成霍尔边沿并推进被测模块。
+ * @param {motor_hall_angle_t *} st 实例状态
+ * @param {const int8_t *} table 八项霍尔电角编码表
+ * @param {const int *} seq seq 参数
+ * @param {float} pp pp 参数
+ * @param {float} rpm 机械转速 (RPM)
+ * @param {float} duration_s duration_s，单位 s
+ * @param {int *} seq_index seq_index 参数
+ * @return {void} 无
+ */
 static void drive_hall_rpm(motor_hall_angle_t *st, const int8_t *table, const int *seq, float pp, float rpm,
                            float duration_s, int *seq_index)
 {
@@ -78,6 +104,10 @@ static void drive_hall_rpm(motor_hall_angle_t *st, const int8_t *table, const in
     }
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     int8_t table[MOTOR_HALL_TABLE_SIZE];

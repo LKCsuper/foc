@@ -134,7 +134,7 @@ static float Motor_Control_EncoderCoggingAssist(const MOTOR_PARAM_S *motor, floa
 /**
  * @description: 初始化控制实例。
  * @param {motor_control_t} *ctrl  控制实例
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Control_Init(motor_control_t *ctrl)
@@ -152,7 +152,7 @@ void Motor_Control_Init(motor_control_t *ctrl)
  * @description: 复位启动链与速度/无感/电流积分显示。
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   电机对象
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Control_ResetRuntime(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
@@ -223,7 +223,7 @@ bool Motor_Control_IsReady(const MOTOR_PARAM_S *motor, float v_bus, bool hall_de
 /**
  * @description: 钳位开环/无感配置。
  * @param {MOTOR_PARAM_S} *motor  被修改
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor)
@@ -366,7 +366,7 @@ void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor)
  * @param {MOTOR_PARAM_S} *motor  斜坡
  * @param {float} dt  周期 (s)
  * @param {bool} sensorless_takeover_complete  是否已完全用观测角
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Control_UpdateSpeed(MOTOR_PARAM_S *motor, float dt, bool sensorless_takeover_complete)
@@ -420,7 +420,7 @@ void Motor_Control_UpdateSpeed(MOTOR_PARAM_S *motor, float dt, bool sensorless_t
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   写 ol_theta
  * @param {float} dt  周期 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Control_UpdateTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float dt)
@@ -434,7 +434,7 @@ void Motor_Control_UpdateTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor, floa
  * @description: V/F 启动：同步斜坡生成的转速，不额外制造最低转速跳变。
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   开环转速状态
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Control_StartupVf(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
@@ -486,7 +486,7 @@ static bool Motor_Control_RunAlignment(motor_control_t *ctrl, MOTOR_PARAM_S *mot
  * @description: I/F 启动一步：同步平滑转速，定角建立后不再叠加旧式相位提升。
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   电机对象
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Control_StartupIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
@@ -504,6 +504,7 @@ static void Motor_Control_StartupIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
  * @detail: 默认无感；编码器/霍尔在角有效时走有感电流环电角。
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   电机对象
+ * @param {const motor_feedback_sample_t *} sample 本拍样本
  * @return {float} 电角度 (rad)
  * @author: lkc
  */
@@ -529,8 +530,8 @@ static float Motor_Control_GetCurrentTheta(motor_control_t *ctrl, MOTOR_PARAM_S 
 /**
  * @description: 有感模式下发布编码器/霍尔转速。
  * @detail: 须角、速均有效才置 feedback_valid，避免无零点/非法扇区时开速度环。
- * @param {MOTOR_PARAM_S} *motor  电机对象
- * @return {*}
+ * @param {const motor_feedback_sample_t *} feedback 本拍角度与转速反馈快照；空指针时发布无效反馈
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Control_PublishSensoredSpeed(const motor_feedback_sample_t *feedback)
@@ -551,6 +552,9 @@ static void Motor_Control_PublishSensoredSpeed(const motor_feedback_sample_t *fe
  * @description: 判断当前转速是否已达到速度 PI 的平滑接管门槛
  * @detail: 编码器速度有效后立即交给速度 PI，低速和反转都不退回启动 Iq。
  *          霍尔与无感仍用转速门槛：至少为启动转速的一半，跌到约 30% 才退回启动 Iq。
+ * @param {motor_control_t *} ctrl ctrl 参数；空指针按实现返回或拒绝
+ * @param {const MOTOR_PARAM_S *} motor 电机实例；空指针按实现返回或拒绝
+ * @return {bool} true=满足速度环运行的模式、反馈和启动条件；false=尚不满足
  */
 static bool Motor_Control_SpeedLoopReady(motor_control_t *ctrl, const MOTOR_PARAM_S *motor)
 {
@@ -587,14 +591,6 @@ static bool Motor_Control_SpeedLoopReady(motor_control_t *ctrl, const MOTOR_PARA
 }
 
 /**
- * @description: 填充电流环目标上下文（对齐、I/F 缩放、速度环 Iq）。
- * @param {motor_control_t} *ctrl  控制实例
- * @param {MOTOR_PARAM_S} *motor   电机对象
- * @param {motor_current_target_ctx_t} *ctx  输出上下文
- * @return {*}
- * @author: lkc
- */
-/**
  * @description: 按电机 profile 和目标转速选择编码器速度环后端。
  * @param {float} command_rpm 目标机械转速 (RPM)
  * @return {bool} true=直接 Vq，false=Id/Iq 电流环
@@ -606,6 +602,14 @@ static bool Motor_Control_EncoderSpeedUsesVoltage(float command_rpm)
     return false;
 }
 
+/**
+ * @description: 填充电流环目标上下文（对齐、I/F 缩放、速度环 Iq）。
+ * @param {motor_control_t} *ctrl  控制实例
+ * @param {MOTOR_PARAM_S} *motor   电机对象
+ * @param {motor_current_target_ctx_t} *ctx  输出上下文
+ * @return {void} 无
+ * @author: lkc
+ */
 static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *motor, motor_current_target_ctx_t *ctx)
 {
     bool dragging;
@@ -661,7 +665,7 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
  * @param {motor_control_t} *ctrl  控制实例
  * @param {const MOTOR_PARAM_S} *motor  使能状态
  * @param {float} dt  控制周期 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Control_UpdateSoftCurrent(motor_control_t *ctrl, const MOTOR_PARAM_S *motor, float dt)
@@ -684,7 +688,7 @@ static void Motor_Control_UpdateSoftCurrent(motor_control_t *ctrl, const MOTOR_P
  * @description: 推进 Id→Iq 交接比例，0.25 s 内平滑进入拖转电流。
  * @param {motor_control_t} *ctrl 控制实例
  * @param {float} dt 控制周期 (s)
- * @return {*}
+ * @return {void} 无
  */
 static void Motor_Control_UpdateDragCurrent(motor_control_t *ctrl, float dt)
 {
@@ -704,6 +708,7 @@ static void Motor_Control_UpdateDragCurrent(motor_control_t *ctrl, float dt)
  * @param {MOTOR_PARAM_S} *motor   电机对象
  * @param {float} v_bus  母线 (V)
  * @param {float} dt  控制周期 (s)
+ * @param {const motor_feedback_sample_t *} feedback feedback 参数；空指针按实现返回或拒绝
  * @return {motor_control_result_t} DQ 电压请求
  * @author: lkc
  */
@@ -1235,6 +1240,12 @@ bool Motor_Control_IsAligning(const motor_control_t *ctrl)
     return ctrl != NULL && ctrl->startup.alignment.running;
 }
 
+/**
+ * @description: 查询 I/F 拖转电流交接是否已完成。
+ * @detail: 已进入拖转阶段、交接比例接近满幅、且不在预对齐和 HFI 中时返回 true。空对象返回 false。
+ * @param {const motor_control_t} *ctrl 控制实例
+ * @return {bool} true=拖转电流交接已完成
+ */
 bool Motor_Control_IsIfDragSettled(const motor_control_t *ctrl)
 {
     return ctrl != NULL && ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP &&

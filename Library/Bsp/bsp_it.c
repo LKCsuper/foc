@@ -5,7 +5,7 @@
  * @Date: 2023-08-27 10:31:55
  * @LastEditors: lkc
  * @LastEditTime: 2023-10-09 20:46:12
- * @detail: 
+ * @detail:
  */
 #ifdef __cplusplus
 extern "C" {
@@ -22,11 +22,15 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 定时器3中断
- * @detail: 
+ * @detail:
  * @return {*}
  * @author: lkc
  */
 extern ULONG ulFreeRTOSRunTimeTicks;
+/**
+ * @description: 定时器3 中断处理（FreeRTOS 运行时间统计）
+ * @return {void} 无
+ */
 VOID Bsp_Tim3_IRQ(VOID)
 {
 	if(SET == TIM_GetITStatus(HW_COUNT_TIM, TIM_IT_Update)) //溢出中断
@@ -39,7 +43,7 @@ VOID Bsp_Tim3_IRQ(VOID)
 
 /**
  * @description: 串口3中断
- * @detail: 
+ * @detail:
  * @return {*}
  * @author: lkc
  */
@@ -103,8 +107,7 @@ VOID Bsp_Usart_Handler(VOID)
 
 /**
  * @description: dma中断
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Dma2Stream4_Handler(VOID)
@@ -137,11 +140,15 @@ VOID Bsp_Dma2Stream4_Handler(VOID)
 
 /**
  * @description: sysTick 中断
- * @detail: 
+ * @detail:
  * @return {*}
  * @author: lkc
  */
 extern void xPortSysTickHandler(void);
+/**
+ * @description: SysTick 中断处理（转发到 FreeRTOS）
+ * @return {void} 无
+ */
 VOID Bsp_SysTick_Handler(VOID)
 {
     #if (INCLUDE_xTaskGetSchedulerState  == 1 )
@@ -157,8 +164,7 @@ VOID Bsp_SysTick_Handler(VOID)
 
 /**
  * @description: 定时器2中断
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Tim2_IRQ(VOID)
@@ -173,8 +179,7 @@ VOID Bsp_Tim2_IRQ(VOID)
 
 /**
  * @description: 中断初始化
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_It_Init(VOID)

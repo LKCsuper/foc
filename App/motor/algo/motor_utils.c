@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: 正弦/余弦查表、CRC32 校验与 TIM 死区时间(DTG)计算辅助函数
  * @Date: 2023-02-18 23:29:37
  * @LastEditTime: 2023-03-26 20:56:19
  * @FilePath: \foc\App\motor\utils.c
@@ -267,6 +267,12 @@ void sincos_taylor_f32(float x, float *sine, float *cosine)
     }
 }
 
+/**
+ * @description: 查表加线性插值计算 sin(x)。
+ * @detail: 输入 x 为弧度，映射到 [0,1) 后查正弦表并线性插值。
+ * @param {float} x  输入角度 (rad)
+ * @return {float} 正弦值
+ */
 float sin_f32(float x)
 {
 	float sinVal, fract, in;                           /* Temporary variables for input, output */
@@ -318,7 +324,7 @@ float sin_f32(float x)
  * @description: 查表 + 线性插值计算 cos(x)
  * @detail: 输入 x 为弧度，偏移 0.25（即 π/2）后复用同一正弦表查表插值
  * @param {float} x    输入角度（弧度）
- * @return {*}
+ * @return {float} 余弦值
  * @author: lkc
  */
 float cos_f32(float x)
@@ -373,7 +379,7 @@ float cos_f32(float x)
  * @detail: 查表实现，多项式 0x04C11DB7（MSB 先行），初值 0；逐字节 crc = (crc<<8) ^ table[((crc>>24) ^ data[i]) & 0xFF]
  * @param {const uint8_t} *data    待校验数据指针
  * @param {uint32_t} size          数据长度
- * @return {*}
+ * @return {uint32_t} 当前值 crc
  * @author: lkc
  */
 uint32_t crc32(const uint8_t *data, uint32_t size)
@@ -387,14 +393,14 @@ uint32_t crc32(const uint8_t *data, uint32_t size)
 
 /* Calculate DTG register */
 /**
- * @description: 计算死区时间
- * @detail: 
- * @param {float} deadtime_ns
- * @param {float} core_clock_freq
- * @return {*}
+ * @description: 根据死区时间与内核时钟计算 TIM 死区寄存器 DTG 编码值。
+ * @detail: 按 STM32 TIM 死区寄存器的分段编码换算；请求超过硬件可表示上限时取 0xFF。
+ * @param {float} deadtime_ns     目标死区时间 (ns)
+ * @param {float} core_clock_freq 内核时钟频率 (Hz)
+ * @return {uint8_t} DTG 寄存器编码值
  * @author: lkc
  */
-uint8_t calculate_deadtime(float deadtime_ns, float core_clock_freq) 
+uint8_t calculate_deadtime(float deadtime_ns, float core_clock_freq)
 {
 	uint8_t DTG = 0;
 	float timebase = 1.0f / (core_clock_freq / 1000000.0f) * 1000.0f;

@@ -1,3 +1,5 @@
+/* 输出派发主机测试：三相电压估计、SVM 路径选择、观测死区补偿与 Park 复用 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -25,28 +27,83 @@ static float s_command_beta;
 static bool s_profile_detailed;
 static unsigned s_voltage_records;
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 主机测试替身：查询本拍细分计时是否有效。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_profile_detailed
+ */
 bool Motor_Timing_ProfileDetailedIsActive(void) { return s_profile_detailed; }
+/**
+ * @description: 主机测试替身：读取分段计时用的当前时间戳。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 本实现固定返回 0U
+ */
 uint32_t Motor_Timing_ProfileTimeUs(void) { return 0U; }
+/**
+ * @description: 主机测试替身：把一个阶段从 start_us 到现在的耗时累进当前窗口。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {motor_timing_stage_t} stage 检测阶段
+ * @param {uint32_t} start_us 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start_us)
 {
     (void)start_us;
     if (stage == MOTOR_TIMING_VOLTAGE_REBUILD) s_voltage_records++;
 }
 
+/**
+ * @description: 主机测试替身：读取 PWM 周期计数（通常等于 ARR）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 测试记录值 1000U
+ */
 uint32_t Hal_Motor_PwmPeriodCounts(void) { return 1000U; }
+/**
+ * @description: 主机测试替身：设置三相 PWM 预装载比较值。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {uint32_t} a a 参数
+ * @param {uint32_t} b b 参数
+ * @param {uint32_t} c c 参数
+ * @return {void} 无
+ */
 void Hal_Motor_PwmSetDuty(uint32_t a, uint32_t b, uint32_t c)
 {
     s_pwm_a = a;
     s_pwm_b = b;
     s_pwm_c = c;
 }
+/**
+ * @description: 主机测试替身：提交 PWM 通道控制更新。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Hal_Motor_PwmCommit(void) { s_commit_calls++; }
+/**
+ * @description: 主机测试替身：读取默认单实例请求的反馈来源
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {motor_feedback_source_t} 测试记录值 s_source
+ */
 motor_feedback_source_t Motor_Feedback_GetSourceDefault(void) { return s_source; }
+/**
+ * @description: 主机测试替身：记录默认实例本周期实际下发的 α/β 电压。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} alpha 输出静止坐标 alpha 轴电压 (V)
+ * @param {float} beta 输出静止坐标 beta 轴电压 (V)
+ * @return {void} 无
+ */
 void Motor_Sensorless_SetAppliedVoltage(float alpha, float beta)
 {
     s_applied_alpha = alpha;
     s_applied_beta = beta;
 }
+/**
+ * @description: 主机测试替身：记录最终 PWM 平均电压，仅用于和磁链积分电压比较。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} alpha 输出静止坐标 alpha 轴电压 (V)
+ * @param {float} beta 输出静止坐标 beta 轴电压 (V)
+ * @return {void} 无
+ */
 void Motor_Sensorless_SetModulatedVoltage(float alpha, float beta)
 {
     s_command_alpha = s_applied_alpha;
@@ -59,6 +116,16 @@ static unsigned s_inverse_park_calls;
 static unsigned s_inverse_park_sincos_calls;
 static float s_reuse_sine;
 static float s_reuse_cosine;
+/**
+ * @description: 主机测试替身：逆 Park 变换，将 dq 电压/调制量变换到 αβ 坐标系。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} vd D 轴电压 (V)
+ * @param {float} vq Q 轴电压 (V)
+ * @param {float} theta 兼容参数，本实现不使用
+ * @param {float *} alpha 输出静止坐标 alpha 轴电压 (V)
+ * @param {float *} beta 输出静止坐标 beta 轴电压 (V)
+ * @return {void} 无
+ */
 void inverse_park(float vd, float vq, float theta, float *alpha, float *beta)
 {
     (void)theta;
@@ -66,6 +133,17 @@ void inverse_park(float vd, float vq, float theta, float *alpha, float *beta)
     *alpha = vd;
     *beta = vq;
 }
+/**
+ * @description: 主机测试替身：逆 Park 变换，使用调用者已算好的同角度正弦和余弦。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} vd D 轴电压 (V)
+ * @param {float} vq Q 轴电压 (V)
+ * @param {float} sine sine 参数
+ * @param {float} cosine cosine 参数
+ * @param {float *} alpha 输出静止坐标 alpha 轴电压 (V)
+ * @param {float *} beta 输出静止坐标 beta 轴电压 (V)
+ * @return {void} 无
+ */
 void inverse_park_sincos(float vd, float vq, float sine, float cosine, float *alpha, float *beta)
 {
     s_inverse_park_sincos_calls++;
@@ -74,6 +152,19 @@ void inverse_park_sincos(float vd, float vq, float sine, float cosine, float *al
     *alpha = vd;
     *beta = vq;
 }
+/**
+ * @description: 由测试电压及母线条件生成 SVM 比较值。
+ * @param {float} alpha 输出静止坐标 alpha 轴电压 (V)
+ * @param {float} beta 输出静止坐标 beta 轴电压 (V)
+ * @param {float} v_bus 兼容参数，本实现不使用
+ * @param {float} max_duty 兼容参数，本实现不使用
+ * @param {uint32_t} period 兼容参数，本实现不使用
+ * @param {uint32_t *} a a 参数
+ * @param {uint32_t *} b b 参数
+ * @param {uint32_t *} c c 参数
+ * @param {uint32_t *} sector sector 参数
+ * @return {void} 无
+ */
 void foc_svm_from_voltage(float alpha, float beta, float v_bus, float max_duty, uint32_t period,
                           uint32_t *a, uint32_t *b, uint32_t *c, uint32_t *sector)
 {
@@ -88,6 +179,19 @@ void foc_svm_from_voltage(float alpha, float beta, float v_bus, float max_duty, 
     *c = 33U;
     *sector = 1U;
 }
+/**
+ * @description: 主机测试替身：慧驱动 SVPWM，将 αβ 电压矢量转为三路 PWM 比较值。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} alpha 兼容参数，本实现不使用
+ * @param {float} beta 兼容参数，本实现不使用
+ * @param {float} v_bus 兼容参数，本实现不使用
+ * @param {uint32_t} period 兼容参数，本实现不使用
+ * @param {uint32_t *} a a 参数
+ * @param {uint32_t *} b b 参数
+ * @param {uint32_t *} c c 参数
+ * @param {uint32_t *} sector sector 参数
+ * @return {void} 无
+ */
 void svm_hqd(float alpha, float beta, float v_bus, uint32_t period,
              uint32_t *a, uint32_t *b, uint32_t *c, uint32_t *sector)
 {
@@ -102,6 +206,10 @@ void svm_hqd(float alpha, float beta, float v_bus, uint32_t period,
     *sector = 2U;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     MOTOR_PARAM_S motor;

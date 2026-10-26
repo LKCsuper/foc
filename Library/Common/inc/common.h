@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: 通用类型与宏定义（位操作/极值/超时等）
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2023-02-26 21:30:25
@@ -24,7 +24,7 @@
 #include "common_assert.h"
 /* Includes ------------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
-/* Private define ------------0.1------------------------------------------------*/
+/* Private define ------------------------------------------------------------*/
 // typedef unsigned char boolean0; /* Boolean value type. */
 // typedef unsigned long int uint32; /* Unsigned 32 bit value */
 // typedef unsigned short uint16; /* Unsigned 16 bit value */
@@ -130,6 +130,10 @@ typedef enum {ERROR = 0, SUCCESS = !ERROR} ErrorStatus;
 //#define IS_TIME_OUT(x) while((x)) {if(TIME_OUT())break;}  
 #define IS_TIME_OUT(x) while((x)) {}
 
+/**
+ * @description: 保留的超时计数兼容声明；当前工程未提供实现，勿用其替代 HAL 时基。
+ * @return {ULONG} 本次计算或查询的结果
+ */
 ULONG Common_Time_Out(VOID);
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/

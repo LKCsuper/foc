@@ -1,3 +1,4 @@
+/* 快速 V/F：转速斜坡、电压输出与非法极对数走安全输出。 */
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -11,11 +12,27 @@ static float s_vq;
 static float s_theta;
 static float s_vbus;
 
+/**
+ * @description: 主机测试替身：输出三相中点占空比并提交 PWM。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} motor 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 void Motor_OutputSafe(MOTOR_PARAM_S *motor)
 {
     (void)motor;
     s_safe_calls++;
 }
+/**
+ * @description: 主机测试替身：旧电压输出接口，按模式和反馈源分派。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} motor 兼容参数，本实现不使用
+ * @param {float} vd D 轴电压 (V)
+ * @param {float} vq Q 轴电压 (V)
+ * @param {float} theta 强制电角度 (rad)
+ * @param {float} vbus 母线电压 (V)
+ * @return {void} 无
+ */
 void Motor_OutputVoltage(MOTOR_PARAM_S *motor, float vd, float vq, float theta, float vbus)
 {
     (void)motor;
@@ -26,6 +43,10 @@ void Motor_OutputVoltage(MOTOR_PARAM_S *motor, float vd, float vq, float theta, 
     s_vbus = vbus;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     MOTOR_PARAM_S motor;

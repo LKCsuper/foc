@@ -1,9 +1,15 @@
+/* 启动辅助主机测试：分频器、对齐与 I/F 启动双实例隔离 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <stdio.h>
 #include "motor_foc_divider.h"
 #include "motor_alignment.h"
 #include "motor_if_start.h"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_foc_divider_t da;

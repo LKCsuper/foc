@@ -1,3 +1,5 @@
+/* PWM 窗口主机测试：占空比写捕获与窗口容量/步长 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -19,9 +21,19 @@ static unsigned time_reads;
 #define TIMER_UPDATE_DUTY_M1(duty_a, duty_b, duty_c) \
     do { (void)(duty_a); (void)(duty_b); (void)(duty_c); duty_writes++; timer.CNT++; } while (0)
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 主机测试替身：读取电机通用微秒时基（自由运行，非 Hall 专用）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 测试记录值 now_us
+ */
 uint32_t Hal_Motor_TimeUs(void) { time_reads++; return now_us; }
 #include "pwm_window_under_test.inc"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     unsigned index;

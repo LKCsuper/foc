@@ -26,6 +26,10 @@ extern "C" {
  * @author: lkc
  */
 #if MOTOR_CFG_POSITION
+/**
+ * @description: 用当前累计计数作为零点，并装入默认比例与转速上限。
+ * @return {void} 无
+ */
 void Motor_Position_Init(void);
 
 /**
@@ -102,35 +106,82 @@ void Motor_Position_GetState(motor_position_state_t *state);
  */
 bool Motor_Position_IsEnabled(void);
 #else
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Position_Init(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Position_Zero(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {bool} enable 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Position_Enable(bool enable)
 {
     (void)enable;
     return false;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float} target_deg 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Position_SetTargetDeg(float target_deg)
 {
     (void)target_deg;
     return false;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float} delta_deg 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Position_MoveDeg(float delta_deg)
 {
     (void)delta_deg;
     return false;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float} kp_rpm_per_deg 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Position_SetKp(float kp_rpm_per_deg)
 {
     (void)kp_rpm_per_deg;
     return false;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float} max_rpm 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Position_SetMaxRpm(float max_rpm)
 {
     (void)max_rpm;
     return false;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float} dt 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Position_Run(float dt) { (void)dt; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {motor_position_state_t *} state 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Position_GetState(motor_position_state_t *state) { (void)state; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Position_IsEnabled(void) { return false; }
 #endif
 /* Private functions ---------------------------------------------------------*/

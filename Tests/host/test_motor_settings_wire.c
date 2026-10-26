@@ -2,6 +2,7 @@
  * Flash v2 线格式金标准：用固定输入编码，逐字节对比改为字段表（motor_config_fields.inc）之前
  * 的旧实现输出。改字段表顺序/类型会让本测试失败——那意味着存储格式变了，必须提升格式版本。
  */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -15,6 +16,12 @@ static const char *const k_golden_hex =
     "0000204100002441000028410000003f000030410000803e0500000000000045001000450020004500000000cdcccc3d"
     "cdcc4c3e00000080cdcc4cbdcdccccbd0019324b647d96ff0000c03f0100000001000000";
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 填充测试输入数据。
+ * @param {motor_settings_t *} s s 参数
+ * @return {void} 无
+ */
 static void fill(motor_settings_t *s)
 {
     unsigned k = 0, i;
@@ -46,6 +53,10 @@ static void fill(motor_settings_t *s)
     s->calibration.encoder_calibrated = true;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_settings_t settings, decoded;

@@ -40,7 +40,7 @@ static float MotorHfiStart_NormalizeAngle(float angle)
 /**
  * @description: 复位 HFI 初始位置估计状态机，将全部状态清零。
  * @param {motor_hfi_start_t} *state  HFI 状态机实例，可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void MotorHfiStart_Reset(motor_hfi_start_t *state)
@@ -54,7 +54,7 @@ void MotorHfiStart_Reset(motor_hfi_start_t *state)
  * @description: 校验并规整 HFI 配置参数，使取值合法。
  * @detail: 电压非负、每轴周期数与置信度限幅；max_bus_voltage_ratio 非法时回退为默认值 0.20。
  * @param {motor_hfi_start_config_t} *config  HFI 配置结构体，被原地规整
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void MotorHfiStart_NormalizeConfig(motor_hfi_start_config_t *config)
@@ -68,7 +68,7 @@ void MotorHfiStart_NormalizeConfig(motor_hfi_start_config_t *config)
  *          （必要时补 π），计算置信度并置 succeeded/attempted 标志。
  * @param {motor_hfi_start_t} *state            HFI 状态机实例，保存各轴响应并写回结果
  * @param {const motor_hfi_start_config_t} *config   HFI 配置，min_confidence 作为成功判定门限
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void MotorHfiStart_Finish(motor_hfi_start_t *state,

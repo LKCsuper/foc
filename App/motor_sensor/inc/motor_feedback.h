@@ -55,7 +55,7 @@ typedef struct {
 /**
  * @description: 复位反馈选择为默认无感源（与历史 GetCurrentTheta 行为一致）
  * @param {motor_feedback_t} *fb  实例，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Feedback_Reset(motor_feedback_t *fb);
@@ -64,7 +64,7 @@ void Motor_Feedback_Reset(motor_feedback_t *fb);
  * @description: 设置请求的反馈来源
  * @param {motor_feedback_t} *fb           实例
  * @param {motor_feedback_source_t} source 来源
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Feedback_SetSource(motor_feedback_t *fb, motor_feedback_source_t source);
@@ -84,7 +84,7 @@ motor_feedback_source_t Motor_Feedback_GetSource(const motor_feedback_t *fb);
  * @param {const MOTOR_PARAM_S} *motor     电机（查 sensorless_enable 等），可为空（当开环）
  * @param {float} open_loop_theta          开环/I/F 电角 (rad)
  * @param {motor_feedback_sample_t} *out   输出，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, float open_loop_theta,
@@ -92,7 +92,7 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
 
 /**
  * @description: 默认单实例复位为无感源
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Feedback_ResetDefault(void);
@@ -100,7 +100,7 @@ void Motor_Feedback_ResetDefault(void);
 /**
  * @description: 默认单实例设置来源
  * @param {motor_feedback_source_t} source  来源
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Feedback_SetSourceDefault(motor_feedback_source_t source);
@@ -125,7 +125,7 @@ bool Motor_Feedback_IsSensoredSource(motor_feedback_source_t source);
  * @param {const MOTOR_PARAM_S} *motor     电机
  * @param {float} open_loop_theta          开环电角 (rad)
  * @param {motor_feedback_sample_t} *out   输出
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Feedback_SampleDefault(const MOTOR_PARAM_S *motor, float open_loop_theta,

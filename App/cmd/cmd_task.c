@@ -49,7 +49,7 @@ static void task_watch(uint32_t period_ms);
  * @description: 把一行写进串口发送队列。
  * @param {const char *} buf  内容，可为空
  * @param {uint32_t} len  字节数
- * @return {*} 无
+ * @return {void} 无
  */
 static void task_emit(const char *buf, uint32_t len)
 {
@@ -61,7 +61,7 @@ static void task_emit(const char *buf, uint32_t len)
 /**
  * @description: 发送以 0 结尾的字符串。
  * @param {const char *} text  内容，可为空
- * @return {*} 无
+ * @return {void} 无
  */
 static void task_emit_str(const char *text)
 {
@@ -162,7 +162,7 @@ static uint32_t task_percent_tenths(uint32_t part, uint32_t total)
  * @description: 追加空格。
  * @param {textbuf_t *} tb  输出缓冲
  * @param {uint32_t} count  空格个数
- * @return {*} 无
+ * @return {void} 无
  */
 static void task_append_spaces(textbuf_t *tb, uint32_t count)
 {
@@ -178,7 +178,7 @@ static void task_append_spaces(textbuf_t *tb, uint32_t count)
  * @param {textbuf_t *} tb  输出缓冲
  * @param {const char *} text  文本，可为空
  * @param {uint32_t} width  列宽，单位字符
- * @return {*} 无
+ * @return {void} 无
  */
 static void task_append_left(textbuf_t *tb, const char *text, uint32_t width)
 {
@@ -216,7 +216,7 @@ static uint32_t task_u32_digits(uint32_t value)
  * @param {textbuf_t *} tb  输出缓冲
  * @param {uint32_t} value  数值
  * @param {uint32_t} width  列宽，单位字符
- * @return {*} 无
+ * @return {void} 无
  */
 static void task_append_u32_right(textbuf_t *tb, uint32_t value, uint32_t width)
 {
@@ -234,7 +234,7 @@ static void task_append_u32_right(textbuf_t *tb, uint32_t value, uint32_t width)
  * @param {uint32_t} value  数值
  * @param {char} suffix  后缀；0 表示没有
  * @param {uint32_t} width  列宽，含后缀，单位字符
- * @return {*} 无
+ * @return {void} 无
  */
 static void task_append_u32_suffix(textbuf_t *tb, uint32_t value, char suffix, uint32_t width)
 {
@@ -258,7 +258,7 @@ static void task_append_u32_suffix(textbuf_t *tb, uint32_t value, char suffix, u
  * @param {textbuf_t *} tb  输出缓冲
  * @param {bool} valid  false=没有运行计数
  * @param {uint32_t} tenths  十分之一百分点
- * @return {*} 无
+ * @return {void} 无
  */
 static void task_append_cpu(textbuf_t *tb, bool valid, uint32_t tenths)
 {
@@ -287,7 +287,7 @@ static void task_append_cpu(textbuf_t *tb, bool valid, uint32_t tenths)
  *          mt6701 的采样超时是 2 ms，超时会锁存 ENCODER_SPI 并停机。
  * @param {TaskStatus_t *} tasks  快照，xHandle 必须有效
  * @param {UBaseType_t} count  任务数
- * @return {*} 无
+ * @return {void} 无
  */
 static void task_fill_stack(TaskStatus_t *tasks, UBaseType_t count)
 {
@@ -309,7 +309,7 @@ static void task_fill_stack(TaskStatus_t *tasks, UBaseType_t count)
  * @param {uint32_t} total_now  当前总运行计数
  * @param {uint32_t} total_prev  上一帧总运行计数
  * @param {bool} use_delta  true=本刷新间隔，false=上电累计
- * @return {*} 无
+ * @return {void} 无
  */
 static void task_print_frame(const TaskStatus_t *now, UBaseType_t nnow, const TaskStatus_t *prev, UBaseType_t nprev,
                              uint32_t total_now, uint32_t total_prev, bool use_delta)
@@ -419,7 +419,7 @@ static void task_print_frame(const TaskStatus_t *now, UBaseType_t nnow, const Ta
 /**
  * @description: 按周期刷新任务占用，直到串口收到任意输入。
  * @param {uint32_t} period_ms  刷新周期，单位 ms
- * @return {*} 无
+ * @return {void} 无
  */
 static void task_watch(uint32_t period_ms)
 {

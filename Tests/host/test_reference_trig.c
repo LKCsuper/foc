@@ -1,8 +1,14 @@
+/* 参考三角函数主机测试：多项式近似精度与误差统计 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include "motor_reference_trig.h"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     const int terms[] = {3, 5, 7, 9, 12};

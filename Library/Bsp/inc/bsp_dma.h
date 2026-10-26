@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: DMA 与串口收发缓冲区配置及接口声明
  * @Date: 2023-02-18 23:51:32
  * @LastEditTime: 2023-03-15 22:55:25
  * @FilePath: \foc\Library\Bsp\inc\bsp_dma.h
@@ -73,8 +73,22 @@ extern UCHAR gucURxBuf[USART_RX_BUF_SIZE];
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+/**
+ * @description: ADC 采样 DMA 初始化入口
+ * @return {void} 无
+ */
 VOID Bsp_Dma_AdcSample(VOID);
+
+/**
+ * @description: 串口 DMA 接收初始化入口
+ * @return {void} 无
+ */
 VOID Bsp_Dma_UsartRx(VOID);
+
+/**
+ * @description: DMA 系统初始化顶层入口（ADC 采样 + 串口收发）
+ * @return {void} 无
+ */
 VOID Bsp_Dma_Init(VOID);
 
 #ifdef __cplusplus

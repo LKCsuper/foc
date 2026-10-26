@@ -1,5 +1,5 @@
 /*
- * @Description:
+ * @Description: Boot 主程序的应用声明与依赖。
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-28 19:28:50

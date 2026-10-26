@@ -1,11 +1,14 @@
+/* 停机对照用原始正余弦基准，仅供验证本地算法精度，不接入控制路径 */
 #ifndef MOTOR_REFERENCE_TRIG_H
 #define MOTOR_REFERENCE_TRIG_H
+/* Includes ------------------------------------------------------------------*/
 #include "motor_config.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 #if MOTOR_CFG_REFERENCE_TRIG
 
+/* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 只供停机对照，调用用户提供的原始正余弦函数，不修改第三方文件。
  * @detail: 不做角度缩减或精度修正，terms 由基准限定为 3、5、7、9、12。

@@ -6,6 +6,7 @@
 extern "C" {
 #endif
 
+/* Private typedef -----------------------------------------------------------*/
 typedef enum {
     MOTOR_AUTOTUNE_OK = 0,
     MOTOR_AUTOTUNE_INVALID_INPUT,
@@ -39,12 +40,15 @@ typedef struct {
     float model_phase_margin_deg;
 } motor_autotune_result_t;
 
+/* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 按 Kp=L*ωc、Ki=R*ωc 生成电流 PI 候选值，可在任务/主机侧调用。
  * @detail: 检查 ωc*dt<=0.2 及理想消零模型 90°-ωc*delay 的裕量预算。
  *          total_delay_s 至少为半个控制周期；未知延时不能填 0 冒充已验证。
  *          检查不代表实际稳定性证明；饱和、滤波、耦合与模型误差需实测验证。
  *          result 不可为空；失败时清空输出。无隐藏状态、不应用增益、不写 Flash。
+ * @param {const motor_autotune_config_t *} config 输入配置，不可为空
+ * @param {motor_autotune_result_t *} result 输出结果，不可为空
  * @return {motor_autotune_status_t} 成功或具体拒绝原因。
  */
 motor_autotune_status_t Motor_Autotune_CurrentPi(const motor_autotune_config_t *config,

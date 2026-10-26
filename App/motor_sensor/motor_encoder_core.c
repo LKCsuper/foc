@@ -1,4 +1,5 @@
 /* 编码器纯算法：绝对计数、回绕、PLL、零点；不访问硬件或全局电机。 */
+/* Includes ------------------------------------------------------------------*/
 #include "motor_encoder_core.h"
 #include "common_assert.h"
 #include <math.h>
@@ -7,11 +8,13 @@
 /* 位于 ADC 中断控制路径，与其他实时模块一致局部 O2；不启用快速浮点，公式不变。 */
 #pragma O2
 #endif
+/* Private define ------------------------------------------------------------*/
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 #define MOTOR_ENCODER_DT_MIN_S (1.0e-6f)
 #define MOTOR_ENCODER_DT_MAX_S (0.1f)
+/* Private function prototypes -----------------------------------------------*/
 static float Motor_Encoder_Wrap2Pi(float angle);
 static float Motor_Encoder_WrapCpr(float pos, float cpr);
 static float Motor_Encoder_WrapDeltaCpr(float delta, float cpr);
@@ -19,6 +22,7 @@ static float Motor_Encoder_MeasuredCounts(const motor_encoder_runtime_t *rt, uin
 static bool Motor_Encoder_PllPredict(motor_encoder_runtime_t *rt, float dt_s);
 static void Motor_Encoder_PllCorrect(motor_encoder_runtime_t *rt, float measured, float dt_s);
 static int32_t Motor_Encoder_DeltaCounts(uint16_t now, uint16_t last, uint32_t cpr);
+/* Private functions ---------------------------------------------------------*/
 /**
  * @description: 将角度循环归一化到 [0, 2π)
  * @param {float} angle  输入角度 (rad)
@@ -36,6 +40,15 @@ static float Motor_Encoder_Wrap2Pi(float angle)
     return angle;
 }
 
+/**
+ * @description: 应用外部电角零点与方向校准。
+ * @detail: offset 单位为电角 (rad)；valid=false 时忽略 offset 并清零点。保留测速历史，方向变化由后续更新处理。
+ * @param {motor_encoder_runtime_t *} rt  运行时状态，不可为空
+ * @param {float} offset_rad              电角零点偏置 (rad)
+ * @param {bool} inverted                 true=方向取反
+ * @param {bool} valid                    true=零点可用
+ * @return {void} 无
+ */
 void Motor_Encoder_ApplyCalibrationState(motor_encoder_runtime_t *rt, float offset_rad, bool inverted, bool valid)
 {
     COMMON_ASSERT(rt != NULL);
@@ -228,7 +241,8 @@ static void Motor_Encoder_PllCorrect(motor_encoder_runtime_t *rt, float measured
  * @param {motor_encoder_runtime_t} *rt  运行时状态，不可为空
  * @param {uint32_t} counts_per_rev      每机械圈计数（含正交倍频）
  * @param {bool} inverted                true=机械正方向与计数方向相反
- * @return {*}
+ * @param {const motor_encoder_config_t *} config 配置；空指针按实现返回或拒绝
+ * @return {bool} true=独立状态已初始化；false=输入非法且状态不修改
  * @author: lkc
  */
 bool Motor_Encoder_InitState(motor_encoder_runtime_t *rt, uint32_t counts_per_rev, bool inverted,
@@ -269,7 +283,7 @@ bool Motor_Encoder_InitState(motor_encoder_runtime_t *rt, uint32_t counts_per_re
  * @param {motor_encoder_runtime_t} *rt  运行时状态
  * @param {uint16_t} count               当前正交解码计数值
  * @param {float} dt_s                   距上一拍时间 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_UpdateState(motor_encoder_runtime_t *rt, uint16_t count, float dt_s)
@@ -336,7 +350,8 @@ void Motor_Encoder_CorrectSampleState(motor_encoder_runtime_t *rt, uint16_t coun
  * @detail: 采样年龄超过超时后清 speed_valid，不把缺帧当成零速。
  * @param {motor_encoder_runtime_t *} rt  运行时状态
  * @param {float} dt_s                    距上一拍时间 (s)
- * @return {*}
+ * @param {float} timeout_s timeout_s，单位 s
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_PredictWithTimeoutState(motor_encoder_runtime_t *rt, float dt_s, float timeout_s)
@@ -358,6 +373,12 @@ void Motor_Encoder_PredictWithTimeoutState(motor_encoder_runtime_t *rt, float dt
     }
 }
 
+/**
+ * @description: 无新传感器帧时按 PLL 速度预测位置，超时取实例配置的 sample_timeout_s。
+ * @param {motor_encoder_runtime_t *} rt  运行时状态，不可为空
+ * @param {float} dt_s                    距上一拍时间 (s)
+ * @return {void} 无
+ */
 void Motor_Encoder_PredictState(motor_encoder_runtime_t *rt, float dt_s)
 {
     Motor_Encoder_PredictWithTimeoutState(rt, dt_s, rt->config.sample_timeout_s);
@@ -501,7 +522,7 @@ bool Motor_Encoder_IsZeroValidState(const motor_encoder_runtime_t *rt)
  * @param {motor_encoder_runtime_t} *rt  运行时状态
  * @param {uint16_t} count               当前计数值
  * @param {float} pole_pairs             极对数
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_MarkZeroState(motor_encoder_runtime_t *rt, uint16_t count, float pole_pairs)
@@ -515,7 +536,7 @@ void Motor_Encoder_MarkZeroState(motor_encoder_runtime_t *rt, uint16_t count, fl
 /**
  * @description: 清除电角零点与速度差分历史（Reset 路径用）
  * @param {motor_encoder_runtime_t} *rt  运行时状态
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_ClearZeroState(motor_encoder_runtime_t *rt)

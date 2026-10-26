@@ -23,7 +23,7 @@ extern "C" {
  * @param {const hal_motor_sample_t} *sample 本周期采样帧，不可为空
  * @param {float} i_scale 电流比例 (A/count)
  * @param {float} v_gain 相电压增益（无量纲）
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sense_ApplyFrame(MOTOR_PARAM_S *m, const hal_motor_sample_t *sample, float i_scale, float v_gain);
@@ -31,7 +31,7 @@ void Motor_Sense_ApplyFrame(MOTOR_PARAM_S *m, const hal_motor_sample_t *sample, 
 /**
  * @description: 捕获采样帧并换算写入运行时（ISR 默认入口）
  * @param {MOTOR_PARAM_S} *m 电机运行时参数
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sense_Update(MOTOR_PARAM_S *m);

@@ -51,9 +51,20 @@
 #if defined(__ICCARM__) || defined(__CC_ARM) || defined(__GNUC__)
   #include <stdint.h>
   extern uint32_t SystemCoreClock;
+/**
+ * @description: FreeRTOS 移植层的 SysTick 入口，由系统节拍中断调用。
+ * @return {void} 无
+ */
   void xPortSysTickHandler(void);
-/* USER CODE BEGIN 0 */
+/**
+ * @description: USER CODE BEGIN 0
+ * @return {void} 无
+ */
   extern void configureTimerForRunTimeStats(void);
+/**
+ * @description: 读取 FreeRTOS 运行时统计计数器（弱符号默认返回 0）。
+ * @return {unsigned long} 运行时 tick 计数值
+ */
   extern unsigned long getRunTimeCounterValue(void);
 /* USER CODE END 0 */
 #endif

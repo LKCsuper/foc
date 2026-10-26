@@ -64,7 +64,7 @@ typedef struct {
 /**
  * @description: 复位磁链观测状态（积分器与输出清零）
  * @param {motor_flux_t} *obs  实例，可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Flux_Reset(motor_flux_t *obs);
@@ -73,7 +73,7 @@ void Motor_Flux_Reset(motor_flux_t *obs);
  * @description: 规整磁链观测配置
  * @detail: R/L 钳到 ≥0；ψf 低于 1e-6 Wb 时抬到该下限；负增益置 0，由 Step 按 1000/ψf² 回退。
  * @param {motor_flux_config_t} *config  配置，被原地修改；可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Flux_NormalizeConfig(motor_flux_config_t *config);
@@ -86,7 +86,7 @@ void Motor_Flux_NormalizeConfig(motor_flux_config_t *config);
  * @param {float} angle                         假设电角 (rad)
  * @param {float} i_alpha                       定子 α 轴电流 (A)
  * @param {float} i_beta                        定子 β 轴电流 (A)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Flux_Seed(motor_flux_t *obs, const motor_flux_config_t *config, float angle, float i_alpha, float i_beta);

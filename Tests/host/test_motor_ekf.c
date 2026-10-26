@@ -1,3 +1,4 @@
+/* EKF 观测器：配置规整、种子、跟踪收敛、反转与空指针安全。 */
 #include "test_common_assert.h"
 #include <assert.h>
 #include <math.h>
@@ -8,6 +9,11 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+/**
+ * @description: 将测试角度折回主值区间。
+ * @param {float} angle angle 参数
+ * @return {float} 测试记录值 angle
+ */
 static float wrap_pi(float angle)
 {
     const float pi = (float)M_PI;
@@ -22,6 +28,18 @@ static float wrap_pi(float angle)
     return angle;
 }
 
+/**
+ * @description: 计算永磁同步电机模型的电压参考。
+ * @param {float} theta 强制电角度 (rad)
+ * @param {float} omega_e omega_e 参数
+ * @param {float} iq Q 轴电流 (A)
+ * @param {const motor_ekf_config_t *} cfg 配置
+ * @param {float *} v_alpha v_alpha 参数
+ * @param {float *} v_beta v_beta 参数
+ * @param {float *} i_alpha i_alpha 参数
+ * @param {float *} i_beta i_beta 参数
+ * @return {void} 无
+ */
 static void pmsm_voltage(float theta, float omega_e, float iq, const motor_ekf_config_t *cfg, float *v_alpha,
                          float *v_beta, float *i_alpha, float *i_beta)
 {
@@ -35,6 +53,11 @@ static void pmsm_voltage(float theta, float omega_e, float iq, const motor_ekf_c
     *v_beta = cfg->resistance * (*i_beta) - cfg->inductance * iq * omega_e * s + omega_e * flux * c;
 }
 
+/**
+ * @description: 构造本测试采用的默认配置。
+ * @param {motor_ekf_config_t *} cfg 配置
+ * @return {void} 无
+ */
 static void default_config(motor_ekf_config_t *cfg)
 {
     cfg->enabled = true;
@@ -48,6 +71,10 @@ static void default_config(motor_ekf_config_t *cfg)
     cfg->phase_offset = 0.0f;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_ekf_t obs;

@@ -27,6 +27,12 @@ extern "C" {
 static bool Bsp_MT6701_SsiTransferByte(uint8_t tx, uint8_t *rx);
 /* Private functions ---------------------------------------------------------*/
 
+/**
+ * @description: 通过 SPI1 收发一个字节，超时返回 false。
+ * @param {uint8_t} tx 待发送字节
+ * @param {uint8_t *} rx 输出收到的字节
+ * @return {bool} true=字节收发完成；false=SPI 等待超时
+ */
 static bool Bsp_MT6701_SsiTransferByte(uint8_t tx, uint8_t *rx)
 {
     uint32_t timeout = BSP_MT6701_SSI_TIMEOUT_LOOPS;
@@ -47,7 +53,7 @@ static bool Bsp_MT6701_SsiTransferByte(uint8_t tx, uint8_t *rx)
 /**
  * @description: 初始化 SPI1，供 MT6701 SSI 读数。
  * @detail: PA5=CLK、PA6=DO、PA7=MOSI、PB11=CSN。时钟约 5.25 MHz，mode 1。不改 TIM1/ADC。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Bsp_MT6701_SsiInit(void)

@@ -361,7 +361,6 @@ static bool Motor_BldcSensorless_ExpectedRising(const motor_bldc_sensorless_t *c
  * @description: 计算、滤波并记录当前悬空相 BEMF。
  * @param {motor_bldc_sensorless_t *} control 无感控制实例，不可为空
  * @param {const float [3]} phase_voltage 逻辑 A/B/C 相端电压 (V)
- * @param {float} bus_voltage 直流母线电压 (V)
  * @return {float} 滤波后的悬空相对软件中性点电压 (V)
  * @author: lkc
  */
@@ -395,6 +394,7 @@ static float Motor_BldcSensorless_UpdateBemf(motor_bldc_sensorless_t *control,
  * @detail: 该诊断独立于积分有效性门控，只观测数据，不改变换相、PWM 或外设状态。
  * @param {motor_bldc_sensorless_t *} control 无感控制实例，不可为空
  * @param {const float [3]} phase_voltage 逻辑 A/B/C 相端电压 (V)
+ * @param {float} bus_voltage 母线电压 (V)
  * @return {void} 无
  * @author: lkc
  */

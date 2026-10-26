@@ -14,7 +14,7 @@
  * @param {float} got         实际值
  * @param {float} want        期望值
  * @param {float} eps         容差
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void expect_near(const char *name, float got, float want, float eps)

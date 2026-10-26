@@ -212,7 +212,7 @@ extern MOTOR_PARAM_S *gpstMotor;
  * @description: 电机参数初始化。
  * @detail: 写入固定参数与开环/电流/速度/无感默认值，尝试从 Flash 加载已保存参数，
  *          并初始化速度环与无感观测器。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void MOTOR_Param_Init(void);

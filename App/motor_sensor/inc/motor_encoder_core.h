@@ -1,11 +1,13 @@
 /* 独立编码器算法接口，只依赖标准C；计数源可为绝对编码器或硬件AB计数器。 */
 #ifndef MOTOR_ENCODER_CORE_H
 #define MOTOR_ENCODER_CORE_H
+/* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
 #include <stdbool.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
+/* Private typedef -----------------------------------------------------------*/
 typedef struct {
     float pll_bandwidth_rad_s; /* 正值，校正步长需满足2*bw*dt<1 */
     float max_rpm;             /* 机械转速能力，用于突跳拒绝与PLL限幅 */
@@ -46,7 +48,7 @@ typedef struct {
  * @param {motor_encoder_runtime_t} *rt  运行时状态
  * @param {uint16_t} count               当前正交解码计数值
  * @param {float} dt_s                   距上一拍时间 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_UpdateState(motor_encoder_runtime_t *rt, uint16_t count, float dt_s);
@@ -56,7 +58,7 @@ void Motor_Encoder_UpdateState(motor_encoder_runtime_t *rt, uint16_t count, floa
  * @detail: 采样年龄超过超时后清 speed_valid，不把缺帧当成零速。
  * @param {motor_encoder_runtime_t *} rt  运行时状态
  * @param {float} dt_s                    距上一拍时间 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_PredictState(motor_encoder_runtime_t *rt, float dt_s);
@@ -151,7 +153,7 @@ bool Motor_Encoder_IsZeroValidState(const motor_encoder_runtime_t *rt);
  * @param {motor_encoder_runtime_t} *rt  运行时状态
  * @param {uint16_t} count               当前计数值
  * @param {float} pole_pairs             极对数
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_MarkZeroState(motor_encoder_runtime_t *rt, uint16_t count, float pole_pairs);
@@ -159,22 +161,54 @@ void Motor_Encoder_MarkZeroState(motor_encoder_runtime_t *rt, uint16_t count, fl
 /**
  * @description: 清除电角零点与 PLL 历史（Reset 路径用）
  * @param {motor_encoder_runtime_t} *rt  运行时状态
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_ClearZeroState(motor_encoder_runtime_t *rt);
 
-/** 初始化独立状态，cpr为1..65536；非法输入返回false且不修改状态。 */
+/**
+ * @description: 初始化独立状态，cpr为1..65536；非法输入返回false且不修改状态。
+ * @param {motor_encoder_runtime_t} *rt  运行时状态，不可为空
+ * @param {uint32_t} counts_per_rev      每机械圈计数（含正交倍频）
+ * @param {bool} inverted                true=机械正方向与计数方向相反
+ * @param {const motor_encoder_config_t *} config 配置
+ * @return {bool} true=独立状态已初始化；false=输入非法且状态不修改
+ */
 bool Motor_Encoder_InitState(motor_encoder_runtime_t *rt, uint32_t counts_per_rev, bool inverted,
                              const motor_encoder_config_t *config);
-/** 首帧/失联重建；保留电角零点和累计计数，本拍速度无效。rt不可为空。 */
+/**
+ * @description: 首帧/失联重建；保留电角零点和累计计数，本拍速度无效。rt不可为空。
+ * @param {motor_encoder_runtime_t *} rt  运行时状态
+ * @param {uint16_t} count               原始计数
+ * @return {void} 无
+ */
 void Motor_Encoder_SeedState(motor_encoder_runtime_t *rt, uint16_t count);
-/** 已初始化状态的新帧校正；两种dt单位s，由接入层保证有效且PLL稳定。 */
+/**
+ * @description: 已初始化状态的新帧校正；两种dt单位s，由接入层保证有效且PLL稳定。
+ * @param {motor_encoder_runtime_t *} rt  运行时状态
+ * @param {uint16_t} count               新的原始计数
+ * @param {float} sample_dt_s           距上一帧成功采样的时间 (s)，用于突跳门限
+ * @param {float} correction_dt_s       PLL 校正步长 (s)，可小于 sample_dt_s
+ * @return {void} 无
+ */
 void Motor_Encoder_CorrectSampleState(motor_encoder_runtime_t *rt, uint16_t count,
                                      float sample_dt_s, float correction_dt_s);
-/** 无新帧预测；dt与timeout单位s。与默认PredictState共用同一算法。 */
+/**
+ * @description: 无新帧预测；dt与timeout单位s。与默认PredictState共用同一算法。
+ * @param {motor_encoder_runtime_t *} rt  运行时状态
+ * @param {float} dt_s                    距上一拍时间 (s)
+ * @param {float} timeout_s timeout_s，单位 s
+ * @return {void} 无
+ */
 void Motor_Encoder_PredictWithTimeoutState(motor_encoder_runtime_t *rt, float dt_s, float timeout_s);
-/** 应用外部校准，offset单位电角rad；保持测速历史，由后续更新处理方向变化。 */
+/**
+ * @description: 应用外部校准，offset单位电角rad；保持测速历史，由后续更新处理方向变化。
+ * @param {motor_encoder_runtime_t *} rt  运行时状态，不可为空
+ * @param {float} offset_rad              电角零点偏置 (rad)
+ * @param {bool} inverted                 true=方向取反
+ * @param {bool} valid                    true=零点可用
+ * @return {void} 无
+ */
 void Motor_Encoder_ApplyCalibrationState(motor_encoder_runtime_t *rt, float offset_rad, bool inverted, bool valid);
 #ifdef __cplusplus
 }

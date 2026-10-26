@@ -1,3 +1,4 @@
+/* 齿槽补偿：学习/完成/使能与清空状态机及查询电压。 */
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -7,6 +8,10 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_anticogging_status_t status;

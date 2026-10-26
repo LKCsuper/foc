@@ -20,8 +20,7 @@ volatile float ADC_curr_norm_value[6] = {0};
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 通用状态寄存器
- * @detail: 
- * @return {*}
+ * @return {STATIC VOID} 本次计算或查询的结果
  * @author: lkc
  */
 STATIC VOID Bsp_Adc123_Common(VOID)
@@ -45,9 +44,8 @@ STATIC VOID Bsp_Adc123_Common(VOID)
 }
 
 /**
- * @description: 
- * @detail: 
- * @return {*}
+ * @description: ADC1/2/3 规则转换初始化（分辨率/扫描/外部触发）
+ * @return {STATIC VOID} 本次计算或查询的结果
  * @author: lkc
  */
 STATIC VOID Bsp_Adc123_Init(VOID)
@@ -81,8 +79,7 @@ STATIC VOID Bsp_Adc123_Init(VOID)
 
 /**
  * @description: adc设置通道
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Adc_SetChannels(VOID)
@@ -123,10 +120,11 @@ VOID Bsp_Adc_SetChannels(VOID)
 }
 
 /**
+ * @description: ADC 采样入口（公共配置 + 三 ADC 初始化 + 通道映射）
  * @Description: adc采样
  * @author: lkc
  * @Date: 2023-02-19 09:22:41
- * @return {*}
+ * @return {void} 无
  */
 VOID Bsp_Adc_Sample(VOID)
 {
@@ -148,9 +146,8 @@ VOID Bsp_Adc_Sample(VOID)
 }
 
 /**
- * @description: 
- * @detail: 
- * @return {*}
+ * @description: ADC 采样初始化入口（采样配置并设置通道）
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Adc_Init(VOID)

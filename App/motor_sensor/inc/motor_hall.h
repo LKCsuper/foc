@@ -41,7 +41,7 @@ bool Motor_Hall_DetectIsActive(void);
 
 /**
  * @description: 中止正在进行的霍尔标定（olstop 或故障时调用）
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_DetectAbort(void);
@@ -60,7 +60,9 @@ bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad,
 
 /**
  * @description: 开环转一圈，标定霍尔状态与电角度对应表
- * @detail: 通过 MOTOR_PARAM_S 与 motor_it 电流环驱动电机；结果写入 hall_table 输出缓冲
+ * @detail: RTOS 兼容包装，最长 120 s；退出先停机，成功表才应用到电机。
+ *          裸机使用 motor_hall_calibration.h 的非阻塞接口并负责硬件接入及停机。
+ *          不自动保存 Flash；失败/取消/故障/超时保留原电机表。
  * @param {float} current        对齐电流 (A)，建议用峰值电流 / 3
  * @param {uint8_t} *hall_table  输出 8 项霍尔表，255 表示无效扇区
  * @param {bool} *result         true 表示标定成功（6 个有效扇区）

@@ -9,6 +9,12 @@
 #include <stdlib.h>
 #if MOTOR_CFG_CMD_IDENTIFY
 
+/**
+ * @description: 解析严格为正的 float：空指针、尾随字符、NaN/Inf 或非正值均拒绝。
+ * @param {const char *} text text 参数；空指针按实现返回或拒绝
+ * @param {float *} value 待处理值
+ * @return {bool} true=已解析出有限正数；false=格式非法或数值不满足条件
+ */
 static bool Autotune_ParsePositive(const char *text, float *value)
 {
     char *end;
@@ -17,7 +23,12 @@ static bool Autotune_ParsePositive(const char *text, float *value)
     return end != text && *end == '\0' && isfinite(*value) && *value > 0.0f;
 }
 
-/** 任务侧命令；延时必须由用户显式输入，不把默认周期数当作硬件测量值。 */
+/**
+ * @description: 任务侧命令；延时必须由用户显式输入，不把默认周期数当作硬件测量值。
+ * @param {int} argc 命令参数个数
+ * @param {char *[]} argv 命令参数字符串数组；空指针按实现返回或拒绝
+ * @return {int} 本次计算或查询的结果
+ */
 int Cmd_Autotune(int argc, char *argv[])
 {
     motor_command_t command;

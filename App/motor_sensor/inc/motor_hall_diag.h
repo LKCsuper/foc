@@ -93,7 +93,7 @@ typedef struct {
  * @description: 在 ADC-DMA ISR 入口记下 TIM1 计数，供最差帧对照采样沿。
  * @param {uint16_t} tim1_cnt  ISR 入口 TIM1 计数
  * @param {uint16_t} tim1_arr  ISR 入口 TIM1 ARR（计数）
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_DiagNoteTimer(uint16_t tim1_cnt, uint16_t tim1_arr);
@@ -102,7 +102,7 @@ void Motor_Hall_DiagNoteTimer(uint16_t tim1_cnt, uint16_t tim1_arr);
  * @description: Hall I/F 稳态时累计三相和与 Id 跟踪诊断。
  * @detail: 每拍刷新最差帧；每 16 拍写入扇区统计。目标转速变化时清零。
  *          |sum|>0.5 A 与 |Id 误差|>1.0 A 只计数，不在本函数内停机。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_DiagUpdate(void);
@@ -111,7 +111,7 @@ void Motor_Hall_DiagUpdate(void);
  * @description: 复制 Hall 电流诊断的 8 个扇区累计快照。
  * @detail: 短关 IRQ 拷贝；停机后仍保留上一轮目标转速下的统计。
  * @param {motor_hall_current_diag_sector_t} sectors[8] 输出缓冲，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_DiagGetSectors(motor_hall_current_diag_sector_t sectors[8]);
@@ -119,7 +119,7 @@ void Motor_Hall_DiagGetSectors(motor_hall_current_diag_sector_t sectors[8]);
 /**
  * @description: 复制本轮 |Ia+Ib+Ic| 最大那一拍的锁存快照。
  * @param {motor_hall_current_worst_t} *out 输出快照，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_DiagGetWorst(motor_hall_current_worst_t *out);
@@ -127,7 +127,7 @@ void Motor_Hall_DiagGetWorst(motor_hall_current_worst_t *out);
 /**
  * @description: 复制本轮 |Id−目标| 最大那一拍的锁存快照。
  * @param {motor_hall_current_worst_t} *out 输出快照，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_DiagGetWorstId(motor_hall_current_worst_t *out);
@@ -135,7 +135,7 @@ void Motor_Hall_DiagGetWorstId(motor_hall_current_worst_t *out);
 /**
  * @description: 复制霍尔换向窗与扇区内部的 |Id| 越界对照。
  * @param {motor_hall_current_edge_diag_t} *out 输出快照，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_DiagGetEdge(motor_hall_current_edge_diag_t *out);

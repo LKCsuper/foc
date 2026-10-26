@@ -1,14 +1,25 @@
+/* 2804 220KV 电机固定参数宏核对（极对数、额定电压/电流、电感、磁链与默认增益）。 */
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 
 #include "motor_2804_220kv.h"
 
+/**
+ * @description: 判断两浮点值是否在测试容差内。
+ * @param {float} a a 参数
+ * @param {float} b b 参数
+ * @return {int} 本次计算或查询的结果
+ */
 static int Near(float a, float b)
 {
     return fabsf(a - b) < 1.0e-7f;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     assert(MOTOR_2804_220KV_POLE_COUNT == 14U);

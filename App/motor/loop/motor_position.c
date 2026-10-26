@@ -46,6 +46,11 @@ static void Motor_Position_FillControlConfig(motor_position_control_config_t *co
 
 
 
+/**
+ * @description: 从模块宏与默认增益生成位置核心配置。
+ * @param {motor_position_config_t *} config 配置
+ * @return {void} 无
+ */
 static void Motor_Position_FillConfig(motor_position_config_t *config)
 {
     config->counts_per_rev = MOTOR_MT6701_COUNTS_PER_REV;

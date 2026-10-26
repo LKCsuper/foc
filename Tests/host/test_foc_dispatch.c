@@ -1,3 +1,4 @@
+/* FOC ISR 分频门控与状态发布：跳过拍、相位沿、时间回绕故障与发布分频。 */
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -15,16 +16,53 @@ static int s_control;
 static uint32_t s_now = 1234U;
 static unsigned s_faults, s_resets, s_safe;
 #define FAULT_CODE_CONTROL_TIMING 1
+/**
+ * @description: 主机测试替身：计算 FOC 控制环周期（已乘分频）。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} motor 兼容参数，本实现不使用
+ * @return {float} 测试记录值 1.0f / 15000.0f
+ */
 static float Motor_Timing_GetControlDt(MOTOR_PARAM_S *motor) { (void)motor; return 1.0f / 15000.0f; }
+/**
+ * @description: 主机测试替身：默认实例外部触发故障锁存。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {int} fault 故障条件或故障编码
+ * @param {MOTOR_PARAM_S *} motor 电机实例
+ * @return {void} 无
+ */
 static void Motor_Protect_TriggerFault(int fault, MOTOR_PARAM_S *motor)
 { assert(fault == FAULT_CODE_CONTROL_TIMING && motor != NULL); s_faults++; }
+/**
+ * @description: 主机测试替身：复位启动链与速度/无感/电流积分显示（不清用户目标命令）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {int *} control control 参数
+ * @param {MOTOR_PARAM_S *} motor 电机实例
+ * @return {void} 无
+ */
 static void Motor_Control_ResetRuntime(int *control, MOTOR_PARAM_S *motor)
 { assert(control == &s_control && motor != NULL); s_resets++; }
+/**
+ * @description: 主机测试替身：输出三相中点占空比并提交 PWM。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} motor 电机实例
+ * @return {void} 无
+ */
 static void Motor_OutputSafe(MOTOR_PARAM_S *motor) { assert(motor != NULL); s_safe++; }
 static struct { uint32_t CR1; uint32_t CNT; } phase_timer;
 #define TIM1 (&phase_timer)
 static unsigned phase_notes;
 static uint32_t phase_flags;
+/**
+ * @description: 主机测试替身：写入一条相位沿事件，并检测 PWM 计数方向切换以触发后采集。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {uint32_t} time time 参数
+ * @param {uint32_t} count 计数值
+ * @param {uint32_t} cr1 cr1 参数
+ * @param {uint32_t} divider divider 参数
+ * @param {uint32_t} flags flags 参数
+ * @param {bool} running 当前是否运行
+ * @return {void} 无
+ */
 static void Motor_Timing_PhaseEdgeNote(uint32_t time, uint32_t count, uint32_t cr1,
                                        uint32_t divider, uint32_t flags, bool running)
 {
@@ -38,41 +76,99 @@ static bool s_execute;
 static unsigned s_runs, s_publishes, s_gates;
 volatile uint8_t g_motor_timing_split_active;
 
+/**
+ * @description: 主机测试替身：查询拍型细分诊断是否开启。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 g_motor_timing_split_active != 0U
+ */
 static bool Motor_Timing_SplitIsActive(void)
 {
     return g_motor_timing_split_active != 0U;
 }
 static unsigned s_class_full, s_class_skip, s_publish_notes;
+/**
+ * @description: 主机测试替身：标记本回调是完整控制拍还是跳过拍。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {bool} full full 参数
+ * @return {void} 无
+ */
 void Motor_Timing_CallbackClassify(bool full)
 {
     if (full) s_class_full++;
     else s_class_skip++;
 }
+/**
+ * @description: 主机测试替身：记下本回调内一次状态发布的自身耗时。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {uint32_t} elapsed_us 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 void Motor_Timing_CallbackPublish(uint32_t elapsed_us)
 {
     (void)elapsed_us;
     s_publish_notes++;
 }
 static motor_feedback_source_t s_source;
+/**
+ * @description: 主机测试替身：读取电机通用微秒时基（自由运行，非 Hall 专用）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 测试记录值 s_now
+ */
 static uint32_t Hal_Motor_TimeUs(void) { return s_now; }
+/**
+ * @description: 主机测试替身：读取默认单实例请求的反馈来源
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {motor_feedback_source_t} 测试记录值 s_source
+ */
 static motor_feedback_source_t Motor_Feedback_GetSourceDefault(void) { return s_source; }
+/**
+ * @description: 主机测试替身：判断本次 ADC 回调是否承担一拍完整 FOC。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {motor_feedback_source_t} source source 参数
+ * @return {bool} 测试记录值 s_execute
+ */
 static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t source)
 {
     assert(source == s_source);
     s_gates++;
     return s_execute;
 }
+/**
+ * @description: 主机测试替身：执行一拍完整 FOC：采样 → 保护 → 电流 → 控制 → 输出。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} motor 电机实例
+ * @param {motor_feedback_source_t} source source 参数
+ * @param {uint32_t} start start 参数
+ * @return {void} 无
+ */
 static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor, motor_feedback_source_t source, uint32_t start)
 {
     assert(motor != NULL && source == s_source && start == s_now);
     s_runs++;
 }
+/**
+ * @description: 主机测试替身：按约 100 Hz 从 ADC 中断发布状态快照。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {const MOTOR_PARAM_S *} motor 电机实例
+ * @return {void} 无
+ */
 static void Motor_FocIsr_PublishStatus(const MOTOR_PARAM_S *motor) { assert(motor != NULL); s_publishes++; }
 #include "foc_dispatch_under_test.inc"
 
 static unsigned s_status_frames;
 static unsigned s_status_marks;
+/**
+ * @description: 主机测试替身：给当前关联事件标记状态位。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 static void Motor_Timing_PhaseMarkStatus(void) { s_status_marks++; }
+/**
+ * @description: 主机测试替身：在 ISR 捕获一拍运行快照并发布到 seqlock 双缓冲。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {const MOTOR_PARAM_S *} motor 电机实例
+ * @return {void} 无
+ */
 static void Motor_StatusSnapshotPublishFromIsr(const MOTOR_PARAM_S *motor)
 {
     assert(motor != NULL);
@@ -82,6 +178,10 @@ static void Motor_StatusSnapshotPublishFromIsr(const MOTOR_PARAM_S *motor)
 #include "status_publish_under_test.inc"
 #undef Motor_FocIsr_PublishStatus
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     MOTOR_PARAM_S motor = {0};

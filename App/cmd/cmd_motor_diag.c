@@ -793,6 +793,15 @@ int Cmd_SensorlessHandoff(int argc, char *argv[])
     return 0;
 }
 
+/**
+ * @description: sltrace 命令 — 武装或导出无感 RAM 环形轨迹诊断。
+ * @detail: 停机时按 fault/arm/compact/entry/entryfast/lite/flight 等子命令武装采集，无子命令或
+ *          tracking* 时读取/导出；导出为带 CRC 的 CSV 行，故障轨迹仅冻结在 RAM 供 J-Link 读取。
+ *          所有打印与编解码都在命令任务中完成，不进入 FOC 中断。
+ * @param {int} argc       参数个数
+ * @param {char *[]} argv  参数表；子命令在 argv[1]
+ * @return {int} 0 成功，-1 电机仍在运行或导出格式错误
+ */
 int Cmd_SensorlessTrace(int argc, char *argv[])
 {
     unsigned i, count;

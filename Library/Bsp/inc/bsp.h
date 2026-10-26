@@ -1,6 +1,6 @@
 
 /*
- * @Description: 
+ * @Description: 板级初始化与中断优先级配置
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-19 10:03:36
@@ -29,7 +29,16 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 初始化系统时钟与 FreeRTOS 基础外设
+ * @return {void} 无
+ */
 VOID Bsp_RTOS_Init(VOID);
+
+/**
+ * @description: 板级硬件初始化（GPIO/串口/ADC/DMA/定时器）
+ * @return {void} 无
+ */
 VOID Bsp_Init(VOID);
 #ifdef __cplusplus
 }

@@ -1,8 +1,16 @@
+/* BLDC 无感：开环/闭环切换、反电势积分换向、启动超时与失步故障。 */
 #include <assert.h>
 #include <stdio.h>
 
 #include "motor_bldc_sensorless.h"
 
+/**
+ * @description: 初始化两份独立测试实例。
+ * @param {motor_bldc_six_step_t *} commutator commutator 参数
+ * @param {motor_bldc_sensorless_t *} sensorless sensorless 参数
+ * @param {motor_bldc_sensorless_config_t *} config 配置
+ * @return {void} 无
+ */
 static void init_pair(motor_bldc_six_step_t *commutator,
                       motor_bldc_sensorless_t *sensorless,
                       motor_bldc_sensorless_config_t *config)
@@ -25,6 +33,10 @@ static void init_pair(motor_bldc_six_step_t *commutator,
     assert(Motor_BldcSensorless_Init(sensorless, commutator, config));
 }
 
+/**
+ * @description: 验证开环至积分闭环。
+ * @return {void} 无
+ */
 static void test_open_loop_to_integral_closed_loop(void)
 {
     motor_bldc_six_step_t commutator;
@@ -63,6 +75,10 @@ static void test_open_loop_to_integral_closed_loop(void)
     assert(sensorless.filtered_commutation_period_s == 0.010f);
 }
 
+/**
+ * @description: 验证固定开环忽略BEMF。
+ * @return {void} 无
+ */
 static void test_fixed_open_loop_ignores_bemf(void)
 {
     motor_bldc_six_step_t commutator;
@@ -85,6 +101,10 @@ static void test_fixed_open_loop_ignores_bemf(void)
     assert(commutator.duty == 0.08f);
 }
 
+/**
+ * @description: 验证自动起动采用启动占空比随后斜坡变化至目标。
+ * @return {void} 无
+ */
 static void test_automatic_start_uses_startup_duty_then_slews_to_target(void)
 {
     motor_bldc_six_step_t commutator;
@@ -105,6 +125,10 @@ static void test_automatic_start_uses_startup_duty_then_slews_to_target(void)
     assert(commutator.duty > 0.0849f && commutator.duty < 0.0851f);
 }
 
+/**
+ * @description: 验证固定开环采用请求占空比。
+ * @return {void} 无
+ */
 static void test_fixed_open_loop_uses_requested_duty(void)
 {
     motor_bldc_six_step_t commutator;
@@ -118,6 +142,10 @@ static void test_fixed_open_loop_uses_requested_duty(void)
     assert(sensorless.target_duty == 0.12f);
 }
 
+/**
+ * @description: 验证开环拒绝未同步BEMF。
+ * @return {void} 无
+ */
 static void test_open_loop_rejects_unsynchronized_bemf(void)
 {
     motor_bldc_six_step_t commutator;
@@ -138,6 +166,10 @@ static void test_open_loop_rejects_unsynchronized_bemf(void)
     assert(sensorless.startup_invalid_sectors > 0U);
 }
 
+/**
+ * @description: 验证非法样本停止功率桥。
+ * @return {void} 无
+ */
 static void test_invalid_sample_stops_bridge(void)
 {
     motor_bldc_six_step_t commutator;
@@ -152,6 +184,10 @@ static void test_invalid_sample_stops_bridge(void)
     assert(commutator.output.step == MOTOR_BLDC_SIX_STEP_INVALID);
 }
 
+/**
+ * @description: 验证BEMF积分器换相。
+ * @return {void} 无
+ */
 static void test_bemf_integrator_commutates(void)
 {
     motor_bldc_six_step_t commutator;
@@ -176,6 +212,10 @@ static void test_bemf_integrator_commutates(void)
     assert(sensorless.integral_commutations == 1U);
 }
 
+/**
+ * @description: 验证BEMF积分器限制周期缩短。
+ * @return {void} 无
+ */
 static void test_bemf_integrator_limits_period_reduction(void)
 {
     motor_bldc_six_step_t commutator;
@@ -204,6 +244,10 @@ static void test_bemf_integrator_limits_period_reduction(void)
     assert(sensorless.filtered_commutation_period_s < 0.0196f);
 }
 
+/**
+ * @description: 验证BEMF积分器拒绝贴近电源轨样本在首个半周期。
+ * @return {void} 无
+ */
 static void test_bemf_integrator_blocks_rail_sample_in_first_half(void)
 {
     motor_bldc_six_step_t commutator;
@@ -228,6 +272,10 @@ static void test_bemf_integrator_blocks_rail_sample_in_first_half(void)
     assert(sensorless.integral_commutations == 1U);
 }
 
+/**
+ * @description: 验证占空比周期选择启动采集周期。
+ * @return {void} 无
+ */
 static void test_duty_period_selects_startup_capture_period(void)
 {
     motor_bldc_six_step_t commutator;
@@ -253,6 +301,10 @@ static void test_duty_period_selects_startup_capture_period(void)
     assert(sensorless.filtered_commutation_period_s < 0.01151f);
 }
 
+/**
+ * @description: 验证闭环检测每步骤积分阈值。
+ * @return {void} 无
+ */
 static void test_closed_loop_detects_per_step_integral_thresholds(void)
 {
     motor_bldc_six_step_t commutator;
@@ -292,6 +344,10 @@ static void test_closed_loop_detects_per_step_integral_thresholds(void)
     }
 }
 
+/**
+ * @description: 验证检测所得阈值替代占空比周期下限。
+ * @return {void} 无
+ */
 static void test_detected_threshold_replaces_duty_period_floor(void)
 {
     motor_bldc_six_step_t commutator;
@@ -321,6 +377,10 @@ static void test_detected_threshold_replaces_duty_period_floor(void)
     assert(sensorless.minimum_commutation_period_s < 0.0091f);
 }
 
+/**
+ * @description: 验证启动保留积分阈值。
+ * @return {void} 无
+ */
 static void test_startup_preserves_integral_threshold(void)
 {
     motor_bldc_six_step_t commutator;
@@ -354,6 +414,10 @@ static void test_startup_preserves_integral_threshold(void)
     assert(sensorless.config.bemf_integral_threshold_vs == 0.009f);
 }
 
+/**
+ * @description: 验证闭环强制迟到步骤且不破坏周期。
+ * @return {void} 无
+ */
 static void test_closed_loop_forces_late_step_without_corrupting_period(void)
 {
     motor_bldc_six_step_t commutator;
@@ -383,6 +447,10 @@ static void test_closed_loop_forces_late_step_without_corrupting_period(void)
     assert(sensorless.filtered_commutation_period_s < 0.0101f);
 }
 
+/**
+ * @description: 验证闭环触发故障经过一个强制电周期。
+ * @return {void} 无
+ */
 static void test_closed_loop_trips_after_one_forced_electrical_cycle(void)
 {
     motor_bldc_six_step_t commutator;
@@ -408,6 +476,10 @@ static void test_closed_loop_trips_after_one_forced_electrical_cycle(void)
     assert(!Motor_BldcSixStep_IsRunning(&commutator));
 }
 
+/**
+ * @description: 验证被动零候选为不阻止由积分门控。
+ * @return {void} 无
+ */
 static void test_passive_zero_candidate_is_not_blocked_by_integral_gate(void)
 {
     motor_bldc_six_step_t commutator;
@@ -444,6 +516,10 @@ static void test_passive_zero_candidate_is_not_blocked_by_integral_gate(void)
     assert(sensorless.step_neutral_waveform_v[0][7] < 12.011f);
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     test_open_loop_to_integral_closed_loop();

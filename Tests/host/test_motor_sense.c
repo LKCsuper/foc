@@ -2,6 +2,7 @@
  * @Description: 采样帧换算主机测试（假 ADC，不访问硬件）
  * @Author: lkc
  */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -10,20 +11,41 @@
 #include "motor_param.h"
 
 /* motor_sense.c 仍含 Update 入口，链接时需这些符号；本测只走 ApplyFrame。 */
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 主机测试替身：捕获本周期一致的采样帧（电流/相感电压/母线/时标）。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {hal_motor_sample_t *} out 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 bool Hal_Motor_SampleCapture(hal_motor_sample_t *out)
 {
     (void)out;
     return false;
 }
+/**
+ * @description: 主机测试替身：电流 ADC 计数到安培的换算系数
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 本实现固定返回 0.0f
+ */
 float Hal_Motor_CurrentScale(void)
 {
     return 0.0f;
 }
+/**
+ * @description: 主机测试替身：相电压采样点到相电压的增益
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 本实现固定返回 0.0f
+ */
 float Hal_Motor_PhaseVoltageGain(void)
 {
     return 0.0f;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     MOTOR_PARAM_S m;

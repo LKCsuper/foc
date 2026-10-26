@@ -75,7 +75,7 @@ static float Motor_Ekf_Clamp(float value, float minimum, float maximum)
 /**
  * @description: 清空本拍输出
  * @param {motor_ekf_output_t} *output  输出；可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Ekf_ClearOutput(motor_ekf_output_t *output)
@@ -90,7 +90,7 @@ static void Motor_Ekf_ClearOutput(motor_ekf_output_t *output)
  * @param {float} c[][]  输出
  * @param {const float} a[][]  左矩阵
  * @param {const float} b[][]  右矩阵
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Ekf_Mul4(float c[MOTOR_EKF_N][MOTOR_EKF_N], const float a[MOTOR_EKF_N][MOTOR_EKF_N],
@@ -117,7 +117,7 @@ static void Motor_Ekf_Mul4(float c[MOTOR_EKF_N][MOTOR_EKF_N], const float a[MOTO
  * @param {float} c[][]  输出
  * @param {const float} a[][]  左矩阵
  * @param {const float} b[][]  右矩阵（按转置参与乘法）
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Ekf_Mul4Bt(float c[MOTOR_EKF_N][MOTOR_EKF_N], const float a[MOTOR_EKF_N][MOTOR_EKF_N],
@@ -142,7 +142,7 @@ static void Motor_Ekf_Mul4Bt(float c[MOTOR_EKF_N][MOTOR_EKF_N], const float a[MO
 /**
  * @description: 把协方差对称化，抑制欧拉积分带来的数值偏斜
  * @param {float} p[][]  协方差，就地修改
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Ekf_Symmetrize(float p[MOTOR_EKF_N][MOTOR_EKF_N])
@@ -163,7 +163,7 @@ static void Motor_Ekf_Symmetrize(float p[MOTOR_EKF_N][MOTOR_EKF_N])
 /**
  * @description: 写入 Seed 用的对角协方差
  * @param {float} p[][]  协方差
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Ekf_InitP(float p[MOTOR_EKF_N][MOTOR_EKF_N])
@@ -180,7 +180,7 @@ static void Motor_Ekf_InitP(float p[MOTOR_EKF_N][MOTOR_EKF_N])
  * @param {motor_ekf_t} *obs                  实例
  * @param {const motor_ekf_config_t} *config  配置
  * @param {motor_ekf_output_t} *output        本拍输出
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Ekf_Publish(motor_ekf_t *obs, const motor_ekf_config_t *config, motor_ekf_output_t *output)
@@ -201,7 +201,7 @@ static void Motor_Ekf_Publish(motor_ekf_t *obs, const motor_ekf_config_t *config
 /**
  * @description: 复位 EKF 状态
  * @param {motor_ekf_t} *obs  实例，可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Ekf_Reset(motor_ekf_t *obs)
@@ -214,7 +214,7 @@ void Motor_Ekf_Reset(motor_ekf_t *obs)
 /**
  * @description: 规整 EKF 配置
  * @param {motor_ekf_config_t} *config  配置，被原地修改；可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Ekf_NormalizeConfig(motor_ekf_config_t *config)
@@ -254,7 +254,7 @@ void Motor_Ekf_NormalizeConfig(motor_ekf_config_t *config)
  * @param {float} omega_e                     假设电角速度 (rad/s)
  * @param {float} i_alpha                     α 轴电流 (A)
  * @param {float} i_beta                      β 轴电流 (A)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Ekf_Seed(motor_ekf_t *obs, const motor_ekf_config_t *config, float angle, float omega_e, float i_alpha,

@@ -1,8 +1,13 @@
+/* 关节控制：PD+积分输出、速度无效、积分限幅与输出饱和。 */
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include "motor_joint_control.h"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_joint_control_t control;

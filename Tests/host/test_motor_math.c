@@ -1,8 +1,15 @@
+/* 角度差：单圈内与旧实现逐值一致、边界与无穷/NaN 处理。 */
 #include <assert.h>
 #include <float.h>
 #include <stdio.h>
 #include "motor_math.h"
 
+/**
+ * @description: 保留原角差算法作为回归比较基准。
+ * @param {float} a a 参数
+ * @param {float} b b 参数
+ * @return {float} 测试记录值 d
+ */
 static float original_difference(float a, float b)
 {
     float d = a - b;
@@ -11,6 +18,10 @@ static float original_difference(float a, float b)
     return d;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     /* 单圈控制输入与旧实现逐值一致，包括反转及跨零点。 */

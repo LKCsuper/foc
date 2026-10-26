@@ -29,6 +29,16 @@ extern "C" {
 float Motor_Current_PI_Run(float target, float measured, float *v_int,
                            float kp, float ki, float dt, float v_limit);
 
+/**
+ * @description: 误差形式的单轴电流 PI（d/q 通用）：out = v_int + error*kp，饱和时回写积分防 windup。
+ * @param {float} error 目标与实测电流之差 (A)
+ * @param {float *} v_int 输入输出 PI 积分电压 (V)
+ * @param {float} kp 电流比例增益 (V/A)
+ * @param {float} ki 电流积分增益 (V/(A·s))
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @param {float} v_limit 输出电压幅值上限 (V)
+ * @return {float} 当前值 output
+ */
 static inline float Motor_Current_PI_RunError(float error, float *v_int,
                                               float kp, float ki, float dt, float v_limit)
 {

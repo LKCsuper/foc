@@ -13,6 +13,9 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 显示三路 Hall 传感器电平
+ * @param {int} argc 兼容参数，本实现不使用
+ * @param {char *[]} argv 兼容参数，本实现不使用
+ * @return {int} 本实现固定返回 0
  * @author: lkc
  */
 int Cmd_Show(int argc, char *argv[])

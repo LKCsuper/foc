@@ -244,19 +244,17 @@ void TIM3_IRQHandler(void)
 }
 #if 0
 /**
-  * @brief  This function handles PendSVC exception.
-  * @param  None
-  * @retval None
-  */
+ * @description: This function handles PendSVC exception.
+ * @return {void} 无
+ */
 void PendSV_Handler(void)
 {
     xPortPendSVHandler();
 }
 /**
-  * @brief  This function handles SVCall exception.
-  * @param  None
-  * @retval None
-  */
+ * @description: This function handles SVCall exception.
+ * @return {void} 无
+ */
 void SVC_Handler(void)
 {
     vPortSVCHandler();

@@ -1,4 +1,5 @@
 /* 速度控制核心：标准C，无硬件或全局电机依赖。 */
+/* Includes ------------------------------------------------------------------*/
 #include <math.h>
 #include "common_assert.h"
 #include <string.h>
@@ -7,7 +8,10 @@
 /* 位于 ADC 中断控制路径，与其他实时模块一致局部 O2；不启用快速浮点，公式不变。 */
 #pragma O2
 #endif
+/* Private define ------------------------------------------------------------*/
 #define MOTOR_SPEED_LIMIT_DECAY_S 0.100f
+
+/* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 将 value 限幅到 [minimum, maximum]
@@ -41,7 +45,7 @@ static void Motor_Speed_ClearPi(motor_speed_state_t *state)
 /**
  * @description: 初始化指定速度环状态对象，清零反馈、PI 与分频时间
  * @param {motor_speed_state_t} *state 状态对象，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Speed_InitState(motor_speed_state_t *state)
@@ -56,7 +60,7 @@ void Motor_Speed_InitState(motor_speed_state_t *state)
  * @param {motor_speed_state_t} *state 状态对象，不可为空
  * @param {float} rpm 机械转速 (RPM)
  * @param {bool} valid true=反馈可信
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool valid)
@@ -72,7 +76,7 @@ void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool va
 /**
  * @description: 清除指定状态对象的 PI（保留反馈转速）
  * @param {motor_speed_state_t} *state 状态对象，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_SpeedLoop_ResetState(motor_speed_state_t *state)
@@ -88,7 +92,7 @@ void Motor_SpeedLoop_ResetState(motor_speed_state_t *state)
  * @description: 预置指定状态对象的 Iq 积分与输出，清分频时间
  * @param {motor_speed_state_t} *state 状态对象，不可为空
  * @param {float} iq 预置 Iq (A)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_SpeedLoop_PrimeIqState(motor_speed_state_t *state, float iq)
@@ -107,7 +111,8 @@ void Motor_SpeedLoop_PrimeIqState(motor_speed_state_t *state, float iq)
  * @param {motor_speed_state_t} *state 状态对象，不可为空
  * @param {motor_speed_input_t} *input 配置与目标快照，不可为空
  * @param {float} dt 距上一拍时间 (s)
- * @return {*}
+ * @param {bool} scheduled true=外部已定时，不再内部周期分频
+ * @return {bool} true=本拍参与速度环处理；false=未允许控制、反馈无效或处于零速释放
  * @author: lkc
  */
 static bool Motor_SpeedLoop_StepInternal(motor_speed_state_t *state, const motor_speed_input_t *input, float dt,
@@ -203,11 +208,25 @@ static bool Motor_SpeedLoop_StepInternal(motor_speed_state_t *state, const motor
     return true;
 }
 
+/**
+ * @description: 每拍进入分频处理（不一定已计算 PI）；返回 true 表示本拍参与处理。
+ * @param {motor_speed_state_t *} state 实例状态
+ * @param {const motor_speed_input_t *} input 输入数据
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @return {bool} true=本拍进入分频处理，不保证已执行 PI；false=运行条件不满足
+ */
 bool Motor_SpeedLoop_StepState(motor_speed_state_t *state, const motor_speed_input_t *input, float dt)
 {
     return Motor_SpeedLoop_StepInternal(state, input, dt, false);
 }
 
+/**
+ * @description: 外部已定时的调用入口：每次允许控制时计算一次 PI，dt 为实际间隔。
+ * @param {motor_speed_state_t *} state 实例状态
+ * @param {const motor_speed_input_t *} input 输入数据
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @return {bool} true=外部定时的本拍控制已处理；false=运行条件不满足
+ */
 bool Motor_SpeedLoop_StepScheduledState(motor_speed_state_t *state, const motor_speed_input_t *input, float dt)
 {
     return Motor_SpeedLoop_StepInternal(state, input, dt, true);

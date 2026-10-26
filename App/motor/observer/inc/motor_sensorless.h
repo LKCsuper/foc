@@ -163,9 +163,25 @@ typedef struct {
     bool prime_speed_iq;           /* 切入 CLOSED 时预置速度 PI */
     float prime_iq;                /* 预置 Iq (A) */
 } motor_sensorless_effects_t;
+/* Private function prototypes -----------------------------------------------*/
 #if MOTOR_CFG_SENSORLESS
+/**
+ * @description: 拷贝指定实例已计算字段的轻量快照。
+ * @detail: 不求模长、不查询外设，仅复制状态机、磁链/方向判定、PLL 角、磁链、转速、渐变比例等已算量。
+ * @param {const motor_sensorless_runtime_t *} rt  运行时对象，不可为空
+ * @param {motor_sensorless_light_snapshot_t *} out  输出快照，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Sensorless_GetLightSnapshotState(const motor_sensorless_runtime_t *rt,
                                            motor_sensorless_light_snapshot_t *out);
+
+/**
+ * @description: 拷贝默认实例已计算字段的轻量快照。
+ * @param {motor_sensorless_light_snapshot_t *} out  输出快照，不可为空
+ * @return {void} 无
+ * @author: lkc
+ */
 void Motor_Sensorless_GetLightSnapshot(motor_sensorless_light_snapshot_t *out);
 
 /**
@@ -192,7 +208,7 @@ void Motor_Sensorless_SetModulatedVoltage(float v_alpha, float v_beta);
  * @description: 初始化指定观测器运行时状态。
  * @detail: 清空历史量并回到 OPEN_LOOP；不改速度环（由包装决定）。
  * @param {motor_sensorless_runtime_t *} rt  运行时对象，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_InitState(motor_sensorless_runtime_t *rt);
@@ -200,7 +216,7 @@ void Motor_Sensorless_InitState(motor_sensorless_runtime_t *rt);
 /**
  * @description: 复位指定观测器运行时状态。
  * @param {motor_sensorless_runtime_t *} rt  运行时对象
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_ResetState(motor_sensorless_runtime_t *rt);
@@ -210,7 +226,7 @@ void Motor_Sensorless_ResetState(motor_sensorless_runtime_t *rt);
  * @param {motor_sensorless_runtime_t *} rt  运行时对象
  * @param {float} v_alpha  α 轴电压 (V)
  * @param {float} v_beta   β 轴电压 (V)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_SetAppliedVoltageState(motor_sensorless_runtime_t *rt, float v_alpha, float v_beta);
@@ -222,7 +238,7 @@ void Motor_Sensorless_SetAppliedVoltageState(motor_sensorless_runtime_t *rt, flo
  * @param {MOTOR_PARAM_S *} motor  电机参数与采样；R/L/flux 用 Ω、H、Wb
  * @param {float} dt  FOC 控制周期 (s)
  * @param {motor_sensorless_effects_t *} effects  副作用输出；NULL 则忽略
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
@@ -281,7 +297,7 @@ float Motor_Sensorless_GetPhaseErrorState(const motor_sensorless_runtime_t *rt);
  * @description: 拷贝指定实例接管诊断。
  * @param {const motor_sensorless_runtime_t *} rt  运行时对象
  * @param {motor_sensorless_diagnostics_t *} diagnostics  输出；NULL 忽略
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_GetDiagnosticsState(const motor_sensorless_runtime_t *rt,
@@ -306,14 +322,14 @@ bool Motor_Sensorless_IsTakeoverCompleteState(const motor_sensorless_runtime_t *
 /**
  * @description: 上电初始化默认单实例观测器。
  * @detail: MOTOR_Param_Init() 完成参数赋值后调用一次；并声明速度反馈无效。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_Init(void);
 
 /**
  * @description: 复位默认实例观测器，并声明速度反馈无效。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_Reset(void);
@@ -323,7 +339,7 @@ void Motor_Sensorless_Reset(void);
  * @param {float} v_alpha  α 轴电压 (V)
  * @param {float} v_beta   β 轴电压 (V)
  * @detail: 下一 FOC 周期与新采样电流一起送入磁链模型。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_SetAppliedVoltage(float v_alpha, float v_beta);
@@ -332,7 +348,7 @@ void Motor_Sensorless_SetAppliedVoltage(float v_alpha, float v_beta);
  * @description: 默认实例每个 FOC 周期更新 Ortega/PLL/接管，并落地速度环/保护副作用。
  * @param {MOTOR_PARAM_S *} motor  电机实时参数；R/L/flux 分别使用 Ω、H、Wb
  * @param {float} dt  控制周期 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt);
@@ -384,7 +400,7 @@ float Motor_Sensorless_GetPhaseError(void);
  * @description: 拷贝默认实例观测器的接管诊断数据。
  * @detail: 短临界区复制运行时后计算诊断，返回同一拍角度、相位和判定；不打印。
  * @param {motor_sensorless_diagnostics_t *} diagnostics  输出指针
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_t *diagnostics);
@@ -405,6 +421,12 @@ bool Motor_Sensorless_IsClosedLoop(void);
 bool Motor_Sensorless_IsTakeoverComplete(void);
 #else
 /* 无感关闭：控制角回退开环，观测状态保持 OPEN_LOOP。 */
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 拷贝默认实例已计算字段的轻量快照。
+ * @param {motor_sensorless_light_snapshot_t *} out  输出快照，不可为空
+ * @return {void} 无
+ */
 static inline void Motor_Sensorless_GetLightSnapshot(motor_sensorless_light_snapshot_t *out)
 {
     if (out != NULL) {
@@ -412,6 +434,11 @@ static inline void Motor_Sensorless_GetLightSnapshot(motor_sensorless_light_snap
         *out = zero;
     }
 }
+/**
+ * @description: 拷贝默认实例接管诊断数据。
+ * @param {motor_sensorless_diagnostics_t *} diagnostics  输出
+ * @return {void} 无
+ */
 static inline void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_t *diagnostics)
 {
     if (diagnostics != NULL) {
@@ -419,6 +446,14 @@ static inline void Motor_Sensorless_GetDiagnostics(motor_sensorless_diagnostics_
         *diagnostics = zero;
     }
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {motor_sensorless_runtime_t *} rt 兼容参数，本实现不使用
+ * @param {MOTOR_PARAM_S *} motor 兼容参数，本实现不使用
+ * @param {float} dt 兼容参数，本实现不使用
+ * @param {motor_sensorless_effects_t *} effects 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
                                                 motor_sensorless_effects_t *effects)
 {
@@ -427,28 +462,79 @@ static inline void Motor_Sensorless_UpdateState(motor_sensorless_runtime_t *rt, 
     (void)dt;
     (void)effects;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Sensorless_Init(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Sensorless_Reset(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float} v_alpha 兼容参数，本实现不使用
+ * @param {float} v_beta 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Sensorless_SetAppliedVoltage(float v_alpha, float v_beta)
 {
     (void)v_alpha;
     (void)v_beta;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float} v_alpha 兼容参数，本实现不使用
+ * @param {float} v_beta 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Sensorless_SetModulatedVoltage(float v_alpha, float v_beta)
 {
     (void)v_alpha;
     (void)v_beta;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {MOTOR_PARAM_S *} motor 兼容参数，本实现不使用
+ * @param {float} dt 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
 {
     (void)motor;
     (void)dt;
 }
+/**
+ * @description: 获取默认实例本周期 Park 变换应使用的电角度。
+ * @param {float} open_loop_angle  I/F 强制电角度 (rad)
+ * @return {float} 当前值 open_loop_angle
+ */
 static inline float Motor_Sensorless_GetControlAngle(float open_loop_angle) { return open_loop_angle; }
+/**
+ * @description: 获取默认实例观测器状态机当前状态。
+ * @return {motor_sensorless_state_t} 当前值 MOTOR_SENSORLESS_OPEN_LOOP
+ */
 static inline motor_sensorless_state_t Motor_Sensorless_GetState(void) { return MOTOR_SENSORLESS_OPEN_LOOP; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {float} 本实现固定返回 0.0f
+ */
 static inline float Motor_Sensorless_GetFluxMagnitude(void) { return 0.0f; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {float} 本实现固定返回 0.0f
+ */
 static inline float Motor_Sensorless_GetMechanicalRpm(void) { return 0.0f; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {float} 本实现固定返回 0.0f
+ */
 static inline float Motor_Sensorless_GetPhaseError(void) { return 0.0f; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Sensorless_IsTakeoverComplete(void) { return false; }
 #endif
 

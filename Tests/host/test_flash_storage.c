@@ -9,16 +9,33 @@
 
 static bool detecting;
 
+/**
+ * @description: 主机测试替身：偏移校准时 FOC 不得改占空比编排（ISR 仍采样+软件保护）。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 detecting
+ */
 bool Motor_Detect_IsActive(void)
 {
     return detecting;
 }
 
+/**
+ * @description: 主机测试替身：霍尔标定是否占用 FOC 中断路径
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 detecting
+ */
 bool Motor_Hall_DetectIsActive(void)
 {
     return detecting;
 }
 
+/**
+ * @description: 主机测试替身：计算数据的 CRC-32C (Castagnoli) 校验值
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {uint8_t *} data 数据缓冲
+ * @param {uint32_t} length 负载长度 (byte)
+ * @return {uint32_t} 测试记录值 ~crc
+ */
 uint32_t utils_crc32c(uint8_t *data, uint32_t length)
 {
     uint32_t crc = ~0U;
@@ -32,6 +49,10 @@ uint32_t utils_crc32c(uint8_t *data, uint32_t length)
     return ~crc;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     MOTOR_PARAM_S m = {0}, out = {0};

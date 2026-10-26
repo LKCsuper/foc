@@ -18,7 +18,7 @@ extern "C" {
 /**
  * @description: 初始化 SPI1，供 MT6701 SSI 读数。
  * @detail: PA5=CLK、PA6=DO、PA7=MOSI、PB11=CSN。时钟约 5.25 MHz，mode 1。不改 TIM1/ADC。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Bsp_MT6701_SsiInit(void);

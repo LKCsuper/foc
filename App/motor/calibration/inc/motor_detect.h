@@ -77,7 +77,7 @@ uint32_t DETECT_OffsetRam(bool cal_undriven);
 
 /**
  * @description: 上电偏移校准：Flash 已有有效电流零点则跳过，否则检测并写入 Flash
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Detect_Init(void);
@@ -106,30 +106,58 @@ bool Motor_Detect_IsActive(void);
  */
 bool DETECT_MotorRl(float current_a, motor_detect_result_t *result);
 
-/** 完整检测 R/L/磁链；磁链阶段会开环旋转电机。 */
+/**
+ * @description: 完整检测 R/L/磁链；磁链阶段会开环旋转电机。
+ * @param {float} current_a 对齐/检测电流 (A)
+ * @param {float} electrical_rpm 磁链阶段目标电转速 (RPM)
+ * @param {float} flux_current_a 磁链阶段旋转电流 (A)
+ * @param {motor_detect_result_t *} result 结果输出，可为 NULL
+ * @return {bool} R/L/磁链均有效返回 true
+ */
 bool DETECT_MotorParameters(float current_a, float electrical_rpm, float flux_current_a,
                             motor_detect_result_t *result);
 
-/** 三速度滑行磁链交叉验证；最高900..3000eRPM，需有效编码器比较，RAM-only。 */
+/**
+ * @description: 三速度滑行磁链交叉验证；最高900..3000eRPM，需有效编码器比较，RAM-only。
+ * @param {float} current_a 对齐/检测电流 (A)
+ * @param {float} max_erpm 最高电转速 (RPM)
+ * @param {float} flux_current_a 磁链阶段旋转电流 (A)
+ * @param {motor_detect_result_t *} result 结果输出，可为 NULL
+ * @return {bool} 磁链交叉验证有效返回 true
+ */
 bool DETECT_MotorFluxScan(float current_a, float max_erpm, float flux_current_a, motor_detect_result_t *result);
 
-/** 读取最近一次 R/L 检测结果。 */
+/**
+ * @description: 读取最近一次 R/L 检测结果。
+ * @param {motor_detect_result_t *} result 结果输出，可为 NULL
+ * @return {void} 无
+ */
 void DETECT_GetResult(motor_detect_result_t *result);
 #endif
 
-/** 请求中止当前 R/L 检测。 */
+/**
+ * @description: 请求中止当前 R/L 检测。
+ * @return {void} 无
+ */
 void DETECT_Abort(void);
 
-/** 清除空闲状态下的中止请求。 */
+/**
+ * @description: 清除空闲状态下的中止请求。
+ * @return {void} 无
+ */
 void DETECT_ClearAbortRequest(void);
 
-/** 检测错误码转可读名称。 */
+/**
+ * @description: 检测错误码转可读名称。
+ * @param {motor_detect_error_t} error 检测错误码
+ * @return {const char *} 错误码名称，未识别返回 "UNKNOWN"
+ */
 const char *DETECT_GetErrorName(motor_detect_error_t error);
 
 /**
  * @description: DMA 完成中断喂入一拍电流/电压，仅零偏 ISR 采集窗口内有效。
  * @param {bool} pwm_down true=TIM1 向下计数（Hall FOC 使用的顶部零矢量窗口）
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Detect_IsrFeed(bool pwm_down);

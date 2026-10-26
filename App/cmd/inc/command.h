@@ -33,7 +33,7 @@ typedef struct {
  * @description: 把上电以来的时基格式化为 `[T+秒.毫秒s]`，便于截图对照命令间隔。
  * @param {char *} buf 输出缓冲，不可为空
  * @param {unsigned} buf_size 缓冲字节数，建议不少于 16
- * @return {*}
+ * @return {void} 无
  */
 void Cmd_FormatUptime(char *buf, unsigned buf_size);
 
@@ -41,12 +41,15 @@ void Cmd_FormatUptime(char *buf, unsigned buf_size);
 /**
  * @description: 初始化命令行框架。
  * @detail: 创建串口命令消息队列并启动命令处理任务。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Command_Init(void);
 #else
-/* 命令行关闭：不建队列、不建任务；串口接收中断看到空队列句柄后丢弃输入。 */
+/**
+ * @description: 命令行关闭：不建队列、不建任务；串口接收中断看到空队列句柄后丢弃输入。
+ * @return {void} 无
+ */
 static inline void Command_Init(void) {}
 #endif
 

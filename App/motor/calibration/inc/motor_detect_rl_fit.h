@@ -1,13 +1,25 @@
+/* 恒压脉冲窗口的电感最小二乘拟合（Δψ=L·Δi+b，梯形积分扣除 Ri） */
 #ifndef MOTOR_DETECT_RL_FIT_H
 #define MOTOR_DETECT_RL_FIT_H
 
+/* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
 #include <math.h>
 
-/* 对恒压脉冲窗口拟合 Δψ=L*Δi+b。梯形积分扣除 Ri，全部样本参与拟合。
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 对恒压脉冲窗口拟合 Δψ=L*Δi+b。梯形积分扣除 Ri，全部样本参与拟合。
  * 电压必须对应窗口内实际生效值；本函数不估计死区、延时或器件压降。
- * 返回窗口等效电感，不代表跨工作点的增量电感曲面。 */
+ * 返回窗口等效电感，不代表跨工作点的增量电感曲面。
+ * @param {const float *} current 电流 (A)
+ * @param {uint32_t} count 计数值
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @param {float} voltage 施加的电压 (V)
+ * @param {float} resistance 已估算的电阻 (Ω)
+ * @param {float *} inductance 输出估算电感 (H)
+ * @return {bool} true=脉冲样本拟合得到有效电感；false=数据或模型条件无效
+ */
 static inline bool Motor_Detect_FitPulse(const float *current, uint32_t count, float dt,
                                        float voltage, float resistance, float *inductance)
 {

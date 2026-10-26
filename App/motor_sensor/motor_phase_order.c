@@ -34,6 +34,7 @@ extern "C" {
 #define MOTOR_PHASE_ORDER_BOOST_V     (3.5f)
 #endif
 
+/* Private variables ---------------------------------------------------------*/
 /*
  * 标准六步霍尔序（一种常见接线）：1→3→2→6→4→5→1
  * 扇区号仅用于相邻步进符号；不依赖 hall_table 标定。
@@ -49,6 +50,7 @@ static const int8_t s_hall_to_sector[8] = {
     -1, /* 7 无效 */
 };
 
+/* Private functions ---------------------------------------------------------*/
 /**
  * @description: 相邻两次霍尔状态的扇区步进
  * @param {int} prev_hall  上一霍尔
@@ -103,7 +105,7 @@ motor_phase_order_result_t Motor_PhaseOrder_Judge(int32_t dir_delta, float comma
 /**
  * @description: 结论转短字符串
  * @param {motor_phase_order_result_t} result  结论
- * @return {const char} * 静态名
+ * @return {const char *} 静态名
  * @author: lkc
  */
 const char *Motor_PhaseOrder_ResultName(motor_phase_order_result_t result)

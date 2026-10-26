@@ -18,12 +18,14 @@
 #pragma O2
 #endif
 #if MOTOR_CFG_DIAG
+/* Private define ------------------------------------------------------------*/
 #if defined(__CC_ARM)
 /* CCM 只有 CPU 和调试口可访问，DMA 不可达；此缓冲只由 CPU 读写，不得交给 DMA。 */
 #define MOTOR_TRACE_STORAGE_CCM __attribute__((at(0x10000000), zero_init))
 #else
 #define MOTOR_TRACE_STORAGE_CCM
 #endif
+/* Private variables ---------------------------------------------------------*/
 /* 记录格式互斥，共用已有存储，不新增环形缓冲区。 */
 static union {
     motor_trace_sample_t full[MOTOR_TRACE_CAPACITY];
@@ -31,6 +33,7 @@ static union {
     motor_trace_compact_sample_t compact[MOTOR_TRACE_COMPACT_CAPACITY];
     motor_fault_trace_sample_t fault[MOTOR_TRACE_CAPACITY];
 } s_trace_storage MOTOR_TRACE_STORAGE_CCM;
+/* Private typedef -----------------------------------------------------------*/
 typedef char motor_trace_compact_size_check_t[sizeof(motor_trace_compact_sample_t) == 32U ? 1 : -1];
 typedef char motor_trace_storage_size_check_t[
     sizeof(s_trace_storage) == sizeof(motor_trace_sample_t) * MOTOR_TRACE_CAPACITY ? 1 : -1];
@@ -56,6 +59,7 @@ static bool s_trace_flight;
 #define MOTOR_TRACE_FLIGHT_RING (MOTOR_TRACE_CAPACITY - MOTOR_TRACE_FLIGHT_ENTRY)
 static unsigned s_flight_entry_count, s_flight_head, s_flight_count;
 
+/* Private functions ---------------------------------------------------------*/
 /**
  * @description: 在武装、冻结或复用缓冲时发布调试器描述符。
  * @detail: 短临界区串行化写者，奇偶序号与内存屏障保护后台读者；不在逐样本Push中调用。

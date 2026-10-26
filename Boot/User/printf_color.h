@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: Boot 日志输出颜色与格式宏。
  * @Date: 2022-11-28 19:28:49
  * @LastEditTime: 2023-08-30 09:43:42
  * @FilePath: \YMODEM\User\printf_color.h

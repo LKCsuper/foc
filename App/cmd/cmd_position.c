@@ -41,7 +41,7 @@ static void pos_test_run(uint32_t dwell_ms);
  * @description: 把已拼好的字节写入串口发送队列。
  * @param {const char *} buf  内容，可为空
  * @param {uint32_t} len  字节数
- * @return {*} 无
+ * @return {void} 无
  */
 static void pos_emit_buf(const char *buf, uint32_t len)
 {
@@ -53,7 +53,7 @@ static void pos_emit_buf(const char *buf, uint32_t len)
 /**
  * @description: 发送以 0 结尾的字符串。
  * @param {const char *} text  内容，可为空
- * @return {*} 无
+ * @return {void} 无
  */
 static void pos_emit_str(const char *text)
 {
@@ -127,7 +127,7 @@ static int pos_wait_until_settled(void)
  * @description: 按固定两位小数追加角度。
  * @param {textbuf_t *} tb  输出缓冲
  * @param {float} deg  角度，单位 deg
- * @return {*} 无
+ * @return {void} 无
  */
 static void pos_append_deg(textbuf_t *tb, float deg)
 {
@@ -148,7 +148,7 @@ static void pos_append_deg(textbuf_t *tb, float deg)
  * @detail: 每段先等待指定时间，再确认连续到位；未到位则最多追加等待并安全停机，
  *          禁止在前一目标仍有较大误差时继续切换。角度相对 pos zero。
  * @param {uint32_t} dwell_ms  每个角度的保持时间，单位 ms
- * @return {*} 无
+ * @return {void} 无
  */
 static void pos_test_run(uint32_t dwell_ms)
 {

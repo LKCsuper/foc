@@ -241,9 +241,28 @@ bool Motor_Joint_SubmitCurrentCommand(const motor_joint_current_command_t *comma
 bool Motor_Joint_IsEnabled(void);
 #else
 /* 关节关闭：永不使能；关闭请求视为成功，使能请求返回失败。 */
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Joint_Init(void) {}
+/**
+ * @description: 开关关节阻抗。
+ * @param {bool} enable  true=使能
+ * @return {bool} 当前值 !enable
+ */
 static inline bool Motor_Joint_Enable(bool enable) { return !enable; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float} dt 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Joint_Run(float dt) { (void)dt; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Joint_IsEnabled(void) { return false; }
 #endif
 

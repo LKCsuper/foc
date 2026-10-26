@@ -83,7 +83,7 @@ static void Motor_Task_DelayNextTick(uint32_t *tick, uint32_t period)
 /**
  * @description: foc pid 任务：睡眠到下一拍后运行速度 PI。
  * @param {void *} argument 未使用
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Task_Pid(void *argument)
@@ -169,7 +169,7 @@ static uint32_t Motor_Task_EncoderPeriodTicks(void)
  * @description: MT6701 固定周期采集任务。
  * @detail: I2C/SSI 事务不进入 ADC/FOC ISR，也不随速度环频率配置改变。
  * @param {void *} argument 未使用
- * @return {*}
+ * @return {void} 无
  */
 static void Motor_Task_Encoder(void *argument)
 {
@@ -211,7 +211,7 @@ static void Motor_Task_Encoder(void *argument)
 
 /**
  * @description: 启动速度/位置外环任务，只创建一次
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Task_Start(void)

@@ -20,7 +20,7 @@ extern "C" {
 /**
  * @description: 启动三相 PWM 输出（模式已配置，不改占空比）。
  * @detail: 仅使能已配置通道；不等于写入零矢量或故障关断。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Motor_PwmStart(void);
@@ -29,7 +29,7 @@ void Hal_Motor_PwmStart(void);
  * @description: 停止三相 PWM 输出（关主通道/互补通道，具体由板级 BSP）。
  * @detail: 这是“关闭驱动输出”路径，不等于 PwmSetSafe 的中点占空比；
  *          也不保证所有板的故障安全（需结合门极极性与硬件 Break）。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Motor_PwmStop(void);
@@ -63,7 +63,7 @@ bool Hal_Motor_StoppedIrqTestEnd(bool restore_gate);
  * @param {uint32_t} duty_a  A 相比较值，范围 [0, period]
  * @param {uint32_t} duty_b  B 相比较值，范围 [0, period]
  * @param {uint32_t} duty_c  C 相比较值，范围 [0, period]
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Motor_PwmSetDuty(uint32_t duty_a, uint32_t duty_b, uint32_t duty_c);
@@ -71,12 +71,20 @@ void Hal_Motor_PwmSetDuty(uint32_t duty_a, uint32_t duty_b, uint32_t duty_c);
 /**
  * @description: 提交 PWM 通道控制更新。
  * @detail: STM32 上发送 COM，更新预装载的通道使能/模式；CCR 占空比仍由 UEV 装载。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Motor_PwmCommit(void);
-/** 停机设置软件提交计数，enable时清零；不改变定时器。计数不代表硬件装载事件。 */
+/**
+ * @description: 停机设置软件提交计数，enable时清零；不改变定时器。计数不代表硬件装载事件。
+ * @param {bool} enable 是否启用
+ * @return {void} 无
+ */
 void Hal_Motor_PwmDiagnosticEnable(bool enable);
+/**
+ * @description: 读取停机诊断软件提交计数（enable 时清零，仅停机诊断使用）。
+ * @return {uint32_t} 本次计算或查询的结果
+ */
 uint32_t Hal_Motor_PwmDiagnosticSequence(void);
 
 typedef struct {
@@ -98,25 +106,42 @@ typedef struct {
 
 extern hal_motor_pwm_window_t g_hal_motor_pwm_window;
 
-/** 停机时启停有限 PWM 写入窗口采集；enable 清零并采集接下来 32 次写入。
+/**
+ * @description: 停机时启停有限 PWM 写入窗口采集；enable 清零并采集接下来 32 次写入。
  * 仅 STM32F4 移植层提供；寄存器逐项读取，不是硬件锁存或实际 CCR 生效证明。
  * 满后自动关闭，可在停机后通过 JTAG 读取；禁止采集中修改 count/frames。
+ * @param {bool} enable 是否启用
+ * @return {void} 无
  */
 void Hal_Motor_PwmWindowEnable(bool enable);
-/** 停机预约：enabled=2 等待，1 采集，0 停止；调用前须确认无并发运行控制。 */
+/**
+ * @description: 停机预约：enabled=2 等待，1 采集，0 停止；调用前须确认无并发运行控制。
+ * @return {void} 无
+ */
 void Hal_Motor_PwmWindowReserve(void);
-/** 停机预约长窗口：每 997 次写入记录一次，32 帧在 15kHz 下约跨 2.06s。 */
+/**
+ * @description: 停机预约长窗口：每 997 次写入记录一次，32 帧在 15kHz 下约跨 2.06s。
+ * @return {void} 无
+ */
 void Hal_Motor_PwmWindowReserveLong(void);
-/** 返回当前或已完成窗口的写入步长；停止不清除该元数据。 */
+/**
+ * @description: 返回当前或已完成窗口的写入步长；停止不清除该元数据。
+ * @return {uint32_t} 本次计算或查询的结果
+ */
 uint32_t Hal_Motor_PwmWindowStride(void);
-/** 控制 ISR 推进预约；ready 连续 1s 才开始，运行开始后再次停机取消剩余采集。 */
+/**
+ * @description: 控制 ISR 推进预约；ready 连续 1s 才开始，运行开始后再次停机取消剩余采集。
+ * @param {bool} running 当前是否运行
+ * @param {bool} ready 采集就绪条件
+ * @return {void} 无
+ */
 void Hal_Motor_PwmWindowPoll(bool running, bool ready);
 
 /**
  * @description: 输出三相中点占空比并提交（各 period/2）。
  * @detail: 对应控制层 SAFE/零电压矢量请求；不等于保证无电流、无转矩或已关桥。
  *          故障硬关断请用板级 Stop/Break，勿把本函数当作普遍“安全态”命名依据。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Motor_PwmSetSafe(void);
@@ -124,7 +149,7 @@ void Hal_Motor_PwmSetSafe(void);
 /**
  * @description: 仅使能指定相的互补 PWM（偏移校准时逐相采样用）
  * @param {uint8_t} phase  相序号：1=A，2=B，3=C
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Motor_EnablePhase(uint8_t phase);
@@ -135,6 +160,23 @@ void Hal_Motor_EnablePhase(uint8_t phase);
  * @author: lkc
  */
 uint32_t Hal_Motor_PwmPeriodCounts(void);
+
+/** PWM 相位读数；逐项读取，不是硬件锁存。计数比例由当前移植实现提供。 */
+typedef struct {
+    uint32_t count;
+    uint32_t period;
+    uint32_t counts_per_us;
+    bool counting_down;
+} hal_motor_pwm_phase_t;
+
+/**
+ * @description: 在控制 ISR 中只读 PWM 相位，不改变外设配置。
+ * @detail: 保持方向、计数、周期的读取顺序；调用者负责避开更新边界。
+ * @param {hal_motor_pwm_phase_t *} phase 输出，不可为空
+ * @return {void} 无；空指针触发 COMMON_ASSERT
+ */
+void Hal_Motor_PwmPhaseCapture(hal_motor_pwm_phase_t *phase);
+
 
 /**
  * @description: 估算 ADC/控制采样触发频率
@@ -194,7 +236,7 @@ uint16_t Hal_Motor_AdcRaw(uint8_t channel);
  * @description: 拷贝 ADC DMA 缓冲到调用方数组
  * @param {uint16_t} *dst  目标缓冲
  * @param {uint32_t} len   最多拷贝通道数
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Motor_AdcGetRaw(uint16_t *dst, uint32_t len);

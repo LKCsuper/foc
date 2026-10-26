@@ -1,7 +1,7 @@
 /*
- * @Description: 
+ * @Description: DMA 采样板级接口声明
  * @Date: 2023-02-18 23:51:32
- * @LastEditTime: 2023-03-02 22:40:15
+ * @LastEditTime: 2026-10-26 14:05:46
  * @FilePath: \foc\Library\Bsp\inc\bsp_dma.h
  */
 #ifndef _BSP_FLASH_H
@@ -16,8 +16,6 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-void Bsp_Dma_AdcSample(void);
-void Bsp_Dma_Init(void);
 #ifdef __cplusplus
 }
 #endif

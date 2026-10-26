@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: DMA 初始化（ADC 采样与串口收发的 DMA 通道配置）
  * @Date: 2023-02-18 23:29:37
  * @LastEditTime: 2023-03-26 20:50:09
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
@@ -19,7 +19,6 @@ UCHAR gucURxBuf[USART_RX_BUF_SIZE] = {0};
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: DMA2 Stream4 初始化（ADC 采样数据自动搬运）
- * @detail:
  *   配置 DMA2 的 Stream4，将 ADC 转换结果从 ADC 通用数据寄存器自动搬运到内存数组：
  *   - 数据流：ADC->CDR（外设）→ ADC_Value[]（内存），半字（16bit）单位
  *   - 通道：DMA_Channel_0，对应 ADC1 的 DMA 请求
@@ -87,7 +86,6 @@ STATIC VOID Bsp_DMA2_Init(VOID)
 
 /**
  * @description: DMA2 Stream4 中断配置（ADC 采样完成 / 半完成中断）
- * @detail:
  *   配置 DMA2 Stream4 的 NVIC 中断，用于在 ADC DMA 搬运完成后触发 FOC 算法处理：
  *
  *   中断策略（关键优化）：
@@ -132,7 +130,6 @@ STATIC VOID Bsp_Dma2_NVIC(VOID)
 
 /**
  * @description: ADC DMA 采样初始化入口
- * @detail:
  *   调用 DMA2 初始化及中断配置，完成 ADC 采样数据的 DMA 自动搬运链路：
  *   Bsp_DMA2_Init() → 配置 DMA2 Stream4 循环搬运 ADC->CDR → ADC_Value[]
  *   Bsp_Dma2_NVIC() → 配置传输完成/半完成中断，触发 FOC 电流环计算
@@ -151,7 +148,6 @@ VOID Bsp_Dma_AdcSample(VOID)
 
 /**
  * @description: DMA1 Stream1 初始化（串口接收 DMA）
- * @detail:
  *   配置 DMA1 Stream1 通道4，将 USART 接收数据寄存器 DR 的内容自动搬运到接收缓冲区：
  *   - 数据流：DEBUG_USART->DR（外设）→ gucURxBuf[]（内存），字节单位
  *   - 通道：DMA_Channel_4，对应 USART1_RX 的 DMA 请求
@@ -213,7 +209,6 @@ VOID Bsp_Dma1_Init(VOID)
 
 /**
  * @description: 串口 DMA 接收初始化入口
- * @detail:
  *   调用 Bsp_Dma1_Init() 初始化 DMA1 Stream1，然后使能 DMA 传输和 USART DMA 请求：
  *   1. DMA_SetCurrDataCounter → 设置当前传输计数 = 缓冲区大小
  *   2. DMA_Cmd → 使能 DMA1 Stream1，开始等待 USART DMA 请求
@@ -242,7 +237,6 @@ VOID Bsp_Dma_UsartRx(VOID)
 
 /**
  * @description: DMA 系统初始化顶层入口
- * @detail:
  *   初始化系统全部 DMA 通道：
  *   1. Bsp_Dma_AdcSample() → DMA2 Stream4：ADC 采样数据自动搬运至内存
  *   2. Bsp_Dma_UsartRx()  → DMA1 Stream1：串口接收数据自动搬运至缓冲区

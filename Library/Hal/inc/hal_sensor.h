@@ -19,7 +19,7 @@ extern "C" {
 
 /**
  * @description: 初始化当前编码器硬件接口（MT6701 使用 I2C2）
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Encoder_Init(void);
@@ -34,7 +34,7 @@ uint16_t Hal_Encoder_GetCount(void);
 /**
  * @description: 发布编码器角度快照
  * @param {uint16_t} count 目标计数
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Hal_Encoder_SetCount(uint16_t count);
@@ -55,7 +55,17 @@ uint32_t Hal_Encoder_CountsPerRev(void);
  */
 bool Hal_Encoder_I2cReadRegister(uint8_t address_7bit, uint8_t reg, uint8_t *value);
 
+/**
+ * @description: 初始化位置传感器 SSI 读取接口（MT6701）
+ * @return {void} 无
+ */
 void Hal_Encoder_SsiInit(void);
+
+/**
+ * @description: 读取一帧 24 位 SSI 角度数据
+ * @param {uint32_t *} frame 输出原始帧，不可为空
+ * @return {bool} true=读取成功
+ */
 bool Hal_Encoder_SsiReadFrame(uint32_t *frame);
 
 /**

@@ -6,6 +6,7 @@
 extern "C" {
 #endif
 
+/* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
 #include "common_assert.h"
 #include <stdint.h>
@@ -20,10 +21,12 @@ extern "C" {
 #pragma O2
 #endif
 
+/* Private variables ---------------------------------------------------------*/
 static uint8_t s_hall_adc_div;
 static float s_hall_dt_acc_s;
 static float s_reference_dt_acc_s;
 
+/* Private functions ---------------------------------------------------------*/
 /**
  * @description: 按当前反馈源更新编码器或霍尔运行状态。
  * @detail: 在 FOC 控制拍调用，不写 PWM。编码器失联时按现有条件请求故障。

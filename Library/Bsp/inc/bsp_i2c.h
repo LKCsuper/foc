@@ -19,7 +19,7 @@ extern "C" {
 /**
  * @description: 初始化 BM75 外设口 I2C2。
  * @detail: PB10=SCL、PB11=SDA，开漏复用，400 kHz；不涉及电机 ADC/PWM 外设。
- * @return {*}
+ * @return {void} 无
  */
 void Bsp_I2c2_Init(void);
 

@@ -8,6 +8,7 @@
 extern "C" {
 #endif
 
+/* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
 #include "motor_control.h"
@@ -59,6 +60,7 @@ bool Motor_OutputEstimateVoltage(const MOTOR_PARAM_S *motor, uint32_t period, fl
  */
 void Motor_OutputSafe(MOTOR_PARAM_S *motor);
 
+/* Private typedef -----------------------------------------------------------*/
 /**
  * @description: 主动电压输出路径。
  * @detail: 由控制集成层选择。显式路径入口不读取控制模式或反馈源。

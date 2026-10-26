@@ -1,14 +1,23 @@
+/* RL 脉冲拟合：梯形/连续 RL 离散响应、噪声鲁棒性与非法输入拒绝。 */
 #include <assert.h>
 #include <stdio.h>
 #include "motor_detect_rl_fit.h"
 
 static unsigned random_state = 42U;
+/**
+ * @description: 生成测试使用的确定性扰动。
+ * @return {float} 本次计算或查询的结果
+ */
 static float noise(void)
 {
     random_state = 1664525U * random_state + 1013904223U;
     return ((float)(random_state >> 8) / 16777216.0f - 0.5f) * 0.002f;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     float samples[8], result = -1.0f;

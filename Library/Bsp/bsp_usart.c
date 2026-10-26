@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: 调试串口驱动（轮询/DMA 发送、DMA 接收）
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
@@ -41,8 +41,9 @@ STATIC VOID Bsp_Usart_YieldToIsr(VOID);
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @brief  任务等待一次硬件中断，不进入依赖系统tick的阻塞延时。
+ * @description: 任务等待一次硬件中断，不进入依赖系统tick的阻塞延时。
  * @note   仅调度器运行且中断未屏蔽时等待；ISR、PRIMASK或BASEPRI临界区直接返回。
+ * @return {STATIC VOID} 本次计算或查询的结果
  */
 STATIC VOID Bsp_Usart_YieldToIsr(VOID)
 {
@@ -53,9 +54,11 @@ STATIC VOID Bsp_Usart_YieldToIsr(VOID)
 }
 
 /**
- * @brief  使用轮询方式发送一个字节。
+ * @description: 使用轮询方式发送一个字节。
  * @note   只在发送 DMA 尚未初始化时使用，例如 Bsp_Init() 的早期启动日志。
  *         DMA 就绪后，普通 printf 不再走这里。
+ * @param {UCHAR} ucData 待发送字节
+ * @return {STATIC VOID} 本次计算或查询的结果
  */
 STATIC VOID Bsp_Usart_PollingPutChar(UCHAR ucData)
 {
@@ -64,11 +67,12 @@ STATIC VOID Bsp_Usart_PollingPutChar(UCHAR ucData)
 }
 
 /**
- * @brief  启动环形缓冲区中的下一段 DMA 发送。
+ * @description: 启动环形缓冲区中的下一段 DMA 发送。
  * @note   调用本函数前必须先关闭全局中断，防止 head/tail/busy 被并发修改。
  *
  * 环形缓冲在物理内存末尾会回绕，而一次 DMA 只能发送一段连续内存。
  * peek_contig 只给出从 out 到环尾的那一段，drop 之后再启动下一段。
+ * @return {STATIC VOID} 本次计算或查询的结果
  */
 STATIC VOID Bsp_Usart_TxDmaStartLocked(VOID)
 {
@@ -97,8 +101,9 @@ STATIC VOID Bsp_Usart_TxDmaStartLocked(VOID)
 }
 
 /**
- * @brief  处理一次 TX DMA 完成：释放已发送段并启动下一段。
+ * @description: 处理一次 TX DMA 完成：释放已发送段并启动下一段。
  * @note   调用前必须关中断。FOC 高负载时 UART DMA 中断可能迟迟不到，任务侧也会调用。
+ * @return {STATIC VOID} 本次计算或查询的结果
  */
 STATIC VOID Bsp_Usart_TxDmaCompleteLocked(VOID)
 {
@@ -119,8 +124,9 @@ STATIC VOID Bsp_Usart_TxDmaCompleteLocked(VOID)
 }
 
 /**
- * @brief  任务侧补看 TX DMA 完成标志，并在队列非空时尝试启动下一段。
+ * @description: 任务侧补看 TX DMA 完成标志，并在队列非空时尝试启动下一段。
  * @note   调用前必须关中断。用 Flag 而不是 ITStatus：后者还要求 TCIE，任务轮询会漏完成。
+ * @return {STATIC VOID} 本次计算或查询的结果
  */
 STATIC VOID Bsp_Usart_TxDmaPollLocked(VOID)
 {
@@ -138,7 +144,8 @@ STATIC VOID Bsp_Usart_TxDmaPollLocked(VOID)
 }
 
 /**
- * @brief  将一个字节放入发送环形缓冲区。
+ * @description: 将一个字节放入发送环形缓冲区。
+ * @param {UCHAR} ucData 待发送字节
  * @retval true  入队成功。
  * @retval false 当前在中断/临界区中且缓冲区已满，为避免死锁而放弃该字节。
  *
@@ -182,9 +189,8 @@ STATIC bool Bsp_Usart_TxQueueByte(UCHAR ucData)
 }
 /**
  * @description: debug 初始化结构体
- * @detail: 
- * @param {ULONG} ulBound
- * @return {*}
+ * @param {ULONG} ulBound 串口波特率 (bit/s)
+ * @return {STATIC VOID} 本次计算或查询的结果
  * @author: lkc
  */
 STATIC VOID Bsp_Debug_InitType(ULONG ulBound)
@@ -218,8 +224,7 @@ STATIC VOID Bsp_Debug_InitType(ULONG ulBound)
 
 /**
  * @description: debug 中断
- * @detail: 
- * @return {*}
+ * @return {STATIC VOID} 本次计算或查询的结果
  * @author: lkc
  */
 STATIC VOID Bsp_Debug_Nvic(VOID)
@@ -240,11 +245,12 @@ STATIC VOID Bsp_Debug_Nvic(VOID)
 }
 
 /**
+ * @description: 调试串口初始化
  * @Description: 串口初始化
+ * @param {ULONG} ulBound 波特率
  * @author: lkc
  * @Date: 2023-02-17 23:06:43
- * @param {int} baud
- * @return {*}
+ * @return {void} 无
  */
 VOID Bsp_Usart_DebugInit(ULONG ulBound)
 {
@@ -256,12 +262,13 @@ VOID Bsp_Usart_DebugInit(ULONG ulBound)
 }
 
 /**
- * @brief  初始化调试串口发送 DMA。
+ * @description: 初始化调试串口发送 DMA。
  * @detail UART4_TX 使用 DMA1 Stream4 / Channel4。DMA 采用普通模式，每次只发送
  *         环形缓冲区中的一段连续数据；一段完成后由中断自动接着发送下一段。
  *
  * 初始化发生在 Bsp_Usart_DebugInit() 之后，因此更早的启动日志先用轮询方式输出。
  * 切换到 DMA 前等待最后一个轮询字符完全离开 TX 引脚，避免两种发送方式重叠。
+ * @return {void} 无
  */
 VOID Bsp_Usart_TxDmaInit(VOID)
 {
@@ -336,11 +343,12 @@ VOID Bsp_Usart_TxDmaInit(VOID)
 }
 
 /**
- * @brief  调试串口发送 DMA 完成中断处理。
+ * @description: 调试串口发送 DMA 完成中断处理。
  *
  * DMA 完成只代表最后一个字节已经写入 USART->DR，不一定已经离开 TX 引脚。
  * 这里可以立即释放软件缓冲区并启动下一段；只有 Bsp_Usart_Flush() 才需要额外
  * 等待 USART_FLAG_TC，普通 printf 不做这个等待。
+ * @return {void} 无
  */
 VOID Bsp_Usart_TxDmaHandler(VOID)
 {
@@ -359,7 +367,8 @@ VOID Bsp_Usart_TxDmaHandler(VOID)
 }
 
 /**
- * @brief  在命令任务空闲时补轮询 TX DMA，不依赖完成中断。
+ * @description: 在命令任务空闲时补轮询 TX DMA，不依赖完成中断。
+ * @return {void} 无
  */
 VOID Bsp_Usart_TxDmaPoll(VOID)
 {
@@ -394,8 +403,9 @@ ULONG Bsp_Usart_GetTxDrops(VOID)
 }
 
 /**
- * @brief  查询调试串口是否已经切换到异步 DMA 发送。
+ * @description: 查询调试串口是否已经切换到异步 DMA 发送。
  * @note   olstatus 会显示这个结果，便于区分“DMA 没启动”和“FOC 占用过高”。
+ * @return {bool} 当前值 sgbUsartTxDmaReady
  */
 bool Bsp_Usart_TxDmaIsReady(VOID)
 {
@@ -403,10 +413,12 @@ bool Bsp_Usart_TxDmaIsReady(VOID)
 }
 
 /**
+ * @description: 串口输出字符串
  * @Description: 串口输出字符串
+ * @param {const CHAR *} cStr 以 '\0' 结尾的字符串
  * @author: lkc
  * @Date: 2023-02-17 23:01:32
- * @return {*}
+ * @return {void} 无
  */
 void Bsp_Usart_PutString(const CHAR *cStr)
 {
@@ -420,10 +432,13 @@ void Bsp_Usart_PutString(const CHAR *cStr)
 }
 
 /**
+ * @description: 串口输出 N 个字符
  * @Description: 串口输出N个字符
+ * @param {const UCHAR *} cStr 待发送数据
+ * @param {ULONG} ulLen 字节数
  * @author: lkc
  * @Date: 2023-02-17 23:01:32
- * @return {*}
+ * @return {void} 无
  */
 VOID Bsp_Usart_PutBuf(const UCHAR *cStr, ULONG ulLen)
 {
@@ -444,10 +459,10 @@ VOID Bsp_Usart_PutBuf(const UCHAR *cStr, ULONG ulLen)
 
 
 /**
-  * @brief  输出到终端一个字符
-  * @param  cKey: 输出字符
-  * @retval None
-  */
+ * @description: 输出到终端一个字符
+ * @param  cKey: 输出字符
+ * @return {void} 无
+ */
 void Bsp_Usart_PutChar(UCHAR cKey)
 {
 	if (!sgbUsartTxDmaReady) {
@@ -462,9 +477,11 @@ void Bsp_Usart_PutChar(UCHAR cKey)
 }
 
 /**
- * @brief  把一整块字节写入 UART DMA 环形队列。
+ * @description: 把一整块字节写入 UART DMA 环形队列。
  * @detail 任务上下文会等到全部入队；ISR/外部临界区只写当前空闲部分。
  *         每块只进入一次短临界区，避免 printf/fputc 逐字节反复关中断。
+ * @param {const UCHAR *} data 数据缓冲；空指针按实现返回或拒绝
+ * @param {ULONG} len 缓冲长度或元素数量，以接口中的缓冲类型为准
  * @return 已入队字节数。
  */
 bool Bsp_Usart_TryWriteFrame(const UCHAR *data, ULONG len)
@@ -486,6 +503,12 @@ bool Bsp_Usart_TryWriteFrame(const UCHAR *data, ULONG len)
     return accepted;
 }
 
+/**
+ * @description: 串口输出一段数据（DMA 未就绪时退回轮询）
+ * @param {const UCHAR *} data 待发送数据
+ * @param {ULONG} len 字节数
+ * @return {ULONG} 已发送字节数
+ */
 ULONG Bsp_Usart_Write(const UCHAR *data, ULONG len)
 {
 	ULONG written = 0U;
@@ -542,9 +565,10 @@ ULONG Bsp_Usart_Write(const UCHAR *data, ULONG len)
 }
 
 /**
- * @brief 等待发送队列清空，并等待最后一个字符完全从 TX 引脚发出。
+ * @description: 等待发送队列清空，并等待最后一个字符完全从 TX 引脚发出。
  * @note  等待期间轮询 DMA 完成标志，不依赖 UART DMA 中断。olstart / olsnap
  *        在 FOC 高负载下必须调用，否则回绕后的下一段会永远留在环形缓冲区里。
+ * @return {void} 无
  */
 VOID Bsp_Usart_Flush(VOID)
 {
@@ -581,11 +605,11 @@ VOID Bsp_Usart_Flush(VOID)
 }
 
 /**
- * @brief  Test to see if a ucKey has been pressed on the HyperTerminal
-  * @param  ucKey: The ucKey pressed
-  * @retval 1: Correct
-  *         0: Error
-  */
+ * @description: Test to see if a ucKey has been pressed on the HyperTerminal
+ * @param  ucKey: The ucKey pressed
+ * @retval 1: Correct
+ *         0: Error
+ */
 ULONG Bsp_Usart_GetChar(UCHAR *ucKey)
 {
 	/* 当存在数据的时候 */
@@ -600,10 +624,10 @@ ULONG Bsp_Usart_GetChar(UCHAR *ucKey)
 }
 
 /**
- * @description: 
- * @detail: 
- * @param {UCHAR} *ucBuf
- * @return {*}
+ * @description: 从串口读取数据到缓冲区
+ * @param {UCHAR} *ucBuf 输出接收缓冲区
+ * @param {ULONG} ulLen 期望读取字节数
+ * @return {ULONG} 实际读取结果
  * @author: lkc
  */
 ULONG Bsp_Usart_GetBuf(UCHAR *ucBuf, ULONG ulLen)
@@ -625,12 +649,13 @@ ULONG Bsp_Usart_GetBuf(UCHAR *ucBuf, ULONG ulLen)
 }
 
 /**
+ * @description: 重定向 fputc 到调试串口（供 printf 使用）
  * @Description: 重定向fputc
  * @author: lkc
  * @Date: 2023-02-18 09:44:40
- * @param {int} ch
- * @param {FILE} *f
- * @return {*}
+ * @param {int} ch 待打印字符
+ * @param {FILE} *f 标准库流指针；本实现使用固定调试串口
+ * @return {int} 当前值 ch
  */
 int fputc(int ch, FILE *f)
 {

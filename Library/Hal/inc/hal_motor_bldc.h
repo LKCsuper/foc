@@ -44,6 +44,7 @@ void Hal_Motor_BldcApply(hal_motor_bldc_phase_mode_t phase_a,
 /**
  * @description: 判断当前 ADC 帧是否位于 BLDC 有效的 PWM 导通采样窗口。
  * @detail: 中心对齐 PWM 顶部/底部各触发一次 ADC；仅向上计数侧的导通窗口样本用于 BEMF。
+ * @param {bool} upward_counting true=向上计数侧，false=向下计数侧
  * @return {bool} 当前帧可用于 BLDC BEMF 与换相状态机返回 true
  */
 bool Hal_Motor_BldcBemfSampleReady(bool upward_counting);

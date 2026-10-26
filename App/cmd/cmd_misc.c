@@ -16,6 +16,9 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 软件复位 MCU
+ * @param {int} argc 兼容参数，本实现不使用
+ * @param {char *[]} argv 兼容参数，本实现不使用
+ * @return {int} 本实现固定返回 0
  * @author: lkc
  */
 int CMD_Reset(int argc, char *argv[])

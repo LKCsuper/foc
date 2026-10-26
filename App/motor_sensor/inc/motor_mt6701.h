@@ -47,6 +47,10 @@ typedef struct {
  * @author: lkc
  */
 #if MOTOR_CFG_ENCODER
+/**
+ * @description: 清零 MT6701 状态并初始化当前接口（SSI 或 I2C）。
+ * @return {void} 无
+ */
 void Motor_MT6701_Init(void);
 
 /**
@@ -60,7 +64,7 @@ bool Motor_MT6701_Poll(void);
 /**
  * @description: 复制最近一次 MT6701 状态。
  * @param {motor_mt6701_status_t *} status  输出，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_MT6701_GetStatus(motor_mt6701_status_t *status);
@@ -86,8 +90,22 @@ uint32_t Motor_MT6701_GetSampleSequence(void);
  */
 const char *Motor_MT6701_InterfaceName(void);
 #else
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_MT6701_Init(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_MT6701_Poll(void) { return false; }
+/**
+ * @description: 复制最近一次 MT6701 状态。
+ * @param {motor_mt6701_status_t *} status  输出，不可为空
+ * @return {void} 无
+ */
 static inline void Motor_MT6701_GetStatus(motor_mt6701_status_t *status)
 {
     if (status != NULL) {
@@ -95,8 +113,20 @@ static inline void Motor_MT6701_GetStatus(motor_mt6701_status_t *status)
         *status = zero;
     }
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_MT6701_IsValid(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {uint32_t} 本实现固定返回 0U
+ */
 static inline uint32_t Motor_MT6701_GetSampleSequence(void) { return 0U; }
+/**
+ * @description: 返回当前编译选定的接口名。
+ * @return {const char *} 当前值 "off"
+ */
 static inline const char *Motor_MT6701_InterfaceName(void) { return "off"; }
 #endif
 #ifdef __cplusplus

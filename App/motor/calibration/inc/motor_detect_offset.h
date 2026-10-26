@@ -52,7 +52,7 @@ typedef struct {
  * @param {bool} cal_undriven             true=驱动相结束后继续采未驱动相电压
  * @param {uint32_t} samples_per_phase    每相样本数；0 则用默认 1000
  * @param {float} adc_full_scale          ADC 满量程；<=0 则用 4096
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Detect_OffsetReset(motor_detect_offset_t *st, bool cal_undriven, uint32_t samples_per_phase,
@@ -93,7 +93,7 @@ bool Motor_Detect_OffsetNextPhase(motor_detect_offset_t *st);
 /**
  * @description: 由三相累加和计算电流零点与驱动相电压偏置
  * @param {motor_detect_offset_t} *st  状态（写入 current_offset/volt_offset/offset_warn）
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Detect_OffsetFinalizeDriven(motor_detect_offset_t *st);
@@ -112,7 +112,7 @@ bool Motor_Detect_OffsetFeedUndriven(motor_detect_offset_t *st, float v0, float 
 /**
  * @description: 计算未驱动相电压偏移
  * @param {motor_detect_offset_t} *st  状态
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Detect_OffsetFinalizeUndriven(motor_detect_offset_t *st);
@@ -122,7 +122,7 @@ void Motor_Detect_OffsetFinalizeUndriven(motor_detect_offset_t *st);
  * @param {const motor_detect_offset_t} *st  已 Finalize 的状态
  * @param {MOTOR_PARAM_S} *motor             电机对象
  * @param {bool} apply_undriven              true=同时写 voltundrivenOffset
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Detect_OffsetApply(const motor_detect_offset_t *st, MOTOR_PARAM_S *motor, bool apply_undriven);

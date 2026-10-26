@@ -15,6 +15,7 @@ extern "C" {
 #include "motor_config.h"
 #include "motor_param.h"
 
+/* Private define ------------------------------------------------------------*/
 #define MOTOR_TRACE_CAPACITY 512U
 
 
@@ -26,6 +27,7 @@ extern "C" {
  *          up_count 来自入口处的 TIM1 DIR 读数，不是 ADC 锁存边沿。
  *          flags 的 bit7/bit8 由 Push 按触发状态补上，调用方填入的样本不必带这两位。
  */
+/* Private typedef -----------------------------------------------------------*/
 typedef struct {
     uint32_t time_us; /* 写入时刻 (us) */
     uint32_t flags;   /* state[1:0], flux_ok[2], direction_ok[3], encoder_valid[4], loss[7], entry[8] */
@@ -87,9 +89,11 @@ typedef struct {
     uint32_t head, count, fault, first_us, last_us, descriptor_bytes;
 } motor_fault_debug_descriptor_t;
 
+/* Private variables ---------------------------------------------------------*/
 extern volatile motor_fault_debug_descriptor_t g_motor_fault_debug;
 
 #if MOTOR_CFG_DIAG
+/* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 停机任务里武装故障前分频环形记录。
  * @detail: 复用完整轨迹 RAM，并暂停性能统计。已有故障须由应用拒绝武装，本函数不清除故障。
@@ -377,6 +381,14 @@ unsigned Motor_Timing_TraceCount(void);
 bool Motor_Timing_TraceGet(unsigned index, motor_trace_sample_t *sample);
 #else
 /* 诊断关闭：武装命令不生效，Due 恒为 false，控制路径不再填样本。 */
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} time_us 兼容参数，本实现不使用
+ * @param {bool} running 兼容参数，本实现不使用
+ * @param {bool} force 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_FaultTraceDue(uint32_t time_us, bool running, bool force)
 {
     (void)time_us;
@@ -384,10 +396,36 @@ static inline bool Motor_Timing_FaultTraceDue(uint32_t time_us, bool running, bo
     (void)force;
     return false;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {const motor_fault_trace_sample_t *} sample 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_FaultTracePush(const motor_fault_trace_sample_t *sample) { (void)sample; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {unsigned} fault 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_FaultTraceFreeze(unsigned fault) { (void)fault; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_TraceIsCompact(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_TraceCompactIsActive(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} time_us 兼容参数，本实现不使用
+ * @param {unsigned} state 兼容参数，本实现不使用
+ * @param {unsigned} fault 兼容参数，本实现不使用
+ * @param {bool} running 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_TraceCompactDue(uint32_t time_us, unsigned state, unsigned fault, bool running)
 {
     (void)time_us;
@@ -396,16 +434,64 @@ static inline bool Motor_Timing_TraceCompactDue(uint32_t time_us, unsigned state
     (void)running;
     return false;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {const motor_trace_compact_sample_t *} sample 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_TracePushCompact(const motor_trace_compact_sample_t *sample) { (void)sample; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Timing_TraceArmLight(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Timing_TraceArmFlight(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_TraceIsLight(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {const motor_trace_light_sample_t *} sample 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_TracePushLight(const motor_trace_light_sample_t *sample) { (void)sample; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Timing_TraceArm(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Timing_TraceArmEntry(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Timing_TraceArmEntryFast(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Timing_TraceStop(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {unsigned} state 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_TraceDue(unsigned state) { (void)state; return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {const motor_trace_sample_t *} sample 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_TracePush(const motor_trace_sample_t *sample) { (void)sample; }
 #endif
 

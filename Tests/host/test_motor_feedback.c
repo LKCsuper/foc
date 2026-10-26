@@ -16,52 +16,103 @@ static bool s_enc_speed_valid;
 static float s_enc_elec = 4.0f;
 static float s_enc_rpm = 100.0f;
 
+/**
+ * @description: 主机测试替身：获取默认实例本周期 Park 变换应使用的电角度。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} open_loop_angle 兼容参数，本实现不使用
+ * @return {float} 测试记录值 s_sensorless_angle
+ */
 float Motor_Sensorless_GetControlAngle(float open_loop_angle)
 {
     (void)open_loop_angle;
     return s_sensorless_angle;
 }
 
+/**
+ * @description: 主机测试替身：判断默认实例开环角到观测角的接管是否全部完成。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_takeover
+ */
 bool Motor_Sensorless_IsTakeoverComplete(void)
 {
     return s_takeover;
 }
 
+/**
+ * @description: 主机测试替身：查询默认实例电角零点是否已标定
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_enc_zero
+ */
 bool Motor_Encoder_IsZeroValid(void)
 {
     return s_enc_zero;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例当前电角
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_enc_elec
+ */
 float Motor_Encoder_GetElecAngle(void)
 {
     return s_enc_elec;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例已更新的机械转速
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_enc_rpm
+ */
 float Motor_Encoder_GetMechRpm(void)
 {
     return s_enc_rpm;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例近零吸附前的机械转速。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_enc_rpm
+ */
 float Motor_Encoder_GetRawMechRpm(void)
 {
     return s_enc_rpm;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例距最近一次计数变化的时间。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 本实现固定返回 0.0f
+ */
 float Motor_Encoder_GetEdgeAge(void)
 {
     return 0.0f;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例距最近一次 SSI/I2C 新帧的时间。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 0.0001f
+ */
 float Motor_Encoder_GetSampleAge(void)
 {
     return 0.0001f;
 }
 
+/**
+ * @description: 主机测试替身：查询默认实例是否处于信号故障。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 本实现固定返回 false
+ */
 bool Motor_Encoder_IsSignalFault(void)
 {
     return false;
 }
 
+/**
+ * @description: 主机测试替身：查询默认实例本拍转速是否有效
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_enc_speed_valid
+ */
 bool Motor_Encoder_IsSpeedValid(void)
 {
     return s_enc_speed_valid;
@@ -75,50 +126,99 @@ static float s_hall_raw_rpm = 55.0f;
 static float s_hall_fast_rpm = 60.0f;
 static float s_hall_age = 0.004f;
 
+/**
+ * @description: 主机测试替身：默认实例电角是否有效
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_hall_angle_valid
+ */
 bool Motor_Hall_AngleIsAngleValid(void)
 {
     return s_hall_angle_valid;
 }
 
+/**
+ * @description: 主机测试替身：默认实例电角 (rad)；angle_valid=false 时值勿单独使用
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_hall_theta
+ */
 float Motor_Hall_AngleGetTheta(void)
 {
     return s_hall_theta;
 }
 
+/**
+ * @description: 主机测试替身：默认实例机械转速 (RPM)
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_hall_rpm
+ */
 float Motor_Hall_AngleGetMechRpm(void)
 {
     return s_hall_rpm;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例最近单边沿原始机械转速。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_hall_raw_rpm
+ */
 float Motor_Hall_AngleGetRawMechRpm(void)
 {
     return s_hall_raw_rpm;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例 Hall-PLL 机械转速，供控制环使用。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_hall_fast_rpm
+ */
 float Motor_Hall_AngleGetFastMechRpm(void)
 {
     return s_hall_fast_rpm;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例距最近一次霍尔边沿的时间。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_hall_age
+ */
 float Motor_Hall_AngleGetEdgeAge(void)
 {
     return s_hall_age;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例最近一次有效霍尔状态。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {int} 测试记录值 3
+ */
 int Motor_Hall_AngleGetState(void)
 {
     return 3;
 }
 
+/**
+ * @description: 主机测试替身：默认实例复位
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Motor_Hall_AngleResetDefault(void)
 {
 }
 
+/**
+ * @description: 主机测试替身：默认实例转速是否有效
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_hall_speed_valid
+ */
 bool Motor_Hall_AngleIsSpeedValid(void)
 {
     return s_hall_speed_valid;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_feedback_t fb;

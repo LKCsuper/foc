@@ -15,6 +15,7 @@ extern "C" {
 #include "motor_config.h"
 #include "motor_param.h"
 
+/* Private typedef -----------------------------------------------------------*/
 typedef struct {
     uint32_t time_us, flags;
     float theta, delta, id, iq, old_id, old_iq, id_cmd, iq_cmd;
@@ -22,6 +23,7 @@ typedef struct {
     float vd, vq, ia, ib, ic, vbus, kp, dt;
     uint16_t adc[3];
 } motor_handoff_sample_t;
+/* Private define ------------------------------------------------------------*/
 #define MOTOR_HANDOFF_CAPACITY 32U
 typedef struct {
     uint32_t time_us, flags;
@@ -48,6 +50,7 @@ typedef struct {
     float v_alpha, v_beta;
 } motor_pair_sample_t;
 #if MOTOR_CFG_DIAG
+/* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 停机时武装连续两帧配对记录。
  * @detail: 复用 32 条缓冲，每 450 拍抽取一对。回调寄存器不是 ADC 触发锁存值。不改控制。
@@ -303,18 +306,83 @@ unsigned Motor_Timing_HandoffCount(void);
 bool Motor_Timing_HandoffGet(unsigned index, motor_handoff_sample_t *out);
 #else
 /* 诊断关闭：只保留控制路径调用到的入口，恒为未武装，不写任何样本。 */
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_PairHalfMode(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_PairActive(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {const motor_pair_frame_t *} frame 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_PairFrame(const motor_pair_frame_t *frame) { (void)frame; return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {float} v_alpha 兼容参数，本实现不使用
+ * @param {float} v_beta 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_PairPush(float v_alpha, float v_beta) { (void)v_alpha; (void)v_beta; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_ObserverStepActive(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_ObserverStepDue(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {const motor_observer_step_sample_t *} sample 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_ObserverStepPush(const motor_observer_step_sample_t *sample) { (void)sample; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {bool} completed 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_PhaseDue(bool completed) { (void)completed; return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {const motor_phase_sample_t *} sample 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_PhasePush(const motor_phase_sample_t *sample) { (void)sample; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Timing_HandoffStop(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Timing_HandoffMark(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_HandoffDue(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {const MOTOR_PARAM_S *} motor 兼容参数，本实现不使用
+ * @param {float} theta 兼容参数，本实现不使用
+ * @param {float} delta 兼容参数，本实现不使用
+ * @param {float} id 兼容参数，本实现不使用
+ * @param {float} iq 兼容参数，本实现不使用
+ * @param {float} dt 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_HandoffBefore(const MOTOR_PARAM_S *motor, float theta, float delta, float id, float iq,
                                               float dt)
 {
@@ -325,7 +393,19 @@ static inline void Motor_Timing_HandoffBefore(const MOTOR_PARAM_S *motor, float 
     (void)iq;
     (void)dt;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {const MOTOR_PARAM_S *} motor 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_HandoffTransport(const MOTOR_PARAM_S *motor) { (void)motor; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {const MOTOR_PARAM_S *} motor 兼容参数，本实现不使用
+ * @param {float} vd 兼容参数，本实现不使用
+ * @param {float} vq 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_HandoffAfter(const MOTOR_PARAM_S *motor, float vd, float vq)
 {
     (void)motor;

@@ -1,3 +1,4 @@
+/* 电流环 PI 自整定：候选参数校验与真实 PI/RL 阶跃闭环验证。 */
 #include <assert.h>
 #include <float.h>
 #include <math.h>
@@ -5,6 +6,10 @@
 #include "motor_autotune.h"
 #include "motor_pid.h"
 
+/**
+ * @description: 构造当前测试场景的配置。
+ * @return {motor_autotune_config_t} 测试记录值 c
+ */
 static motor_autotune_config_t config(void)
 {
     motor_autotune_config_t c = {0.5f, 0.001f, 0.002f, 1.0f / 15000.0f, 150.0f,
@@ -12,8 +17,15 @@ static motor_autotune_config_t config(void)
     return c;
 }
 
-/* 用真实 PI 与连续 RL 的精确 ZOH 响应闭环验证，含一拍输出延迟。
- * 不使用 Kp/L 代数关系作为唯一测试，检查跟踪与过冲。 */
+/**
+ * @description: 用真实 PI 与连续 RL 的精确 ZOH 响应闭环验证，含一拍输出延迟。
+ * 不使用 Kp/L 代数关系作为唯一测试，检查跟踪与过冲。
+ * @param {float} r r 参数
+ * @param {float} l l 参数
+ * @param {motor_autotune_pi_t} gains gains 参数
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @return {void} 无
+ */
 static void check_step(float r, float l, motor_autotune_pi_t gains, float dt)
 {
     float current = 0.0f, integral = 0.0f, applied = 0.0f, peak = 0.0f;
@@ -30,6 +42,10 @@ static void check_step(float r, float l, motor_autotune_pi_t gains, float dt)
     assert(peak < 0.24f);
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_autotune_config_t c = config();

@@ -1,9 +1,15 @@
+/* 速度核心与任务周期/截止时间主机测试 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include "motor_speed_core.h"
 #include "motor_task_clock.h"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     {

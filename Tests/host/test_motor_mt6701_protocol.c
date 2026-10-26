@@ -1,7 +1,12 @@
+/* MT6701 SSI/I2C 协议：CRC 校验、磁场状态与过速警告解码。 */
 #include <assert.h>
 #include <stdio.h>
 #include "motor_mt6701_protocol.h"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_mt6701_frame_t frame = {0};

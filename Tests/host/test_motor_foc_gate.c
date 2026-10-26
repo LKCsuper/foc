@@ -6,12 +6,25 @@
 #define ARR 5600U
 #define US(x) ((x) * 168U)
 
+/**
+ * @description: 在指定时间与计数位置执行门控判定。
+ * @param {motor_foc_phase_gate_t *} g g 参数
+ * @param {const motor_foc_phase_gate_config_t *} c c 参数
+ * @param {bool} down down 参数
+ * @param {uint32_t} since_top since_top 参数
+ * @param {uint32_t} now 当前时刻 (tick)
+ * @return {bool} true=职责说明中的条件成立；false=条件不成立
+ */
 static bool gate_at(motor_foc_phase_gate_t *g, const motor_foc_phase_gate_config_t *c, bool down, uint32_t since_top,
                     uint32_t now)
 {
     return Motor_FocDivider_PhaseGate(g, c, down, ARR - since_top, ARR, now);
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     const motor_foc_phase_gate_config_t cfg = {US(8U), US(22U), 40U};

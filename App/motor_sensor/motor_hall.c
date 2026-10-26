@@ -22,6 +22,8 @@ extern "C" {
 #include "hal_sensor.h"
 #include "motor.h"
 #include "motor_hall_angle.h"
+#include "motor_hall_calibration.h"
+#include "motor_crit.h"
 /* Private typedef -----------------------------------------------------------*/
 typedef struct {
     volatile bool active;
@@ -30,29 +32,17 @@ typedef struct {
     float id_target;   /* D 轴目标电流 (A) */
     float iq_target;   /* Q 轴目标电流 (A) */
 } motor_hall_detect_ctx_t;
-/* Private define ------------------------------------------------------------*/
-#define MOTOR_HALL_DETECT_ALIGN_STEPS   (800U)
-#define MOTOR_HALL_DETECT_SWEEP_LOOPS    (2U)
-#define MOTOR_HALL_DETECT_DEG_STEPS      (360U)
-#define MOTOR_HALL_DETECT_STEP_DELAY_MS  (25U)
-#define MOTOR_HALL_DETECT_HOLD_MS        (600U)
-#define MOTOR_HALL_DETECT_MIN_SAMPLES    (30U)
-/* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 static motor_hall_detect_ctx_t s_hall_detect;
 /* Private function prototypes -----------------------------------------------*/
 static void Motor_Hall_DetectCtxReset(void);
-static bool Motor_Hall_DetectShouldStop(void);
-static bool Motor_Hall_DetectWait(float theta_rad, float id_target, float iq_target, uint32_t delay_ms);
-static void Motor_Hall_StoreTableEntry(uint8_t *hall_table, int hall,
-                                       float sin_acc, float cos_acc, int samples);
 static void Motor_Hall_TableToMotor(const uint8_t *hall_table, MOTOR_PARAM_S *m);
 static void Motor_Hall_DetectFinish(MOTOR_PARAM_S *m);
 /* Private functions ---------------------------------------------------------*/
 
 /**
  * @description: 清除霍尔标定运行时上下文（active/abort/角度与电流目标）
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Hall_DetectCtxReset(void)
@@ -65,67 +55,10 @@ static void Motor_Hall_DetectCtxReset(void)
 }
 
 /**
- * @description: 判定霍尔标定任务是否应退出
- * @return {bool} true=用户中止或保护已锁存故障
- * @author: lkc
- */
-static bool Motor_Hall_DetectShouldStop(void)
-{
-    return s_hall_detect.abort || Motor_Protect_IsFaultLatched();
-}
-
-/**
- * @description: 下发本拍强制电角度与 d/q 电流目标，并等待 ISR 执行
- * @param {float} theta_rad   强制电角度 (rad)
- * @param {float} id_target   D 轴目标电流 (A)
- * @param {float} iq_target   Q 轴目标电流 (A)
- * @param {uint32_t} delay_ms 等待时间 (ms)
- * @return {bool} true=可继续；false=应中止
- * @author: lkc
- */
-static bool Motor_Hall_DetectWait(float theta_rad, float id_target, float iq_target, uint32_t delay_ms)
-{
-    s_hall_detect.theta_rad = theta_rad;
-    s_hall_detect.id_target = id_target;
-    s_hall_detect.iq_target = iq_target;
-    osDelay(pdMS_TO_TICKS(delay_ms));
-    return !Motor_Hall_DetectShouldStop();
-}
-
-/**
- * @description: 根据某霍尔状态的 sin/cos 累加值写入表项
- * @param {uint8_t} *hall_table  8 项输出表，不可为空
- * @param {int} hall             霍尔状态 0~7
- * @param {float} sin_acc        sin 累加（无量纲）
- * @param {float} cos_acc        cos 累加（无量纲）
- * @param {int} samples          该状态采样次数；不足门限则写 255
- * @return {*}
- * @author: lkc
- */
-static void Motor_Hall_StoreTableEntry(uint8_t *hall_table, int hall,
-                                       float sin_acc, float cos_acc, int samples)
-{
-    float ang;
-
-    if (samples > (int)MOTOR_HALL_DETECT_MIN_SAMPLES) {
-        /*
-         * 标定以 +Iq 慢速拖动：定子电流矢量位于强制 Park 角的 +90°。
-         * 空载慢爬时转子磁链跟随该电流矢量，因此霍尔表应保存转子 d 轴角，
-         * 而不是原始强制角；否则运行时再次施加 +Iq 会得到近零转矩。
-         */
-        ang = RAD2DEG_f(atan2f(sin_acc, cos_acc)) + 90.0f;
-        utils_norm_angle(&ang);
-        hall_table[hall] = (uint8_t)(ang * 200.0f / 360.0f);
-    } else {
-        hall_table[hall] = 255U;
-    }
-}
-
-/**
  * @description: 把 uint8 霍尔表写入 MOTOR_PARAM_S（255 → MOTOR_HALL_TABLE_INVALID）
  * @param {const uint8_t} *hall_table  标定输出表，不可为空
  * @param {MOTOR_PARAM_S} *m           运行时参数，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Hall_TableToMotor(const uint8_t *hall_table, MOTOR_PARAM_S *m)
@@ -144,7 +77,7 @@ static void Motor_Hall_TableToMotor(const uint8_t *hall_table, MOTOR_PARAM_S *m)
 /**
  * @description: 标定结束：清上下文、请求停机并关闭 PWM
  * @param {MOTOR_PARAM_S} *m  运行时参数，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Hall_DetectFinish(MOTOR_PARAM_S *m)
@@ -180,7 +113,7 @@ bool Motor_Hall_DetectIsActive(void)
 
 /**
  * @description: 中止正在进行的霍尔标定（olstop 或故障时调用）
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hall_DetectAbort(void)
@@ -214,7 +147,8 @@ bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad,
 
 /**
  * @description: 开环转一圈，标定霍尔状态与电角度对应表
- * @detail: 任务上下文推进角度；ISR 通过 DetectGetTargets 输出 D 轴电流与固定角。
+ * @detail: 兼容任务包装：纯 Calibration 状态机推进角度，ISR 读取 d/q 目标。
+ *          最长 120 s；终态先停机，再验证并应用表；取消/故障/超时保留旧表。
  *          结果写入 hall_table；成功时同步写入 MOTOR_PARAM_S.hall_table
  * @param {float} current        对齐/拖动电流 (A)；对齐用 Id，扫角用 Iq（I/F）
  * @param {uint8_t} *hall_table  输出 8 项霍尔表，255 表示无效扇区
@@ -225,132 +159,99 @@ bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad,
 int Motor_Hall_Detect(float current, uint8_t *hall_table, bool *result)
 {
     MOTOR_PARAM_S *m = &motor;
-    float sin_hall[MOTOR_HALL_TABLE_SIZE];
-    float cos_hall[MOTOR_HALL_TABLE_SIZE];
-    int hall_iterations[MOTOR_HALL_TABLE_SIZE];
+    motor_hall_calibration_t calibration;
+    int8_t candidate[MOTOR_HALL_TABLE_SIZE];
     int fault = FAULT_CODE_NONE;
     int hall;
-    int fails;
-    int i;
-    int j;
-    int z;
-    float s;
-    float c;
-    uint32_t step;
-    bool stopped = false;
+    int z = 0;
+    unsigned i;
+    uint32_t key;
+    uint32_t last_us;
+    uint32_t elapsed_ms = 0U;
+    uint32_t remainder_us = 0U;
 
-    if (hall_table == NULL || result == NULL || current <= 0.0f) return FAULT_CODE_NONE;
-
-    printf("HALL DETECT I/F align+Iq=%.2fA slow crawl\r\n", (double)current);
-    memset(sin_hall, 0, sizeof(sin_hall));
-    memset(cos_hall, 0, sizeof(cos_hall));
-    memset(hall_iterations, 0, sizeof(hall_iterations));
-    *result = false;
-
+    if (result != NULL) *result = false;
+    if (hall_table == NULL || result == NULL) return FAULT_CODE_NONE;
+    if (!Motor_Hall_CalibrationStart(&calibration, current, 0U, 120000U)) return FAULT_CODE_NONE;
+    if (Motor_Hall_DetectIsActive()) return FAULT_CODE_NONE;
     if (Motor_Protect_IsFaultLatched()) {
         printf("HALL DETECT blocked by fault: %s — run olfault clear\r\n",
                Motor_Protect_GetFaultName(Motor_Protect_GetFault()));
         return Motor_Protect_GetFault();
     }
-    /* 清 latched+NONE 等脏状态，避免误拦 */
+    printf("HALL DETECT I/F align+Iq=%.2fA slow crawl\r\n", (double)current);
     Motor_Protect_ClearFault();
-
+    (void)Motor_ClearRuntimeControl(m);
+    key = Motor_Crit_Enter();
+    Motor_Hall_DetectCtxReset();
     m->ol_enable = true;
     m->ol_target_rpm = 1.0f;
-    (void)Motor_ClearRuntimeControl(m);
-    s_hall_detect.abort = false;
-    s_hall_detect.iq_target = 0.0f;
-    s_hall_detect.theta_rad = 0.0f;
-    s_hall_detect.id_target = 0.0f;
     s_hall_detect.active = true;
+    Motor_Crit_Exit(key);
+    m->lastHallABC = 0U;
+    last_us = Hal_Motor_TimeUs();
     Hal_Motor_PwmStart();
 
-    /* 先 Id 对齐到 θ=0，再改用 Iq 拖动扫角（I/F），电流闭环限流 */
-    for (step = 0; step < MOTOR_HALL_DETECT_ALIGN_STEPS; step++) {
-        if (!Motor_Hall_DetectWait(0.0f,
-                                   (float)step * current / (float)MOTOR_HALL_DETECT_ALIGN_STEPS, 0.0f,
-                                   1U)) {
-            stopped = true;
-            break;
+    while (Motor_Hall_CalibrationIsActive(&calibration)) {
+        uint32_t now_us;
+        uint32_t delta_us;
+        /* 等待仅存在于兼容任务包装；裸机直接调用 CalibrationStart/Step。 */
+        osDelay(pdMS_TO_TICKS(1U));
+        now_us = Hal_Motor_TimeUs();
+        delta_us = now_us - last_us;
+        last_us = now_us;
+        elapsed_ms += delta_us / 1000U;
+        remainder_us += delta_us % 1000U;
+        elapsed_ms += remainder_us / 1000U;
+        remainder_us %= 1000U;
+        hall = Motor_Hall_Read(false, m->hall_extra_samples);
+        Motor_Hall_CalibrationStep(&calibration, elapsed_ms, hall, s_hall_detect.abort,
+                                   Motor_Protect_IsFaultLatched());
+        /* 目标整体交接，避免 ISR 读到跨阶段的角度/电流组合。终态立即撤销输出权。 */
+        key = Motor_Crit_Enter();
+        s_hall_detect.theta_rad = calibration.theta_rad;
+        s_hall_detect.id_target = calibration.id_target;
+        s_hall_detect.iq_target = calibration.iq_target;
+        if (!Motor_Hall_CalibrationIsActive(&calibration)) {
+            /* 禁用命令与释放标定权一起发布，防止 ISR 在间隙回到普通运行路径。 */
+            m->ol_enable = false;
+            s_hall_detect.active = false;
         }
-    }
-
-    if (!stopped) {
-        if (!Motor_Hall_DetectWait(0.0f, current, 0.0f, MOTOR_HALL_DETECT_HOLD_MS)) {
-            stopped = true;
-        }
-    }
-
-    z = 0;
-    m->lastHallABC = 0U;
-    for (i = 0; !stopped && i < (int)MOTOR_HALL_DETECT_SWEEP_LOOPS; i++) {
-        for (j = 0; j <= (int)MOTOR_HALL_DETECT_DEG_STEPS; j++) {
-            if (!Motor_Hall_DetectWait(DEG2RAD_f((float)j), 0.0f, current,
-                                       MOTOR_HALL_DETECT_STEP_DELAY_MS)) {
-                stopped = true;
-                break;
-            }
-
-            hall = Motor_Hall_Read(false, m->hall_extra_samples);
+        Motor_Crit_Exit(key);
+        if (calibration.sampled_forward) {
             m->curHallABC = (uint8_t)hall;
-            if ((m->curHallABC != m->lastHallABC) && (z < 6)) {
+            if (m->curHallABC != m->lastHallABC && z < 6) {
                 m->lastHallABC = m->curHallABC;
                 m->hallABC[z] = (uint8_t)hall;
                 printf("diff [%d] [%d] [%d] [%d]\r\n", z, m->hallABC[z], m->curHallABC, hall);
-                z++;
+                ++z;
             }
-
-            sincos_f32(s_hall_detect.theta_rad, &s, &c);
-            sin_hall[hall] += s;
-            cos_hall[hall] += c;
-            hall_iterations[hall]++;
         }
     }
-
-    for (i = 0; !stopped && i < (int)MOTOR_HALL_DETECT_SWEEP_LOOPS; i++) {
-        for (j = (int)MOTOR_HALL_DETECT_DEG_STEPS; j >= 0; j--) {
-            if (!Motor_Hall_DetectWait(DEG2RAD_f((float)j), 0.0f, current,
-                                       MOTOR_HALL_DETECT_STEP_DELAY_MS)) {
-                stopped = true;
-                break;
-            }
-
-            hall = Motor_Hall_Read(false, m->hall_extra_samples);
-            sincos_f32(s_hall_detect.theta_rad, &s, &c);
-            sin_hall[hall] += s;
-            cos_hall[hall] += c;
-            hall_iterations[hall]++;
-        }
-    }
-
-    if (Motor_Protect_IsFaultLatched()) {
+    /* 在结果检查和打印前停机；失败、取消及超时不覆盖已存在的有效表。 */
+    Motor_Hall_DetectFinish(m);
+    if (Motor_Protect_IsFaultLatched() || calibration.stage == MOTOR_HALL_CAL_FAULT) {
         fault = Motor_Protect_GetFault();
         printf("HALL DETECT aborted by fault: %s\r\n", Motor_Protect_GetFaultName(fault));
-    } else if (s_hall_detect.abort) {
-        printf("HALL DETECT aborted\r\n");
-    } else {
-        fails = 0;
-        for (i = 0; i < (int)MOTOR_HALL_TABLE_SIZE; i++) {
-            Motor_Hall_StoreTableEntry(hall_table, i, sin_hall[i], cos_hall[i], hall_iterations[i]);
-            if (hall_table[i] == 255U) {
-                fails++;
-            }
-        }
-        *result = false;
-        if (fails == 2) {
+    } else if (calibration.stage == MOTOR_HALL_CAL_DONE) {
+        memcpy(hall_table, calibration.table, sizeof(calibration.table));
+        for (i = 0; i < MOTOR_HALL_TABLE_SIZE; ++i) candidate[i] = (int8_t)calibration.table[i];
+        *result = Motor_Hall_TableReady(candidate);
+        if (*result) {
             Motor_Hall_TableToMotor(hall_table, m);
-            *result = Motor_Hall_TableReady(m->hall_table);
+        } else {
+            printf("HALL DETECT fail: need 6 distinct sectors. table/samples:\r\n");
+            for (i = 0; i < MOTOR_HALL_TABLE_SIZE; ++i)
+                printf("  [%u] tab=%u n=%u\r\n", i, (unsigned)hall_table[i],
+                       (unsigned)calibration.samples[i]);
         }
-        if (!*result) {
-            printf("HALL DETECT fail: invalid=%d (need 2). table/samples:\r\n", fails);
-            for (i = 0; i < (int)MOTOR_HALL_TABLE_SIZE; i++) {
-                printf("  [%d] tab=%d n=%d\r\n", i, (int)hall_table[i], hall_iterations[i]);
-            }
-            printf("hint: shaft free? need 6 hall sectors; try higher Iq or slower crawl\r\n");
-        }
+    } else if (calibration.stage == MOTOR_HALL_CAL_TIMEOUT) {
+        printf("HALL DETECT aborted: timeout\r\n");
+    } else if (calibration.stage == MOTOR_HALL_CAL_INVALID) {
+        printf("HALL DETECT aborted: invalid hall sample\r\n");
+    } else {
+        printf("HALL DETECT aborted\r\n");
     }
-
-    Motor_Hall_DetectFinish(m);
     return fault;
 }
 

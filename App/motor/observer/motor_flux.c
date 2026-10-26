@@ -48,7 +48,7 @@ static float Motor_Flux_WrapPi(float angle)
 /**
  * @description: 清空本拍输出
  * @param {motor_flux_output_t} *output  输出；可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Flux_ClearOutput(motor_flux_output_t *output)
@@ -65,7 +65,7 @@ static void Motor_Flux_ClearOutput(motor_flux_output_t *output)
  * @param {float} i_alpha                      α 轴电流 (A)
  * @param {float} i_beta                       β 轴电流 (A)
  * @param {motor_flux_output_t} *output        本拍输出
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Flux_Publish(motor_flux_t *obs, const motor_flux_config_t *config, float i_alpha, float i_beta,
@@ -90,7 +90,7 @@ static void Motor_Flux_Publish(motor_flux_t *obs, const motor_flux_config_t *con
 /**
  * @description: 复位磁链观测状态
  * @param {motor_flux_t} *obs  实例，可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Flux_Reset(motor_flux_t *obs)
@@ -103,7 +103,7 @@ void Motor_Flux_Reset(motor_flux_t *obs)
 /**
  * @description: 规整磁链观测配置
  * @param {motor_flux_config_t} *config  配置，被原地修改；可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Flux_NormalizeConfig(motor_flux_config_t *config)
@@ -133,7 +133,7 @@ void Motor_Flux_NormalizeConfig(motor_flux_config_t *config)
  * @param {float} angle                        假设电角 (rad)
  * @param {float} i_alpha                      α 轴电流 (A)
  * @param {float} i_beta                       β 轴电流 (A)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Flux_Seed(motor_flux_t *obs, const motor_flux_config_t *config, float angle, float i_alpha, float i_beta)

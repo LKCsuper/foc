@@ -22,23 +22,46 @@ typedef char
 static bool settings_valid(const motor_settings_t *s);
 /* Private functions ---------------------------------------------------------*/
 
-/* 单字段校验：FLOAT 须有限且按需非负；其余类型的范围由解码与跨字段约束负责。 */
+/**
+ * @description: 单字段校验：FLOAT 须有限且按需非负；其余类型的范围由解码与跨字段约束负责。
+ * @param {float} value 待处理值
+ * @param {bool} nonneg 是否要求非负；是否使用取决于字段类型
+ * @return {bool} true=校验通过；false=条件不满足
+ */
 static bool settings_field_valid_FLOAT(float value, bool nonneg)
 {
     return isfinite(value) && !(nonneg && value < 0.0f);
 }
+/**
+ * @description: 校验 BOOL 类型字段；本类型取值由解码及跨字段约束负责，此处返回 true。
+ * @param {bool} value 兼容参数，本实现不使用
+ * @param {bool} nonneg 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 true
+ */
 static bool settings_field_valid_BOOL(bool value, bool nonneg)
 {
     (void)value;
     (void)nonneg;
     return true;
 }
+/**
+ * @description: 校验 U16 类型字段；本类型取值由解码及跨字段约束负责，此处返回 true。
+ * @param {uint16_t} value 兼容参数，本实现不使用
+ * @param {bool} nonneg 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 true
+ */
 static bool settings_field_valid_U16(uint16_t value, bool nonneg)
 {
     (void)value;
     (void)nonneg;
     return true;
 }
+/**
+ * @description: 校验 INT 类型字段；本类型取值由解码及跨字段约束负责，此处返回 true。
+ * @param {int} value 兼容参数，本实现不使用
+ * @param {bool} nonneg 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 true
+ */
 static bool settings_field_valid_INT(int value, bool nonneg)
 {
     (void)value;
@@ -250,19 +273,55 @@ static float get_float(const uint8_t **p)
     return value;
 }
 
-/* 按字段类型编码：FLOAT 写位模式，其余写 32 位字（与旧版逐字段 put_word 完全一致）。 */
+/**
+ * @description: 按字段类型编码：FLOAT 写位模式，其余写 32 位字（与旧版逐字段 put_word 完全一致）。
+ * @param {uint8_t **} p 输入输出写游标，调用后前移 4 byte
+ * @param {float} value 待处理值
+ * @return {void} 无
+ */
 static void settings_put_FLOAT(uint8_t **p, float value) { put_float(p, value); }
+/**
+ * @description: 按持久化线格式编码 BOOL 字段并推进写指针。
+ * @param {uint8_t **} p 输入输出写游标，调用后前移 4 byte
+ * @param {bool} value 待处理值
+ * @return {void} 无
+ */
 static void settings_put_BOOL(uint8_t **p, bool value) { put_word(p, value); }
+/**
+ * @description: 按持久化线格式编码 U16 字段并推进写指针。
+ * @param {uint8_t **} p 输入输出写游标，调用后前移 4 byte
+ * @param {uint16_t} value 待处理值
+ * @return {void} 无
+ */
 static void settings_put_U16(uint8_t **p, uint16_t value) { put_word(p, value); }
+/**
+ * @description: 按持久化线格式编码 INT 字段并推进写指针。
+ * @param {uint8_t **} p 输入输出写游标，调用后前移 4 byte
+ * @param {int} value 待处理值
+ * @return {void} 无
+ */
 static void settings_put_INT(uint8_t **p, int value) { put_word(p, (uint32_t)value); }
 
-/* 按字段类型解码：非 FLOAT 字值超过 word_max 时拒绝。 */
+/**
+ * @description: 按字段类型解码：非 FLOAT 字值超过 word_max 时拒绝。
+ * @param {const uint8_t **} p 输入输出读游标，调用后前移 4 byte
+ * @param {uint32_t} word_max 兼容参数，本实现不使用
+ * @param {float *} out 输出缓冲或结果
+ * @return {bool} 本实现固定返回 true
+ */
 static bool settings_get_FLOAT(const uint8_t **p, uint32_t word_max, float *out)
 {
     (void)word_max;
     *out = get_float(p);
     return true;
 }
+/**
+ * @description: 读取并校验 BOOL 字段；超过 word_max 时返回 false，不写 out。
+ * @param {const uint8_t **} p 输入输出读游标，调用后前移 4 byte
+ * @param {uint32_t} word_max 线格式允许的最大整数编码
+ * @param {bool *} out 输出缓冲或结果
+ * @return {bool} true=校验通过；false=条件不满足
+ */
 static bool settings_get_BOOL(const uint8_t **p, uint32_t word_max, bool *out)
 {
     uint32_t word = get_word(p);
@@ -270,6 +329,13 @@ static bool settings_get_BOOL(const uint8_t **p, uint32_t word_max, bool *out)
     *out = (bool)word;
     return true;
 }
+/**
+ * @description: 读取并校验 U16 字段；超过 word_max 时返回 false，不写 out。
+ * @param {const uint8_t **} p 输入输出读游标，调用后前移 4 byte
+ * @param {uint32_t} word_max 线格式允许的最大整数编码
+ * @param {uint16_t *} out 输出缓冲或结果
+ * @return {bool} true=校验通过；false=条件不满足
+ */
 static bool settings_get_U16(const uint8_t **p, uint32_t word_max, uint16_t *out)
 {
     uint32_t word = get_word(p);
@@ -277,6 +343,13 @@ static bool settings_get_U16(const uint8_t **p, uint32_t word_max, uint16_t *out
     *out = (uint16_t)word;
     return true;
 }
+/**
+ * @description: 读取并校验 INT 字段；超过 word_max 时返回 false，不写 out。
+ * @param {const uint8_t **} p 输入输出读游标，调用后前移 4 byte
+ * @param {uint32_t} word_max 线格式允许的最大整数编码
+ * @param {int *} out 输出缓冲或结果
+ * @return {bool} true=校验通过；false=条件不满足
+ */
 static bool settings_get_INT(const uint8_t **p, uint32_t word_max, int *out)
 {
     uint32_t word = get_word(p);

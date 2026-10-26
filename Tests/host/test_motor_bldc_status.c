@@ -1,3 +1,4 @@
+/* BLDC 状态填充：选中/运行/故障/反电势等字段与阈值回退。 */
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -5,16 +6,32 @@
 
 #include "motor_bldc_status.h"
 
+/**
+ * @description: 主机测试替身：查询六步换相实例是否正在运行。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {const motor_bldc_six_step_t *} control control 参数
+ * @return {bool} 测试记录值 control != NULL && control->running
+ */
 bool Motor_BldcSixStep_IsRunning(const motor_bldc_six_step_t *control)
 {
     return control != NULL && control->running;
 }
 
+/**
+ * @description: 判断两浮点值是否在测试容差内。
+ * @param {float} a a 参数
+ * @param {float} b b 参数
+ * @return {int} 本次计算或查询的结果
+ */
 static int Near(float a, float b)
 {
     return fabsf(a - b) < 1.0e-7f;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_bldc_six_step_t commutator;

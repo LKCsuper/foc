@@ -29,7 +29,7 @@ static MOTOR_PARAM_S *gpstMotorDefault = &motorDefault;
  * @detail: 依次写入电机固定参数与开环/电流/速度/无感等运行默认值；尝试从 Flash
  *          加载已保存参数，失败则使用默认值且不自动擦写 Flash；随后用代码默认值覆盖运行参数，
  *          并初始化速度环与无感观测器。R/L/磁链检测结果暂不应用。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void MOTOR_Param_Init(void)

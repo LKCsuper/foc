@@ -1,3 +1,4 @@
+/* 电流环：PI 等价、目标限幅、Park 记录、弱磁、反电势前馈、积分迁移与跟踪诊断。 */
 #include <assert.h>
 #include <math.h>
 #include <float.h>
@@ -7,6 +8,10 @@
 #include "motor_param.h"
 #include "motor_pid.h"
 
+/**
+ * @description: 验证电流 PI 与原实现的输出和积分等价性。
+ * @return {void} 无
+ */
 static void check_pi_equivalence(void)
 {
     const float values[] = {-20.0f, -2.5f, -0.0f, 0.0f, 0.001f, 1.0f, 20.0f};
@@ -42,6 +47,10 @@ static void check_pi_equivalence(void)
     }
 }
 
+/**
+ * @description: 验证电流目标限幅与原实现等价。
+ * @return {void} 无
+ */
 static void check_target_limit_equivalence(void)
 {
     const float values[] = {NAN, -INFINITY, INFINITY, -FLT_MAX, FLT_MAX, -0.0f, 0.0f,
@@ -73,6 +82,10 @@ static void check_target_limit_equivalence(void)
     }
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     MOTOR_PARAM_S a;

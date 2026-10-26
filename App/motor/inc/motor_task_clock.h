@@ -1,3 +1,6 @@
+/*
+ * @Description: 周期任务截止时间计算；跳过错过的节拍，不追赶补算。
+ */
 #ifndef MOTOR_TASK_CLOCK_H
 #define MOTOR_TASK_CLOCK_H
 #include <stdint.h>
@@ -32,7 +35,13 @@ static inline uint32_t Motor_Task_PeriodTicks(motor_task_period_cache_t *cache, 
     return cache->period;
 }
 
-/** 返回下一未来节拍，跳过已错过的拍，不追赶补算；周期和滞后须小于2^31 tick。 */
+/**
+ * @description: 返回下一未来节拍，跳过已错过的拍，不追赶补算；周期和滞后须小于2^31 tick。
+ * @param {uint32_t} previous 上一次计划截止时刻 (tick)
+ * @param {uint32_t} now 当前时刻 (tick)
+ * @param {uint32_t} period 调度周期 (tick)，须非零且小于 2^31
+ * @return {uint32_t} 当前值 next
+ */
 static inline uint32_t Motor_Task_NextDeadline(uint32_t previous, uint32_t now, uint32_t period)
 {
     uint32_t next;

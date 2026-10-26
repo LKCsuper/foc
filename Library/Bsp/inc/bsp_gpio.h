@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: GPIO 引脚与板级宏定义
  * @Date: 2023-02-18 23:51:32
  * @LastEditTime: 2023-03-19 22:45:13
  * @FilePath: \foc\Library\Bsp\inc\bsp_dma.h
@@ -160,7 +160,16 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+/**
+ * @description: LED 引脚初始化
+ * @return {void} 无
+ */
 void Bsp_Gpio_Led(void);
+
+/**
+ * @description: 板级 GPIO 初始化（滤波开关/串口/定时器/霍尔/ADC 引脚）
+ * @return {void} 无
+ */
 void Bsp_Gpio_Init(void);
 
 #ifdef __cplusplus

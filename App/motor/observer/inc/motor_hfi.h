@@ -61,7 +61,7 @@ typedef struct {
 /**
  * @description: 复位高频注入状态（角度与速度清零，停止注入）
  * @param {motor_hfi_t} *hfi  实例，可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hfi_Reset(motor_hfi_t *hfi);
@@ -70,7 +70,7 @@ void Motor_Hfi_Reset(motor_hfi_t *hfi);
  * @description: 规整高频注入配置
  * @detail: 电压/增益钳到非负上限；母线比例非法时回退为 0.20。
  * @param {motor_hfi_config_t} *config  配置，被原地修改；可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hfi_NormalizeConfig(motor_hfi_config_t *config);
@@ -80,7 +80,7 @@ void Motor_Hfi_NormalizeConfig(motor_hfi_config_t *config);
  * @detail: 不改变极性与解调历史。角度归一化到 [0, 2π)。
  * @param {motor_hfi_t} *hfi  实例，可为 NULL
  * @param {float} angle       初始电角 (rad)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Hfi_SeedAngle(motor_hfi_t *hfi, float angle);

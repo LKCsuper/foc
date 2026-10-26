@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: 定时器板级配置（PWM 时基/触发/编码器）
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-19 10:03:36
@@ -97,21 +97,100 @@ typedef enum{
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 启动指定电机三相 PWM 输出
+ * @param {BOOL} is_second MOTOR1(0) 或 MOTOR2(1)
+ * @return {void} 无
+ */
 VOID Bsp_Tim_StartPwm(BOOL is_second);
+
+/**
+ * @description: 停止指定电机三相 PWM 输出（强制无效电平）
+ * @param {BOOL} is_second MOTOR1(0) 或 MOTOR2(1)
+ * @return {void} 无
+ */
 VOID Bsp_Tim_StopPwm(BOOL is_second);
+
+/**
+ * @description: 配置定时器1 触发方式（触发 TIM2 采样时基）
+ * @return {void} 无
+ */
 VOID Bsp_Tim1_Trig(VOID);
+
+/**
+ * @description: 配置定时器触发 ADC
+ * @return {void} 无
+ */
 VOID Bsp_Tim1_TrigAdc(VOID);
+
+/**
+ * @description: 定时器1 PWM 初始化（电机1 主 PWM）
+ * @param {ULONG} f_zv PWM 中心频率参数，实际 PWM 频率 = f_zv / 2
+ * @return {void} 无
+ */
 VOID Bsp_Tim_Pwm1(ULONG f_zv);
+
+/**
+ * @description: 定时器8 PWM 初始化（电机2 主 PWM）
+ * @param {ULONG} f_zv PWM 中心频率参数，实际 PWM 频率 = f_zv / 2
+ * @return {void} 无
+ */
 VOID Bsp_Tim_Pwm2(ULONG f_zv);
+
+/**
+ * @description: 定时器初始化入口（PWM + ADC 触发 + 时基）
+ * @return {void} 无
+ */
 VOID Bsp_Tim_Init(VOID);
+
+/**
+ * @description: 定时器统计 CPU 运行时间
+ * @return {void} 无
+ */
 VOID Bsp_Tim_RunCount(VOID);
+
+/**
+ * @description: 定时器3 中断处理
+ * @return {void} 无
+ */
 VOID Bsp_Tim3_IRQ(VOID);
+
+/**
+ * @description: 定时器4 AB 编码器接口初始化
+ * @return {void} 无
+ */
 VOID Bsp_Tim4_EncInit(VOID);
+
+/**
+ * @description: 读取 AB 编码器计数值
+ * @return {uint16_t} TIM4 CNT
+ */
 uint16_t Bsp_Tim4_EncGetCount(void);
+
+/**
+ * @description: 设置 AB 编码器计数值
+ * @param {uint16_t} count 目标计数
+ * @return {void} 无
+ */
 void Bsp_Tim4_EncSetCount(uint16_t count);
 
+/**
+ * @description: 定时器1 时基初始化
+ * @param {ULONG} f_zv PWM 中心频率参数
+ * @return {void} 无
+ */
 VOID Bsp_Tim1_Base(ULONG f_zv);
+
+/**
+ * @description: 定时器1 输出比较通道初始化（PWM 输出配置）
+ * @return {void} 无
+ */
 VOID Bsp_Tim1_OC(VOID);
+
+/**
+ * @description: 定时器1 刹车/死区/锁定寄存器配置
+ * @return {void} 无
+ */
 VOID Bsp_Tim1_BDTR(VOID);
 
 /*
@@ -129,7 +208,17 @@ VOID Bsp_Tim1_BDTR(VOID);
 三高级功能
 */
 
+/**
+ * @description: 读取 TIM5 自由运行时基当前值
+ * @return {ULONG} 当前时间 (us)
+ */
 ULONG Bsp_Tim_DtNow(void);
+
+/**
+ * @description: 计算自 time 以来流逝的秒数（支持 CNT 回绕）
+ * @param {ULONG} time 起始时刻 (us)
+ * @return {float} 流逝时间 (s)
+ */
 float Bsp_Tim_DtSecondElapsedSince(ULONG time);
 #ifdef __cplusplus
 }

@@ -21,7 +21,7 @@ static int s_erases;
 /* Private functions ---------------------------------------------------------*/
 
 /**
- * @description: 返回已累计的擦除次数（测试辅助）
+ * @description: 主机测试替身：查询模拟 Flash 的累计擦除次数。
  * @return {int} 擦除次数
  * @author: lkc
  */
@@ -31,9 +31,9 @@ int Host_Flash_EraseCount(void)
 }
 
 /**
- * @description: 设置剩余可写字节数（-1 表示不限；0 立即失败）
+ * @description: 主机测试替身：设置模拟 Flash 剩余可写次数，用于注入写入中断。
  * @param {int} n  剩余写入次数
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Host_Flash_SetWritesLeft(int n)
@@ -42,7 +42,7 @@ void Host_Flash_SetWritesLeft(int n)
 }
 
 /**
- * @description: 在固定地址映射双槽模拟 Flash
+ * @description: 主机测试替身：在主机进程中映射模拟 Flash 槽，供真实存储代码读写。
  * @return {bool} true=映射成功
  * @author: lkc
  */
@@ -65,7 +65,7 @@ bool Host_Flash_MapSlots(void)
 }
 
 /**
- * @description: 解除双槽映射
+ * @description: 主机测试替身：解除主机模拟 Flash 槽的映射。
  * @return {bool} true=解除成功或本就未映射
  * @author: lkc
  */

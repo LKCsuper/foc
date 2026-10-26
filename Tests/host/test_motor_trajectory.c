@@ -1,8 +1,14 @@
+/* 位置轨迹生成主机测试：速度/加速度限幅与到位 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include "motor_trajectory.h"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_trajectory_config_t config = {60.0f, 120.0f, 180.0f, 0.02f, 0.05f, 0.05f};

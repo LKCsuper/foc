@@ -1,3 +1,4 @@
+/* 控制状态机：电压限幅、速度斜坡、对齐、I/F、V/F、反馈选择、诊断步与故障仲裁。 */
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -9,10 +10,30 @@
 #include "motor_timing.h"
 #include "motor_math.h"
 
-/* 控制行为测试不采集平台耗时；计时与逐拍记录由独立timing测试覆盖。 */
+/**
+ * @description: 控制行为测试不采集平台耗时；计时与逐拍记录由独立timing测试覆盖。
+ * @return {bool} 本实现固定返回 false
+ */
 bool Motor_Timing_ProfileIsActive(void) { return false; }
+/**
+ * @description: 主机测试替身：查询本拍细分计时是否有效。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 本实现固定返回 false
+ */
 bool Motor_Timing_ProfileDetailedIsActive(void) { return false; }
+/**
+ * @description: 主机测试替身：读取分段计时用的当前时间戳。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 本实现固定返回 0U
+ */
 uint32_t Motor_Timing_ProfileTimeUs(void) { return 0U; }
+/**
+ * @description: 主机测试替身：把一个阶段从 start_us 到现在的耗时累进当前窗口。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {motor_timing_stage_t} stage 兼容参数，本实现不使用
+ * @param {uint32_t} start_us 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start_us)
 {
     (void)stage;
@@ -36,9 +57,21 @@ static float s_sensorless_correction;
 static bool s_takeover_complete;
 static bool s_complete_during_update;
 static unsigned s_handoff_marks;
+/**
+ * @description: 主机测试替身：标记下一拍为交接完成拍。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Motor_Timing_HandoffMark(void) { s_handoff_marks++; }
 static float s_last_frame_correction;
 
+/**
+ * @description: 主机测试替身：计算两角度之差并限制在 [-π, π]。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} a a 参数
+ * @param {float} b b 参数
+ * @return {float} 测试记录值 delta
+ */
 float utils_angle_difference_rad(float a, float b)
 {
     float delta = a - b;
@@ -47,25 +80,53 @@ float utils_angle_difference_rad(float a, float b)
     return delta;
 }
 
+/**
+ * @description: 主机测试替身：清除默认实例速度 PI 状态
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Motor_SpeedLoop_Reset(void)
 {
     s_speed_iq_out = 0.0f;
 }
 
+/**
+ * @description: 主机测试替身：复位默认实例观测器，并声明速度反馈无效。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Motor_Sensorless_Reset(void)
 {
 }
 
+/**
+ * @description: 主机测试替身：判断默认实例开环角到观测角的接管是否全部完成。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_takeover_complete
+ */
 bool Motor_Sensorless_IsTakeoverComplete(void)
 {
     return s_takeover_complete;
 }
 
+/**
+ * @description: 主机测试替身：用当前等效 Iq 预置默认实例速度 PI
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} iq Q 轴电流 (A)
+ * @return {void} 无
+ */
 void Motor_SpeedLoop_PrimeIq(float iq)
 {
     s_speed_prime_iq = iq;
 }
 
+/**
+ * @description: 主机测试替身：默认实例每个 FOC 周期更新 Ortega/PLL/接管，并落地速度环/保护副作用。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} motor 电机实例
+ * @param {float} dt 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
 {
     motor->ol_theta += s_sensorless_correction;
@@ -74,6 +135,13 @@ void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
     s_sensorless_updates++;
 }
 
+/**
+ * @description: 主机测试替身：更新默认实例的真实机械转速反馈
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} rpm 机械转速 (RPM)
+ * @param {bool} valid valid 参数
+ * @return {void} 无
+ */
 void Motor_SpeedFeedback_Set(float rpm, bool valid)
 {
     s_speed_fb_rpm = rpm;
@@ -83,6 +151,13 @@ void Motor_SpeedFeedback_Set(float rpm, bool valid)
     }
 }
 
+/**
+ * @description: 主机测试替身：运行默认实例速度 PI 外环（委托 State 版本）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} motor 电机实例
+ * @param {float} dt 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 void Motor_SpeedLoop_Run(MOTOR_PARAM_S *motor, float dt)
 {
     (void)dt;
@@ -93,6 +168,12 @@ void Motor_SpeedLoop_Run(MOTOR_PARAM_S *motor, float dt)
     }
 }
 
+/**
+ * @description: 主机测试替身：允许或禁止默认实例速度 PI（由 ISR 在接管门槛处设置）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {bool} allowed allowed 参数
+ * @return {void} 无
+ */
 void Motor_SpeedLoop_SetRunAllowed(bool allowed)
 {
     if (!allowed) {
@@ -100,21 +181,44 @@ void Motor_SpeedLoop_SetRunAllowed(bool allowed)
     }
 }
 
+/**
+ * @description: 主机测试替身：查询默认实例速度反馈是否可信
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_speed_fb_valid
+ */
 bool Motor_SpeedLoop_IsFeedbackValid(void)
 {
     return s_speed_fb_valid;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例实测机械转速
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_speed_fb_rpm
+ */
 float Motor_SpeedLoop_GetMeasuredRpm(void)
 {
     return s_speed_fb_rpm;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例当前 Iq 目标
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_speed_iq_out
+ */
 float Motor_SpeedLoop_GetIqTarget(void)
 {
     return s_speed_iq_out;
 }
 
+/**
+ * @description: 主机测试替身：禁用制动时，把最终电压或电流限制成不与转速命令反向。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} command_rpm command_rpm，单位 RPM
+ * @param {float} output 输出数据
+ * @param {bool} allow_braking allow_braking 参数
+ * @return {float} 限幅后的输出，单位与 output 相同
+ */
 float Motor_Speed_LimitNoBrakeOutput(float command_rpm, float output, bool allow_braking)
 {
     if (allow_braking) {
@@ -129,6 +233,12 @@ float Motor_Speed_LimitNoBrakeOutput(float command_rpm, float output, bool allow
     return output;
 }
 
+/**
+ * @description: 主机测试替身：获取默认实例本周期 Park 变换应使用的电角度。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} open_loop_angle open_loop_angle 参数
+ * @return {float} 测试记录值 open_loop_angle + 9.0f
+ */
 float Motor_Sensorless_GetControlAngle(float open_loop_angle)
 {
     return open_loop_angle + 9.0f; /* 无感路径可区分 */
@@ -140,97 +250,196 @@ static float s_enc_rpm = 321.0f;
 static bool s_enc_speed_ok = true;
 static int s_enc_angle_reads;
 
+/**
+ * @description: 主机测试替身：查询默认实例电角零点是否已标定
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_enc_zero
+ */
 bool Motor_Encoder_IsZeroValid(void)
 {
     return s_enc_zero;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例当前电角
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_enc_elec
+ */
 float Motor_Encoder_GetElecAngle(void)
 {
     s_enc_angle_reads++;
     return s_enc_elec;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例最新已验收的机械角（不使用 PLL 预测位置）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_enc_elec
+ */
 float Motor_Encoder_GetMechAngle(void)
 {
     return s_enc_elec;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例已更新的机械转速
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_enc_rpm
+ */
 float Motor_Encoder_GetMechRpm(void)
 {
     return s_enc_rpm;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例近零吸附前的机械转速。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_enc_rpm
+ */
 float Motor_Encoder_GetRawMechRpm(void)
 {
     return s_enc_rpm;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例距最近一次计数变化的时间。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 本实现固定返回 0.0f
+ */
 float Motor_Encoder_GetEdgeAge(void)
 {
     return 0.0f;
 }
 
 
+/**
+ * @description: 主机测试替身：读取默认实例距最近一次 SSI/I2C 新帧的时间。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 0.0001f
+ */
 float Motor_Encoder_GetSampleAge(void)
 {
     return 0.0001f;
 }
 
+/**
+ * @description: 主机测试替身：查询默认实例是否处于信号故障。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 本实现固定返回 false
+ */
 bool Motor_Encoder_IsSignalFault(void)
 {
     return false;
 }
 
+/**
+ * @description: 主机测试替身：查询默认实例本拍转速是否有效
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_enc_speed_ok
+ */
 bool Motor_Encoder_IsSpeedValid(void)
 {
     return s_enc_speed_ok;
 }
 
+/**
+ * @description: 主机测试替身：默认实例电角是否有效
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 本实现固定返回 false
+ */
 bool Motor_Hall_AngleIsAngleValid(void)
 {
     return false;
 }
 
+/**
+ * @description: 主机测试替身：默认实例电角 (rad)；angle_valid=false 时值勿单独使用
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 本实现固定返回 0.0f
+ */
 float Motor_Hall_AngleGetTheta(void)
 {
     return 0.0f;
 }
 
+/**
+ * @description: 主机测试替身：默认实例机械转速 (RPM)
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 本实现固定返回 0.0f
+ */
 float Motor_Hall_AngleGetMechRpm(void)
 {
     return 0.0f;
 }
 
+/**
+ * @description: 主机测试替身：默认实例转速是否有效
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 本实现固定返回 false
+ */
 bool Motor_Hall_AngleIsSpeedValid(void)
 {
     return false;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例最近单边沿原始机械转速。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 本实现固定返回 0.0f
+ */
 float Motor_Hall_AngleGetRawMechRpm(void)
 {
     return 0.0f;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例 Hall-PLL 机械转速，供控制环使用。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 本实现固定返回 0.0f
+ */
 float Motor_Hall_AngleGetFastMechRpm(void)
 {
     return 0.0f;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例距最近一次霍尔边沿的时间。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 本实现固定返回 0.0f
+ */
 float Motor_Hall_AngleGetEdgeAge(void)
 {
     return 0.0f;
 }
 
+/**
+ * @description: 主机测试替身：读取默认实例最近一次有效霍尔状态。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {int} 本实现固定返回 0
+ */
 int Motor_Hall_AngleGetState(void)
 {
     return 0;
 }
 
+/**
+ * @description: 主机测试替身：默认实例复位
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Motor_Hall_AngleResetDefault(void)
 {
 }
 
+/**
+ * @description: 主机测试替身：霍尔标定期间 ISR 读取本周期电角度与 d/q 电流目标
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} m 兼容参数，本实现不使用
+ * @param {float *} theta_rad 兼容参数，本实现不使用
+ * @param {float *} id_target 兼容参数，本实现不使用
+ * @param {float *} iq_target 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad, float *id_target, float *iq_target)
 {
     (void)m;
@@ -240,6 +449,14 @@ bool Motor_Hall_DetectGetTargets(MOTOR_PARAM_S *m, float *theta_rad, float *id_t
     return false;
 }
 
+/**
+ * @description: 主机测试替身：读取编码器对齐阶段的固定电角和 Id 目标。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float *} theta_rad 兼容参数，本实现不使用
+ * @param {float *} id_target 兼容参数，本实现不使用
+ * @param {float *} iq_target 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 bool Motor_Encoder_DetectGetTargets(float *theta_rad, float *id_target, float *iq_target)
 {
     (void)theta_rad;
@@ -248,12 +465,29 @@ bool Motor_Encoder_DetectGetTargets(float *theta_rad, float *id_target, float *i
     return false;
 }
 
+/**
+ * @description: 主机测试替身：三相电流变换到 αβ，再变换到 d/q，写回反馈字段。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} motor 兼容参数，本实现不使用
+ * @param {float} theta 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
 {
     (void)motor;
     (void)theta;
 }
 
+/**
+ * @description: 主机测试替身：运行 d/q 双轴电流 PI，并做矢量限幅。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} motor 兼容参数，本实现不使用
+ * @param {float} id_target 兼容参数，本实现不使用
+ * @param {float} iq_target 兼容参数，本实现不使用
+ * @param {float} dt 兼容参数，本实现不使用
+ * @param {float} v_limit 兼容参数，本实现不使用
+ * @return {motor_dq_voltage_t} 测试记录值 v
+ */
 motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, float iq_target, float dt, float v_limit)
 {
     motor_dq_voltage_t v = {0.0f, 0.0f};
@@ -267,6 +501,18 @@ motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, fl
 
 static int s_ff_calls;
 
+/**
+ * @description: 主机测试替身：按电角速度叠加 PMSM 交叉解耦与反电势前馈，再做矢量限幅。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {motor_dq_voltage_t *} v v 参数
+ * @param {float} omega_e omega_e 参数
+ * @param {float} inductance 兼容参数，本实现不使用
+ * @param {float} flux flux 参数
+ * @param {float} id_ref 兼容参数，本实现不使用
+ * @param {float} iq_ref 兼容参数，本实现不使用
+ * @param {float} v_limit 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 void Motor_Current_ApplySpeedFeedforward(motor_dq_voltage_t *v, float omega_e, float inductance, float flux,
                                          float id_ref, float iq_ref, float v_limit)
 {
@@ -280,6 +526,18 @@ void Motor_Current_ApplySpeedFeedforward(motor_dq_voltage_t *v, float omega_e, f
     }
 }
 
+/**
+ * @description: 主机测试替身：电流环一步：反馈变换、取目标、可选坐标交接、PI 及矢量限幅。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} motor 兼容参数，本实现不使用
+ * @param {float} theta 强制电角度 (rad)
+ * @param {const motor_current_target_ctx_t *} ctx ctx 参数
+ * @param {float} dt 兼容参数，本实现不使用
+ * @param {float} v_limit 兼容参数，本实现不使用
+ * @param {float *} id_target_out id_target_out 参数
+ * @param {float *} iq_target_out iq_target_out 参数
+ * @return {motor_dq_voltage_t} 测试记录值 v
+ */
 motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const motor_current_target_ctx_t *ctx,
                                       float dt, float v_limit, float *id_target_out, float *iq_target_out)
 {
@@ -305,6 +563,16 @@ motor_dq_voltage_t Motor_Current_Step(MOTOR_PARAM_S *motor, float theta, const m
     return v;
 }
 
+/**
+ * @description: 主机测试替身：Clarke 变换，将三相电流投影到 αβ 静止坐标系。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} Ia 兼容参数，本实现不使用
+ * @param {float} Ib 兼容参数，本实现不使用
+ * @param {float} Ic 兼容参数，本实现不使用
+ * @param {float *} Ialpha Ialpha 参数
+ * @param {float *} Ibeta Ibeta 参数
+ * @return {void} 无
+ */
 void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
 {
     (void)Ia;
@@ -318,6 +586,10 @@ void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
     }
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_control_t a;

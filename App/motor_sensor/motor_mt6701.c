@@ -64,6 +64,10 @@ static void Motor_MT6701_RecordFailure(motor_mt6701_failure_t reason)
  * @return {void}
  */
 #if MOTOR_MT6701_INTERFACE == MOTOR_MT6701_INTERFACE_SSI
+/**
+ * @description: 累计 MT6701 状态告警及最近异常磁场状态，不单独使角度失效。
+ * @return {void} 无
+ */
 static void Motor_MT6701_RecordStatusWarning(void)
 {
     s_mt6701.error_count++;
@@ -74,7 +78,7 @@ static void Motor_MT6701_RecordStatusWarning(void)
 
 /**
  * @description: 清零 MT6701 状态并初始化当前接口（SSI 或 I2C）。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_MT6701_Init(void)
@@ -161,7 +165,7 @@ bool Motor_MT6701_Poll(void)
 /**
  * @description: 复制最近一次 MT6701 状态。
  * @param {motor_mt6701_status_t *} status  输出，不可为空
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_MT6701_GetStatus(motor_mt6701_status_t *status)

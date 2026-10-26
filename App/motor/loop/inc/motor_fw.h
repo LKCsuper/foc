@@ -32,7 +32,7 @@ typedef struct {
 /**
  * @description: 复位弱磁状态（Id 与上一拍电压清零）
  * @param {motor_fw_t} *fw  弱磁实例，可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Fw_Reset(motor_fw_t *fw);

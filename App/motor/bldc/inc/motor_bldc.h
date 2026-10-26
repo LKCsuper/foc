@@ -97,8 +97,16 @@ bool Motor_Bldc_GetStatus(motor_bldc_status_t *status);
  */
 void Motor_Bldc_RunIsr(MOTOR_PARAM_S *motor_param);
 #else
-/* BLDC 关闭：永不占用 PWM 出口，ADC 中断始终走 FOC。 */
+/**
+ * @description: BLDC 关闭：永不占用 PWM 出口，ADC 中断始终走 FOC。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Bldc_IsSelected(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {MOTOR_PARAM_S *} motor_param 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Bldc_RunIsr(MOTOR_PARAM_S *motor_param) { (void)motor_param; }
 #endif
 

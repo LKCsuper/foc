@@ -1,8 +1,13 @@
+/* 保护与位置控制独立核心：过流/欠压/失速/丢速故障与位置保持输出。 */
 #include <assert.h>
 #include <stdio.h>
 #include "motor_protect_core.h"
 #include "motor_position_control.h"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_protect_state_t a, b;

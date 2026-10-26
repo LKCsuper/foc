@@ -26,6 +26,7 @@ extern "C" {
 #define FLASH_STORAGE_ANTICOG_SIZE    (8U + MOTOR_ANTICOGGING_BINS * 4U)
 #define FLASH_STORAGE_PAYLOAD_SIZE    (MOTOR_SETTINGS_WIRE_SIZE + FLASH_STORAGE_ANTICOG_SIZE)
 
+/* Private typedef -----------------------------------------------------------*/
 /* v1 整体 MOTOR_PARAM_S 格式不迁移：拒绝加载，使用默认配置并重新校准。 */
 typedef struct {
     uint32_t magic;
@@ -37,6 +38,7 @@ typedef struct {
     uint32_t committed;
 } flash_storage_t;
 
+/* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 从最新有效 Flash 槽加载电机配置与校准。
  * @param {MOTOR_PARAM_S} *motor              输出配置/校准；必须已初始化且停机，不改命令和实时状态

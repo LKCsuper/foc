@@ -1,3 +1,4 @@
+/* ADC 半周期捕获：重建标志、PWM 序列与故障掩码组合，以及停桥路径。 */
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -17,12 +18,28 @@ static unsigned raw_calls, pwm_calls, fault_mask, pushes;
 static unsigned stops;
 static bool due;
 static motor_pair_frame_t captured;
+/**
+ * @description: 主机测试替身：读取电机通用微秒时基（自由运行，非 Hall 专用）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 测试记录值 1000U
+ */
 uint32_t Hal_Motor_TimeUs(void) { return 1000U; }
+/**
+ * @description: 主机测试替身： 读取停机诊断软件提交计数（enable 时清零，仅停机诊断使用）。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 本次计算或查询的结果
+ */
 uint32_t Hal_Motor_PwmDiagnosticSequence(void)
 {
     pwm_calls++;
     return 42U + (((fault_mask & 8U) && pwm_calls > 1U) ? 1U : 0U);
 }
+/**
+ * @description: 主机测试替身：读取相电流 ADC 原始值（含分流极性处理）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {uint8_t} phase 相位信息或相编号
+ * @return {uint16_t} ADC 计数
+ */
 uint16_t Hal_Motor_CurrentAdc(uint8_t phase)
 {
     raw_calls++;
@@ -32,19 +49,47 @@ uint16_t Hal_Motor_CurrentAdc(uint8_t phase)
     }
     return (uint16_t)(2040U + phase + (((fault_mask & 1U) && raw_calls > 3U) ? 1U : 0U));
 }
+/**
+ * @description: 主机测试替身：写入重构后的电流帧，并判断本拍是否凑成一对。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {const motor_pair_frame_t *} frame frame 参数
+ * @return {bool} 测试记录值 due
+ */
 bool Motor_Timing_PairFrame(const motor_pair_frame_t *frame) { captured = *frame; return due; }
+/**
+ * @description: 主机测试替身：停止交接窗口继续写入。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Motor_Timing_HandoffStop(void) { stops++; }
+/**
+ * @description: 主机测试替身：写入一对电流帧及本拍 α/β 电压。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} alpha 输出静止坐标 alpha 轴电压 (V)
+ * @param {float} beta 输出静止坐标 beta 轴电压 (V)
+ * @return {void} 无
+ */
 void Motor_Timing_PairPush(float alpha, float beta)
 {
     assert(alpha == 1.0f && beta == 2.0f);
     pushes++;
 }
+/**
+ * @description: 主机测试替身：拷贝默认实例已计算字段的轻量快照。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {motor_sensorless_light_snapshot_t *} out 输出缓冲或结果
+ * @return {void} 无
+ */
 void Motor_Sensorless_GetLightSnapshot(motor_sensorless_light_snapshot_t *out)
 {
     out->v_alpha = 1.0f; out->v_beta = 2.0f;
 }
 #include "half_capture_under_test.inc"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     for (fault_mask = 0U; fault_mask < 16U; fault_mask++) {

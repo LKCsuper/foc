@@ -1,8 +1,14 @@
+/* 位置控制核心命令与模式切换主机测试 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include "motor_position_core.h"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_position_config_t config = {3600U, true, 2.0f, 5.0f,

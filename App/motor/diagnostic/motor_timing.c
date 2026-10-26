@@ -17,6 +17,7 @@
 /* 只优化诊断计数和样本复制的调用开销，不改变浮点规则或控制节拍。 */
 #pragma O2
 #endif
+/* Private functions ---------------------------------------------------------*/
 /**
  * @description: 把完整控制入口间隔换算成秒。
  * @detail: 首次启用或未使能时使用名义周期。接受名义周期的 0.5 到 3 倍；超出时 *dt 为 0 并返回 false，
@@ -60,6 +61,7 @@ bool Motor_Timing_ControlClockStep(motor_control_clock_t *clock, bool enabled, u
     return true;
 }
 
+/* Private variables ---------------------------------------------------------*/
 static volatile uint32_t s_runtime_average_q16;
 static volatile uint32_t s_runtime_maximum_us;
 static volatile uint32_t s_sample_up_count;

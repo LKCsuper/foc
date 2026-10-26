@@ -52,7 +52,11 @@ typedef struct {
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
-/** 在 ADC-DMA/FOC ISR 中发布一帧状态；单写者，调用频率由适配层限制。 */
+/**
+ * @description: 在 ADC-DMA/FOC ISR 中发布一帧状态；单写者，调用频率由适配层限制。
+ * @param {const MOTOR_PARAM_S *} motor 电机对象，不可为空
+ * @return {void} 无
+ */
 void Motor_StatusSnapshotPublishFromIsr(const MOTOR_PARAM_S *motor);
 
 #ifdef __cplusplus

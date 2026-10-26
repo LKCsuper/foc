@@ -1,11 +1,11 @@
 /*
- * @Description: 
+ * @Description: 项目 RTT 调试接口初始化包装。
  * @Version: 1.0
  * @Author: lkc
  * @Date: 2023-10-03 16:19:58
  * @LastEditors: lkc
  * @LastEditTime: 2023-10-06 21:59:06
- * @detail: 
+ * @detail:
  */
 #ifdef __cplusplus
 extern "C" {
@@ -22,6 +22,10 @@ extern "C" {
 UCHAR g_ucJscopBuff[JSCOP_BUFF_SIZE];
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 初始化项目 RTT 调试入口。
+ * @return {void} 无
+ */
 VOID RTT_Debug_Init(VOID)
 {
     /* 配置上行通道 1，缓冲区g_ucJscopBuff */

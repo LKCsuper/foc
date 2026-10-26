@@ -24,7 +24,7 @@ extern "C" {
 /**
  * @description: 复位弱磁状态
  * @param {motor_fw_t} *fw  弱磁实例
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Fw_Reset(motor_fw_t *fw)

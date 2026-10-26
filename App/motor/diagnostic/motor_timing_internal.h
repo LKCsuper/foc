@@ -41,6 +41,10 @@ typedef struct {
 extern motor_diag_shared_t g_motor_diag;
 
 /* Private function prototypes -----------------------------------------------*/
+/**
+ * @description: 清零全部分段计时累计（仅诊断模块内部使用）。
+ * @return {void} 无
+ */
 void Motor_Timing_ProfileClearAll(void);
 
 #endif

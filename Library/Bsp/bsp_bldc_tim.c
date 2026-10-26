@@ -5,7 +5,7 @@
  * @Date: 2023-10-04 16:20:58
  * @LastEditors: lkc
  * @LastEditTime: 2023-10-04 16:32:43
- * @detail: 
+ * @detail:
  */
 #ifdef __cplusplus
 extern "C" {
@@ -20,8 +20,7 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 定时器1初始化
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Tim1_Bldc_Init(VOID)
@@ -97,8 +96,7 @@ VOID Bsp_Tim1_Bldc_Init(VOID)
 
 /**
  * @description: 定时器8初始化
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Tim8_Bldc_Init(VOID)
@@ -151,6 +149,10 @@ VOID Bsp_Tim8_Bldc_Init(VOID)
 	return;
 }
 
+/**
+ * @description: BLDC 模式 ADC 采样点设置与电流零点校准
+ * @return {void} 无
+ */
 VOID Bsp_Tim_Bldc_Init(VOID)
 {
 

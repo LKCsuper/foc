@@ -16,6 +16,17 @@ try {
         $Compiler = Join-Path $root '.build/tools/ziglang/zig.exe'
         if (!(Test-Path $Compiler)) { throw 'Specify -Compiler path to zig.exe, or install ziglang into .build/tools.' }
     }
+    $hallCalSources = @('App/motor_sensor/motor_hall_calibration.c', 'App/motor/algo/motor_math.c', 'App/motor/algo/motor_utils.c')
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -ILibrary/Common/inc -IApp/motor_sensor/inc @motorInc @hallCalSources Tests/host/test_motor_hall_calibration.c -o .build/host/test_motor_hall_calibration.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Hall calibration core compilation failed' }
+    & .build/host/test_motor_hall_calibration.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Hall calibration core tests failed' }
+    & .build/host/test_motor_hall_calibration.exe null *> $null
+    if ($LASTEXITCODE -eq 0) { throw 'Hall calibration null contract did not abort' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -ITests/host/stubs/hall_task -ILibrary/Common/inc -ILibrary/Hal/inc -IApp/motor_param/inc -IApp/motor_sensor/inc @motorInc @hallCalSources App/motor_sensor/motor_hall_angle.c App/motor_sensor/motor_hall.c Tests/host/test_motor_hall_task.c -o .build/host/test_motor_hall_task.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Hall calibration task compilation failed' }
+    & .build/host/test_motor_hall_task.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Hall calibration task tests failed' }
     $cmdSource = Get-Content App/cmd/cmd_openloop.c -Raw -Encoding utf8
     $diagSource = Get-Content App/cmd/cmd_motor_diag.c -Raw -Encoding utf8
     $trigBench = [regex]::Match($diagSource, '(?s)static int ol_trig_bench\(void\)\s*\{.*?\r?\n\}')
@@ -54,6 +65,13 @@ try {
     & .build/host/test_cmd_config_float.exe
     if ($LASTEXITCODE -ne 0) { throw 'Config float command tests failed' }
     $irqSource = Get-Content Library/Hal/port/stm32f4/hal_motor_stm32f4.c -Raw -Encoding utf8
+    $phaseHal = [regex]::Match($irqSource, '(?s)void Hal_Motor_PwmPhaseCapture\(hal_motor_pwm_phase_t \*phase\)\s*\{.*?\r?\n\}')
+    if (!$phaseHal.Success) { throw 'PWM phase HAL missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/pwm_phase_under_test.inc'), $phaseHal.Value, [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -ILibrary/Hal/inc -I.build/host Tests/host/test_pwm_phase.c -o .build/host/test_pwm_phase.exe
+    if ($LASTEXITCODE -ne 0) { throw 'PWM phase HAL compilation failed' }
+    & .build/host/test_pwm_phase.exe
+    if ($LASTEXITCODE -ne 0) { throw 'PWM phase HAL tests failed' }
     $phaseSource = Get-Content App/motor/diagnostic/motor_diag_schedule.c -Raw -Encoding utf8
     $phaseCapture = [regex]::Match($phaseSource, '(?s)motor_phase_debug_t g_motor_phase_debug;.*?void Motor_Timing_PhaseEdgeNote\(.*?\r?\n\}')
     if (!$phaseCapture.Success) { throw 'Phase edge diagnostic missing' }
@@ -211,7 +229,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor snapshot host compilation failed' }
     & .build/host/test_motor_snapshot.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor snapshot host tests failed' }
-    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -IThirtyLibrary/common_code/lib/seqlock -IApp/motor_param/inc @motorInc -IApp/motor_sensor/inc -ILibrary/Common/inc -ILibrary/Hal/inc ThirtyLibrary/common_code/lib/seqlock/seqlock.c App/motor/motor.c App/motor/loop/motor_anticogging.c App/motor/motor_snapshot.c App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_api.c -o .build/host/test_motor_api.exe
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -DMOTOR_CFG_BLDC=1 -IThirtyLibrary/common_code/lib/seqlock -IApp/motor_param/inc @motorInc -IApp/motor_sensor/inc -ILibrary/Common/inc -ILibrary/Hal/inc ThirtyLibrary/common_code/lib/seqlock/seqlock.c App/motor/motor.c App/motor/loop/motor_anticogging.c App/motor/motor_snapshot.c App/motor_param/motor_settings.c App/motor_param/motor_param.c Tests/host/test_motor_api.c -o .build/host/test_motor_api.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor API host compilation failed' }
     & .build/host/test_motor_api.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor API host tests failed' }

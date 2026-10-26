@@ -1,3 +1,5 @@
+/* 无感扰动鲁棒性仿真：噪声/延时/死区对 PLL 相位的影响 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdint.h>
@@ -23,12 +25,26 @@ typedef struct {
     unsigned low_current_samples, high_current_samples;
 } result_t;
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 生成测试使用的确定性扰动。
+ * @param {uint32_t *} state 实例状态
+ * @return {float} 本次计算或查询的结果
+ */
 static float noise(uint32_t *state)
 {
     *state = *state * 1664525U + 1013904223U;
     return ((float)(*state >> 8) / 16777216.0f * 2.0f - 1.0f) * 1.732050808f;
 }
 
+/**
+ * @description: 计算测试采用的死区电压误差。
+ * @param {const float [3]} current 电流 (A)
+ * @param {float} amplitude amplitude 参数
+ * @param {float *} alpha 输出静止坐标 alpha 轴电压 (V)
+ * @param {float *} beta 输出静止坐标 beta 轴电压 (V)
+ * @return {void} 无
+ */
 static void deadtime_error(const float current[3], float amplitude, float *alpha, float *beta)
 {
     float phase_error[3];
@@ -38,6 +54,17 @@ static void deadtime_error(const float current[3], float amplitude, float *alpha
     clarke_transform(phase_error[0], phase_error[1], phase_error[2], alpha, beta);
 }
 
+/**
+ * @description: 运行动态电机响应模型。
+ * @param {const scenario_t *} scenario scenario 参数
+ * @param {float} voltage_ratio voltage_ratio 参数
+ * @param {float} deadtime_voltage deadtime_voltage 参数
+ * @param {float} current_amplitude current_amplitude 参数
+ * @param {float} sign_compensation sign_compensation 参数
+ * @param {float} modulation_depth modulation_depth 参数
+ * @param {float} modulation_hz modulation_hz 参数
+ * @return {result_t} 测试记录值 result
+ */
 static result_t simulate_dynamic(const scenario_t *scenario, float voltage_ratio, float deadtime_voltage,
                                  float current_amplitude, float sign_compensation,
                                  float modulation_depth, float modulation_hz)
@@ -163,6 +190,15 @@ static result_t simulate_dynamic(const scenario_t *scenario, float voltage_ratio
     return result;
 }
 
+/**
+ * @description: 运行电流响应模型。
+ * @param {const scenario_t *} scenario scenario 参数
+ * @param {float} voltage_ratio voltage_ratio 参数
+ * @param {float} deadtime_voltage deadtime_voltage 参数
+ * @param {float} current_amplitude current_amplitude 参数
+ * @param {float} sign_compensation sign_compensation 参数
+ * @return {result_t} 本次操作的状态或错误码
+ */
 static result_t simulate_current(const scenario_t *scenario, float voltage_ratio, float deadtime_voltage,
                                  float current_amplitude, float sign_compensation)
 {
@@ -170,16 +206,34 @@ static result_t simulate_current(const scenario_t *scenario, float voltage_ratio
                             sign_compensation, 0.0f, 0.0f);
 }
 
+/**
+ * @description: 运行电压激励模型。
+ * @param {const scenario_t *} scenario scenario 参数
+ * @param {float} voltage_ratio voltage_ratio 参数
+ * @param {float} deadtime_voltage deadtime_voltage 参数
+ * @return {result_t} 本次操作的状态或错误码
+ */
 static result_t simulate_voltage(const scenario_t *scenario, float voltage_ratio, float deadtime_voltage)
 {
     return simulate_current(scenario, voltage_ratio, deadtime_voltage, .5f, 0.0f);
 }
 
+/**
+ * @description: 运行测试中的电机或控制模型。
+ * @param {const scenario_t *} scenario scenario 参数
+ * @return {result_t} 本次操作的状态或错误码
+ */
 static result_t simulate(const scenario_t *scenario)
 {
     return simulate_voltage(scenario, 1.0f, 0.0f);
 }
 
+/**
+ * @description: 输出本轮测试结果。
+ * @param {const char *} name name 参数
+ * @param {result_t} result 输出结果
+ * @return {void} 无
+ */
 static void print_result(const char *name, result_t result)
 {
     double covariance = result.flux_phase_sum - result.flux_sum * result.phase_sum / 30000.0;
@@ -199,6 +253,10 @@ static void print_result(const char *name, result_t result)
            result.high_current_samples ? sqrt(result.high_current_phase_square / result.high_current_samples) : NAN);
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     const scenario_t scenarios[] = {

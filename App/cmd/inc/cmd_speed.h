@@ -18,8 +18,16 @@ extern "C" {
  * @return {bool} true 表示用户要求停止
  */
 #if MOTOR_CFG_CMD_SPEED
+/**
+ * @description: 测试过程中是否收到任意按键。
+ * @return {bool} true=要停止
+ */
 bool Cmd_Speed_StopKey(void);
 #else
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Cmd_Speed_StopKey(void) { return false; }
 #endif
 

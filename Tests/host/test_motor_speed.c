@@ -1,3 +1,5 @@
+/* 速度环主机测试：PI 积分、零速制动释放与禁止制动限幅 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -6,12 +8,24 @@
 #include "motor_param.h"
 
 /* 默认包装路径会引用保护反馈；本测试只走 State API，提供空桩。 */
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 主机测试替身：更新默认实例的速度反馈。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {float} rpm 兼容参数，本实现不使用
+ * @param {bool} valid 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 void Motor_Protect_SetSpeedFeedback(float rpm, bool valid)
 {
     (void)rpm;
     (void)valid;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_speed_state_t a;

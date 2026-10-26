@@ -28,6 +28,12 @@ static volatile bool s_motor_status_initialized;
 static void Motor_StatusCapture(const MOTOR_PARAM_S *motor, motor_status_t *snap);
 /* Private functions ---------------------------------------------------------*/
 
+/**
+ * @description: 从电机对象拷贝运行、反馈与故障字段到状态快照。
+ * @param {const MOTOR_PARAM_S *} motor 电机实例
+ * @param {motor_status_t *} snap 输出状态快照
+ * @return {void} 无
+ */
 static void Motor_StatusCapture(const MOTOR_PARAM_S *motor, motor_status_t *snap)
 {
     memset(snap, 0, sizeof(*snap));
@@ -59,6 +65,12 @@ static void Motor_StatusCapture(const MOTOR_PARAM_S *motor, motor_status_t *snap
     snap->fault_latched = Motor_Protect_IsFaultLatched();
 }
 
+/**
+ * @description: 在 ISR 捕获一拍运行快照并发布到 seqlock 双缓冲。
+ * @detail: 不阻塞、不关中断；首帧前初始化通道。
+ * @param {const MOTOR_PARAM_S *} motor 电机对象，不可为空
+ * @return {void} 无
+ */
 void Motor_StatusSnapshotPublishFromIsr(const MOTOR_PARAM_S *motor)
 {
     motor_status_t snap;

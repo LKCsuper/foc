@@ -19,6 +19,7 @@
 #pragma O2
 #endif
 #if MOTOR_CFG_DIAG
+/* Private variables ---------------------------------------------------------*/
 motor_phase_debug_t g_motor_phase_debug;
 volatile uint32_t g_motor_phase_active;
 static bool s_phase_seeded;
@@ -33,6 +34,12 @@ static bool s_phase_platform_running;
 static bool s_phase_platform_waiting;
 static uint32_t s_phase_platform_us;
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 武装相位沿诊断，清空缓冲并进入采集态（active=1）。
+ * @detail: 在临界区内清零结构体，写入魔数与版本，并复位方向种子与 IRQ 关联状态。
+ * @return {void} 无
+ */
 void Motor_Timing_PhaseEdgeArm(void)
 {
     uint32_t key = Motor_Crit_Enter();
@@ -50,12 +57,25 @@ void Motor_Timing_PhaseEdgeArm(void)
     Motor_Crit_Exit(key);
 }
 
+/**
+ * @description: 武装并进入预留态（active=3），等待平台稳定就绪后再转为采集。
+ * @detail: 先执行 Arm 再把 active 置 3；PhaseEdgePoll 在 running 且 ready 稳定约 1 s 后转回 active=1。
+ * @return {void} 无
+ */
 void Motor_Timing_PhaseEdgeReserve3000(void)
 {
     Motor_Timing_PhaseEdgeArm();
     g_motor_phase_active = 3U;
 }
 
+/**
+ * @description: 在预留态轮询平台运行与就绪状态，决定是否开始或停止采集。
+ * @detail: 仅 active 为 3 时生效。running 变假时结束并记 reason=2；ready 持续约 1 s 后把 active 转回 1。
+ * @param {bool} running    平台是否仍在运行
+ * @param {bool} ready      平台是否已就绪
+ * @param {uint32_t} time_us 轮询时间戳 (us)
+ * @return {void} 无
+ */
 void Motor_Timing_PhaseEdgePoll(bool running, bool ready, uint32_t time_us)
 {
     if (g_motor_phase_active != 3U) return;
@@ -80,6 +100,11 @@ void Motor_Timing_PhaseEdgePoll(bool running, bool ready, uint32_t time_us)
     }
 }
 
+/**
+ * @description: 停止相位沿诊断。
+ * @detail: 在临界区内把 active 置 0；若尚无原因则记为停机（reason=2）。
+ * @return {void} 无
+ */
 void Motor_Timing_PhaseEdgeStop(void)
 {
     uint32_t key = Motor_Crit_Enter();
@@ -88,6 +113,11 @@ void Motor_Timing_PhaseEdgeStop(void)
     Motor_Crit_Exit(key);
 }
 
+/**
+ * @description: 记录一次 IRQ 入口时间并打开本拍 IRQ 现场关联窗口。
+ * @param {uint32_t} time_us IRQ 入口时间戳 (us)
+ * @return {void} 无
+ */
 void Motor_Timing_PhaseIrqBegin(uint32_t time_us)
 {
     s_phase_irq_start_us = time_us;
@@ -95,6 +125,16 @@ void Motor_Timing_PhaseIrqBegin(uint32_t time_us)
     s_phase_irq_open = true;
 }
 
+/**
+ * @description: 关闭 IRQ 窗口，把出口时间与 DMA/ADC 状态写入对应事件。
+ * @detail: 仅当本拍已有关联事件且序号匹配时回填，并置事件 flags 的 bit1。
+ * @param {uint32_t} time_us     IRQ 出口时间戳 (us)
+ * @param {uint32_t} dma_status  DMA 状态寄存器
+ * @param {uint32_t} adc_status  ADC 状态寄存器
+ * @param {uint32_t} remaining   DMA 剩余计数
+ * @param {uint32_t} pending     待处理挂起标志
+ * @return {void} 无
+ */
 void Motor_Timing_PhaseIrqEnd(uint32_t time_us, uint32_t dma_status, uint32_t adc_status,
                               uint32_t remaining, uint32_t pending)
 {
@@ -112,6 +152,11 @@ void Motor_Timing_PhaseIrqEnd(uint32_t time_us, uint32_t dma_status, uint32_t ad
     event->flags |= 2U;
 }
 
+/**
+ * @description: 给当前关联事件标记状态位。
+ * @detail: IRQ 窗口打开且序号匹配时，置事件 flags 的 bit2。
+ * @return {void} 无
+ */
 void Motor_Timing_PhaseMarkStatus(void)
 {
     motor_phase_event_t *event;
@@ -120,6 +165,18 @@ void Motor_Timing_PhaseMarkStatus(void)
     if (event->sequence == s_phase_irq_sequence) event->flags |= 4U;
 }
 
+/**
+ * @description: 写入一条相位沿事件，并检测 PWM 计数方向切换以触发后采集。
+ * @detail: active 为 0 或 3 时忽略；running 变假时结束采集（reason=2）。flags 的 bit0 为方向样本，
+ *          检测到方向变化时记录触发序号并把 active 置 2，再采 16 条后停止；采集超过 10 s 未触发则记 reason=3 停止。
+ * @param {uint32_t} time_us  事件时间戳 (us)
+ * @param {uint32_t} count    当前计数
+ * @param {uint32_t} cr1      TIM1 CR1 寄存器，bit4 为 DIR 计数方向
+ * @param {uint32_t} divider  当前分频
+ * @param {uint32_t} flags    事件标志，bit0 为方向样本
+ * @param {bool} running      平台是否仍在运行
+ * @return {void} 无
+ */
 void Motor_Timing_PhaseEdgeNote(uint32_t time_us, uint32_t count, uint32_t cr1,
                             uint32_t divider, uint32_t flags, bool running)
 {
@@ -253,6 +310,7 @@ static uint32_t s_task_gap_bins[6];
 static motor_task_gap_event_t s_task_worst_gap;
 static uint32_t s_task_phase_stamp[4], s_task_phase_mask;
 volatile motor_schedule_debug_t g_motor_schedule_debug = {.magic = 0x464f4353U, .version = 3U};
+/* Private typedef -----------------------------------------------------------*/
 typedef char motor_schedule_debug_size_check_t[sizeof(motor_schedule_debug_t) == 280U ? 1 : -1];
 /**
  * @description: 查询目标 tick 到任务唤醒的 DMA 探测是否已武装。
@@ -304,6 +362,10 @@ void Motor_Timing_WakeProbeTick(uint32_t next_tick)
  */
 static volatile bool s_task_runtime_active;
 static volatile uint32_t s_task_runtime_dma_us, s_task_runtime_dma_count;
+/**
+ * @description: 查询唤醒探测或任务执行计时窗口是否需要累计 DMA 耗时。
+ * @return {bool} true=应调用 WakeProbeDmaNote
+ */
 bool Motor_Timing_WakeProbeDmaDue(void) { return (s_probe_armed && s_probe_tick_seen) || s_task_runtime_active; }
 /**
  * @description: 分别累计唤醒等待窗口与任务执行窗口的一次 DMA 耗时。
@@ -350,6 +412,11 @@ bool Motor_Timing_SpeedTaskIsActive(void) { return g_motor_diag.cadence_active; 
 volatile motor_task_runtime_debug_t g_motor_task_runtime_debug;
 static uint32_t s_task_runtime_start;
 
+/**
+ * @description: 开始一次外环任务执行计时，不含周期休眠。
+ * @detail: 节拍统计未开启时不计时。清空本窗口 DMA 累计，记录起点并打开计时。
+ * @return {void} 无
+ */
 void Motor_Timing_TaskRuntimeBegin(void)
 {
     uint32_t key;
@@ -365,6 +432,11 @@ void Motor_Timing_TaskRuntimeBegin(void)
     Motor_Crit_Exit(key);
 }
 
+/**
+ * @description: 结束本轮外环任务计时，累计包含中断抢占的墙钟耗时。
+ * @detail: 未在计时则返回；把本窗口墙钟耗时与期间 DMA 累计写入任务运行时统计。
+ * @return {void} 无
+ */
 void Motor_Timing_TaskRuntimeEnd(void)
 {
     uint32_t elapsed;
@@ -604,6 +676,12 @@ void Motor_Timing_SpeedTaskGet(motor_speed_task_diag_t *out)
     Motor_Crit_Exit(key);
 }
 
+/**
+ * @description: 在短临界区仅填充轻量轨迹需要的任务字段。
+ * @detail: sample 非空且已填本拍 time_us；其余非任务字段保持不变。
+ * @param {motor_trace_light_sample_t *} sample 本拍轻量样本，不可为空
+ * @return {void} 无
+ */
 void Motor_Timing_SpeedTaskCaptureLight(motor_trace_light_sample_t *sample)
 {
     uint32_t key;

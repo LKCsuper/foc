@@ -1,3 +1,4 @@
+/* BLDC 六步换向：正反转相位、占空比限幅、故障浮空与重复映射拒绝。 */
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -9,6 +10,12 @@ typedef struct {
     unsigned calls;
 } output_spy_t;
 
+/**
+ * @description: 捕获被测模块本次提交的输出。
+ * @param {const motor_bldc_output_t *} output 输出数据
+ * @param {void *} user user 参数
+ * @return {void} 无
+ */
 static void capture_output(const motor_bldc_output_t *output, void *user)
 {
     output_spy_t *spy = (output_spy_t *)user;
@@ -16,6 +23,10 @@ static void capture_output(const motor_bldc_output_t *output, void *user)
     spy->calls++;
 }
 
+/**
+ * @description: 验证正转和反转。
+ * @return {void} 无
+ */
 static void test_forward_and_reverse(void)
 {
     motor_bldc_six_step_config_t config;
@@ -43,6 +54,10 @@ static void test_forward_and_reverse(void)
     assert(spy.last.phase[2] == MOTOR_BLDC_PHASE_FLOAT);
 }
 
+/**
+ * @description: 验证序列和占空比限幅。
+ * @return {void} 无
+ */
 static void test_sequence_and_duty_clamp(void)
 {
     static const uint8_t hall_sequence[6] = {1U, 5U, 4U, 6U, 2U, 3U};
@@ -62,6 +77,10 @@ static void test_sequence_and_duty_clamp(void)
     assert(control.output.duty == 0.0f);
 }
 
+/**
+ * @description: 验证故障高阻全部相。
+ * @return {void} 无
+ */
 static void test_faults_float_all_phases(void)
 {
     motor_bldc_six_step_config_t config;
@@ -86,6 +105,10 @@ static void test_faults_float_all_phases(void)
     assert(!Motor_BldcSixStep_IsRunning(&control));
 }
 
+/**
+ * @description: 验证拒绝重复映射。
+ * @return {void} 无
+ */
 static void test_rejects_duplicate_mapping(void)
 {
     motor_bldc_six_step_config_t config;
@@ -97,6 +120,10 @@ static void test_rejects_duplicate_mapping(void)
     assert(Motor_BldcSixStep_GetFault(&control) == MOTOR_BLDC_FAULT_INVALID_CONFIG);
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     test_forward_and_reverse();

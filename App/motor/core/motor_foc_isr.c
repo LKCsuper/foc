@@ -53,9 +53,8 @@
  * 完整控制拍半周期门控（divider=2 时生效）。依据 3000 RPM 实测（3000RPM平台DMA重叠验证_2026-10-21）：
  * 正常完整拍在顶部更新后约 9.4～11.2 us 进入；被上一拍拖后的回调在边界后约 28～31 us 才进入。
  * 窗口取 8～22 us：既接受正常节拍，也拒绝过晚的回调和刚越过边界、DMA 可能尚未写完的旧回调。
- * TIM1 时钟 168 MHz（APB2 x2，见 ADC到PWM生效时序核对_2026-10-21），1 us = 168 计数。只读寄存器，不改外设配置。
+ * 定时器相位和每微秒计数由 HAL 提供；不改变窗口或外设配置。
  */
-#define MOTOR_FOC_GATE_COUNTS_PER_US 168U
 #define MOTOR_FOC_GATE_MIN_US        8U
 #define MOTOR_FOC_GATE_MAX_US        22U
 #define MOTOR_FOC_GATE_REPEAT_US     40U
@@ -84,11 +83,6 @@ static bool s_recon_diag_enable;
 static uint16_t s_status_publish_divider;
 static motor_foc_phase_gate_t s_phase_gate;
 static motor_foc_phase_gate_t s_control_deadline;
-static const motor_foc_phase_gate_config_t s_phase_gate_config = {
-    MOTOR_FOC_GATE_MIN_US * MOTOR_FOC_GATE_COUNTS_PER_US,
-    MOTOR_FOC_GATE_MAX_US * MOTOR_FOC_GATE_COUNTS_PER_US,
-    MOTOR_FOC_GATE_REPEAT_US,
-};
 static motor_control_clock_t s_control_clock;
 /* Private function prototypes -----------------------------------------------*/
 static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t feedback_source);
@@ -258,19 +252,23 @@ static void Motor_FocIsr_RecordCompact(const MOTOR_PARAM_S *motor_param, uint32_
  */
 static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t feedback_source)
 {
-    uint32_t cr1;
-    uint32_t count;
+    hal_motor_pwm_phase_t phase;
+    motor_foc_phase_gate_config_t config;
 
     /* divider=2：所有反馈源统一按 PWM 半周期选拍。原无感/I/F 路径用软件计数，回调被推迟或 DMA 标志合并时
      * 计数奇偶翻转，完整拍会跳到另一半周期（实测 100 us 间隔后换半周期）；Hall/编码器原本只看 DIR。 */
     if (s_divider.divider == 2) {
-        cr1 = TIM1->CR1;
-        count = TIM1->CNT;
-        return Motor_FocDivider_PhaseGate(&s_phase_gate, &s_phase_gate_config, (cr1 & TIM_CR1_DIR) != 0U, count,
-                                          TIM1->ARR, Hal_Motor_TimeUs());
+        Hal_Motor_PwmPhaseCapture(&phase);
+        config.min_counts = MOTOR_FOC_GATE_MIN_US * phase.counts_per_us;
+        config.max_counts = MOTOR_FOC_GATE_MAX_US * phase.counts_per_us;
+        config.repeat_us = MOTOR_FOC_GATE_REPEAT_US;
+        return Motor_FocDivider_PhaseGate(&s_phase_gate, &config, phase.counting_down, phase.count,
+                                          phase.period, Hal_Motor_TimeUs());
     }
-    if (feedback_source == MOTOR_FEEDBACK_SRC_HALL || feedback_source == MOTOR_FEEDBACK_SRC_ENCODER)
-        return (TIM1->CR1 & TIM_CR1_DIR) != 0U;
+    if (feedback_source == MOTOR_FEEDBACK_SRC_HALL || feedback_source == MOTOR_FEEDBACK_SRC_ENCODER) {
+        Hal_Motor_PwmPhaseCapture(&phase);
+        return phase.counting_down;
+    }
     return Motor_FocIsr_ShouldRun();
 }
 

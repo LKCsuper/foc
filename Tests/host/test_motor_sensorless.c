@@ -1,3 +1,5 @@
+/* 无感观测器主机测试：参数下界、PLL 限幅、接管混合与诊断统计 */
+/* Includes ------------------------------------------------------------------*/
 #include "test_common_assert.h"
 #include <assert.h>
 #include <math.h>
@@ -16,6 +18,11 @@ extern unsigned host_speed_feedback_calls;
 extern mc_fault_code host_protect_fault;
 extern unsigned host_protect_fault_calls;
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 验证参数下限与非法输入拒绝。
+ * @return {void} 无
+ */
 static void check_parameter_lower_bounds(void)
 {
     const float values[] = {-INFINITY, -3.0f, -0.0f, 0.0f, 0.0000001f, 2.0f, INFINITY, NAN};
@@ -62,6 +69,10 @@ static void check_parameter_lower_bounds(void)
     }
 }
 
+/**
+ * @description: 验证 PLL 限制参数更新。
+ * @return {void} 无
+ */
 static void check_pll_limit_updates(void)
 {
     MOTOR_PARAM_S motor = {0};
@@ -92,6 +103,10 @@ static void check_pll_limit_updates(void)
     }
 }
 
+/**
+ * @description: 验证观测器单步采集记录。
+ * @return {void} 无
+ */
 static void check_observer_step_capture(void)
 {
     MOTOR_PARAM_S captured_motor = {0}, reference_motor;
@@ -142,7 +157,13 @@ static void check_observer_step_capture(void)
     Motor_Sensorless_Init();
 }
 
-/* 静止角差隔离角度过渡：半程应消除一半角差，不能几毫秒就贴到PLL。 */
+/**
+ * @description: 静止角差隔离角度过渡：半程应消除一半角差，不能几毫秒就贴到PLL。
+ * @param {float} start start 参数
+ * @param {float} target 目标机械转速 (RPM)
+ * @param {float} omega omega 参数
+ * @return {void} 无
+ */
 static void check_blend_duration(float start, float target, float omega)
 {
     MOTOR_PARAM_S m;
@@ -198,6 +219,10 @@ static void check_blend_duration(float start, float target, float omega)
     assert(fabsf(remainderf(target + 4500 * dt * omega - rt.control_angle, 6.283185307f)) < 0.001f);
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_sensorless_runtime_t a;

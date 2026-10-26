@@ -1,3 +1,4 @@
+/* seqlock / ringbuf / textbuf 基础组件主机测试。 */
 #include <assert.h>
 #include <stdio.h>
 
@@ -5,6 +6,10 @@
 #include "seqlock_test.h"
 #include "textbuf_test.h"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     uint32_t seqlock_fails = seqlock_test_run();

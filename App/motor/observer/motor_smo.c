@@ -61,7 +61,7 @@ static float Motor_Smo_Sigmoid(float error, float eps)
 /**
  * @description: 清空本拍输出
  * @param {motor_smo_output_t} *output  输出；可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Smo_ClearOutput(motor_smo_output_t *output)
@@ -78,7 +78,7 @@ static void Motor_Smo_ClearOutput(motor_smo_output_t *output)
  * @param {float} e_alpha_old                 旋转前 êα (V)
  * @param {float} e_beta_old                  旋转前 êβ (V)
  * @param {motor_smo_output_t} *output        本拍输出
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Smo_Publish(motor_smo_t *obs, const motor_smo_config_t *config, float e_alpha_old, float e_beta_old,
@@ -119,7 +119,7 @@ static void Motor_Smo_Publish(motor_smo_t *obs, const motor_smo_config_t *config
 /**
  * @description: 复位滑模观测状态
  * @param {motor_smo_t} *obs  实例，可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Smo_Reset(motor_smo_t *obs)
@@ -132,7 +132,7 @@ void Motor_Smo_Reset(motor_smo_t *obs)
 /**
  * @description: 规整滑模观测配置
  * @param {motor_smo_config_t} *config  配置，被原地修改；可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Smo_NormalizeConfig(motor_smo_config_t *config)
@@ -172,7 +172,7 @@ void Motor_Smo_NormalizeConfig(motor_smo_config_t *config)
  * @param {float} omega_e                     假设电角速度 (rad/s)
  * @param {float} i_alpha                     α 轴电流 (A)
  * @param {float} i_beta                      β 轴电流 (A)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Smo_Seed(motor_smo_t *obs, const motor_smo_config_t *config, float angle, float omega_e, float i_alpha,

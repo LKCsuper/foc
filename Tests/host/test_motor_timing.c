@@ -1,3 +1,5 @@
+/* 时序与性能监控主机测试：运行时间、故障轨迹与调度诊断 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -10,14 +12,36 @@ MOTOR_PARAM_S *gpstMotor = &motor;
 static float s_adc_hz;
 static uint32_t s_time_us;
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 主机测试替身：估算 ADC/控制采样触发频率
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_adc_hz
+ */
 float Hal_Motor_AdcSampleRateHz(void) { return s_adc_hz; }
+/**
+ * @description: 主机测试替身：读取电机通用微秒时基（自由运行，非 Hall 专用）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 测试记录值 s_time_us
+ */
 uint32_t Hal_Motor_TimeUs(void) { return s_time_us; }
 
+/**
+ * @description: 判断两浮点值是否在测试容差内。
+ * @param {float} a a 参数
+ * @param {float} b b 参数
+ * @param {float} tolerance tolerance 参数
+ * @return {int} 本次计算或查询的结果
+ */
 static int Near(float a, float b, float tolerance)
 {
     return fabsf(a - b) <= tolerance;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     MOTOR_PARAM_S local;

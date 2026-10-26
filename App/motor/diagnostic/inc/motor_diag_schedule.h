@@ -21,6 +21,7 @@ extern "C" {
  * @description: 通过控制门控后的入口间隔统计。
  * @detail: 不修改算法 dt。有效间隔最多 100 万个；单间隔大于 1000 us 只计入 gaps。
  */
+/* Private typedef -----------------------------------------------------------*/
 typedef struct {
     uint32_t count;   /* 有效间隔数 */
     uint32_t sum_us;  /* 间隔累计 (us) */
@@ -33,6 +34,7 @@ typedef struct {
 } motor_cadence_t;
 
 #if MOTOR_CFG_DIAG
+/* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 清零节拍、回调和分段耗时窗口，并重新允许采集。
  * @detail: 临界区内清零。不清环形诊断，也不清上一次时间基准；之后第一次 Note/CallbackBegin 丢掉首个间隔。
@@ -184,6 +186,7 @@ void Motor_Timing_SplitReset(void);
 void Motor_Timing_SplitGet(motor_split_diag_t *out);
 
 /** @brief 细分诊断开关。关闭时 FOC 入口不调用分类。 */
+/* Private variables ---------------------------------------------------------*/
 extern volatile uint8_t g_motor_timing_split_active;
 
 /**
@@ -266,9 +269,15 @@ typedef struct {
 extern volatile motor_task_runtime_debug_t g_motor_task_runtime_debug;
 
 #if MOTOR_CFG_DIAG
-/** @brief 开始一次外环任务执行计时，不包含周期休眠。 */
+/**
+ * @description: @brief 开始一次外环任务执行计时，不包含周期休眠。
+ * @return {void} 无
+ */
 void Motor_Timing_TaskRuntimeBegin(void);
-/** @brief 结束本轮计时，累计包含中断抢占的墙钟耗时。 */
+/**
+ * @description: @brief 结束本轮计时，累计包含中断抢占的墙钟耗时。
+ * @return {void} 无
+ */
 void Motor_Timing_TaskRuntimeEnd(void);
 
 /**
@@ -313,7 +322,7 @@ bool Motor_Timing_WakeProbeArmed(void);
 void Motor_Timing_WakeProbeTick(uint32_t next_tick);
 
 /**
- * @description: 查询本轮探测是否已经看到截止 tick，可以累计 DMA。
+ * @description: 查询唤醒探测或任务执行计时窗口是否需要累计 DMA 耗时。
  * @return {bool} true=应调用 WakeProbeDmaNote
  * @author: lkc
  */
@@ -333,6 +342,7 @@ typedef struct {
     uint32_t count, first_us, last_us, sum_us, max_us, tick_pending, switch_pending;
     uint32_t seen;
 } motor_irq_diag_t;
+/* Private define ------------------------------------------------------------*/
 #define MOTOR_TIMING_IRQ_STRIDE 31U
 #if MOTOR_CFG_DIAG
 /**
@@ -443,40 +453,126 @@ void Motor_Timing_SpeedTaskHeartbeat(uint32_t time_us);
  */
 void Motor_Timing_SpeedPiNote(uint32_t time_us, bool updated);
 /**
- * @brief 在短临界区仅填充轻量轨迹需要的任务字段。
+ * @description: 在短临界区仅填充轻量轨迹需要的任务字段。
  * @param sample 非空，本拍 time_us 已填写；其余非任务字段保持不变。
+ * @return {void} 无
  */
 void Motor_Timing_SpeedTaskCaptureLight(motor_trace_light_sample_t *sample);
 #else
 /* 诊断关闭：节拍/唤醒/任务统计恒为未开启，ISR 和任务里的调用编译为空。 */
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Timing_CadenceStop(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} time_us 兼容参数，本实现不使用
+ * @param {bool} upward 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_CadenceNote(uint32_t time_us, bool upward)
 {
     (void)time_us;
     (void)upward;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} time_us 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_CallbackBegin(uint32_t time_us) { (void)time_us; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} time_us 兼容参数，本实现不使用
+ * @param {bool} pending 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_CallbackEnd(uint32_t time_us, bool pending)
 {
     (void)time_us;
     (void)pending;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {bool} full 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_CallbackClassify(bool full) { (void)full; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} elapsed_us 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_CallbackPublish(uint32_t elapsed_us) { (void)elapsed_us; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_SplitIsActive(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_CallbackIsActive(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Timing_TaskRuntimeBegin(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {void} 无
+ */
 static inline void Motor_Timing_TaskRuntimeEnd(void) {}
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} deadline_tick 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_WakeProbeArm(uint32_t deadline_tick) { (void)deadline_tick; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_WakeProbeArmed(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} next_tick 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_WakeProbeTick(uint32_t next_tick) { (void)next_tick; }
+/**
+ * @description: 查询唤醒探测或任务执行计时窗口是否需要累计 DMA 耗时。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_WakeProbeDmaDue(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} start_us 兼容参数，本实现不使用
+ * @param {uint32_t} end_us 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_WakeProbeDmaNote(uint32_t start_us, uint32_t end_us)
 {
     (void)start_us;
     (void)end_us;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {unsigned} kind 兼容参数，本实现不使用
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_IrqDue(unsigned kind) { (void)kind; return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {unsigned} kind 兼容参数，本实现不使用
+ * @param {uint32_t} start_us 兼容参数，本实现不使用
+ * @param {uint32_t} end_us 兼容参数，本实现不使用
+ * @param {unsigned} pending 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_IrqNote(unsigned kind, uint32_t start_us, uint32_t end_us, unsigned pending)
 {
     (void)kind;
@@ -484,18 +580,41 @@ static inline void Motor_Timing_IrqNote(unsigned kind, uint32_t start_us, uint32
     (void)end_us;
     (void)pending;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} time_us 兼容参数，本实现不使用
+ * @param {uint32_t} tick 兼容参数，本实现不使用
+ * @param {uint32_t} phase 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_SpeedTaskStage(uint32_t time_us, uint32_t tick, uint32_t phase)
 {
     (void)time_us;
     (void)tick;
     (void)phase;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} time_us 兼容参数，本实现不使用
+ * @param {uint32_t} tick 兼容参数，本实现不使用
+ * @param {uint32_t} deadline_tick 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_SpeedTaskWake(uint32_t time_us, uint32_t tick, uint32_t deadline_tick)
 {
     (void)time_us;
     (void)tick;
     (void)deadline_tick;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} time_us 兼容参数，本实现不使用
+ * @param {bool} allowed 兼容参数，本实现不使用
+ * @param {float} target 兼容参数，本实现不使用
+ * @param {float} feedback 兼容参数，本实现不使用
+ * @param {float} iq 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_SpeedTaskNote(uint32_t time_us, bool allowed, float target, float feedback, float iq)
 {
     (void)time_us;
@@ -504,13 +623,33 @@ static inline void Motor_Timing_SpeedTaskNote(uint32_t time_us, bool allowed, fl
     (void)feedback;
     (void)iq;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @return {bool} 本实现固定返回 false
+ */
 static inline bool Motor_Timing_SpeedTaskIsActive(void) { return false; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} time_us 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_SpeedTaskHeartbeat(uint32_t time_us) { (void)time_us; }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {uint32_t} time_us 兼容参数，本实现不使用
+ * @param {bool} updated 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_SpeedPiNote(uint32_t time_us, bool updated)
 {
     (void)time_us;
     (void)updated;
 }
+/**
+ * @description: 模块关闭时的兼容空实现；不执行对应功能。
+ * @param {motor_trace_light_sample_t *} sample 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static inline void Motor_Timing_SpeedTaskCaptureLight(motor_trace_light_sample_t *sample) { (void)sample; }
 #endif
 

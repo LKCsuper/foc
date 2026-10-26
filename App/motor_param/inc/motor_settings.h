@@ -48,6 +48,7 @@ typedef struct {
 #define MOTOR_SETTINGS_WIRE_SIZE_V2 (216U)
 #define MOTOR_SETTINGS_WIRE_SIZE    (228U)
 
+/* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 从旧电机对象提取配置/校准；调用者保证快照一致，不提取命令和积分。
  * @detail: 指针不可为空；配置单位沿用 motor_param.h，长度单位 byte。非 ISR 接口。

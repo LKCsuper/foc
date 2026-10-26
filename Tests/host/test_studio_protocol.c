@@ -1,11 +1,24 @@
+/* Studio 协议主机测试：CRC、严格解析、重放与租约超时 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include "studio_protocol.h"
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 生成测试使用的协议文本帧。
+ * @param {char *} line 输入文本行
+ * @param {const char *} body body 参数
+ * @return {void} 无
+ */
 static void make_line(char *line, const char *body)
 {
     sprintf(line,"%s*%04X",body,Studio_Crc16((const uint8_t *)body,strlen(body)));
 }
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     studio_target_t target;

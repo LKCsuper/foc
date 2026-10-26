@@ -84,7 +84,13 @@ void Motor_Encoder_SetCompareEnabled(bool enabled)
     s_encoder_compare_enabled = enabled;
 }
 
-/** 项目兼容初始化；独立复用请使用InitState显式传入配置。 */
+/**
+ * @description: 项目兼容初始化；独立复用请使用InitState显式传入配置。
+ * @param {motor_encoder_runtime_t *} rt 实例运行状态
+ * @param {uint32_t} counts_per_rev 每机械圈计数
+ * @param {bool} inverted true=方向取反
+ * @return {void} 无
+ */
 void Motor_Encoder_RuntimeInit(motor_encoder_runtime_t *rt, uint32_t counts_per_rev, bool inverted)
 {
     const motor_encoder_config_t config = {
@@ -97,7 +103,7 @@ void Motor_Encoder_RuntimeInit(motor_encoder_runtime_t *rt, uint32_t counts_per_
 /**
  * @description: 初始化 MT6701 绝对编码器与默认运行时实例
  * @detail: 初始化 I2C2 与 14 位角度运行时；首次成功采样前不建立有效零点
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_Init(void)
@@ -124,7 +130,7 @@ uint16_t Motor_Encoder_GetCount(void)
 /**
  * @description: 清除默认实例的电角偏置与速度历史
  * @detail: MT6701 是绝对角度传感器，复位软件状态不会也不应改写传感器角度
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_Reset(void)
@@ -138,7 +144,8 @@ void Motor_Encoder_Reset(void)
 /**
  * @description: 用 HAL 当前计数与采样间隔更新默认实例转速
  * @param {float} dt_s  控制/采样周期 (s)
- * @return {*}
+ * @param {float} timeout_s timeout_s，单位 s
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Encoder_UpdateWithTimeout(float dt_s, float timeout_s)
@@ -181,8 +188,9 @@ static void Motor_Encoder_UpdateWithTimeout(float dt_s, float timeout_s)
 }
 
 /**
- * @description: 读取默认实例最新已验收的机械角（不使用 PLL 预测位置）
- * @return {float} 机械角度 (rad)，[0, 2π)
+ * @description: 按实际采样周期更新默认编码器实例；无新帧时预测并检查新鲜度
+ * @param {float} dt_s  控制/采样周期 (s)
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_Update(float dt_s)
@@ -203,6 +211,10 @@ void Motor_Encoder_UpdateReference(float dt_s)
     Motor_Encoder_UpdateWithTimeout(dt_s, 0.005f);
 }
 
+/**
+ * @description: 读取默认实例最新已验收的机械角（不使用 PLL 预测位置）。
+ * @return {float} 机械角度 (rad)，归一化到 [0, 2π)
+ */
 float Motor_Encoder_GetMechAngle(void)
 {
     uint16_t count = s_encoder.have_last ? s_encoder.last_count : Hal_Encoder_GetCount();
@@ -331,7 +343,7 @@ bool Motor_Encoder_IsZeroValid(void)
  * @param {float} offset_rad  电角零点 (rad)；valid 为 false 时忽略
  * @param {bool} inverted     true=机械正方向与计数方向相反
  * @param {bool} valid        true=零点可用
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Encoder_ApplyCalibration(float offset_rad, bool inverted, bool valid)

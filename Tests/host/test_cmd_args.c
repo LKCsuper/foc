@@ -4,6 +4,10 @@
 #include <stdio.h>
 #include "cmd_args.h"
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     float f = 7.0f;

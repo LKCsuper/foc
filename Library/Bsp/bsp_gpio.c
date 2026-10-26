@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: GPIO 板级初始化（PWM/串口/霍尔/ADC 引脚与滤波开关）
  * @Date: 2023-02-18 23:29:37
  * @LastEditTime: 2023-10-09 21:37:15
  * @FilePath: \foc\Library\Bsp\bsp_dma.c
@@ -17,10 +17,10 @@ extern "C" {
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 输出模式 推挽
- * @detail: 
- * @param {GPIO_TypeDef*} GPIOx
- * @param {GPIO_InitTypeDef*} GPIO_InitStruct
- * @return {*}
+ * @param {GPIO_TypeDef*} GPIOx GPIO 端口寄存器基址
+ * @param {uint32_t} GPIO_Pin GPIO 引脚位掩码
+ * @param {GPIOMode_TypeDef} GPIO_Mode GPIO 输入输出模式
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Gpio_Mode(GPIO_TypeDef* GPIOx, uint32_t GPIO_Pin, GPIOMode_TypeDef GPIO_Mode)
@@ -39,10 +39,11 @@ VOID Bsp_Gpio_Mode(GPIO_TypeDef* GPIOx, uint32_t GPIO_Pin, GPIOMode_TypeDef GPIO
 
 /**
  * @description: 输出模式 推挽
- * @detail: 
- * @param {GPIO_TypeDef*} GPIOx
- * @param {GPIO_InitTypeDef*} GPIO_InitStruct
- * @return {*}
+ * @param {GPIO_TypeDef*} GPIOx GPIO 端口寄存器基址
+ * @param {uint32_t} GPIO_Pin GPIO 引脚位掩码
+ * @param {uint16_t} GPIO_PinSource 引脚编号，用于选择复用寄存器位置
+ * @param {uint8_t} GPIO_AF GPIO 复用功能编号
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Gpio_ModeAF(GPIO_TypeDef* GPIOx, uint32_t GPIO_Pin, uint16_t GPIO_PinSource, uint8_t GPIO_AF)
@@ -65,8 +66,7 @@ VOID Bsp_Gpio_ModeAF(GPIO_TypeDef* GPIOx, uint32_t GPIO_Pin, uint16_t GPIO_PinSo
 
 /**
  * @description: led初始化
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Gpio_Led(VOID)
@@ -79,8 +79,7 @@ VOID Bsp_Gpio_Led(VOID)
 
 /**
  * @description: 定时器gpio初始化
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Tim1_Gpio(VOID)
@@ -99,9 +98,8 @@ VOID Bsp_Tim1_Gpio(VOID)
 }
 
 /**
- * @description: 
- * @detail: 
- * @return {*}
+ * @description: 调试串口 GPIO 初始化（TX/RX 复用）
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Usart3_Gpio(VOID)
@@ -115,8 +113,7 @@ VOID Bsp_Usart3_Gpio(VOID)
 
 /**
  * @description: 定时器gpio初始化
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 VOID Bsp_Tim8_Gpio(VOID)
@@ -127,8 +124,7 @@ VOID Bsp_Tim8_Gpio(VOID)
 
 /**
  * @description: GPIO初始化
- * @detail: 
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Bsp_Gpio_Init(void)
@@ -182,7 +178,7 @@ void Bsp_Gpio_Init(void)
 	/* 串口gpio */
 	Bsp_Usart3_Gpio();
 
-	// /* 定时器gpio */                                   
+	// /* 定时器gpio */
 	Bsp_Tim1_Gpio();
 
 	// /* 编码器 霍尔 输入 */

@@ -27,11 +27,22 @@ extern "C" {
 static motor_speed_state_t s_speed;
 /* ISR 在速度 PI 接管后置 true；foc pid 任务据此决定是否 Run。 */
 static volatile bool s_pi_run_allowed;
+/**
+ * @description: 只读查询 ISR 发布的速度 PI 运行门控。
+ * @return {bool} true=ISR 已允许速度 PI 运行；false=运行门控关闭
+ */
 bool Motor_SpeedLoop_IsRunAllowed(void) { return s_pi_run_allowed; }
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
-/** 项目兼容入口：只映射输入，控制算法唯一实现位于core。 */
+/**
+ * @description: 项目兼容入口：只映射输入，控制算法唯一实现位于core。
+ * @param {motor_speed_state_t *} state 实例状态，不可为空
+ * @param {MOTOR_PARAM_S *} motor 电机实例
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @param {bool} scheduled true=外部已定时，不再内部周期分频
+ * @return {void} 无
+ */
 static void Motor_SpeedLoop_RunInternal(motor_speed_state_t *state, MOTOR_PARAM_S *motor, float dt, bool scheduled)
 {
     motor_speed_input_t input;
@@ -52,11 +63,24 @@ static void Motor_SpeedLoop_RunInternal(motor_speed_state_t *state, MOTOR_PARAM_
     }
 }
 
+/**
+ * @description: 运行指定状态对象的速度 PI，输出 Iq 目标。
+ * @param {motor_speed_state_t *} state  状态对象，不可为空
+ * @param {MOTOR_PARAM_S *} motor  配置与目标来源，不可为空
+ * @param {float} dt  控制周期 (s)
+ * @return {void} 无
+ */
 void Motor_SpeedLoop_RunState(motor_speed_state_t *state, MOTOR_PARAM_S *motor, float dt)
 {
     Motor_SpeedLoop_RunInternal(state, motor, dt, false);
 }
 
+/**
+ * @description: 已按配置周期调度的任务入口；保留运行门控但不重复分频，dt 单位 s。
+ * @param {MOTOR_PARAM_S *} motor 电机实例
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @return {void} 无
+ */
 void Motor_SpeedLoop_RunScheduled(MOTOR_PARAM_S *motor, float dt)
 {
     if (!s_pi_run_allowed) return;
@@ -65,7 +89,7 @@ void Motor_SpeedLoop_RunScheduled(MOTOR_PARAM_S *motor, float dt)
 
 /**
  * @description: 上电初始化默认单实例速度环，并向保护模块登记无效反馈
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Speed_Init(void)
@@ -80,7 +104,7 @@ void Motor_Speed_Init(void)
  * @detail: 同时把转速/有效性同步给保护模块用于失速判定
  * @param {float} rpm 机械转速 (RPM)，反转为负数
  * @param {bool} valid true=反馈可信；false=当前不能用于速度闭环
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_SpeedFeedback_Set(float rpm, bool valid)
@@ -91,7 +115,7 @@ void Motor_SpeedFeedback_Set(float rpm, bool valid)
 
 /**
  * @description: 清除默认实例速度 PI 状态
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_SpeedLoop_Reset(void)
@@ -103,7 +127,7 @@ void Motor_SpeedLoop_Reset(void)
 /**
  * @description: 允许或禁止默认实例速度 PI
  * @param {bool} allowed true=任务可运行 PI
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_SpeedLoop_SetRunAllowed(bool allowed)
@@ -117,7 +141,7 @@ void Motor_SpeedLoop_SetRunAllowed(bool allowed)
 /**
  * @description: 用当前等效 Iq 预置默认实例速度 PI
  * @param {float} iq 预置 Iq 目标 (A)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_SpeedLoop_PrimeIq(float iq)
@@ -129,7 +153,7 @@ void Motor_SpeedLoop_PrimeIq(float iq)
  * @description: 运行默认实例速度 PI 外环（委托 State 版本）
  * @param {MOTOR_PARAM_S} *motor 电机实时参数
  * @param {float} dt 控制周期 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_SpeedLoop_Run(MOTOR_PARAM_S *motor, float dt)

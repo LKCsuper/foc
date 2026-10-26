@@ -23,6 +23,11 @@ static bool Bsp_I2c2_WaitFlag(uint32_t flag, FlagStatus status);
 static void Bsp_I2c2_Recover(void);
 /* Private functions ---------------------------------------------------------*/
 
+/**
+ * @description: 等待指定 I2C2 事件出现，超时返回 false。
+ * @param {uint32_t} event 待等待的 I2C 事件掩码
+ * @return {bool} true=指定事件出现；false=等待超时
+ */
 static bool Bsp_I2c2_WaitEvent(uint32_t event)
 {
     uint32_t timeout = BSP_I2C2_TIMEOUT_LOOPS;
@@ -34,6 +39,12 @@ static bool Bsp_I2c2_WaitEvent(uint32_t event)
     return true;
 }
 
+/**
+ * @description: 等待指定 I2C2 标志达到目标状态，超时返回 false。
+ * @param {uint32_t} flag 待等待的 I2C 标志位
+ * @param {FlagStatus} status 期望的标志状态 SET/RESET
+ * @return {bool} true=标志达到目标状态；false=等待超时
+ */
 static bool Bsp_I2c2_WaitFlag(uint32_t flag, FlagStatus status)
 {
     uint32_t timeout = BSP_I2C2_TIMEOUT_LOOPS;
@@ -45,6 +56,10 @@ static bool Bsp_I2c2_WaitFlag(uint32_t flag, FlagStatus status)
     return true;
 }
 
+/**
+ * @description: 总线异常时复位 I2C2 并重新初始化。
+ * @return {void} 无
+ */
 static void Bsp_I2c2_Recover(void)
 {
     I2C_GenerateSTOP(I2C2, ENABLE);
@@ -56,7 +71,7 @@ static void Bsp_I2c2_Recover(void)
 /**
  * @description: 初始化 BM75 外设口 I2C2。
  * @detail: PB10=SCL、PB11=SDA，开漏复用，400 kHz；不涉及电机 ADC/PWM 外设。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Bsp_I2c2_Init(void)

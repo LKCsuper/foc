@@ -138,7 +138,7 @@ void Motor_Hall_DiagGetEdge(motor_hall_current_edge_diag_t *out)
  * @param {int} hall_state          Hall 状态 0..7
  * @param {float} id_error          |Id−目标| (A)
  * @param {bool} first_half         true=扇区前半
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Hall_DiagFillFrame(motor_hall_current_worst_t *dst, float signed_phase_sum, float phase_sum,
@@ -184,7 +184,7 @@ static void Motor_Hall_DiagFillFrame(motor_hall_current_worst_t *dst, float sign
  * @param {float} signed_phase_sum  三相电流代数和 (A)
  * @param {float} phase_sum         |Ia+Ib+Ic| (A)
  * @param {int} hall_state          Hall 状态 0..7
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Hall_DiagCaptureBeat(float signed_phase_sum, float phase_sum, int hall_state)

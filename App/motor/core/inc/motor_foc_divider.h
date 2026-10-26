@@ -50,7 +50,7 @@ typedef struct {
  * @description: 初始化分频状态
  * @param {motor_foc_divider_t} *state  分频状态；NULL 直接返回
  * @param {int} divider                 分频数；<=0 时置为 1
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_FocDivider_Init(motor_foc_divider_t *state, int divider);
@@ -79,6 +79,18 @@ bool Motor_FocDivider_ShouldRun(motor_foc_divider_t *state);
 bool Motor_FocDivider_PhaseGate(motor_foc_phase_gate_t *gate, const motor_foc_phase_gate_config_t *config,
                                 bool counting_down, uint32_t count, uint32_t period, uint32_t now_us);
 
+/**
+ * @description: 判断相邻完整控制拍是否超过最大允许间隔（控制节拍过期检测）。
+ * @detail: 未运行时清空时间基准并返回 false；首次运行先记录基准时间。
+ *          距上次执行超过 max_gap_us、或 max_gap_us 为 0 时返回 true。
+ *          仅在本拍真正执行控制（execute=true）时刷新基准，连续拒绝选拍时能累计出过期。
+ * @param {motor_foc_phase_gate_t *} clock 过期检测状态，不可为空
+ * @param {bool} running                   控制是否运行中
+ * @param {bool} execute                   本拍是否执行了完整控制
+ * @param {uint32_t} now_us                当前时间戳 (us)，允许回绕
+ * @param {uint32_t} max_gap_us            相邻控制拍最大允许间隔 (us)
+ * @return {bool} true=控制拍已过期
+ */
 bool Motor_FocDivider_ControlExpired(motor_foc_phase_gate_t *clock, bool running, bool execute,
                                      uint32_t now_us, uint32_t max_gap_us);
 /* Private functions ---------------------------------------------------------*/

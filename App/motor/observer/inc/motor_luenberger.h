@@ -67,7 +67,7 @@ typedef struct {
 /**
  * @description: 复位龙伯格观测状态
  * @param {motor_luenberger_t} *obs  实例，可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Luenberger_Reset(motor_luenberger_t *obs);
@@ -76,7 +76,7 @@ void Motor_Luenberger_Reset(motor_luenberger_t *obs);
  * @description: 规整龙伯格观测配置
  * @detail: R 钳到 ≥0；L/ψf 低于下限时抬到下限；负增益置 0，由 Step 按默认带宽整定。
  * @param {motor_luenberger_config_t} *config  配置，被原地修改；可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Luenberger_NormalizeConfig(motor_luenberger_config_t *config);
@@ -90,7 +90,7 @@ void Motor_Luenberger_NormalizeConfig(motor_luenberger_config_t *config);
  * @param {float} omega_e                            假设电角速度 (rad/s)
  * @param {float} i_alpha                            定子 α 轴电流 (A)
  * @param {float} i_beta                             定子 β 轴电流 (A)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Luenberger_Seed(motor_luenberger_t *obs, const motor_luenberger_config_t *config, float angle, float omega_e,

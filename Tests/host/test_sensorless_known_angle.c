@@ -1,3 +1,5 @@
+/* 无感已知转子角主机测试：真实磁链方程下的角度误差 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -5,6 +7,17 @@
 #include "motor_sensorless.h"
 
 /* 已知转子磁链与独立电压方程，不以开环参考角冒充真实转子角。 */
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 运行当前测试场景。
+ * @param {float} load_angle load_angle 参数
+ * @param {float} voltage_bias voltage_bias 参数
+ * @param {int} cold_start cold_start 参数
+ * @param {float} gain gain 参数
+ * @param {float} true_flux true_flux 参数
+ * @param {float} model_flux model_flux 参数
+ * @return {double} 本次计算或查询的结果
+ */
 static double run(float load_angle, float voltage_bias, int cold_start, float gain,
                   float true_flux, float model_flux)
 {
@@ -86,6 +99,10 @@ static double run(float load_angle, float voltage_bias, int cold_start, float ga
     return sqrt(error_sum / 30000.0);
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     double biased_error, corrected_error;

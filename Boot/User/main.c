@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: Boot 启动入口、升级选择与应用跳转流程。
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-28 19:28:49
@@ -20,6 +20,10 @@ extern "C"
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
+/**
+ * @description: 执行本程序的初始化与主循环。
+ * @return {int} 程序退出状态；正常主循环通常不返回
+ */
 int main(void)
 {
     /* 判断是否tftp升级标志位,如果存在直接先打印升级,然后清空标志位 */

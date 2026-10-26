@@ -135,6 +135,12 @@ static bool Motor_Joint_ApplyControlCommand(void)
     return Motor_Joint_ApplyControlSetpoint(s_joint.target_deg, s_joint.target_rpm);
 }
 
+/**
+ * @description: 把 deg/RPM 目标换算成 rad、rad/s 的纯算法设定点并提交。
+ * @param {float} position_deg 机械目标位置 (deg)
+ * @param {float} velocity_rpm velocity_rpm，单位 RPM
+ * @return {bool} true=设定点通过校验并已提交；false=设定点被拒绝
+ */
 static bool Motor_Joint_ApplyControlSetpoint(float position_deg, float velocity_rpm)
 {
     motor_joint_control_command_t command;

@@ -41,7 +41,7 @@ static const osThreadAttr_t s_plot_attr = {
  * @description: 以 VOFA+ JustFloat 发送一帧浮点通道
  * @param {float} *ch  通道数组
  * @param {uint32_t} n 通道数
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Vofa_SendJustFloat(const float *ch, uint32_t n)
@@ -54,7 +54,7 @@ static void Vofa_SendJustFloat(const float *ch, uint32_t n)
 
 /**
  * @description: 按当前模式采集通道并发送
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Plot_SendFrame(void)
@@ -105,7 +105,7 @@ static void Plot_SendFrame(void)
 /**
  * @description: 串口绘图任务，周期发送 JustFloat 帧
  * @param {void} *argument  未使用
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static VOID Serial_PlotTask(VOID *argument)
@@ -121,6 +121,10 @@ static VOID Serial_PlotTask(VOID *argument)
     }
 }
 
+/**
+ * @description: 确保串口绘图后台任务存在，供 studio 复用其采样节拍。
+ * @return {bool} true=任务已存在或创建成功
+ */
 bool Cmd_SerialPlotEnsureTask(void)
 {
     if (s_plot_mode != PLOT_MODE_NONE) return false;
@@ -130,7 +134,7 @@ bool Cmd_SerialPlotEnsureTask(void)
 
 /**
  * @description: 打印用法与通道说明
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Plot_PrintHelp(void)
@@ -163,7 +167,7 @@ static plot_mode_t Plot_ParseMode(const char *name)
 
 /**
  * @description: plot 命令 — VOFA+ JustFloat 调试曲线
- * @param {int} argc
+ * @param {int} argc argc，取值约定见函数职责
  * @param {char *} argv[]
  * @return {int} 0 成功，-1 失败
  * @author: lkc

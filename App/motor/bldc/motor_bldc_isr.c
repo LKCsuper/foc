@@ -2,6 +2,7 @@
  * @Description: BLDC 六步模式的 ADC-DMA 快速入口
  * @Author: lkc
  */
+/* Includes ------------------------------------------------------------------*/
 #include <stddef.h>
 #include "common_assert.h"
 #include "motor_bldc_isr.h"
@@ -11,6 +12,7 @@
 #include "hal_motor.h"
 #include "hal_motor_bldc.h"
 
+/* Private functions ---------------------------------------------------------*/
 /**
  * @description: 执行一拍 BLDC 采样、保护和 BEMF 换相处理。
  * @detail: 在 ADC-DMA 中断调用，不阻塞。保护检查每一帧；BEMF 只消费 sample_upward 选定的 PWM 半周期。

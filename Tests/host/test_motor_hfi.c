@@ -1,9 +1,19 @@
+/* 高频注入：注入幅值/母线比例限制、凸极收敛、极性双实例与空指针安全。 */
 #include "test_common_assert.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include "motor_hfi.h"
 
+/**
+ * @description: 将 HFI 测试的 d/q 分量转换为静止坐标分量。
+ * @param {float} id D 轴电流 (A)
+ * @param {float} iq Q 轴电流 (A)
+ * @param {float} angle angle 参数
+ * @param {float *} i_alpha i_alpha 参数
+ * @param {float *} i_beta i_beta 参数
+ * @return {void} 无
+ */
 static void hfi_dq_to_ab(float id, float iq, float angle, float *i_alpha, float *i_beta)
 {
     float s = sinf(angle);
@@ -13,6 +23,10 @@ static void hfi_dq_to_ab(float id, float iq, float angle, float *i_alpha, float 
     *i_beta = id * s + iq * c;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_hfi_t hfi;

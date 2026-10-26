@@ -1,3 +1,5 @@
+/* 位置环主机测试：电压保持、目标切换、故障隔离与位置控制双实例 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
@@ -13,14 +15,44 @@ static uint32_t s_count;
 static bool s_zero_valid = true;
 static bool s_fault;
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 主机测试替身：读取默认实例每帧验收后的累计机械计数。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 测试记录值 s_count
+ */
 uint32_t Motor_Encoder_GetAccumulatedCount(void) { return s_count; }
+/**
+ * @description: 主机测试替身：查询默认实例电角零点是否已标定
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_zero_valid
+ */
 bool Motor_Encoder_IsZeroValid(void) { return s_zero_valid; }
+/**
+ * @description: 主机测试替身：查询默认实例是否处于信号故障。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_fault
+ */
 bool Motor_Encoder_IsSignalFault(void) { return s_fault; }
 static float s_rpm;
 static bool s_speed_valid;
+/**
+ * @description: 主机测试替身：读取默认实例已更新的机械转速
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 s_rpm
+ */
 float Motor_Encoder_GetMechRpm(void) { return s_rpm; }
+/**
+ * @description: 主机测试替身：查询默认实例本拍转速是否有效
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 测试记录值 s_speed_valid
+ */
 bool Motor_Encoder_IsSpeedValid(void) { return s_speed_valid; }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_position_state_t state;

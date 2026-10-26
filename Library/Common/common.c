@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: 通用运行时辅助（断言失败停机处理）
  * @Version: 2.0
  * @Author: lkc
  * @Date: 2022-11-19 09:57:21
@@ -18,7 +18,10 @@ extern "C" {
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
-/* 可能在串口和调度器初始化之前调用，不依赖日志、RTOS 或动态内存。 */
+/**
+ * @description: 可能在串口和调度器初始化之前调用，不依赖日志、RTOS 或动态内存。
+ * @return {void} 无
+ */
 void Common_AssertFailed(void)
 {
     __disable_irq();

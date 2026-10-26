@@ -34,8 +34,27 @@ static uint32_t s_applied_sequence;
 static int32_t s_result;
 static uint16_t s_packet_sequence;
 
+/**
+ * @description: 小端序写入 uint32。
+ * @param {uint8_t *} p 输出 4 byte 小端字段的起始地址
+ * @param {uint32_t} value 待处理值
+ * @return {void} 无
+ */
 static void put32(uint8_t *p, uint32_t value) { p[0]=(uint8_t)value; p[1]=(uint8_t)(value>>8); p[2]=(uint8_t)(value>>16); p[3]=(uint8_t)(value>>24); }
+/**
+ * @description: 小端序写入 float。
+ * @param {uint8_t *} p 输出 4 byte 小端字段的起始地址
+ * @param {float} value 待处理值
+ * @return {void} 无
+ */
 static void putfloat(uint8_t *p, float value) { uint32_t bits; memcpy(&bits,&value,4); put32(p,bits); }
+/**
+ * @description: 编码并按递增序号发送一帧；串口忙无法整帧发送时返回 false。
+ * @param {uint8_t} type 协议消息类型编码
+ * @param {const uint8_t *} data 数据缓冲
+ * @param {uint16_t} length 负载长度 (byte)
+ * @return {bool} true=整帧已编码并进入发送队列；false=编码失败或队列空间不足
+ */
 static bool send_packet(uint8_t type, const uint8_t *data, uint16_t length)
 {
     uint8_t output[96];
@@ -47,6 +66,11 @@ static bool send_packet(uint8_t type, const uint8_t *data, uint16_t length)
     n = Studio_Encode(type, sequence, data, length, output);
     return n != 0U && Bsp_Usart_TryWriteFrame(output, (ULONG)n);
 }
+/**
+ * @description: 读取指定参数字段当前值并转成 float，读取期间关中断保证一致性。
+ * @param {unsigned} index 配置字段表索引
+ * @return {float} 当前值 value
+ */
 static float field_value(unsigned index)
 {
     float value;
@@ -61,6 +85,13 @@ static float field_value(unsigned index)
     Motor_Crit_Exit(key);
     return value;
 }
+/**
+ * @description: 发送 set 命令确认帧：携带字段 id、结果码与回读值。
+ * @param {uint16_t} id D 轴电流 (A)
+ * @param {int} result 输出结果
+ * @param {float} value 待处理值
+ * @return {void} 无
+ */
 static void acknowledge(uint16_t id, int result, float value)
 {
     uint8_t payload[8];
@@ -69,6 +100,10 @@ static void acknowledge(uint16_t id, int result, float value)
     putfloat(payload+4,value);
     (void)send_packet(4U,payload,sizeof(payload));
 }
+/**
+ * @description: 发送协议信息帧：周期、超时、租约 token、参数数量与当前机型。
+ * @return {void} 无
+ */
 static void information(void)
 {
     uint8_t payload[20];
@@ -78,10 +113,22 @@ static void information(void)
     put32(payload+8,token); put32(payload+12,STUDIO_PARAM_COUNT); put32(payload+16,MOTOR_SELECTED_MODEL);
     (void)send_packet(2U,payload,sizeof(payload));
 }
+/**
+ * @description: 查询网页调试模式是否已开启。
+ * @return {bool} true=已开启
+ */
 bool Cmd_StudioIsActive(void) { return s_active; }
+/**
+ * @description: 查询网页端是否持有电机控制租约。
+ * @return {bool} true=网页端持有控制权
+ */
 bool Cmd_StudioOwnsControl(void) { return s_lease.active; }
 
-/** @description: 校验目标并写单槽邮箱，损坏/过期/重放帧不延长租约；仅 Cmd_Task。 */
+/**
+ * @description: @description: 校验目标并写单槽邮箱，损坏/过期/重放帧不延长租约；仅 Cmd_Task。
+ * @param {const char *} line  目标帧文本
+ * @return {void} 无
+ */
 void Cmd_StudioTargetLine(const char *line)
 {
     studio_target_t target;
@@ -97,7 +144,10 @@ void Cmd_StudioTargetLine(const char *line)
     Motor_Crit_Exit(key);
 }
 
-/** @description: Plot 后台任务轮询，检查超时/消费目标/每 20 ms 采样发送。 */
+/**
+ * @description: @description: Plot 后台任务轮询，检查超时/消费目标/每 20 ms 采样发送。
+ * @return {void} 无
+ */
 void Cmd_StudioPoll(void)
 {
     uint32_t now = Hal_Motor_TimeUs(), key, flags;
@@ -163,6 +213,12 @@ void Cmd_StudioPoll(void)
     }
 }
 
+/**
+ * @description: 校验并写入单个可写配置字段；电机运行或网页持控制权时拒绝。
+ * @param {unsigned} index 配置字段表索引
+ * @param {const char *} text 待解析的文本
+ * @return {int} 本次计算或查询的结果
+ */
 static int set_field(unsigned index, const char *text)
 {
     motor_settings_t settings;
@@ -184,6 +240,12 @@ static int set_field(unsigned index, const char *text)
     return Motor_SetConfig(&motor,&settings.config);
 }
 
+/**
+ * @description: studio 子命令分发：status/on/off/release/control/start/params/set。
+ * @param {int} argc 命令参数个数
+ * @param {char *[]} argv 命令参数字符串数组
+ * @return {int} 本次计算或查询的结果
+ */
 static int studio_command(int argc, char *argv[])
 {
     uint32_t key;
@@ -244,6 +306,13 @@ static int studio_command(int argc, char *argv[])
     return -1;
 }
 
+/**
+ * @description: studio 命令入口 — 解析并执行网页调试子命令。
+ * @detail: 全程持任务调度锁，避免目标应用与 Shell 停机/释放交错重启。
+ * @param {int} argc       参数个数
+ * @param {char *[]} argv  参数表；子命令在 argv[1]
+ * @return {int} 0 成功，负数为 MOTOR_ERR_* 错误码
+ */
 int Cmd_Studio(int argc, char *argv[])
 {
     int32_t locked=osKernelLock();

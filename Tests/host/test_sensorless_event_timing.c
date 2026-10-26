@@ -1,3 +1,5 @@
+/* 无感事件时序仿真：电压写入延迟与服务周期的影响 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
@@ -11,6 +13,15 @@ typedef struct {
     unsigned missed_boundary;
 } event_result_t;
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 按事件序列推进测试场景。
+ * @param {bool} variable_write variable_write 参数
+ * @param {bool} average_voltage average_voltage 参数
+ * @param {bool} service_dt service_dt 参数
+ * @param {unsigned} cells cells 参数
+ * @return {event_result_t} 测试记录值 result
+ */
 static event_result_t run_events(bool variable_write, bool average_voltage, bool service_dt, unsigned cells)
 {
     const double tau = 6.283185307179586, omega = 70.0 * tau;
@@ -108,6 +119,10 @@ static event_result_t run_events(bool variable_write, bool average_voltage, bool
     return result;
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     puts("variable_write,average_voltage,service_dt,phase_rms_rad,angle_rms_rad,flux_min_ratio,flux_max_ratio,software_voltage_error_rms_V,missed_boundary");

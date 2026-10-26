@@ -72,7 +72,7 @@ typedef struct {
 /**
  * @description: 复位滑模观测状态
  * @param {motor_smo_t} *obs  实例，可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Smo_Reset(motor_smo_t *obs);
@@ -81,7 +81,7 @@ void Motor_Smo_Reset(motor_smo_t *obs);
  * @description: 规整滑模观测配置
  * @detail: R 钳到 ≥0；L/ψf 低于下限时抬到下限；k 钳到 0～80 V；非法 lpf/ε 置 0，由 Step 套默认。
  * @param {motor_smo_config_t} *config  配置，被原地修改；可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Smo_NormalizeConfig(motor_smo_config_t *config);
@@ -95,7 +95,7 @@ void Motor_Smo_NormalizeConfig(motor_smo_config_t *config);
  * @param {float} omega_e                      假设电角速度 (rad/s)
  * @param {float} i_alpha                      定子 α 轴电流 (A)
  * @param {float} i_beta                       定子 β 轴电流 (A)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Smo_Seed(motor_smo_t *obs, const motor_smo_config_t *config, float angle, float omega_e, float i_alpha,

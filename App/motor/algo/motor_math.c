@@ -96,7 +96,7 @@ float utils_fast_atan2(float y, float x) {
  * @detail: 初值 0xFFFFFFFF，按字节逐位以反射多项式 0x82F63B78 计算，返回取反后的校验值
  * @param {uint8_t} *data    待校验数据指针
  * @param {uint32_t} len     数据长度
- * @return {*}
+ * @return {uint32_t} 当前值 ~crc
  * @author: lkc
  */
 uint32_t utils_crc32c(uint8_t *data, uint32_t len) {

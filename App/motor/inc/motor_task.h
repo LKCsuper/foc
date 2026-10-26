@@ -20,7 +20,7 @@ extern "C" {
 /**
  * @description: 启动速度/位置外环任务（foc pid），只创建一次。
  * @detail: 须在调度器已运行且 MOTOR_Param_Init 之后调用；不阻塞。
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Task_Start(void);

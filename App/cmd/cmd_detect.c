@@ -46,7 +46,7 @@ static const osThreadAttr_t s_detect_motor_task_attr = {
 
 /**
  * @description: 打印 detect 命令用法
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Detect_PrintUsage(void)
@@ -65,6 +65,12 @@ static void Detect_PrintUsage(void)
     PRINTF("  detect abort\n");
 }
 
+/**
+ * @description: 解析有限 float：空指针、尾随字符、NaN/Inf 均拒绝。
+ * @param {const char *} text 待解析的文本
+ * @param {float *} value 待处理值
+ * @return {bool} true=已解析出有限浮点数；false=空值、非法尾随字符或非有限数
+ */
 static bool Detect_ParseFloat(const char *text, float *value)
 {
     char *end;
@@ -73,6 +79,11 @@ static bool Detect_ParseFloat(const char *text, float *value)
 }
 
 #if MOTOR_CFG_IDENTIFY
+/**
+ * @description: 打印电机参数辨识结果的 R/L/磁链与有效性，仅 RAM 结果、不写配置或 Flash。
+ * @param {const motor_detect_result_t *} result 输出结果
+ * @return {void} 无
+ */
 static void Detect_PrintMotorResult(const motor_detect_result_t *result)
 {
     PRINTF("\n===== Motor Parameter Detect =====\n");
@@ -110,6 +121,11 @@ static void Detect_PrintMotorResult(const motor_detect_result_t *result)
     PRINTF("============================\n");
 }
 
+/**
+ * @description: 后台辨识任务：按已选子命令执行 R/L、全参数或磁链扫描，打印结果后退出线程。
+ * @param {void *} argument 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static void Detect_MotorTask(void *argument)
 {
     motor_detect_result_t result;
@@ -134,7 +150,7 @@ static void Detect_MotorTask(void *argument)
 
 /**
  * @description: 解析 detect 子命令
- * @param {int} argc
+ * @param {int} argc argc，取值约定见函数职责
  * @param {char} *argv[]
  * @return {DETECT_TYPE}
  * @author: lkc
@@ -157,7 +173,7 @@ static DETECT_TYPE Detect_ParseType(int argc, char *argv[])
 
 /**
  * @description: 电流/电压偏移、霍尔表或 UVW 线序检测
- * @param {int} argc
+ * @param {int} argc argc，取值约定见函数职责
  * @param {char} *argv[]
  * @return {int} 0 成功，-1 失败
  * @author: lkc

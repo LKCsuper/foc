@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <string.h>
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_encoder_runtime_t a, b, before;

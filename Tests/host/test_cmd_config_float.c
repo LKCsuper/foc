@@ -14,6 +14,12 @@ static motor_result_t set_result = MOTOR_OK;
 static int set_calls, applied_calls, capture_fail;
 static char out[512];
 
+/**
+ * @description: 捕获或转发主机测试的格式化输出。
+ * @param {const char *} format format 参数
+ * @param {...} ... 与格式字符串匹配的可变参数
+ * @return {void} 无
+ */
 static void host_printf(const char *format, ...)
 {
     va_list args;
@@ -24,13 +30,32 @@ static void host_printf(const char *format, ...)
 }
 #define PRINTF(...) host_printf(__VA_ARGS__)
 
+/**
+ * @description: 主机测试替身：捕获当前配置快照，供命令修改后整体提交。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {motor_config_t *} cfg 配置
+ * @return {bool} 捕获成功返回 true；cfg 为空或读取失败返回 false
+ */
 bool Cmd_Ol_CaptureConfig(motor_config_t *cfg)
 {
     if (capture_fail) return false;
     *cfg = stored;
     return true;
 }
+/**
+ * @description: 主机测试替身：按配置提交结果打印失败原因；成功时不输出。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {motor_result_t} result 输出结果
+ * @return {void} 无
+ */
 void Cmd_Ol_PrintConfigResult(motor_result_t result) { if (result != MOTOR_OK) PRINTF("Invalid config\n"); }
+/**
+ * @description: 主机测试替身：校验并应用配置（不改校准与运行命令目标）。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {MOTOR_PARAM_S *} m 电机实例
+ * @param {const motor_config_t *} cfg 配置
+ * @return {motor_result_t} 测试记录值 set_result
+ */
 motor_result_t Motor_SetConfig(MOTOR_PARAM_S *m, const motor_config_t *cfg)
 {
     assert(m == &motor && cfg != NULL);
@@ -38,7 +63,16 @@ motor_result_t Motor_SetConfig(MOTOR_PARAM_S *m, const motor_config_t *cfg)
     if (set_result == MOTOR_OK) stored = *cfg;
     return set_result;
 }
+/**
+ * @description: 检查测试所记录的输出应用结果。
+ * @return {void} 无
+ */
 static void applied(void) { applied_calls++; }
+/**
+ * @description: 计算配对测试值的限幅结果。
+ * @param {motor_config_t *} cfg 配置
+ * @return {void} 无
+ */
 static void clamp_partner(motor_config_t *cfg)
 {
     if (cfg->ol_min_rpm > cfg->ol_max_rpm) cfg->ol_min_rpm = cfg->ol_max_rpm;
@@ -54,6 +88,13 @@ static const cmd_config_float_t iq = {offsetof(motor_config_t, speed_iq_limit), 
 static const cmd_config_float_t maxrpm = {offsetof(motor_config_t, ol_max_rpm), CMD_CONFIG_CLAMP_MIN, 1.0f,
                                           "Max RPM = %.0f\n", "Max RPM set to %.0f\n", clamp_partner, NULL};
 
+/**
+ * @description: 运行当前测试场景。
+ * @param {const cmd_config_float_t *} spec spec 参数
+ * @param {int} argc 命令参数个数
+ * @param {const char *} arg arg 参数
+ * @return {int} 本次计算或查询的结果
+ */
 static int run(const cmd_config_float_t *spec, int argc, const char *arg)
 {
     char *argv[2] = {"cmd", (char *)arg};
@@ -61,6 +102,10 @@ static int run(const cmd_config_float_t *spec, int argc, const char *arg)
     return Cmd_ConfigFloat(spec, argc, argv);
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     memset(&stored, 0, sizeof(stored));

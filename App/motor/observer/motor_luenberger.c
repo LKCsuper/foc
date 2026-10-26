@@ -50,7 +50,7 @@ static float Motor_Luenberger_WrapPi(float angle)
 /**
  * @description: 清空本拍输出
  * @param {motor_luenberger_output_t} *output  输出；可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Luenberger_ClearOutput(motor_luenberger_output_t *output)
@@ -65,7 +65,7 @@ static void Motor_Luenberger_ClearOutput(motor_luenberger_output_t *output)
  * @param {const motor_luenberger_config_t} *config  配置
  * @param {float} *current_gain                      输出 l1 (1/s)
  * @param {float} *bemf_gain                         输出 l2 (V/(A·s))
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Luenberger_ResolveGains(const motor_luenberger_config_t *config, float *current_gain, float *bemf_gain)
@@ -93,7 +93,7 @@ static void Motor_Luenberger_ResolveGains(const motor_luenberger_config_t *confi
  * @param {float} e_alpha_old                        积分前 êα (V)
  * @param {float} e_beta_old                         积分前 êβ (V)
  * @param {motor_luenberger_output_t} *output        本拍输出
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 static void Motor_Luenberger_Publish(motor_luenberger_t *obs, const motor_luenberger_config_t *config, float e_alpha_old,
@@ -135,7 +135,7 @@ static void Motor_Luenberger_Publish(motor_luenberger_t *obs, const motor_luenbe
 /**
  * @description: 复位龙伯格观测状态
  * @param {motor_luenberger_t} *obs  实例，可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Luenberger_Reset(motor_luenberger_t *obs)
@@ -148,7 +148,7 @@ void Motor_Luenberger_Reset(motor_luenberger_t *obs)
 /**
  * @description: 规整龙伯格观测配置
  * @param {motor_luenberger_config_t} *config  配置，被原地修改；可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Luenberger_NormalizeConfig(motor_luenberger_config_t *config)
@@ -182,7 +182,7 @@ void Motor_Luenberger_NormalizeConfig(motor_luenberger_config_t *config)
  * @param {float} omega_e                            假设电角速度 (rad/s)
  * @param {float} i_alpha                            α 轴电流 (A)
  * @param {float} i_beta                             β 轴电流 (A)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Luenberger_Seed(motor_luenberger_t *obs, const motor_luenberger_config_t *config, float angle, float omega_e,

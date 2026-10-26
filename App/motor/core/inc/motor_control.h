@@ -74,7 +74,7 @@ motor_control_result_t Motor_Control_IfDiagnosticStep(motor_control_t *ctrl, MOT
 /**
  * @description: 初始化控制实例（启动链复位到可启动状态）
  * @param {motor_control_t} *ctrl  控制实例
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Control_Init(motor_control_t *ctrl);
@@ -83,7 +83,7 @@ void Motor_Control_Init(motor_control_t *ctrl);
  * @description: 复位启动链与速度/无感/电流积分显示（不清用户目标命令）
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   电机对象
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Control_ResetRuntime(motor_control_t *ctrl, MOTOR_PARAM_S *motor);
@@ -110,7 +110,7 @@ bool Motor_Control_IsReady(const MOTOR_PARAM_S *motor, float v_bus, bool hall_de
 /**
  * @description: 钳位开环/无感相关配置字段到合法范围
  * @param {MOTOR_PARAM_S} *motor  被原地修改
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor);
@@ -120,7 +120,7 @@ void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor);
  * @param {MOTOR_PARAM_S} *motor                  斜坡状态
  * @param {float} dt                              控制周期 (s)
  * @param {bool} sensorless_takeover_complete     true=允许冲向最终目标
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Control_UpdateSpeed(MOTOR_PARAM_S *motor, float dt, bool sensorless_takeover_complete);
@@ -130,7 +130,7 @@ void Motor_Control_UpdateSpeed(MOTOR_PARAM_S *motor, float dt, bool sensorless_t
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   写 ol_theta
  * @param {float} dt               控制周期 (s)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void Motor_Control_UpdateTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float dt);
@@ -157,7 +157,11 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
  */
 bool Motor_Control_IsAligning(const motor_control_t *ctrl);
 
-/** 只读查询I/F拖转电流交接是否完成；不要求跳过对齐时未使用的定角软起比例。空对象返回false。 */
+/**
+ * @description: 只读查询I/F拖转电流交接是否完成；不要求跳过对齐时未使用的定角软起比例。空对象返回false。
+ * @param {const motor_control_t} *ctrl 控制实例
+ * @return {bool} true=拖转电流交接已完成
+ */
 bool Motor_Control_IsIfDragSettled(const motor_control_t *ctrl);
 
 /**

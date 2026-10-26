@@ -11,17 +11,38 @@
 MOTOR_PARAM_S motor;
 extern void Test_MT6701_SetSample(uint32_t sequence, uint32_t timestamp);
 
+/**
+ * @description: 主机测试替身：初始化当前编码器硬件接口（MT6701 使用 I2C2）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 void Hal_Encoder_Init(void)
 {
 }
+/**
+ * @description: 主机测试替身：读取后台任务发布的 MT6701 14 位角度快照
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint16_t} 本实现固定返回 0U
+ */
 uint16_t Hal_Encoder_GetCount(void)
 {
     return 0U;
 }
+/**
+ * @description: 主机测试替身：发布 MT6701 14 位角度快照
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {uint16_t} count 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 void Hal_Encoder_SetCount(uint16_t count)
 {
     (void)count;
 }
+/**
+ * @description: 主机测试替身：MT6701 14 位绝对角度每机械圈计数值
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 测试记录值 4096U
+ */
 uint32_t Hal_Encoder_CountsPerRev(void)
 {
     return 4096U;
@@ -31,6 +52,13 @@ uint32_t Hal_Encoder_CountsPerRev(void)
 #define M_PI 3.14159265358979323846
 #endif
 
+/**
+ * @description: 检查速度估计与预期机械转速的误差。
+ * @param {const motor_encoder_runtime_t *} rt 实例运行状态
+ * @param {float} expected expected 参数
+ * @param {float} tol tol 参数
+ * @return {void} 无
+ */
 static void expect_rpm(const motor_encoder_runtime_t *rt, float expected, float tol)
 {
     float rpm = Motor_Encoder_GetMechRpmState(rt);
@@ -41,6 +69,10 @@ static void expect_rpm(const motor_encoder_runtime_t *rt, float expected, float 
     }
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_encoder_runtime_t a;

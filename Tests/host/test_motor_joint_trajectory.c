@@ -1,3 +1,4 @@
+/* 关节轨迹：梯形轨迹生成、规划位置/转速与到点收敛。 */
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
@@ -11,13 +12,47 @@ MOTOR_PARAM_S motor;
 static uint32_t s_count;
 static uint32_t s_time_us;
 
+/**
+ * @description: 主机测试替身：读取默认实例每帧验收后的累计机械计数。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 测试记录值 s_count
+ */
 uint32_t Motor_Encoder_GetAccumulatedCount(void) { return s_count; }
+/**
+ * @description: 主机测试替身：查询默认实例电角零点是否已标定
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 本实现固定返回 true
+ */
 bool Motor_Encoder_IsZeroValid(void) { return true; }
+/**
+ * @description: 主机测试替身：查询默认实例是否处于信号故障。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 本实现固定返回 false
+ */
 bool Motor_Encoder_IsSignalFault(void) { return false; }
+/**
+ * @description: 主机测试替身：读取默认实例已更新的机械转速
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 本实现固定返回 0.0f
+ */
 float Motor_Encoder_GetMechRpm(void) { return 0.0f; }
+/**
+ * @description: 主机测试替身：查询默认实例本拍转速是否有效
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {bool} 本实现固定返回 true
+ */
 bool Motor_Encoder_IsSpeedValid(void) { return true; }
+/**
+ * @description: 主机测试替身：读取电机通用微秒时基（自由运行，非 Hall 专用）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 测试记录值 s_time_us
+ */
 uint32_t Hal_Motor_TimeUs(void) { return s_time_us; }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     motor_joint_state_t state;

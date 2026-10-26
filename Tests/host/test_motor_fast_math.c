@@ -1,3 +1,4 @@
+/* 快速数学：sincos 精度、Park/反 Park 与二维矢量限幅对参考实现核对。 */
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -5,12 +6,23 @@
 #include <float.h>
 #include "motor_foc.h"
 #include "motor_math.h"
+/**
+ * @description: 计算测试比较用的参考结果。
+ * @param {float *} x x 参数
+ * @param {float *} y y 参数
+ * @param {float} limit limit 参数
+ * @return {bool} 本次处理的判定结果，具体条件见职责与实现说明
+ */
 static bool reference(float *x,float *y,float limit) {
  float mag=sqrtf(*x * *x + *y * *y);limit=fabsf(limit);
  if(mag<1e-10f)mag=1e-10f;
  if(mag>limit){float f=limit/mag;*x*=f;*y*=f;return true;}
  return false;
 }
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void) {
  unsigned i,j; float max_trig=0,max_dq=0;
  {

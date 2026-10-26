@@ -1,5 +1,5 @@
 /*
- * @Description: 
+ * @Description: BLDC 模式 DMA 板级接口
  * @Version: 1.0
  * @Author: lkc
  * @Date: 2023-10-04 16:39:50
@@ -20,6 +20,10 @@ extern "C" {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
+/**
+ * @description: BLDC 模式 ADC DMA 初始化（DMA2 Stream4 循环搬运 ADC 转换结果）
+ * @return {void} 无
+ */
 VOID Bsp_Dma_Bldc_Init(VOID)
 {
 

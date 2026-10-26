@@ -64,6 +64,8 @@ static void ol_status_unlock(void);
 
 /**
  * @description: 捕获当前配置快照供 Shell 修改。
+ * @param {motor_config_t *} cfg 输出配置
+ * @return {bool} 捕获成功返回 true；cfg 为空或读取失败返回 false
  * @author: lkc
  */
 bool Cmd_Ol_CaptureConfig(motor_config_t *cfg)
@@ -77,6 +79,8 @@ bool Cmd_Ol_CaptureConfig(motor_config_t *cfg)
 
 /**
  * @description: 打印配置提交失败原因。
+ * @param {motor_result_t} result 配置提交返回值
+ * @return {void} 无
  * @author: lkc
  */
 void Cmd_Ol_PrintConfigResult(motor_result_t result)
@@ -248,6 +252,7 @@ static void ol_status_send(const char *data, size_t len)
  * @description: 向状态页尾部追加一段格式化文字。
  * @param {size_t *} used 已用字节数，入参出参
  * @param {const char *} format printf 风格格式串
+ * @param {...} ... 与格式字符串匹配的可变参数
  * @return {void} 无
  * @author: lkc
  */
@@ -947,7 +952,7 @@ int Cmd_OlMode(int argc, char *argv[])
 
 /**
  * @description: olfb 命令 — 切换转子反馈源（有感电流环电角来源）。
- * @param {int} argc
+ * @param {int} argc argc，取值约定见函数职责
  * @param {char *} argv[] argv[1]= openloop|sensorless|encoder|hall 或 0..3
  * @return {int} 0 成功
  * @author: lkc

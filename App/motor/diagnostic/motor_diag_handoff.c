@@ -18,12 +18,14 @@
 #pragma O2
 #endif
 #if MOTOR_CFG_DIAG
+/* Private variables ---------------------------------------------------------*/
 static union {
     motor_handoff_sample_t handoff[MOTOR_HANDOFF_CAPACITY];
     motor_phase_sample_t phase[MOTOR_HANDOFF_CAPACITY];
     motor_observer_step_sample_t step[MOTOR_HANDOFF_CAPACITY];
     motor_pair_sample_t pair[MOTOR_HANDOFF_CAPACITY];
 } s_capture;
+/* Private typedef -----------------------------------------------------------*/
 typedef char motor_phase_fits_handoff[(sizeof(motor_phase_sample_t) <= sizeof(motor_handoff_sample_t)) ? 1 : -1];
 typedef char motor_step_fits_handoff[(sizeof(motor_observer_step_sample_t) <= sizeof(motor_handoff_sample_t)) ? 1 : -1];
 typedef char motor_pair_fits_handoff[(sizeof(motor_pair_sample_t) <= sizeof(motor_handoff_sample_t)) ? 1 : -1];
@@ -34,6 +36,7 @@ static bool s_phase_long;
 static bool s_step_mode;
 static unsigned s_handoff_head, s_handoff_count, s_handoff_divider, s_handoff_post;
 static bool s_handoff_marked, s_handoff_triggered;
+/* Private functions ---------------------------------------------------------*/
 /**
  * @description: 停机时武装交接短窗口。
  * @detail: 进入临界区后清索引并开始采集。与相位、观测步进和配对记录互斥，复用 32 条缓冲。

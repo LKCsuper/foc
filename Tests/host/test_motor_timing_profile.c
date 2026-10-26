@@ -1,3 +1,5 @@
+/* 时序剖析主机测试：Pair/Handoff/轨迹与回调各模式 */
+/* Includes ------------------------------------------------------------------*/
 #include "test_common_assert.h"
 #include <assert.h>
 #include <stdio.h>
@@ -6,9 +8,24 @@
 
 MOTOR_PARAM_S motor;
 static uint32_t now_us;
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 主机测试替身：读取电机通用微秒时基（自由运行，非 Hall 专用）
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 测试记录值 now_us
+ */
 uint32_t Hal_Motor_TimeUs(void) { return now_us; }
+/**
+ * @description: 主机测试替身：估算 ADC/控制采样触发频率
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {float} 测试记录值 30000.0f
+ */
 float Hal_Motor_AdcSampleRateHz(void) { return 30000.0f; }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     float average[MOTOR_TIMING_STAGE_COUNT];

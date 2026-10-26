@@ -1,3 +1,5 @@
+/* 相位边沿捕获主机测试：触发、停止与保留窗口 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -5,10 +7,29 @@
 #include <string.h>
 #include "motor_diag_phase.h"
 
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 主机测试替身：进入短临界区（屏蔽 IRQ），返回进入前的 PRIMASK。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 本实现固定返回 0U
+ */
 static uint32_t Motor_Crit_Enter(void) { return 0U; }
+/**
+ * @description: 主机测试替身：退出短临界区；仅当进入前 IRQ 开启时恢复。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {uint32_t} key 兼容参数，本实现不使用
+ * @return {void} 无
+ */
 static void Motor_Crit_Exit(uint32_t key) { (void)key; }
 #include "phase_edge_under_test.inc"
 
+/**
+ * @description: 注入一个带时间信息的测试事件。
+ * @param {uint32_t} time time 参数
+ * @param {bool} full full 参数
+ * @param {bool} down down 参数
+ * @return {void} 无
+ */
 static void send_event(uint32_t time, bool full, bool down)
 {
     bool active = g_motor_phase_active != 0U;
@@ -19,6 +40,10 @@ static void send_event(uint32_t time, bool full, bool down)
     if (active) Motor_Timing_PhaseIrqEnd(time + 5U, 0x20U, 0x202020U, 15U, 1U);
 }
 
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     uint32_t index;

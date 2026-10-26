@@ -8,6 +8,7 @@ $taskSources = @(
     'App/motor_sensor/motor_encoder_core.c',
     'App/motor_sensor/motor_mt6701_protocol.c',
     'App/motor_sensor/motor_hall_angle.c',
+    'App/motor_sensor/motor_hall_calibration.c',
     'App/motor/core/motor_output_core.c', 'App/motor/protect/motor_protect_core.c', 'App/motor/loop/motor_position_control.c', 'App/motor/loop/motor_position_core.c', 'App/motor/loop/motor_speed_core.c', 'App/motor/algo/motor_math.c', 'App/motor/algo/motor_utils.c', 'App/motor/algo/motor_foc.c', 'App/motor/algo/motor_pid.c',
     'App/motor/start/motor_alignment.c', 'App/motor/start/motor_if_start.c',
     'App/motor/start/motor_hfi_start.c',

@@ -23,9 +23,10 @@ extern "C" {
 /**
  * @description: 保存当前电机参数到 Flash
  * @detail: 写入 Sector 10/11 A/B 槽，无需先 setenv 再 saveenv
- * @param {uint8_t} argc
+ * @param {uint8_t} argc argc，取值约定见函数职责
  * @param {char} *
- * @return {*}
+ * @param {char **} argv 命令参数字符串数组
+ * @return {int} 本次计算或查询的结果
  * @author: lkc
  */
 int Cmd_Saveparam(int argc, char **argv)

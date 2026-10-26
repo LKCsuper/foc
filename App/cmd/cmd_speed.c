@@ -41,6 +41,11 @@ static const float s_speed_test_rpm[] = {
 static bool speed_wait_or_key(uint32_t period_ms);
 static bool speed_test_set_rpm(float rpm);
 
+/**
+ * @description: 写入电机使能位，供速度前馈检测在正反转之间停转复位。
+ * @param {bool} enable 是否启用
+ * @return {bool} true=使能命令提交成功；false=读取或提交命令失败
+ */
 static bool speed_ff_set_enable(bool enable)
 {
     motor_command_t cmd;
@@ -49,6 +54,12 @@ static bool speed_ff_set_enable(bool enable)
     return Motor_SetCommand(&motor, &cmd) == MOTOR_OK;
 }
 
+/**
+ * @description: 在单个目标转速上采样实测转速与 Vq 积分均值并加入拟合；偏差或电压超限则拒绝该点。
+ * @param {float} target_rpm 目标机械转速 (RPM)
+ * @param {motor_speed_ff_fit_t *} fit 速度前馈拟合累加状态
+ * @return {bool} true=采样点合格且已加入拟合；false=中止或该点不满足条件
+ */
 static bool speed_ff_measure_point(float target_rpm, motor_speed_ff_fit_t *fit)
 {
     float rpm_sum = 0.0f;
@@ -77,6 +88,13 @@ static bool speed_ff_measure_point(float target_rpm, motor_speed_ff_fit_t *fit)
     return true;
 }
 
+/**
+ * @description: 沿一个方向按 1/4、1/2、3/4、1 倍最大转速依次采样，供正反向各跑一遍。
+ * @param {float} sign 扫速方向符号，+1 或 -1
+ * @param {float} max_rpm max_rpm，单位 RPM
+ * @param {motor_speed_ff_fit_t *} fit 速度前馈拟合累加状态
+ * @return {bool} true=该方向全部测点完成；false=任一点失败或用户中止
+ */
 static bool speed_ff_run_direction(float sign, float max_rpm, motor_speed_ff_fit_t *fit)
 {
     unsigned i;
@@ -86,6 +104,11 @@ static bool speed_ff_run_direction(float sign, float max_rpm, motor_speed_ff_fit
     return true;
 }
 
+/**
+ * @description: 空载正反向扫描并拟合速度前馈 V/RPM 斜率与启动补偿，只打印结果、不写配置。
+ * @param {float} max_rpm max_rpm，单位 RPM
+ * @return {int} 本次计算或查询的结果
+ */
 static int speed_ff_detect(float max_rpm)
 {
     motor_speed_ff_fit_t fit;
@@ -144,7 +167,7 @@ static CMD_QUEUE_ITEM s_speed_key;
  * @description: 把已拼好的字节写入串口发送队列。
  * @param {const char *} buf  内容，可为空
  * @param {uint32_t} len  字节数
- * @return {*} 无
+ * @return {void} 无
  */
 static void speed_emit_buf(const char *buf, uint32_t len)
 {
@@ -156,7 +179,7 @@ static void speed_emit_buf(const char *buf, uint32_t len)
 /**
  * @description: 发送以 0 结尾的字符串。
  * @param {const char *} text  内容，可为空
- * @return {*} 无
+ * @return {void} 无
  */
 static void speed_emit_str(const char *text)
 {
@@ -205,7 +228,7 @@ static bool speed_wait_or_key(uint32_t period_ms)
  * @description: 按固定两位小数追加转速。
  * @param {textbuf_t *} tb 输出缓冲
  * @param {float} rpm 转速，单位 RPM
- * @return {*} 无
+ * @return {void} 无
  */
 static void speed_append_rpm(textbuf_t *tb, float rpm)
 {
@@ -256,7 +279,7 @@ static bool speed_test_set_rpm(float rpm)
  * @description: 依次切到预设转速，任意键停止。
  * @detail: 每段之间 osDelay，不关调度器。正转到反转中间有 0 RPM。
  * @param {uint32_t} dwell_ms  每个转速的保持时间，单位 ms
- * @return {*} 无
+ * @return {void} 无
  */
 static void speed_test_run(uint32_t dwell_ms)
 {

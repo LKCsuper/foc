@@ -193,6 +193,10 @@ static bool s_flux_raw_valid;
 static float s_flux_bemf_unwrapped, s_flux_raw_bemf;
 static uint32_t s_flux_raw_stamp;
 
+/**
+ * @description: 打印滑行磁链诊断轨迹缓冲。
+ * @return {void} 无
+ */
 static void Detect_PrintFluxTrace(void)
 {
     uint32_t i;
@@ -236,7 +240,7 @@ static bool Detect_SaveOffsetToFlash(void)
  * @description: 打印某一沿的电流零点均值（ADC 计数）。
  * @param {const char *} tag 沿名称
  * @param {const motor_detect_offset_t *} st 累加状态
- * @return {*}
+ * @return {void} 无
  */
 static void Detect_PrintEdgeMeans(const char *tag, const motor_detect_offset_t *st)
 {
@@ -256,6 +260,13 @@ static void Detect_PrintEdgeMeans(const char *tag, const motor_detect_offset_t *
 }
 
 #if MOTOR_CFG_IDENTIFY
+/**
+ * @description: 将值钳位到 [minimum, maximum]。
+ * @param {float} value 待处理值
+ * @param {float} minimum 钳位下限
+ * @param {float} maximum 钳位上限
+ * @return {float} 本次计算或查询的结果
+ */
 static float Detect_Clamp(float value, float minimum, float maximum)
 {
     if (value < minimum) return minimum;
@@ -263,6 +274,16 @@ static float Detect_Clamp(float value, float minimum, float maximum)
     return value;
 }
 
+/**
+ * @description: 最小二乘拟合 V=R·I+offset，输出电阻、电压偏置与 R²。
+ * @param {const float *} current 电流 (A)；空指针按实现返回或拒绝
+ * @param {const float *} voltage voltage 参数；空指针按实现返回或拒绝
+ * @param {uint32_t} count 计数值
+ * @param {float *} resistance resistance 参数；空指针按实现返回或拒绝
+ * @param {float *} voltage_offset voltage_offset 参数；空指针按实现返回或拒绝
+ * @param {float *} r_squared r_squared 参数；空指针按实现返回或拒绝
+ * @return {bool} true=电阻拟合结果满足有效性条件；false=样本或拟合结果被拒绝
+ */
 static bool Detect_FitResistance(const float *current, const float *voltage, uint32_t count, float *resistance,
                                  float *voltage_offset, float *r_squared)
 {
@@ -302,6 +323,11 @@ static bool Detect_FitResistance(const float *current, const float *voltage, uin
     return isfinite(*resistance) && isfinite(*voltage_offset) && isfinite(*r_squared);
 }
 
+/**
+ * @description: 取三相电流绝对值的峰值 (A)。
+ * @param {const MOTOR_PARAM_S *} motor_param 电机实例
+ * @return {float} 当前值 peak
+ */
 static float Detect_PhaseCurrentPeak(const MOTOR_PARAM_S *motor_param)
 {
     float peak = fabsf(motor_param->ia);
@@ -314,6 +340,12 @@ static float Detect_PhaseCurrentPeak(const MOTOR_PARAM_S *motor_param)
     return peak;
 }
 
+/**
+ * @description: 判断相电流是否过流，超软限幅持续达到时限判过流。
+ * @param {const MOTOR_PARAM_S *} motor_param 电机实例
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @return {bool} true=当前相电流超过检测限制；false=未超过
+ */
 static bool Detect_CurrentTooHigh(const MOTOR_PARAM_S *motor_param, float dt)
 {
     float peak = Detect_PhaseCurrentPeak(motor_param);
@@ -329,6 +361,11 @@ static bool Detect_CurrentTooHigh(const MOTOR_PARAM_S *motor_param, float dt)
     return s_detect_control.overcurrent_elapsed >= MOTOR_DETECT_CURRENT_TRIP_S;
 }
 
+/**
+ * @description: 清除检测用的 dq 电流与电流积分。
+ * @param {MOTOR_PARAM_S *} motor_param 电机实例
+ * @return {void} 无
+ */
 static void Detect_ControlReset(MOTOR_PARAM_S *motor_param)
 {
     motor_param->ol_vd_int = 0.0f;
@@ -337,6 +374,18 @@ static void Detect_ControlReset(MOTOR_PARAM_S *motor_param)
     motor_param->Iq = 0.0f;
 }
 
+/**
+ * @description: 以 dq 目标电流运行一拍电流环并输出调制电压。
+ * @param {MOTOR_PARAM_S *} motor_param 电机实例
+ * @param {float} theta 强制电角度 (rad)
+ * @param {float} id_target D 轴目标电流 (A)
+ * @param {float} iq_target Q 轴目标电流 (A)
+ * @param {float} voltage_limit 允许的电压幅值上限 (V)
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @param {float *} vd D 轴电压 (V)
+ * @param {float *} vq Q 轴电压 (V)
+ * @return {void} 无
+ */
 static void Detect_RunCurrentDq(MOTOR_PARAM_S *motor_param, float theta, float id_target, float iq_target,
                                 float voltage_limit, float dt, float *vd, float *vq)
 {
@@ -357,18 +406,41 @@ static void Detect_RunCurrentDq(MOTOR_PARAM_S *motor_param, float theta, float i
     }
 }
 
+/**
+ * @description: 以 d 轴目标电流运行一拍电流环（θ=0）。
+ * @param {MOTOR_PARAM_S *} motor_param 电机实例
+ * @param {float} id_target D 轴目标电流 (A)
+ * @param {float} voltage_limit 允许的电压幅值上限 (V)
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @param {float *} vd D 轴电压 (V)
+ * @param {float *} vq Q 轴电压 (V)
+ * @return {void} 无
+ */
 static void Detect_RunCurrent(MOTOR_PARAM_S *motor_param, float id_target, float voltage_limit, float dt, float *vd,
                               float *vq)
 {
     Detect_RunCurrentDq(motor_param, 0.0f, id_target, 0.0f, voltage_limit, dt, vd, vq);
 }
 
+/**
+ * @description: 按指定 d 轴电压与电角度输出一拍电压。
+ * @param {MOTOR_PARAM_S *} motor_param 电机实例
+ * @param {float} vd D 轴电压 (V)
+ * @param {float} theta 强制电角度 (rad)
+ * @return {void} 无
+ */
 static void Detect_RunVoltage(MOTOR_PARAM_S *motor_param, float vd, float theta)
 {
     Motor_Current_FeedbackUpdateDq(motor_param, theta);
     Motor_OutputVoltageLinear(motor_param, vd, 0.0f, theta, motor_param->v_bus);
 }
 
+/**
+ * @description: 停止输出并结束当前检测阶段，写回成功/错误状态。
+ * @param {bool} success 本次检测是否成功
+ * @param {motor_detect_error_t} error error 参数
+ * @return {void} 无
+ */
 static void Detect_FinishFromIsr(bool success, motor_detect_error_t error)
 {
     Motor_OutputSafe(&motor);
@@ -379,6 +451,12 @@ static void Detect_FinishFromIsr(bool success, motor_detect_error_t error)
     s_detect_control.stage = MOTOR_DETECT_STAGE_IDLE;
 }
 
+/**
+ * @description: 电阻检测一拍：斜坡建流并采集稳态电压/电流均值。
+ * @param {MOTOR_PARAM_S *} motor_param 电机实例
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @return {void} 无
+ */
 static void Detect_RunResistanceStep(MOTOR_PARAM_S *motor_param, float dt)
 {
     float total_time = MOTOR_DETECT_RESISTANCE_RAMP_S + MOTOR_DETECT_RESISTANCE_SETTLE_S +
@@ -456,6 +534,12 @@ static void Detect_RunResistanceStep(MOTOR_PARAM_S *motor_param, float dt)
     }
 }
 
+/**
+ * @description: 电感检测一拍：注入多方向脉冲并按 dI/dt 估计电感。
+ * @param {MOTOR_PARAM_S *} motor_param 电机实例
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @return {void} 无
+ */
 static void Detect_RunInductanceStep(MOTOR_PARAM_S *motor_param, float dt)
 {
     float pulse_time_start = MOTOR_DETECT_INDUCTANCE_ALIGN_S + MOTOR_DETECT_INDUCTANCE_ZERO_S;
@@ -551,6 +635,12 @@ static void Detect_RunInductanceStep(MOTOR_PARAM_S *motor_param, float dt)
     }
 }
 
+/**
+ * @description: 磁链检测一拍：开环加速后关桥，测滑行 BEMF 与角速度。
+ * @param {MOTOR_PARAM_S *} motor_param 电机实例
+ * @param {float} dt 本次推进时间间隔 (s)
+ * @return {void} 无
+ */
 static void Detect_RunFluxStep(MOTOR_PARAM_S *motor_param, float dt)
 {
     float rotation_time;
@@ -787,6 +877,7 @@ static bool Detect_SampleIsrBlocking(void)
  *          累加/结算走 Motor_Detect_Offset*；本函数负责停机、PWM、osDelay 与打印。
  *          persist=true 时成功后写入 Flash；中止路径不保存。
  * @param {bool} cal_undriven true 时额外校准未驱动相电压偏移
+ * @param {bool} persist true=请求持久化校准结果
  * @return {uint32_t} 1 成功
  * @author: lkc
  */
@@ -898,6 +989,12 @@ abort_detect:
     return 0U;
 }
 
+/**
+ * @description: 校准三相电流零点与驱动/未驱动相电压偏移，成功后写入 Flash。
+ * @detail: 阻塞在应用任务中执行；采样与结算见 Detect_OffsetRun。
+ * @param {bool} cal_undriven true=额外校准未驱动相电压偏移
+ * @return {uint32_t} 1 成功，0 被中止
+ */
 uint32_t DETECT_Offset(bool cal_undriven)
 {
     return Detect_OffsetRun(cal_undriven, true);
@@ -928,7 +1025,7 @@ bool Motor_Detect_IsActive(void)
 /**
  * @description: DMA 完成中断喂入一拍电流/电压，仅零偏 ISR 采集窗口内有效。
  * @param {bool} pwm_down true=TIM1 向下计数
- * @return {*}
+ * @return {void} 无
  */
 void Motor_Detect_IsrFeed(bool pwm_down)
 {
@@ -990,6 +1087,13 @@ void Motor_Detect_IsrFeed(bool pwm_down)
 }
 
 #if MOTOR_CFG_IDENTIFY
+/**
+ * @description: 运行一个检测阶段直到完成或超时，负责启停 PWM。
+ * @param {motor_detect_stage_t} stage 检测阶段
+ * @param {float} current_a 检测电流 (A)
+ * @param {uint32_t} timeout_ms 超时时长 (ms)
+ * @return {bool} 当前值 s_detect_control.success
+ */
 static bool Detect_RunStage(motor_detect_stage_t stage, float current_a, uint32_t timeout_ms)
 {
     uint32_t waited_ms = 0U;
@@ -1081,6 +1185,13 @@ static bool Detect_RunStage(motor_detect_stage_t stage, float current_a, uint32_
     return s_detect_control.success;
 }
 
+/**
+ * @description: R/L 检测主流程：多点拟合电阻，再测 dq 电感。
+ * @param {float} current_a 检测电流 (A)
+ * @param {motor_detect_result_t *} result 输出结果
+ * @param {bool} retain_active true=本阶段结束后保留检测占用，供后续阶段衔接
+ * @return {bool} true=R/L 检测完成且结果有效；false=启动失败、中止或检测失败
+ */
 static bool Detect_MotorRlInternal(float current_a, motor_detect_result_t *result, bool retain_active)
 {
     float fit_current[MOTOR_DETECT_RESISTANCE_FIT_POINTS];
@@ -1278,11 +1389,27 @@ detect_done:
            s_detect_result.error == MOTOR_DETECT_ERROR_NONE;
 }
 
+/**
+ * @description: 检测相电阻与 dq 相电感，只写 RAM 结果，不应用、不保存。
+ * @detail: 会固定转子并注入短脉冲；阻塞在应用任务中执行。
+ * @param {float} current_a 对齐电流 (A)，限制在 0.3..2.0
+ * @param {motor_detect_result_t *} result 结果输出，可为 NULL
+ * @return {bool} R/L 均有效返回 true
+ */
 bool DETECT_MotorRl(float current_a, motor_detect_result_t *result)
 {
     return Detect_MotorRlInternal(current_a, result, false);
 }
 
+/**
+ * @description: R/L/磁链完整检测主流程；scan 时多速度滑行交叉验证。
+ * @param {float} current_a 检测电流 (A)
+ * @param {float} electrical_rpm electrical_rpm，单位 RPM
+ * @param {float} flux_current_a 磁链检测拖动电流 (A)
+ * @param {bool} scan 是否采用磁链扫描路径
+ * @param {motor_detect_result_t *} result 输出结果
+ * @return {bool} true=所选参数检测流程完成；false=任一阶段失败或中止
+ */
 static bool Detect_MotorParametersInternal(float current_a, float electrical_rpm, float flux_current_a,
                                            bool scan, motor_detect_result_t *result)
 {
@@ -1409,17 +1536,39 @@ parameters_done:
            s_detect_result.error == MOTOR_DETECT_ERROR_NONE;
 }
 
+/**
+ * @description: 完整检测 R/L 与磁链，磁链阶段会开环旋转电机。
+ * @param {float} current_a 对齐/检测电流 (A)
+ * @param {float} electrical_rpm 磁链阶段目标电转速 (RPM)
+ * @param {float} flux_current_a 磁链阶段旋转电流 (A)
+ * @param {motor_detect_result_t *} result 结果输出，可为 NULL
+ * @return {bool} R/L/磁链均有效返回 true
+ */
 bool DETECT_MotorParameters(float current_a, float electrical_rpm, float flux_current_a,
                             motor_detect_result_t *result)
 {
     return Detect_MotorParametersInternal(current_a, electrical_rpm, flux_current_a, false, result);
 }
 
+/**
+ * @description: 三速度滑行磁链交叉验证（scan 模式），只写 RAM 结果。
+ * @detail: 需要有效编码器比较参考，最高电转速限制 900..3000 RPM。
+ * @param {float} current_a 对齐/检测电流 (A)
+ * @param {float} max_erpm 最高电转速 (RPM)
+ * @param {float} flux_current_a 磁链阶段旋转电流 (A)
+ * @param {motor_detect_result_t *} result 结果输出，可为 NULL
+ * @return {bool} 磁链交叉验证有效返回 true
+ */
 bool DETECT_MotorFluxScan(float current_a, float max_erpm, float flux_current_a, motor_detect_result_t *result)
 {
     return Detect_MotorParametersInternal(current_a, max_erpm, flux_current_a, true, result);
 }
 
+/**
+ * @description: 在短临界区内拷贝最近一次检测结果。
+ * @param {motor_detect_result_t *} result 结果输出，可为 NULL
+ * @return {void} 无
+ */
 void DETECT_GetResult(motor_detect_result_t *result)
 {
     if (result != NULL) {
@@ -1430,11 +1579,19 @@ void DETECT_GetResult(motor_detect_result_t *result)
 }
 #endif /* MOTOR_CFG_IDENTIFY */
 
+/**
+ * @description: 请求中止当前正在进行的 R/L 检测。
+ * @return {void} 无
+ */
 void DETECT_Abort(void)
 {
     s_detect_abort_requested = true;
 }
 
+/**
+ * @description: 空闲时清除中止请求；检测占用期间不清理。
+ * @return {void} 无
+ */
 void DETECT_ClearAbortRequest(void)
 {
     if (!s_detect_active) {
@@ -1442,6 +1599,11 @@ void DETECT_ClearAbortRequest(void)
     }
 }
 
+/**
+ * @description: 将检测错误码转为可读名称。
+ * @param {motor_detect_error_t} error 检测错误码
+ * @return {const char *} 错误码名称，未识别返回 "UNKNOWN"
+ */
 const char *DETECT_GetErrorName(motor_detect_error_t error)
 {
     switch (error) {

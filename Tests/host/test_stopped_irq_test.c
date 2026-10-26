@@ -1,3 +1,5 @@
+/* 停机 IRQ 测试 HAL 主机测试：寄存器保存/恢复与前置校验 */
+/* Includes ------------------------------------------------------------------*/
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -19,14 +21,56 @@ static bool stuck_high;
 #define TIM_BDTR_AOE 0x4000U
 #define DMA2_Stream4_IRQn 60U
 #define IRQ_MASK (1U << 28U)
+/* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 主机测试替身：读取测试模拟的全局中断屏蔽位。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {uint32_t} 测试记录值 primask
+ */
 static uint32_t __get_PRIMASK(void) { return primask; }
+/**
+ * @description: 主机测试替身：模拟屏蔽中断并更新测试记录。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 static void __disable_irq(void) { primask = 1U; }
+/**
+ * @description: 主机测试替身：模拟恢复中断并更新测试记录。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 static void __enable_irq(void) { primask = 0U; }
+/**
+ * @description: 主机测试替身：模拟数据同步屏障并记录调用。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 static void __DSB(void) { gpio_a.IDR = stuck_high ? 0x100U : 0U; }
+/**
+ * @description: 主机测试替身：模拟指令同步屏障并记录调用。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @return {void} 无
+ */
 static void __ISB(void) {}
+/**
+ * @description: 主机测试替身：模拟禁用指定 IRQ 并更新假 NVIC 寄存器。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {unsigned} irq irq 参数
+ * @return {void} 无
+ */
 static void NVIC_DisableIRQ(unsigned irq) { assert(irq == 60U); nvic.ISER[1] &= ~IRQ_MASK; }
+/**
+ * @description: 主机测试替身：模拟启用指定 IRQ 并更新假 NVIC 寄存器。
+ * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
+ * @param {unsigned} irq irq 参数
+ * @return {void} 无
+ */
 static void NVIC_EnableIRQ(unsigned irq) { assert(irq == 60U); nvic.ISER[1] |= IRQ_MASK; }
 #include "stopped_irq_test_under_test.inc"
+/**
+ * @description: 复位当前测试场景及记录值。
+ * @return {void} 无
+ */
 static void reset(void)
 {
     tim = (tim_t){0x7f01U, 0xac3cU, 0x4848U, 0x6848U, 0x1111U};
@@ -38,6 +82,10 @@ static void reset(void)
     gpio_b.AFR[1] = 0x11100000U;
     stuck_high = s_irq_test_active = false;
 }
+/**
+ * @description: 运行本文件的主机断言测试；失败时终止进程。
+ * @return {int} 正常结束返回 0；断言失败会终止进程
+ */
 int main(void)
 {
     unsigned masked;

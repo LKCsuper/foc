@@ -38,7 +38,7 @@ static float MotorIfStart_Sign(float value)
  * @description: 复位 I/F 启动状态机并恢复默认运行值。
  * @detail: 清零全部状态后，置首周期标志并将 Iq 缩放设为 1。
  * @param {motor_if_start_t} *state  I/F 启动状态机实例，可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void MotorIfStart_Reset(motor_if_start_t *state)
@@ -53,7 +53,7 @@ void MotorIfStart_Reset(motor_if_start_t *state)
  * @description: 规整 I/F 启动配置，使取值合法。
  * @detail: min_rpm 限制为非负，min_iq_scale 限定在 [0, 1]。
  * @param {motor_if_start_config_t} *config  I/F 启动配置结构体，被原地规整
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void MotorIfStart_NormalizeConfig(motor_if_start_config_t *config)
@@ -69,7 +69,7 @@ void MotorIfStart_NormalizeConfig(motor_if_start_config_t *config)
  * @detail: 停止角度推进（0 RPM）、清除相位补偿、恢复满 Iq，
  *          供预对齐或 HFI 测出位置后的正常 I/F 起步使用。
  * @param {motor_if_start_t} *state  I/F 启动状态机实例，可为 NULL
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void MotorIfStart_SetNeutral(motor_if_start_t *state)
@@ -85,7 +85,7 @@ void MotorIfStart_SetNeutral(motor_if_start_t *state)
  * @detail: V/F 不需要 I/F 的相位补偿与电流缩放，故同时复位两者。
  * @param {motor_if_start_t} *state  I/F 启动状态机实例，可为 NULL
  * @param {float} rpm                角度积分转速 (RPM)
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void MotorIfStart_SetVfRpm(motor_if_start_t *state, float rpm)
@@ -104,7 +104,7 @@ void MotorIfStart_SetVfRpm(motor_if_start_t *state, float rpm)
  * @param {motor_if_start_t} *state                I/F 启动状态机实例，派生量写回本结构体
  * @param {const motor_if_start_config_t} *config  I/F 启动配置（min_rpm/phase_boost/min_iq_scale）
  * @param {const motor_if_start_input_t} *input    本拍输入（目标/当前转速、转子位置是否已知）
- * @return {*}
+ * @return {void} 无
  * @author: lkc
  */
 void MotorIfStart_Step(motor_if_start_t *state,

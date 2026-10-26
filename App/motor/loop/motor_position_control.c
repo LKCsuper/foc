@@ -2,6 +2,7 @@
  * @Description: 纯位置 P 串速度 PI，状态由调用者持有
  * @Author: lkc
  */
+/* Includes ------------------------------------------------------------------*/
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
@@ -9,6 +10,8 @@
 
 #include "motor_config.h"
 #if MOTOR_CFG_POSITION
+/* Private functions ---------------------------------------------------------*/
+
 /**
  * @description: 把数值钳到对称区间。
  * @param {float} value 待钳位值
