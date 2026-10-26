@@ -3,6 +3,10 @@
 #include "common_assert.h"
 #include <math.h>
 #include <stddef.h>
+#if defined(__CC_ARM)
+/* 位于 ADC 中断控制路径，与其他实时模块一致局部 O2；不启用快速浮点，公式不变。 */
+#pragma O2
+#endif
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif

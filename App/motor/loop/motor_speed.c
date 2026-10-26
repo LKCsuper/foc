@@ -14,6 +14,10 @@ extern "C" {
 #include "motor_speed.h"
 #include "motor_protect.h"
 #include "motor_config.h"
+#if defined(__CC_ARM)
+/* 位于 ADC 中断控制路径，与其他实时模块一致局部 O2；不启用快速浮点，公式不变。 */
+#pragma O2
+#endif
 #if MOTOR_CFG_SPEED
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/

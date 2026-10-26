@@ -20,7 +20,6 @@ extern "C" {
 #include "motor_foc.h"
 #include "motor_current.h"
 #include "motor_pid.h"
-#include "motor_reference_trig.h"
 #include "motor_feedback.h"
 #include "motor_mt6701.h"
 #include "hal_motor.h"
@@ -423,29 +422,16 @@ int Cmd_SpeedEnable(int argc, char *argv[])
  */
 int Cmd_SpeedKp(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, speed_kp),
+        .clamp = CMD_CONFIG_CLAMP_MIN,
+        .min = 0.0f,
+        .show_format = "Speed Kp = %.6f A/RPM  (usage: spkp <value>)\n",
+        .set_format = "Speed Kp set to %.6f A/RPM\n",
+        .applied = Motor_SpeedLoop_Reset,
+    };
 
-    if (argc < 2) {
-        PRINTF("Speed Kp = %.6f A/RPM  (usage: spkp <value>)\n", motor.speed_kp);
-        return 0;
-    }
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.speed_kp = atof(argv[1]);
-    if (cfg.speed_kp < 0.0f) {
-        cfg.speed_kp = 0.0f;
-    }
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    Motor_SpeedLoop_Reset();
-    PRINTF("Speed Kp set to %.6f A/RPM\n", motor.speed_kp);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 
 /**
@@ -457,29 +443,16 @@ int Cmd_SpeedKp(int argc, char *argv[])
  */
 int Cmd_SpeedKi(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, speed_ki),
+        .clamp = CMD_CONFIG_CLAMP_MIN,
+        .min = 0.0f,
+        .show_format = "Speed Ki = %.6f A/(RPM*s)  (usage: spki <value>)\n",
+        .set_format = "Speed Ki set to %.6f A/(RPM*s)\n",
+        .applied = Motor_SpeedLoop_Reset,
+    };
 
-    if (argc < 2) {
-        PRINTF("Speed Ki = %.6f A/(RPM*s)  (usage: spki <value>)\n", motor.speed_ki);
-        return 0;
-    }
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.speed_ki = atof(argv[1]);
-    if (cfg.speed_ki < 0.0f) {
-        cfg.speed_ki = 0.0f;
-    }
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    Motor_SpeedLoop_Reset();
-    PRINTF("Speed Ki set to %.6f A/(RPM*s)\n", motor.speed_ki);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 
 /**
@@ -491,26 +464,15 @@ int Cmd_SpeedKi(int argc, char *argv[])
  */
 int Cmd_SpeedIqLimit(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, speed_iq_limit),
+        .clamp = CMD_CONFIG_CLAMP_ABS,
+        .show_format = "Speed Iq limit = %.3f A  (usage: spiq <amps>)\n",
+        .set_format = "Speed Iq limit set to %.3f A\n",
+        .applied = Motor_SpeedLoop_Reset,
+    };
 
-    if (argc < 2) {
-        PRINTF("Speed Iq limit = %.3f A  (usage: spiq <amps>)\n", motor.speed_iq_limit);
-        return 0;
-    }
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.speed_iq_limit = fabsf(atof(argv[1]));
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    Motor_SpeedLoop_Reset();
-    PRINTF("Speed Iq limit set to %.3f A\n", motor.speed_iq_limit);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 
 /**

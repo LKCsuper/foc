@@ -8,25 +8,39 @@
 /* Includes ------------------------------------------------------------------*/
 #include "motor_timing.h"
 
-/* 原为 motor_timing.c 文件级静态量；拆分后跨文件共享，不对模块外公开 */
-extern bool s_pair_mode;
-extern bool s_pair_half;
-extern bool s_handoff_active;
-extern bool s_profile_active;
-extern bool s_performance_enabled;
-extern volatile uint32_t s_profile_sum[MOTOR_TIMING_STAGE_COUNT];
-extern volatile uint32_t s_profile_count[MOTOR_TIMING_STAGE_COUNT];
-extern volatile uint32_t s_profile_max[MOTOR_TIMING_STAGE_COUNT];
-extern bool s_trace_active;
-extern bool s_trace_compact;
-extern bool s_trace_fault;
-extern volatile uint32_t s_speed_complete_us;
-extern bool s_cadence_active;
-extern bool s_task_only;
-extern bool s_trace_entry_seed;
-extern uint16_t s_trace_gap_max;
-extern uint16_t s_trace_full_max;
-extern uint16_t s_trace_pending;
-extern uint16_t s_trace_up;
+/* Private typedef -----------------------------------------------------------*/
+/**
+ * @description: 诊断模块（motor_timing / motor_diag_*）跨文件共享的模式开关与统计。
+ * @detail: 原为 19 个分散的 extern 全局量（命名 s_* 但并非 static）。按写入方分组集中到一个结构体，
+ *          字段语义、类型和 volatile 属性与拆分前逐一对应，不对模块外公开。
+ */
+typedef struct {
+    /* motor_diag_handoff.c：交接短窗口与半周期配对 */
+    bool pair_mode;
+    bool pair_half;
+    bool handoff_active;
+    /* motor_timing.c：分段计时 */
+    bool profile_active;
+    bool performance_enabled; /* 上电默认 true */
+    /* motor_diag_trace.c：运行/故障轨迹 */
+    bool trace_active;
+    bool trace_compact;
+    bool trace_fault;
+    /* motor_diag_schedule.c：调度节拍与回调间隔统计 */
+    bool cadence_active;
+    bool task_only;
+    bool trace_entry_seed;
+    volatile uint32_t speed_complete_us;
+    uint16_t trace_gap_max;
+    uint16_t trace_full_max;
+    uint16_t trace_pending;
+    uint16_t trace_up;
+} motor_diag_shared_t;
+
+/* Private variables ---------------------------------------------------------*/
+extern motor_diag_shared_t g_motor_diag;
+
+/* Private function prototypes -----------------------------------------------*/
+void Motor_Timing_ProfileClearAll(void);
 
 #endif

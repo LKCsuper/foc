@@ -3,6 +3,10 @@
 #include "common_assert.h"
 #include <string.h>
 #include "motor_speed_core.h"
+#if defined(__CC_ARM)
+/* 位于 ADC 中断控制路径，与其他实时模块一致局部 O2；不启用快速浮点，公式不变。 */
+#pragma O2
+#endif
 #define MOTOR_SPEED_LIMIT_DECAY_S 0.100f
 
 /**

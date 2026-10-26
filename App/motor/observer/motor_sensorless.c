@@ -272,20 +272,28 @@ void Motor_Sensorless_SetAppliedVoltageState(motor_sensorless_runtime_t *rt, flo
     rt->applied_v_beta = v_beta;
 }
 
+/* 一拍磁链观测的中间量，供锁定判定与统计复用。 */
+typedef struct {
+    float flux;             /* 额定磁链下限保护后的值 (Wb) */
+    float i_alpha;          /* Clarke 后电流 (A) */
+    float i_beta;
+    float rotor_flux_alpha; /* 积分后的转子磁链 (Wb) */
+    float rotor_flux_beta;
+} motor_sensorless_flux_step_t;
+
 /**
- * @description: 推进指定实例的 Ortega/PLL/接管状态机一拍。
- * @detail: Clarke → 磁链积分 → atan2 → PLL → 锁定/失锁 → 角度渐变；
- *          副作用写入 effects，不直接调速度环/保护。
+ * @description: 一拍 Ortega 磁链观测：参数保护 → Clarke → 首拍 Seed → 磁链积分 → atan2 观测角。
+ * @detail: 积分结果出现 NaN/Inf 时返回 false，由调用者复位并撤销速度有效。
  * @param {motor_sensorless_runtime_t *} rt  运行时对象
  * @param {MOTOR_PARAM_S *} motor  电机参数与采样
  * @param {float} dt  FOC 控制周期 (s)
- * @param {motor_sensorless_effects_t *} effects  副作用输出，可为 NULL
- * @return {*}
- * @author: lkc
+ * @param {motor_observer_step_sample_t *} diagnostic  单拍诊断输出，可为 NULL
+ * @param {motor_sensorless_flux_step_t *} out  本拍中间量输出
+ * @return {bool} 积分有限返回 true
  */
-static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
-                                                 motor_sensorless_effects_t *effects,
-                                                 motor_observer_step_sample_t *diagnostic)
+static inline bool Motor_Sensorless_ObserveFlux(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
+                                                motor_observer_step_sample_t *diagnostic,
+                                                motor_sensorless_flux_step_t *out)
 {
     /* 电机模型参数，全部使用 SI 单位。 */
     float resistance;
@@ -310,39 +318,6 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
     float x_alpha_dot;
     float x_beta_dot;
 
-    /* 极对数用于电角速度/机械速度换算；speed_alpha 是 RPM 低通系数。 */
-    float pole_pairs;
-    float speed_alpha;
-    float open_loop_rpm_abs;
-    float observer_rpm_abs;
-    float speed_error_limit;
-
-    /* 四个锁定条件，必须全部为 true 才开始累计 lock_timer。 */
-    bool flux_ok;
-    bool speed_ok;
-    bool direction_ok;
-    bool phase_ok;
-    bool lock_candidate;
-
-    /*
-     * 无感观测器只服务于正在运行的 I/F 电流闭环：
-     *   - dt 非法时不能积分；
-     *   - sensorless_enable=false 表示用户主动关闭；
-     *   - V/F 模式没有可靠的电流闭环接管路径；
-     *   - ol_enable=false 表示电机已停机。
-     * 任一条件不满足都清空历史状态，防止下次启动沿用旧磁链和旧角度。
-     */
-    COMMON_ASSERT(rt != NULL && motor != NULL);
-    Motor_Sensorless_ClearEffects(effects);
-
-    if (dt <= 0.0f || !motor->sensorless_enable || motor->ol_mode != MOTOR_OL_MODE_IF || !motor->ol_enable) {
-        Motor_Sensorless_ResetState(rt);
-        if (effects != NULL) {
-            effects->feedback_valid = false;
-        }
-        return;
-    }
-
     /*
      * 对关键模型参数做最后一道保护：R/L 不允许为负，额定磁链不能为 0。
      * 参数数量级必须正确，例如 400mΩ 要写成 0.4Ω，800uH 要写成 0.0008H。
@@ -359,7 +334,6 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
     if (observer_gain <= 0.0f) {
         observer_gain = 1000.0f / (flux * flux);
     }
-    pole_pairs = Motor_Sensorless_AtLeast(motor->ol_pole_pairs, 1.0f);
 
     /* Ia/Ib/Ic -> 静止 α/β 坐标系。观测器不在旋转 D/Q 坐标系中计算。 */
     clarke_transform(motor->ia, motor->ib, motor->ic, &i_alpha, &i_beta);
@@ -428,11 +402,7 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
      */
     if (UTILS_IS_NAN(rt->x_alpha) || UTILS_IS_INF(rt->x_alpha) || UTILS_IS_NAN(rt->x_beta) ||
         UTILS_IS_INF(rt->x_beta)) {
-        Motor_Sensorless_ResetState(rt);
-        if (effects != NULL) {
-            effects->feedback_valid = false;
-        }
-        return;
+        return false;
     }
 
     /*
@@ -452,6 +422,26 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
         diagnostic->phase_error = utils_angle_difference_rad(rt->observer_angle, diagnostic->pll_before);
         diagnostic->dt = dt;
     }
+    out->flux = flux;
+    out->i_alpha = i_alpha;
+    out->i_beta = i_beta;
+    out->rotor_flux_alpha = rotor_flux_alpha;
+    out->rotor_flux_beta = rotor_flux_beta;
+    return true;
+}
+
+/**
+ * @description: PLL 跟踪观测角，换算机械 RPM 并一阶低通。
+ * @param {motor_sensorless_runtime_t *} rt  运行时对象
+ * @param {const MOTOR_PARAM_S *} motor  PLL 增益、转速上限与滤波系数
+ * @param {float} dt  FOC 控制周期 (s)
+ * @param {float} pole_pairs  已规范化的极对数，至少为 1
+ * @return {void} 无
+ */
+static inline void Motor_Sensorless_UpdateSpeed(motor_sensorless_runtime_t *rt, const MOTOR_PARAM_S *motor, float dt,
+                                                float pole_pairs)
+{
+    float speed_alpha;
 
     /*
      * 原始 atan2 角度先进入 PLL，不能直接拿去控制电流环。
@@ -466,6 +456,26 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
      */
     speed_alpha = Motor_Sensorless_Clamp(motor->sensorless_speed_filter, 0.0f, 1.0f);
     rt->filtered_rpm += speed_alpha * (rt->mechanical_rpm - rt->filtered_rpm);
+}
+
+/**
+ * @description: 计算四项锁定条件（磁链、转速、方向、相位），结果写入 rt 供 Shell 与快照查看。
+ * @param {motor_sensorless_runtime_t *} rt  运行时对象
+ * @param {const MOTOR_PARAM_S *} motor  I/F 参考角、转速与门槛参数
+ * @param {float} flux  额定磁链 (Wb)
+ * @return {bool} 四项同时成立返回 true（本拍锁定候选）
+ */
+static inline bool Motor_Sensorless_EvaluateLock(motor_sensorless_runtime_t *rt, const MOTOR_PARAM_S *motor, float flux)
+{
+    float open_loop_rpm_abs;
+    float observer_rpm_abs;
+    float speed_error_limit;
+
+    /* 四个锁定条件，必须全部为 true 才开始累计 lock_timer。 */
+    bool flux_ok;
+    bool speed_ok;
+    bool direction_ok;
+    bool phase_ok;
 
     /*
      * phase_error 比较“PLL 观测角”和“I/F 强制角”。使用最短角度差函数，
@@ -513,7 +523,27 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
     rt->phase_ok = phase_ok;
 
     /* 四项同时成立才是一次有效锁定候选，但仍需连续保持 lock_time。 */
-    lock_candidate = flux_ok && speed_ok && direction_ok && phase_ok;
+    return flux_ok && speed_ok && direction_ok && phase_ok;
+}
+
+/**
+ * @description: 稳速段统计（锁定失败计数、磁链/相位极值、按角度分箱），只做常数时间累加，不参与控制。
+ * @param {motor_sensorless_runtime_t *} rt  运行时对象（读取本拍四项判定结果）
+ * @param {const MOTOR_PARAM_S *} motor  I/F 转速与目标
+ * @param {float} dt  FOC 控制周期 (s)
+ * @param {bool} lock_candidate  本拍锁定候选
+ * @param {const motor_sensorless_flux_step_t *} step  本拍磁链中间量
+ * @return {void} 无
+ */
+static inline void Motor_Sensorless_AccumulateStats(motor_sensorless_runtime_t *rt, const MOTOR_PARAM_S *motor,
+                                                    float dt, bool lock_candidate,
+                                                    const motor_sensorless_flux_step_t *step)
+{
+    bool flux_ok = rt->flux_ok;
+    bool speed_ok = rt->speed_ok;
+    bool direction_ok = rt->direction_ok;
+    bool phase_ok = rt->phase_ok;
+
     /* 统计窗口排除起步和升速段；只做常数时间累加，不参与控制。 */
     if (fabsf(motor->ol_current_rpm) >= motor->sensorless_transition_rpm &&
         fabsf(motor->ol_current_rpm - motor->ol_target_rpm) <= 1.0f && rt->stats.elapsed < 10.0f) {
@@ -524,8 +554,8 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
         }
         st->samples++;
         st->elapsed += dt;
-        st->flux_alpha_sum += rotor_flux_alpha;
-        st->flux_beta_sum += rotor_flux_beta;
+        st->flux_alpha_sum += step->rotor_flux_alpha;
+        st->flux_beta_sum += step->rotor_flux_beta;
         if (rt->modulation_error_square > st->modulation_error_square_max)
             st->modulation_error_square_max = rt->modulation_error_square;
         /* 每8拍记录一次分箱，锁定失败计数仍逐拍统计。 */
@@ -540,10 +570,10 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
             b->phase_sum += rt->phase_error;
             b->phase_square_sum += rt->phase_error * rt->phase_error;
             b->flux_sum += rt->flux_magnitude;
-            b->flux_alpha_sum += rotor_flux_alpha;
-            b->flux_beta_sum += rotor_flux_beta;
-            b->i_alpha_sum += i_alpha;
-            b->i_beta_sum += i_beta;
+            b->flux_alpha_sum += step->rotor_flux_alpha;
+            b->flux_beta_sum += step->rotor_flux_beta;
+            b->i_alpha_sum += step->i_alpha;
+            b->i_beta_sum += step->i_beta;
             b->v_alpha_sum += rt->applied_v_alpha;
             b->v_beta_sum += rt->applied_v_beta;
         }
@@ -560,6 +590,21 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
     } else {
         rt->stats.candidate_time = 0.0f;
     }
+}
+
+/**
+ * @description: OPEN_LOOP / LOCKING / CLOSED 状态转移：撤销授权、锁定计时与接管、闭环失锁回退。
+ * @param {motor_sensorless_runtime_t *} rt  运行时对象
+ * @param {const MOTOR_PARAM_S *} motor  接管授权、锁定/失锁时间与 I/F 参数
+ * @param {float} dt  FOC 控制周期 (s)
+ * @param {bool} lock_candidate  本拍锁定候选
+ * @param {motor_sensorless_effects_t *} effects  副作用输出，可为 NULL
+ * @return {void} 无
+ */
+static inline void Motor_Sensorless_AdvanceState(motor_sensorless_runtime_t *rt, const MOTOR_PARAM_S *motor, float dt,
+                                                 bool lock_candidate, motor_sensorless_effects_t *effects)
+{
+    bool flux_ok = rt->flux_ok;
 
     /* 撤销授权必须退出 CLOSED，保留磁链/PLL，低速从已同步的控制角继续 I/F。
      * 超过安全开环上限则请求停机，不允许以关闭接管绕过高速失锁保护。 */
@@ -646,7 +691,19 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
             }
         }
     }
+}
 
+/**
+ * @description: 生成本拍控制角：CLOSED 时从 I/F 角按 blend_time 渐变到 PLL 角并同步 ol_theta，否则沿用 I/F 角。
+ * @param {motor_sensorless_runtime_t *} rt  运行时对象
+ * @param {MOTOR_PARAM_S *} motor  读写 ol_theta
+ * @param {float} dt  FOC 控制周期 (s)
+ * @param {motor_sensorless_effects_t *} effects  副作用输出，可为 NULL
+ * @return {void} 无
+ */
+static inline void Motor_Sensorless_UpdateControlAngle(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
+                                                       motor_sensorless_effects_t *effects)
+{
     /*
      * CLOSED 状态下把控制角从 I/F 平滑过渡到 PLL：
      *
@@ -703,6 +760,60 @@ static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt,
             effects->feedback_rpm = 0.0f;
         }
     }
+}
+
+/**
+ * @description: 推进指定实例的 Ortega/PLL/接管状态机一拍。
+ * @detail: 磁链观测 → PLL 与转速 → 锁定判定 → 统计 → 状态转移 → 控制角；
+ *          副作用写入 effects，不直接调速度环/保护。各步骤为单次调用的 static inline，
+ *          计算顺序与拆分前逐句一致。
+ * @param {motor_sensorless_runtime_t *} rt  运行时对象
+ * @param {MOTOR_PARAM_S *} motor  电机参数与采样
+ * @param {float} dt  FOC 控制周期 (s)
+ * @param {motor_sensorless_effects_t *} effects  副作用输出，可为 NULL
+ * @return {*}
+ * @author: lkc
+ */
+static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
+                                                 motor_sensorless_effects_t *effects,
+                                                 motor_observer_step_sample_t *diagnostic)
+{
+    motor_sensorless_flux_step_t step;
+    float pole_pairs;
+    bool lock_candidate;
+
+    /*
+     * 无感观测器只服务于正在运行的 I/F 电流闭环：
+     *   - dt 非法时不能积分；
+     *   - sensorless_enable=false 表示用户主动关闭；
+     *   - V/F 模式没有可靠的电流闭环接管路径；
+     *   - ol_enable=false 表示电机已停机。
+     * 任一条件不满足都清空历史状态，防止下次启动沿用旧磁链和旧角度。
+     */
+    COMMON_ASSERT(rt != NULL && motor != NULL);
+    Motor_Sensorless_ClearEffects(effects);
+
+    if (dt <= 0.0f || !motor->sensorless_enable || motor->ol_mode != MOTOR_OL_MODE_IF || !motor->ol_enable) {
+        Motor_Sensorless_ResetState(rt);
+        if (effects != NULL) {
+            effects->feedback_valid = false;
+        }
+        return;
+    }
+
+    pole_pairs = Motor_Sensorless_AtLeast(motor->ol_pole_pairs, 1.0f);
+    if (!Motor_Sensorless_ObserveFlux(rt, motor, dt, diagnostic, &step)) {
+        Motor_Sensorless_ResetState(rt);
+        if (effects != NULL) {
+            effects->feedback_valid = false;
+        }
+        return;
+    }
+    Motor_Sensorless_UpdateSpeed(rt, motor, dt, pole_pairs);
+    lock_candidate = Motor_Sensorless_EvaluateLock(rt, motor, step.flux);
+    Motor_Sensorless_AccumulateStats(rt, motor, dt, lock_candidate, &step);
+    Motor_Sensorless_AdvanceState(rt, motor, dt, lock_candidate, effects);
+    Motor_Sensorless_UpdateControlAngle(rt, motor, dt, effects);
 }
 
 /**

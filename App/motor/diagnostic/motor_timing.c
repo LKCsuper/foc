@@ -65,12 +65,23 @@ static volatile uint32_t s_runtime_maximum_us;
 static volatile uint32_t s_sample_up_count;
 static volatile uint32_t s_sample_down_count;
 static uint8_t s_profile_divider;
-bool s_profile_active;
 static bool s_profile_detailed;
-bool s_performance_enabled = true;
-volatile uint32_t s_profile_sum[MOTOR_TIMING_STAGE_COUNT];
-volatile uint32_t s_profile_count[MOTOR_TIMING_STAGE_COUNT];
-volatile uint32_t s_profile_max[MOTOR_TIMING_STAGE_COUNT];
+/* 诊断各文件共享的模式与统计状态；performance_enabled 上电默认开启，与拆分前一致。 */
+motor_diag_shared_t g_motor_diag = {.performance_enabled = true};
+static volatile uint32_t s_profile_sum[MOTOR_TIMING_STAGE_COUNT];
+static volatile uint32_t s_profile_count[MOTOR_TIMING_STAGE_COUNT];
+static volatile uint32_t s_profile_max[MOTOR_TIMING_STAGE_COUNT];
+
+/**
+ * @description: 清零全部分段计时累计（仅诊断模块内部使用）。
+ * @return {void} 无
+ */
+void Motor_Timing_ProfileClearAll(void)
+{
+    memset((void *)s_profile_sum, 0, sizeof(s_profile_sum));
+    memset((void *)s_profile_count, 0, sizeof(s_profile_count));
+    memset((void *)s_profile_max, 0, sizeof(s_profile_max));
+}
 
 /**
  * @description: 一次汇总高频控制路径中已开启的诊断。
@@ -82,17 +93,17 @@ uint32_t Motor_Timing_IsrFeatures(void)
 {
     uint32_t features = 0U;
 #if MOTOR_CFG_DIAG
-    if (s_performance_enabled || (s_cadence_active && !s_task_only) || (s_trace_active && !s_trace_compact))
+    if (g_motor_diag.performance_enabled || (g_motor_diag.cadence_active && !g_motor_diag.task_only) || (g_motor_diag.trace_active && !g_motor_diag.trace_compact))
         features |= MOTOR_TIMING_ISR_PROFILE;
-    if (s_performance_enabled) features |= MOTOR_TIMING_ISR_RUNTIME;
-    if (s_pair_mode && s_handoff_active && !s_pair_half) features |= MOTOR_TIMING_ISR_PAIR;
-    if (s_trace_active) {
-        if (s_trace_fault) features |= MOTOR_TIMING_ISR_FAULT;
-        else if (s_trace_compact) features |= MOTOR_TIMING_ISR_COMPACT;
+    if (g_motor_diag.performance_enabled) features |= MOTOR_TIMING_ISR_RUNTIME;
+    if (g_motor_diag.pair_mode && g_motor_diag.handoff_active && !g_motor_diag.pair_half) features |= MOTOR_TIMING_ISR_PAIR;
+    if (g_motor_diag.trace_active) {
+        if (g_motor_diag.trace_fault) features |= MOTOR_TIMING_ISR_FAULT;
+        else if (g_motor_diag.trace_compact) features |= MOTOR_TIMING_ISR_COMPACT;
         else features |= MOTOR_TIMING_ISR_TRACE;
     }
 #else
-    if (s_performance_enabled) features |= MOTOR_TIMING_ISR_PROFILE | MOTOR_TIMING_ISR_RUNTIME;
+    if (g_motor_diag.performance_enabled) features |= MOTOR_TIMING_ISR_PROFILE | MOTOR_TIMING_ISR_RUNTIME;
 #endif
     return features;
 }
@@ -106,10 +117,10 @@ uint32_t Motor_Timing_IsrFeatures(void)
  */
 bool Motor_Timing_ProfileBegin(void)
 {
-    if (!s_performance_enabled) { s_profile_active = false; return false; }
+    if (!g_motor_diag.performance_enabled) { g_motor_diag.profile_active = false; return false; }
     s_profile_divider++;
-    s_profile_active = s_profile_divider == 0U;
-    return s_profile_active;
+    g_motor_diag.profile_active = s_profile_divider == 0U;
+    return g_motor_diag.profile_active;
 }
 
 /**
@@ -118,7 +129,7 @@ bool Motor_Timing_ProfileBegin(void)
  * @return {bool} true=本拍采样仍然有效
  * @author: lkc
  */
-bool Motor_Timing_ProfileIsActive(void) { return s_profile_active; }
+bool Motor_Timing_ProfileIsActive(void) { return g_motor_diag.profile_active; }
 /**
  * @description: 开关电流环内部的细分计时。
  * @detail: 默认关闭。只影响诊断采样，不改变控制周期。总分段采样仍由 ProfileBegin 决定。
@@ -133,7 +144,7 @@ void Motor_Timing_ProfileSetDetailed(bool enabled) { s_profile_detailed = enable
  * @return {bool} true=本拍可记录细分阶段
  * @author: lkc
  */
-bool Motor_Timing_ProfileDetailedIsActive(void) { return s_profile_active && s_profile_detailed; }
+bool Motor_Timing_ProfileDetailedIsActive(void) { return g_motor_diag.profile_active && s_profile_detailed; }
 
 /**
  * @description: 读取分段计时用的当前时间戳。
@@ -149,7 +160,7 @@ uint32_t Motor_Timing_ProfileTimeUs(void) { return Hal_Motor_TimeUs(); }
  * @return {void} 无
  * @author: lkc
  */
-void Motor_Timing_ProfileEnd(void) { s_profile_active = false; }
+void Motor_Timing_ProfileEnd(void) { g_motor_diag.profile_active = false; }
 
 /**
  * @description: 把一个阶段从 start_us 到现在的耗时累进当前窗口。
@@ -167,7 +178,7 @@ void Motor_Timing_ProfileEnd(void) { s_profile_active = false; }
 void Motor_Timing_ProfileRecord(motor_timing_stage_t stage, uint32_t start_us)
 {
     uint32_t elapsed;
-    if (!s_profile_active || (unsigned)stage >= MOTOR_TIMING_STAGE_COUNT) return;
+    if (!g_motor_diag.profile_active || (unsigned)stage >= MOTOR_TIMING_STAGE_COUNT) return;
     elapsed = Hal_Motor_TimeUs() - start_us;
     if (elapsed > 1000U) return;
     /* 该段满 256 次先清掉再计入本拍，避免 sum 一直累加。
@@ -253,7 +264,7 @@ void Motor_Timing_RecordRuntime(uint32_t start_time_us)
 {
     uint32_t elapsed_us;
     uint32_t elapsed_q16;
-    if (!s_performance_enabled) return;
+    if (!g_motor_diag.performance_enabled) return;
     elapsed_us = Hal_Motor_TimeUs() - start_time_us;
     if (elapsed_us > 1000U) return;
     elapsed_q16 = elapsed_us << 16;

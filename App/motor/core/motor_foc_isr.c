@@ -47,7 +47,18 @@
 #pragma O2
 #endif
 /* Private define ------------------------------------------------------------*/
-#define MOTOR_STATUS_PUBLISH_DIVIDER 300U /* 30 kHz ADC callback -> 100 Hz status */
+/* 默认跳过拍每150次发布；无分频时每300个回调发布，避免没有跳过拍时快照停更。 */
+#define MOTOR_STATUS_PUBLISH_DIVIDER 150U
+/*
+ * 完整控制拍半周期门控（divider=2 时生效）。依据 3000 RPM 实测（3000RPM平台DMA重叠验证_2026-10-21）：
+ * 正常完整拍在顶部更新后约 9.4～11.2 us 进入；被上一拍拖后的回调在边界后约 28～31 us 才进入。
+ * 窗口取 8～22 us：既接受正常节拍，也拒绝过晚的回调和刚越过边界、DMA 可能尚未写完的旧回调。
+ * TIM1 时钟 168 MHz（APB2 x2，见 ADC到PWM生效时序核对_2026-10-21），1 us = 168 计数。只读寄存器，不改外设配置。
+ */
+#define MOTOR_FOC_GATE_COUNTS_PER_US 168U
+#define MOTOR_FOC_GATE_MIN_US        8U
+#define MOTOR_FOC_GATE_MAX_US        22U
+#define MOTOR_FOC_GATE_REPEAT_US     40U
 /* Private typedef -----------------------------------------------------------*/
 /* 一拍完整 FOC 的诊断状态，放在 Run 的栈上，不占静态 RAM。 */
 typedef struct {
@@ -71,6 +82,13 @@ static motor_foc_divider_t s_divider = {
 static float s_recon_diag_target_rpm;
 static bool s_recon_diag_enable;
 static uint16_t s_status_publish_divider;
+static motor_foc_phase_gate_t s_phase_gate;
+static motor_foc_phase_gate_t s_control_deadline;
+static const motor_foc_phase_gate_config_t s_phase_gate_config = {
+    MOTOR_FOC_GATE_MIN_US * MOTOR_FOC_GATE_COUNTS_PER_US,
+    MOTOR_FOC_GATE_MAX_US * MOTOR_FOC_GATE_COUNTS_PER_US,
+    MOTOR_FOC_GATE_REPEAT_US,
+};
 static motor_control_clock_t s_control_clock;
 /* Private function prototypes -----------------------------------------------*/
 static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t feedback_source);
@@ -240,6 +258,17 @@ static void Motor_FocIsr_RecordCompact(const MOTOR_PARAM_S *motor_param, uint32_
  */
 static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t feedback_source)
 {
+    uint32_t cr1;
+    uint32_t count;
+
+    /* divider=2：所有反馈源统一按 PWM 半周期选拍。原无感/I/F 路径用软件计数，回调被推迟或 DMA 标志合并时
+     * 计数奇偶翻转，完整拍会跳到另一半周期（实测 100 us 间隔后换半周期）；Hall/编码器原本只看 DIR。 */
+    if (s_divider.divider == 2) {
+        cr1 = TIM1->CR1;
+        count = TIM1->CNT;
+        return Motor_FocDivider_PhaseGate(&s_phase_gate, &s_phase_gate_config, (cr1 & TIM_CR1_DIR) != 0U, count,
+                                          TIM1->ARR, Hal_Motor_TimeUs());
+    }
     if (feedback_source == MOTOR_FEEDBACK_SRC_HALL || feedback_source == MOTOR_FEEDBACK_SRC_ENCODER)
         return (TIM1->CR1 & TIM_CR1_DIR) != 0U;
     return Motor_FocIsr_ShouldRun();
@@ -881,7 +910,7 @@ static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor_param, motor_feedback_source_t
 
 /**
  * @description: 按约 100 Hz 从 ADC 中断发布状态快照。
- * @detail: 30 kHz 回调每 300 次发布一帧。只写快照，不改变本拍控制结果。
+ * @detail: 默认跳过拍每150次发布；divider<=1时每300个回调发布。只写快照，不改变控制结果。
  * @param {const MOTOR_PARAM_S *} motor_param 电机采样与保护对象，不可为空
  * @return {void} 无
  * @author: lkc
@@ -890,7 +919,7 @@ static void Motor_FocIsr_PublishStatus(const MOTOR_PARAM_S *motor_param)
 {
     COMMON_ASSERT(motor_param != NULL);
     s_status_publish_divider++;
-    if (s_status_publish_divider >= MOTOR_STATUS_PUBLISH_DIVIDER) {
+    if (s_status_publish_divider >= MOTOR_STATUS_PUBLISH_DIVIDER * (s_divider.divider <= 1 ? 2U : 1U)) {
         s_status_publish_divider = 0U;
 #if MOTOR_CFG_DIAG
         Motor_Timing_PhaseMarkStatus();
@@ -907,8 +936,8 @@ static void Motor_FocIsr_PublishStatus(const MOTOR_PARAM_S *motor_param)
 
 /**
  * @description: 推进一次正常 FOC ADC 中断路径，并按约 100 Hz 发布状态快照。
- * @detail: 在 ADC-DMA 中断调用，正常路径不阻塞。跳过拍只推进分频和状态计数，
- *          不读微秒时基，也不写入运行耗时；采样、保护和电流控制只在完整拍执行。
+ * @detail: 在 ADC-DMA 中断调用，正常路径不阻塞。每个回调检查完整控制拍的截止时间，
+ *          连续拒绝选拍也会锁存时序故障并安全输出；正常采样、保护和电流环仅在完整拍执行。
  *          motor_param 不可为空，违反约定触发 COMMON_ASSERT。
  * @param {MOTOR_PARAM_S *} motor_param 电机采样与保护对象，不可为空
  * @return {void} 无
@@ -918,6 +947,8 @@ void Motor_FocIsr_Step(MOTOR_PARAM_S *motor_param)
 {
     motor_feedback_source_t feedback_source;
     bool execute;
+    uint32_t now_us;
+    float max_gap_us;
 #if MOTOR_CFG_DIAG
     bool phase_active = g_motor_phase_active == 1U || g_motor_phase_active == 2U;
     uint32_t phase_us = 0U, phase_count = 0U, phase_cr1 = 0U, phase_divider = 0U;
@@ -934,6 +965,16 @@ void Motor_FocIsr_Step(MOTOR_PARAM_S *motor_param)
     }
 #endif
     execute = Motor_FocIsr_ShouldExecuteControl(feedback_source);
+    now_us = Hal_Motor_TimeUs();
+    max_gap_us = motor_param->ol_enable ? Motor_Timing_GetControlDt(motor_param) * 3000000.0f : 0.0f;
+    if (Motor_FocDivider_ControlExpired(&s_control_deadline, motor_param->ol_enable, execute, now_us,
+                                        max_gap_us > 0.0f && max_gap_us <= 4294967040.0f ?
+                                            (uint32_t)(max_gap_us + 0.5f) : 0U)) {
+        Motor_Protect_TriggerFault(FAULT_CODE_CONTROL_TIMING, motor_param);
+        Motor_Control_ResetRuntime(&s_control, motor_param);
+        Motor_OutputSafe(motor_param);
+        execute = false;
+    }
 #if MOTOR_CFG_DIAG
     if (phase_active) {
         phase_divider |= (uint16_t)s_divider.skip;
@@ -943,12 +984,13 @@ void Motor_FocIsr_Step(MOTOR_PARAM_S *motor_param)
     }
 #endif
     if (execute) {
-        Motor_FocIsr_Run(motor_param, feedback_source, Hal_Motor_TimeUs());
+        Motor_FocIsr_Run(motor_param, feedback_source, now_us);
         if (Motor_Timing_SplitIsActive()) Motor_Timing_CallbackClassify(true);
     } else if (Motor_Timing_SplitIsActive()) {
         Motor_Timing_CallbackClassify(false);
     }
-    Motor_FocIsr_PublishStatus(motor_param);
+    /* 默认避开完整拍发布；无分频时没有跳过拍，仍需定期更新状态。 */
+    if (!execute || s_divider.divider <= 1) Motor_FocIsr_PublishStatus(motor_param);
 
     return;
 }

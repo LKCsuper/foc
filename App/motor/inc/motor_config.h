@@ -63,6 +63,12 @@ extern "C" {
 #define MOTOR_CFG_POSITION 1
 #endif
 
+/* 停机三角函数对照基准（trigbench 的 ref_n3~ref_n12 档）。依赖未入库的
+ * ThirtyLibrary/20261019WQFSBHXM（需先解压同名 zip），默认关闭以保证干净克隆可编译；
+ * 主机测试 test_reference_trig 自行定义为 1。只用于对照，禁止接入真实控制输出。 */
+#ifndef MOTOR_CFG_REFERENCE_TRIG
+#define MOTOR_CFG_REFERENCE_TRIG 0
+#endif
 /* 模块间依赖：命令只随其模块编入，模块本身不依赖命令行。 */
 #define MOTOR_CFG_CMD_DIAG (MOTOR_CFG_CMD && MOTOR_CFG_DIAG)
 #define MOTOR_CFG_CMD_BLDC (MOTOR_CFG_CMD && MOTOR_CFG_BLDC)
@@ -77,7 +83,8 @@ extern "C" {
     (MOTOR_CFG_JOINT != 0 && MOTOR_CFG_JOINT != 1) || (MOTOR_CFG_IDENTIFY != 0 && MOTOR_CFG_IDENTIFY != 1) ||       \
     (MOTOR_CFG_CMD != 0 && MOTOR_CFG_CMD != 1) ||                                                                   \
     (MOTOR_CFG_SENSORLESS != 0 && MOTOR_CFG_SENSORLESS != 1) || (MOTOR_CFG_ENCODER != 0 && MOTOR_CFG_ENCODER != 1) || \
-    (MOTOR_CFG_SPEED != 0 && MOTOR_CFG_SPEED != 1) || (MOTOR_CFG_POSITION != 0 && MOTOR_CFG_POSITION != 1)
+    (MOTOR_CFG_SPEED != 0 && MOTOR_CFG_SPEED != 1) || (MOTOR_CFG_POSITION != 0 && MOTOR_CFG_POSITION != 1) ||     \
+    (MOTOR_CFG_REFERENCE_TRIG != 0 && MOTOR_CFG_REFERENCE_TRIG != 1)
 #error "MOTOR_CFG_* must be 0 or 1"
 #endif
 /* Private typedef -----------------------------------------------------------*/

@@ -3,12 +3,24 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
+#include "motor_foc_divider.h"
 
 #define COMMON_ASSERT(value) assert(value)
 #define MOTOR_CFG_DIAG 1
 typedef struct { bool ol_enable; } MOTOR_PARAM_S;
 volatile uint32_t g_motor_phase_active;
 static struct { int skip; int divider; } s_divider;
+static motor_foc_phase_gate_t s_control_deadline;
+static int s_control;
+static uint32_t s_now = 1234U;
+static unsigned s_faults, s_resets, s_safe;
+#define FAULT_CODE_CONTROL_TIMING 1
+static float Motor_Timing_GetControlDt(MOTOR_PARAM_S *motor) { (void)motor; return 1.0f / 15000.0f; }
+static void Motor_Protect_TriggerFault(int fault, MOTOR_PARAM_S *motor)
+{ assert(fault == FAULT_CODE_CONTROL_TIMING && motor != NULL); s_faults++; }
+static void Motor_Control_ResetRuntime(int *control, MOTOR_PARAM_S *motor)
+{ assert(control == &s_control && motor != NULL); s_resets++; }
+static void Motor_OutputSafe(MOTOR_PARAM_S *motor) { assert(motor != NULL); s_safe++; }
 static struct { uint32_t CR1; uint32_t CNT; } phase_timer;
 #define TIM1 (&phase_timer)
 static unsigned phase_notes;
@@ -42,7 +54,7 @@ void Motor_Timing_CallbackPublish(uint32_t elapsed_us)
     s_publish_notes++;
 }
 static motor_feedback_source_t s_source;
-static uint32_t Hal_Motor_TimeUs(void) { return 1234U; }
+static uint32_t Hal_Motor_TimeUs(void) { return s_now; }
 static motor_feedback_source_t Motor_Feedback_GetSourceDefault(void) { return s_source; }
 static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t source)
 {
@@ -52,7 +64,7 @@ static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t source)
 }
 static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor, motor_feedback_source_t source, uint32_t start)
 {
-    assert(motor != NULL && source == s_source && start == 1234U);
+    assert(motor != NULL && source == s_source && start == s_now);
     s_runs++;
 }
 static void Motor_FocIsr_PublishStatus(const MOTOR_PARAM_S *motor) { assert(motor != NULL); s_publishes++; }
@@ -73,6 +85,7 @@ static void Motor_StatusSnapshotPublishFromIsr(const MOTOR_PARAM_S *motor)
 int main(void)
 {
     MOTOR_PARAM_S motor = {0};
+    s_divider.divider = 2;
     unsigned source;
     for (source = 0U; source < 4U; source++) {
         s_source = source;
@@ -82,11 +95,12 @@ int main(void)
         s_execute = true;
         Motor_FocIsr_Step(&motor);
         assert(s_runs == source + 1U);
-        assert(s_gates == 2U * (source + 1U) && s_publishes == s_gates);
+        /* 状态发布只在跳过拍调用 */
+        assert(s_gates == 2U * (source + 1U) && s_publishes == source + 1U);
     }
-    for (source = 1U; source <= 900U; source++) {
+    for (source = 1U; source <= 450U; source++) {
         Motor_FocIsr_PublishStatusUnderTest(&motor);
-        assert(s_status_frames == source / 300U && s_status_marks == s_status_frames);
+        assert(s_status_frames == source / 150U && s_status_marks == s_status_frames);
     }
     g_motor_timing_split_active = 1U;
     s_execute = false;
@@ -94,7 +108,7 @@ int main(void)
     s_execute = true;
     Motor_FocIsr_Step(&motor);
     assert(s_class_skip == 1U && s_class_full == 1U);
-    for (source = 0U; source < 300U; source++) Motor_FocIsr_PublishStatusUnderTest(&motor);
+    for (source = 0U; source < 150U; source++) Motor_FocIsr_PublishStatusUnderTest(&motor);
     assert(s_status_frames == 4U && s_publish_notes == 1U);
     assert(s_status_marks == 4U);
     g_motor_phase_active = 1U;
@@ -108,6 +122,34 @@ int main(void)
     s_execute = true;
     Motor_FocIsr_Step(&motor);
     assert(phase_notes == 2U && phase_flags == ((s_source << 8) | (2U << 16) | 1U));
+    g_motor_phase_active = 0U;
+    {
+        unsigned runs = s_runs;
+        s_execute = false;
+        s_now += 201U;
+        Motor_FocIsr_Step(&motor);
+        assert(s_faults == 1U && s_resets == 1U && s_safe == 1U && s_runs == runs);
+        s_execute = true;
+        Motor_FocIsr_Step(&motor);
+        assert(s_faults == 2U && s_runs == runs);
+        motor.ol_enable = false;
+        Motor_FocIsr_Step(&motor);
+        motor.ol_enable = true;
+        Motor_FocIsr_Step(&motor);
+        assert(s_faults == 2U && s_runs == runs + 2U);
+    }
+    {
+        unsigned publishes = s_publishes;
+        s_divider.divider = 1;
+        Motor_FocIsr_Step(&motor);
+        assert(s_publishes == publishes + 1U);
+        s_status_publish_divider = 0U;
+        publishes = s_status_frames;
+        for (source = 0U; source < 299U; ++source) Motor_FocIsr_PublishStatusUnderTest(&motor);
+        assert(s_status_frames == publishes);
+        Motor_FocIsr_PublishStatusUnderTest(&motor);
+        assert(s_status_frames == publishes + 1U);
+    }
     puts("test_foc_dispatch: pass");
     return 0;
 }

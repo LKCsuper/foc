@@ -20,7 +20,6 @@ extern "C" {
 #include "motor_foc.h"
 #include "motor_current.h"
 #include "motor_pid.h"
-#include "motor_reference_trig.h"
 #include "motor_feedback.h"
 #include "motor_mt6701.h"
 #include "hal_motor.h"
@@ -665,26 +664,15 @@ int Cmd_SensorlessObserver(int argc, char *argv[])
  */
 int Cmd_SensorlessPhase(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, sensorless_phase_offset),
+        .clamp = CMD_CONFIG_CLAMP_NONE,
+        .show_format = "Sensorless phase offset = %.4f rad  (usage: slphase <rad>)\n",
+        .set_format = "Sensorless phase offset set to %.4f rad\n",
+        .applied = Motor_Sensorless_Reset,
+    };
 
-    if (argc < 2) {
-        PRINTF("Sensorless phase offset = %.4f rad  (usage: slphase <rad>)\n", motor.sensorless_phase_offset);
-        return 0;
-    }
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.sensorless_phase_offset = atof(argv[1]);
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    Motor_Sensorless_Reset();
-    PRINTF("Sensorless phase offset set to %.4f rad\n", motor.sensorless_phase_offset);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 #endif /* MOTOR_CFG_CMD_SENSORLESS */
 #ifdef __cplusplus

@@ -36,3 +36,6 @@ __pycache__/
 !/Doc/verify/hall_verify_ed43d8a7-dirty_20260920-162355_2000RPM.log
 !/Doc/verify/hall_verify_ed43d8a7-dirty_20260920-162613_2500RPM.log
 !/Doc/verify/hall_verify_ed43d8a7-dirty_20260920-162848_3000RPM.log
+
+# 一次性补丁、提交草稿等临时文件
+/tmp/

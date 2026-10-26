@@ -44,13 +44,10 @@ typedef char motor_fault_debug_size_check_t[sizeof(motor_fault_debug_descriptor_
 typedef char motor_fault_sample_size_check_t[sizeof(motor_fault_trace_sample_t) == 84U ? 1 : -1];
 static unsigned s_trace_head, s_trace_count, s_trace_divider, s_trace_post;
 static bool s_trace_closed, s_trace_trigger;
-bool s_trace_active;
 static bool s_trace_entry_mode, s_trace_entry_trigger;
 static bool s_trace_entry_fast;
 static bool s_trace_light;
 static bool s_compact_running, s_compact_stop;
-bool s_trace_compact;
-bool s_trace_fault;
 static uint32_t s_fault_trace_last_us;
 static bool s_fault_trace_seeded;
 static uint32_t s_compact_flags, s_compact_trigger_flags;
@@ -58,7 +55,6 @@ static bool s_trace_flight;
 #define MOTOR_TRACE_FLIGHT_ENTRY 192U
 #define MOTOR_TRACE_FLIGHT_RING (MOTOR_TRACE_CAPACITY - MOTOR_TRACE_FLIGHT_ENTRY)
 static unsigned s_flight_entry_count, s_flight_head, s_flight_count;
-uint16_t s_trace_gap_max, s_trace_full_max, s_trace_pending, s_trace_up;
 
 /**
  * @description: 在武装、冻结或复用缓冲时发布调试器描述符。
@@ -104,9 +100,9 @@ static void Motor_Timing_FaultDebugPublish(uint32_t state, unsigned fault)
 void Motor_Timing_TraceArm(void)
 {
     Motor_Timing_FaultDebugPublish(MOTOR_FAULT_DEBUG_INVALID, 0U);
-    s_trace_fault = false;
-    s_trace_compact = false;
-    s_performance_enabled = true;
+    g_motor_diag.trace_fault = false;
+    g_motor_diag.trace_compact = false;
+    g_motor_diag.performance_enabled = true;
     s_trace_head = s_trace_count = s_trace_divider = s_trace_post = 0U;
     s_trace_closed = s_trace_trigger = false;
     s_trace_entry_mode = s_trace_entry_trigger = false;
@@ -114,9 +110,9 @@ void Motor_Timing_TraceArm(void)
     s_trace_light = false;
     s_trace_flight = false;
     s_flight_entry_count = s_flight_head = s_flight_count = 0U;
-    s_trace_entry_seed = false;
-    s_trace_gap_max = s_trace_full_max = s_trace_pending = s_trace_up = 0U;
-    s_trace_active = true;
+    g_motor_diag.trace_entry_seed = false;
+    g_motor_diag.trace_gap_max = g_motor_diag.trace_full_max = g_motor_diag.trace_pending = g_motor_diag.trace_up = 0U;
+    g_motor_diag.trace_active = true;
 }
 
 /**
@@ -132,8 +128,8 @@ void Motor_Timing_TraceArmCompact(void)
     uint32_t key = Motor_Crit_Enter();
     Motor_Timing_TraceArm();
     Motor_Timing_CadenceStop();
-    s_performance_enabled = s_profile_active = false;
-    s_trace_compact = true;
+    g_motor_diag.performance_enabled = g_motor_diag.profile_active = false;
+    g_motor_diag.trace_compact = true;
     s_compact_running = s_compact_stop = false;
     s_compact_flags = s_compact_trigger_flags = 0U;
     Motor_Crit_Exit(key);
@@ -144,13 +140,13 @@ void Motor_Timing_TraceArmCompact(void)
  * @return {bool} true=紧凑格式且不是故障轨迹
  * @author: lkc
  */
-bool Motor_Timing_TraceIsCompact(void) { return s_trace_compact && !s_trace_fault; }
+bool Motor_Timing_TraceIsCompact(void) { return g_motor_diag.trace_compact && !g_motor_diag.trace_fault; }
 /**
  * @description: 查询紧凑轨迹是否仍在采集。
  * @return {bool} true=紧凑格式且未冻结
  * @author: lkc
  */
-bool Motor_Timing_TraceCompactIsActive(void) { return s_trace_compact && !s_trace_fault && s_trace_active; }
+bool Motor_Timing_TraceCompactIsActive(void) { return g_motor_diag.trace_compact && !g_motor_diag.trace_fault && g_motor_diag.trace_active; }
 
 /**
  * @description: 停机任务里武装故障前分频环形记录。
@@ -163,7 +159,7 @@ void Motor_Timing_FaultTraceArm(void)
 {
     uint32_t key = Motor_Crit_Enter();
     Motor_Timing_TraceArmCompact();
-    s_trace_fault = true;
+    g_motor_diag.trace_fault = true;
     s_fault_trace_seeded = false;
     Motor_Timing_FaultDebugPublish(MOTOR_FAULT_DEBUG_ARMED, 0U);
     Motor_Crit_Exit(key);
@@ -173,14 +169,14 @@ void Motor_Timing_FaultTraceArm(void)
  * @return {bool} true=故障轨迹格式
  * @author: lkc
  */
-bool Motor_Timing_TraceIsFault(void) { return s_trace_fault; }
+bool Motor_Timing_TraceIsFault(void) { return g_motor_diag.trace_fault; }
 /**
  * @description: 查询故障轨迹是否仍在采集。
  * @detail: ISR 写者用它检查采集开关。停机任务只宜用它判断格式是否活动，不要读取活动数组。
  * @return {bool} true=故障格式且未冻结
  * @author: lkc
  */
-bool Motor_Timing_FaultTraceIsActive(void) { return s_trace_fault && s_trace_active; }
+bool Motor_Timing_FaultTraceIsActive(void) { return g_motor_diag.trace_fault && g_motor_diag.trace_active; }
 /**
  * @description: 判断本控制入口是否写入一条故障轨迹。
  * @detail: ISR 采样前调用。普通情况每 4 拍放行一次。force 为真时强制本拍，同一入口时间不重复。
@@ -236,7 +232,7 @@ void Motor_Timing_FaultTraceFreeze(unsigned fault)
         unsigned last = (s_trace_head + MOTOR_TRACE_CAPACITY - 1U) % MOTOR_TRACE_CAPACITY;
         s_trace_storage.fault[last].flags |= (fault & 0xffffU) << 16;
     }
-    s_trace_active = false;
+    g_motor_diag.trace_active = false;
     Motor_Timing_FaultDebugPublish(MOTOR_FAULT_DEBUG_FROZEN, fault);
 }
 /**
@@ -250,7 +246,7 @@ void Motor_Timing_FaultTraceFreeze(unsigned fault)
 bool Motor_Timing_FaultTraceGet(unsigned index, motor_fault_trace_sample_t *sample)
 {
     unsigned first;
-    if (!s_trace_fault || s_trace_active || sample == NULL || index >= s_trace_count) return false;
+    if (!g_motor_diag.trace_fault || g_motor_diag.trace_active || sample == NULL || index >= s_trace_count) return false;
     first = (s_trace_head + MOTOR_TRACE_CAPACITY - s_trace_count) % MOTOR_TRACE_CAPACITY;
     *sample = s_trace_storage.fault[(first + index) % MOTOR_TRACE_CAPACITY];
     return true;
@@ -277,8 +273,8 @@ bool Motor_Timing_TraceCompactDue(uint32_t time_us, unsigned state, unsigned fau
     if (running && s_trace_closed && state != 2U) events |= MOTOR_TRACE_COMPACT_LOSS;
     if (state == 2U) s_trace_closed = true;
     if (fault != 0U) events |= MOTOR_TRACE_COMPACT_FAULT;
-    if (running && s_speed_complete_us != 0U &&
-        time_us - s_speed_complete_us > MOTOR_TRACE_COMPACT_TASK_TIMEOUT_US)
+    if (running && g_motor_diag.speed_complete_us != 0U &&
+        time_us - g_motor_diag.speed_complete_us > MOTOR_TRACE_COMPACT_TASK_TIMEOUT_US)
         events |= MOTOR_TRACE_COMPACT_TASK_GAP;
     if (!running) {
         events |= MOTOR_TRACE_COMPACT_STOP;
@@ -317,7 +313,7 @@ void Motor_Timing_TracePushCompact(const motor_trace_compact_sample_t *sample)
     if (++s_trace_head >= MOTOR_TRACE_COMPACT_CAPACITY) s_trace_head = 0U;
     if (s_trace_count < MOTOR_TRACE_COMPACT_CAPACITY) s_trace_count++;
     if (s_compact_stop || (s_trace_trigger && s_trace_post != 0U && --s_trace_post == 0U))
-        s_trace_active = false;
+        g_motor_diag.trace_active = false;
 }
 /**
  * @description: 按时间顺序读取一条已冻结的紧凑轨迹。
@@ -330,7 +326,7 @@ void Motor_Timing_TracePushCompact(const motor_trace_compact_sample_t *sample)
 bool Motor_Timing_TraceGetCompact(unsigned index, motor_trace_compact_sample_t *sample)
 {
     unsigned first;
-    if (s_trace_active || !s_trace_compact || s_trace_fault || sample == NULL || index >= s_trace_count) return false;
+    if (g_motor_diag.trace_active || !g_motor_diag.trace_compact || g_motor_diag.trace_fault || sample == NULL || index >= s_trace_count) return false;
     first = (s_trace_head + MOTOR_TRACE_COMPACT_CAPACITY - s_trace_count) % MOTOR_TRACE_COMPACT_CAPACITY;
     *sample = s_trace_storage.compact[(first + index) % MOTOR_TRACE_COMPACT_CAPACITY];
     return true;
@@ -408,8 +404,8 @@ unsigned Motor_Timing_TraceFlightEntryCount(void) { return s_flight_entry_count;
 void Motor_Timing_TraceStop(void)
 {
     uint32_t key = Motor_Crit_Enter();
-    if (s_trace_fault) Motor_Timing_FaultTraceFreeze(0U);
-    else s_trace_active = false;
+    if (g_motor_diag.trace_fault) Motor_Timing_FaultTraceFreeze(0U);
+    else g_motor_diag.trace_active = false;
     Motor_Crit_Exit(key);
 }
 /**
@@ -437,7 +433,7 @@ unsigned Motor_Timing_TraceCount(void)
 bool Motor_Timing_TraceDue(unsigned state)
 {
     bool event;
-    if (!s_trace_active || s_trace_compact) return false;
+    if (!g_motor_diag.trace_active || g_motor_diag.trace_compact) return false;
     event = !s_trace_trigger && s_trace_closed && state != 2U;
     if (s_trace_entry_mode && !s_trace_entry_trigger && state == 2U) {
         s_trace_entry_trigger = true;
@@ -474,19 +470,19 @@ void Motor_Timing_TracePush(const motor_trace_sample_t *sample)
 {
     motor_trace_sample_t *destination;
     COMMON_ASSERT(sample != NULL);
-    if (!s_trace_active || s_trace_light || s_trace_compact) return;
+    if (!g_motor_diag.trace_active || s_trace_light || g_motor_diag.trace_compact) return;
     destination = &s_trace[s_trace_head];
     *destination = *sample;
-    destination->gap_max_us = s_trace_gap_max;
-    destination->full_max_us = s_trace_full_max;
-    destination->pending_count = s_trace_pending;
-    destination->up_count = s_trace_up;
-    s_trace_gap_max = s_trace_full_max = s_trace_pending = s_trace_up = 0U;
+    destination->gap_max_us = g_motor_diag.trace_gap_max;
+    destination->full_max_us = g_motor_diag.trace_full_max;
+    destination->pending_count = g_motor_diag.trace_pending;
+    destination->up_count = g_motor_diag.trace_up;
+    g_motor_diag.trace_gap_max = g_motor_diag.trace_full_max = g_motor_diag.trace_pending = g_motor_diag.trace_up = 0U;
     if (s_trace_trigger) destination->flags |= 128U;
     if (s_trace_entry_trigger) destination->flags |= 256U;
     s_trace_head = (s_trace_head + 1U) % MOTOR_TRACE_CAPACITY;
     if (s_trace_count < MOTOR_TRACE_CAPACITY) s_trace_count++;
-    if ((s_trace_trigger || s_trace_entry_trigger) && s_trace_post && --s_trace_post == 0U) s_trace_active = false;
+    if ((s_trace_trigger || s_trace_entry_trigger) && s_trace_post && --s_trace_post == 0U) g_motor_diag.trace_active = false;
 }
 /**
  * @description: 按时间顺序读取一条已经停止写入的环形诊断。
@@ -500,7 +496,7 @@ void Motor_Timing_TracePush(const motor_trace_sample_t *sample)
 bool Motor_Timing_TraceGet(unsigned index, motor_trace_sample_t *sample)
 {
     unsigned first;
-    if (s_trace_active || s_trace_light || s_trace_compact || sample == NULL || index >= s_trace_count) return false;
+    if (g_motor_diag.trace_active || s_trace_light || g_motor_diag.trace_compact || sample == NULL || index >= s_trace_count) return false;
     first = (s_trace_head + MOTOR_TRACE_CAPACITY - s_trace_count) % MOTOR_TRACE_CAPACITY;
     *sample = s_trace[(first + index) % MOTOR_TRACE_CAPACITY];
     return true;
@@ -519,7 +515,7 @@ void Motor_Timing_TracePushLight(const motor_trace_light_sample_t *sample)
 {
     motor_trace_light_sample_t *destination;
     COMMON_ASSERT(sample != NULL);
-    if (!s_trace_active || !s_trace_light) return;
+    if (!g_motor_diag.trace_active || !s_trace_light) return;
     if (s_trace_flight) {
         if (s_trace_entry_trigger && s_flight_entry_count < MOTOR_TRACE_FLIGHT_ENTRY) {
             destination = &s_trace_storage.light[s_flight_entry_count++];
@@ -530,19 +526,19 @@ void Motor_Timing_TracePushLight(const motor_trace_light_sample_t *sample)
         }
     } else destination = &s_trace_storage.light[s_trace_head];
     *destination = *sample;
-    destination->gap_max_us = s_trace_gap_max;
-    destination->full_max_us = s_trace_full_max;
-    s_trace_gap_max = s_trace_full_max = s_trace_pending = s_trace_up = 0U;
+    destination->gap_max_us = g_motor_diag.trace_gap_max;
+    destination->full_max_us = g_motor_diag.trace_full_max;
+    g_motor_diag.trace_gap_max = g_motor_diag.trace_full_max = g_motor_diag.trace_pending = g_motor_diag.trace_up = 0U;
     if (s_trace_trigger) destination->flags |= 128U;
     if (s_trace_entry_trigger) destination->flags |= 256U;
     if (s_trace_flight) {
         /* ISR状态回退保留当拍后立即冻结；命令守卫由TraceStop在关桥前冻结。 */
-        if (s_trace_trigger) s_trace_active = false;
+        if (s_trace_trigger) g_motor_diag.trace_active = false;
         return;
     }
     s_trace_head = (s_trace_head + 1U) % MOTOR_TRACE_CAPACITY;
     if (s_trace_count < MOTOR_TRACE_CAPACITY) s_trace_count++;
-    if ((s_trace_trigger || s_trace_entry_trigger) && s_trace_post && --s_trace_post == 0U) s_trace_active = false;
+    if ((s_trace_trigger || s_trace_entry_trigger) && s_trace_post && --s_trace_post == 0U) g_motor_diag.trace_active = false;
 }
 
 /**
@@ -557,7 +553,7 @@ void Motor_Timing_TracePushLight(const motor_trace_light_sample_t *sample)
 bool Motor_Timing_TraceGetLight(unsigned index, motor_trace_light_sample_t *sample)
 {
     unsigned first;
-    if (s_trace_active || !s_trace_light || sample == NULL || index >= Motor_Timing_TraceCount()) return false;
+    if (g_motor_diag.trace_active || !s_trace_light || sample == NULL || index >= Motor_Timing_TraceCount()) return false;
     if (s_trace_flight) {
         if (index < s_flight_entry_count) *sample = s_trace_storage.light[index];
         else {

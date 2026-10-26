@@ -223,15 +223,6 @@ void sincos_f32(float x, float *sine, float *cosine);
 void sincos_taylor_f32(float x, float *sine, float *cosine);
 
 /**
- * @description: 计算数据的 CRC-8 校验值。
- * @param {const uint8_t} *data  待校验数据指针
- * @param {const uint32_t} size  数据长度 (byte)
- * @return {uint8_t} CRC-8 校验值
- * @author: lkc
- */
-uint8_t crc8(const uint8_t *data, const uint32_t size);
-
-/**
  * @description: 计算数据的 CRC-32 校验值。
  * @param {const uint8_t} *data  待校验数据指针
  * @param {uint32_t} size        数据长度 (byte)
@@ -239,91 +230,6 @@ uint8_t crc8(const uint8_t *data, const uint32_t size);
  * @author: lkc
  */
 uint32_t crc32(const uint8_t *data, uint32_t size);
-
-/**
- * @description: 将 uint32 值打包为字节写入数据缓冲。
- * @param {uint32_t} val   待打包数值
- * @param {uint8_t} *data  输出缓冲（至少 4 byte）
- * @return {int} 写入字节数
- * @author: lkc
- */
-int uint32_to_data(uint32_t val, uint8_t *data);
-
-/**
- * @description: 将 int32 值打包为字节写入数据缓冲。
- * @param {int32_t} val    待打包数值
- * @param {uint8_t} *data  输出缓冲（至少 4 byte）
- * @return {int} 写入字节数
- * @author: lkc
- */
-int int32_to_data(int32_t val, uint8_t *data);
-
-/**
- * @description: 将 uint16 值打包为字节写入数据缓冲。
- * @param {uint16_t} val   待打包数值
- * @param {uint8_t} *data  输出缓冲（至少 2 byte）
- * @return {int} 写入字节数
- * @author: lkc
- */
-int uint16_to_data(uint16_t val, uint8_t *data);
-
-/**
- * @description: 将 int16 值打包为字节写入数据缓冲。
- * @param {int16_t} val    待打包数值
- * @param {uint8_t} *data  输出缓冲（至少 2 byte）
- * @return {int} 写入字节数
- * @author: lkc
- */
-int int16_to_data(int16_t val, uint8_t *data);
-
-/**
- * @description: 将 float 值打包为字节写入数据缓冲。
- * @param {float} val      待打包数值
- * @param {uint8_t} *data  输出缓冲（至少 4 byte）
- * @return {int} 写入字节数
- * @author: lkc
- */
-int float_to_data(float val, uint8_t *data);
-
-/**
- * @description: 从数据缓冲解包出 uint32 值。
- * @param {uint8_t} *data  输入缓冲（至少 4 byte）
- * @return {uint32_t} 解包数值
- * @author: lkc
- */
-uint32_t data_to_uint32(uint8_t *data);
-
-/**
- * @description: 从数据缓冲解包出 int32 值。
- * @param {uint8_t} *data  输入缓冲（至少 4 byte）
- * @return {int32_t} 解包数值
- * @author: lkc
- */
-int32_t data_to_int32(uint8_t *data);
-
-/**
- * @description: 从数据缓冲解包出 uint16 值。
- * @param {uint8_t} *data  输入缓冲（至少 2 byte）
- * @return {uint16_t} 解包数值
- * @author: lkc
- */
-uint16_t data_to_uint16(uint8_t *data);
-
-/**
- * @description: 从数据缓冲解包出 int16 值。
- * @param {uint8_t} *data  输入缓冲（至少 2 byte）
- * @return {int16_t} 解包数值
- * @author: lkc
- */
-int16_t data_to_int16(uint8_t *data);
-
-/**
- * @description: 从数据缓冲解包出 float 值。
- * @param {uint8_t} *data  输入缓冲（至少 4 byte）
- * @return {float} 解包数值
- * @author: lkc
- */
-float data_to_float(uint8_t *data);
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,6 @@
-#include <math.h>
 #include "motor_reference_trig.h"
+#if MOTOR_CFG_REFERENCE_TRIG
+#include <math.h>
 
 #if defined(__CC_ARM)
 #pragma O2
@@ -29,3 +30,4 @@ void Motor_ReferenceTrigRaw(float angle, int terms, float *sine, float *cosine)
     *sine = motor_reference_sin(angle, terms);
     *cosine = motor_reference_cos(angle, terms);
 }
+#endif /* MOTOR_CFG_REFERENCE_TRIG */

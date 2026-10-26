@@ -23,7 +23,6 @@ const osThreadAttr_t taskInitAttr = {
     .priority = PRI_INIT,
     .stack_size = 2048U * sizeof(StackType_t), // CMSIS-RTOS 栈大小单位为字节
 };
-float target;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -84,7 +83,7 @@ LONG main(VOID)
     COMMON_ASSERT(osThreadNew(Task_Init, NULL, &taskInitAttr) != NULL); // 创建初始化任务
     COMMON_ASSERT(osKernelStart() == osOK);                             /* 任务启动 */
 
-    return;
+    return 0;
 }
 
 #ifdef __cplusplus

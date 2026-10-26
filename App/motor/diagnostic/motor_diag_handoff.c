@@ -28,15 +28,12 @@ typedef char motor_phase_fits_handoff[(sizeof(motor_phase_sample_t) <= sizeof(mo
 typedef char motor_step_fits_handoff[(sizeof(motor_observer_step_sample_t) <= sizeof(motor_handoff_sample_t)) ? 1 : -1];
 typedef char motor_pair_fits_handoff[(sizeof(motor_pair_sample_t) <= sizeof(motor_handoff_sample_t)) ? 1 : -1];
 static bool s_pair_previous_valid;
-bool s_pair_mode;
-bool s_pair_half;
 static motor_pair_frame_t s_pair_previous, s_pair_current;
 static bool s_phase_mode;
 static bool s_phase_long;
 static bool s_step_mode;
 static unsigned s_handoff_head, s_handoff_count, s_handoff_divider, s_handoff_post;
 static bool s_handoff_marked, s_handoff_triggered;
-bool s_handoff_active;
 /**
  * @description: 停机时武装交接短窗口。
  * @detail: 进入临界区后清索引并开始采集。与相位、观测步进和配对记录互斥，复用 32 条缓冲。
@@ -49,12 +46,12 @@ void Motor_Timing_HandoffArm(void)
     uint32_t key = Motor_Crit_Enter();
     s_handoff_head = s_handoff_count = s_handoff_divider = s_handoff_post = 0U;
     s_handoff_marked = s_handoff_triggered = false;
-    s_handoff_active = true;
+    g_motor_diag.handoff_active = true;
     s_phase_mode = false;
     s_phase_long = false;
     s_step_mode = false;
-    s_pair_mode = s_pair_previous_valid = false;
-    s_pair_half = false;
+    g_motor_diag.pair_mode = s_pair_previous_valid = false;
+    g_motor_diag.pair_half = false;
     Motor_Crit_Exit(key);
 }
 /**
@@ -66,7 +63,7 @@ void Motor_Timing_HandoffArm(void)
 void Motor_Timing_HandoffStop(void)
 {
     uint32_t key = Motor_Crit_Enter();
-    s_handoff_active = false;
+    g_motor_diag.handoff_active = false;
     Motor_Crit_Exit(key);
 }
 /**
@@ -77,7 +74,7 @@ void Motor_Timing_HandoffStop(void)
  */
 void Motor_Timing_HandoffMark(void)
 {
-    if (s_handoff_active && !s_handoff_triggered) s_handoff_marked = true;
+    if (g_motor_diag.handoff_active && !s_handoff_triggered) s_handoff_marked = true;
 }
 /**
  * @description: 按当前窗口的分频决定本拍是否采样。
@@ -88,11 +85,11 @@ void Motor_Timing_HandoffMark(void)
  */
 static bool Motor_Timing_CaptureDue(void)
 {
-    if (!s_handoff_active) return false;
+    if (!g_motor_diag.handoff_active) return false;
     if (s_handoff_marked) {
         s_handoff_triggered = true;
         s_handoff_post = s_phase_long ? 28U : 16U;
-    } else if (++s_handoff_divider < (s_pair_half ? 901U : (s_phase_long ? 450U : 15U))) return false;
+    } else if (++s_handoff_divider < (g_motor_diag.pair_half ? 901U : (s_phase_long ? 450U : 15U))) return false;
     s_handoff_divider = 0U;
     return true;
 }
@@ -144,7 +141,7 @@ void Motor_Timing_PhaseArmLong(void)
  */
 bool Motor_Timing_PhaseDue(bool completed)
 {
-    if (!s_phase_mode || s_step_mode || s_pair_mode || !s_handoff_active) return false;
+    if (!s_phase_mode || s_step_mode || g_motor_diag.pair_mode || !g_motor_diag.handoff_active) return false;
     if (completed && !s_handoff_triggered) s_handoff_marked = true;
     return Motor_Timing_CaptureDue();
 }
@@ -164,7 +161,7 @@ void Motor_Timing_PhasePush(const motor_phase_sample_t *sample)
     s_handoff_marked = false;
     s_handoff_head = (s_handoff_head + 1U) % MOTOR_HANDOFF_CAPACITY;
     if (s_handoff_count < MOTOR_HANDOFF_CAPACITY) s_handoff_count++;
-    if (s_handoff_post && --s_handoff_post == 0U) s_handoff_active = false;
+    if (s_handoff_post && --s_handoff_post == 0U) g_motor_diag.handoff_active = false;
 }
 /**
  * @description: 按时间顺序读取一条已停止的相位样本。
@@ -177,7 +174,7 @@ void Motor_Timing_PhasePush(const motor_phase_sample_t *sample)
 bool Motor_Timing_PhaseGet(unsigned index, motor_phase_sample_t *out)
 {
     unsigned first;
-    if (!s_phase_mode || s_step_mode || s_pair_mode || s_handoff_active || out == NULL || index >= s_handoff_count) return false;
+    if (!s_phase_mode || s_step_mode || g_motor_diag.pair_mode || g_motor_diag.handoff_active || out == NULL || index >= s_handoff_count) return false;
     first = (s_handoff_head + MOTOR_HANDOFF_CAPACITY - s_handoff_count) % MOTOR_HANDOFF_CAPACITY;
     *out = s_capture.phase[(first + index) % MOTOR_HANDOFF_CAPACITY];
     return true;
@@ -211,7 +208,7 @@ void Motor_Timing_PairArm(void)
 {
     uint32_t key = Motor_Crit_Enter();
     Motor_Timing_PhaseArmLong();
-    s_pair_mode = true;
+    g_motor_diag.pair_mode = true;
     memset(&s_pair_current, 0, sizeof(s_pair_current));
     Motor_Crit_Exit(key);
 }
@@ -220,7 +217,7 @@ void Motor_Timing_PairArm(void)
  * @return {bool} true=配对模式
  * @author: lkc
  */
-bool Motor_Timing_PairMode(void) { return s_pair_mode; }
+bool Motor_Timing_PairMode(void) { return g_motor_diag.pair_mode; }
 /**
  * @description: 停机时武装原始半周期回调配对。
  * @detail: 每 901 次回调抽样。起转时应停止诊断，本函数不阻止控制。状态位复用 reconstructed。
@@ -231,7 +228,7 @@ void Motor_Timing_PairHalfArm(void)
 {
     uint32_t key = Motor_Crit_Enter();
     Motor_Timing_PairArm();
-    s_pair_half = true;
+    g_motor_diag.pair_half = true;
     Motor_Crit_Exit(key);
 }
 /**
@@ -239,13 +236,13 @@ void Motor_Timing_PairHalfArm(void)
  * @return {bool} true=半周期配对
  * @author: lkc
  */
-bool Motor_Timing_PairHalfMode(void) { return s_pair_half; }
+bool Motor_Timing_PairHalfMode(void) { return g_motor_diag.pair_half; }
 /**
  * @description: 查询配对记录是否仍在采集。
  * @return {bool} true=配对模式且窗口未冻结
  * @author: lkc
  */
-bool Motor_Timing_PairActive(void) { return s_pair_mode && s_handoff_active; }
+bool Motor_Timing_PairActive(void) { return g_motor_diag.pair_mode && g_motor_diag.handoff_active; }
 /**
  * @description: 写入重构后的电流帧，并判断本拍是否凑成一对。
  * @detail: 每个选中 FOC 拍调用一次。第一帧只建立前拍，返回 false。之后按分频返回 true 时，同拍调用 PairPush。
@@ -286,7 +283,7 @@ void Motor_Timing_PairPush(float v_alpha, float v_beta)
     s_handoff_marked = false;
     s_handoff_head = (s_handoff_head + 1U) % MOTOR_HANDOFF_CAPACITY;
     if (s_handoff_count < MOTOR_HANDOFF_CAPACITY) s_handoff_count++;
-    if (s_handoff_post && --s_handoff_post == 0U) s_handoff_active = false;
+    if (s_handoff_post && --s_handoff_post == 0U) g_motor_diag.handoff_active = false;
 }
 /**
  * @description: 按时间顺序读取一条已停止的配对样本。
@@ -299,7 +296,7 @@ void Motor_Timing_PairPush(float v_alpha, float v_beta)
 bool Motor_Timing_PairGet(unsigned index, motor_pair_sample_t *out)
 {
     unsigned first;
-    if (!s_pair_mode || s_handoff_active || out == NULL || index >= s_handoff_count) return false;
+    if (!g_motor_diag.pair_mode || g_motor_diag.handoff_active || out == NULL || index >= s_handoff_count) return false;
     first = (s_handoff_head + MOTOR_HANDOFF_CAPACITY - s_handoff_count) % MOTOR_HANDOFF_CAPACITY;
     *out = s_capture.pair[(first + index) % MOTOR_HANDOFF_CAPACITY];
     return true;
@@ -310,7 +307,7 @@ bool Motor_Timing_PairGet(unsigned index, motor_pair_sample_t *out)
  * @return {bool} true=步进模式且窗口未冻结
  * @author: lkc
  */
-bool Motor_Timing_ObserverStepActive(void) { return s_step_mode && s_handoff_active; }
+bool Motor_Timing_ObserverStepActive(void) { return s_step_mode && g_motor_diag.handoff_active; }
 /**
  * @description: 判断本拍是否写入观测步进样本。
  * @detail: 只在步进模式推进一次抽样计数。不改控制。
@@ -337,7 +334,7 @@ void Motor_Timing_ObserverStepPush(const motor_observer_step_sample_t *sample)
     s_handoff_marked = false;
     s_handoff_head = (s_handoff_head + 1U) % MOTOR_HANDOFF_CAPACITY;
     if (s_handoff_count < MOTOR_HANDOFF_CAPACITY) s_handoff_count++;
-    if (s_handoff_post && --s_handoff_post == 0U) s_handoff_active = false;
+    if (s_handoff_post && --s_handoff_post == 0U) g_motor_diag.handoff_active = false;
 }
 /**
  * @description: 按时间顺序读取一条已停止的观测步进样本。
@@ -350,7 +347,7 @@ void Motor_Timing_ObserverStepPush(const motor_observer_step_sample_t *sample)
 bool Motor_Timing_ObserverStepGet(unsigned index, motor_observer_step_sample_t *out)
 {
     unsigned first;
-    if (!s_step_mode || s_handoff_active || out == NULL || index >= s_handoff_count) return false;
+    if (!s_step_mode || g_motor_diag.handoff_active || out == NULL || index >= s_handoff_count) return false;
     first = (s_handoff_head + MOTOR_HANDOFF_CAPACITY - s_handoff_count) % MOTOR_HANDOFF_CAPACITY;
     *out = s_capture.step[(first + index) % MOTOR_HANDOFF_CAPACITY];
     return true;
@@ -409,7 +406,7 @@ void Motor_Timing_HandoffAfter(const MOTOR_PARAM_S *motor, float vd, float vq)
     sample->vd = vd; sample->vq = vq;
     s_handoff_head = (s_handoff_head + 1U) % MOTOR_HANDOFF_CAPACITY;
     if (s_handoff_count < MOTOR_HANDOFF_CAPACITY) s_handoff_count++;
-    if (s_handoff_post && --s_handoff_post == 0U) s_handoff_active = false;
+    if (s_handoff_post && --s_handoff_post == 0U) g_motor_diag.handoff_active = false;
 }
 /**
  * @description: 返回交接缓冲里尚未被覆盖的条数。
@@ -429,7 +426,7 @@ unsigned Motor_Timing_HandoffCount(void) { return s_handoff_count; }
 bool Motor_Timing_HandoffGet(unsigned index, motor_handoff_sample_t *out)
 {
     unsigned first;
-    if (s_phase_mode || s_handoff_active || out == NULL || index >= s_handoff_count) return false;
+    if (s_phase_mode || g_motor_diag.handoff_active || out == NULL || index >= s_handoff_count) return false;
     first = (s_handoff_head + MOTOR_HANDOFF_CAPACITY - s_handoff_count) % MOTOR_HANDOFF_CAPACITY;
     *out = s_capture.handoff[(first + index) % MOTOR_HANDOFF_CAPACITY];
     return true;

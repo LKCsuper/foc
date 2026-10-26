@@ -24,11 +24,11 @@ try {
     $currentBench = [regex]::Match($diagSource, '(?s)static int ol_current_bench\(void\)\s*\{.*?\r?\n\}')
     if (!$currentBench.Success) { throw 'Stopped current benchmark missing' }
     [IO.File]::WriteAllText((Join-Path $root '.build/host/current_bench_under_test.inc'), $currentBench.Value, [Text.UTF8Encoding]::new($false))
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -ILibrary/Common/inc -I.build/host -IApp/motor_param/inc @motorInc -IApp/motor_sensor/inc Tests/host/test_current_bench.c -o .build/host/test_current_bench.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -DMOTOR_CFG_REFERENCE_TRIG=1 -ILibrary/Common/inc -I.build/host -IApp/motor_param/inc @motorInc -IApp/motor_sensor/inc Tests/host/test_current_bench.c -o .build/host/test_current_bench.exe
     if ($LASTEXITCODE -ne 0) { throw 'Current benchmark compilation failed' }
     & .build/host/test_current_bench.exe
     if ($LASTEXITCODE -ne 0) { throw 'Current benchmark tests failed' }
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror @motorInc App/motor/diagnostic/motor_reference_trig.c Tests/host/test_reference_trig.c -o .build/host/test_reference_trig.exe
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -DMOTOR_CFG_REFERENCE_TRIG=1 @motorInc App/motor/diagnostic/motor_reference_trig.c Tests/host/test_reference_trig.c -o .build/host/test_reference_trig.exe
     if ($LASTEXITCODE -ne 0) { throw 'Reference trig compilation failed' }
     & .build/host/test_reference_trig.exe
     if ($LASTEXITCODE -ne 0) { throw 'Reference trig tests failed' }
@@ -39,6 +39,20 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Brief RPM command compilation failed' }
     & .build/host/test_rpm_brief.exe
     if ($LASTEXITCODE -ne 0) { throw 'Brief RPM command tests failed' }
+    # 命令参数严格解析与 float 配置命令通用实现（截取 cmd_openloop.c 标记区间）。
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -IApp/cmd/inc Tests/host/test_cmd_args.c -o .build/host/test_cmd_args.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Command argument compilation failed' }
+    & .build/host/test_cmd_args.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Command argument tests failed' }
+    $cfgStart = $cmdSource.IndexOf('/* cmd config float:')
+    $cfgEnd = $cmdSource.IndexOf('/* end cmd config float */', $cfgStart)
+    if ($cfgStart -lt 0 -or $cfgEnd -le $cfgStart) { throw 'Config float command boundaries missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/cmd_config_float_under_test.inc'),
+        $cmdSource.Substring($cfgStart, $cfgEnd - $cfgStart), [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -ILibrary/Common/inc -I.build/host -IApp/cmd/inc -IApp/motor_param/inc @motorInc -IApp/motor_sensor/inc Tests/host/test_cmd_config_float.c -o .build/host/test_cmd_config_float.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Config float command compilation failed' }
+    & .build/host/test_cmd_config_float.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Config float command tests failed' }
     $irqSource = Get-Content Library/Hal/port/stm32f4/hal_motor_stm32f4.c -Raw -Encoding utf8
     $phaseSource = Get-Content App/motor/diagnostic/motor_diag_schedule.c -Raw -Encoding utf8
     $phaseCapture = [regex]::Match($phaseSource, '(?s)motor_phase_debug_t g_motor_phase_debug;.*?void Motor_Timing_PhaseEdgeNote\(.*?\r?\n\}')
@@ -88,7 +102,12 @@ try {
     $focDispatch = [regex]::Match($focSource, '(?s)void Motor_FocIsr_Step\(MOTOR_PARAM_S \*motor_param\)\s*\{.*?\r?\n\}')
     if (!$focDispatch.Success) { throw 'FOC dispatch function missing' }
     [IO.File]::WriteAllText((Join-Path $root '.build/host/foc_dispatch_under_test.inc'), $focDispatch.Value, [Text.UTF8Encoding]::new($false))
-    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/host Tests/host/test_foc_dispatch.c -o .build/host/test_foc_dispatch.exe
+    # 完整控制拍半周期门控（纯计算）
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror @motorInc App/motor/core/motor_foc_divider.c Tests/host/test_motor_foc_gate.c -o .build/host/test_motor_foc_gate.exe
+    if ($LASTEXITCODE -ne 0) { throw 'FOC phase gate compilation failed' }
+    & .build/host/test_motor_foc_gate.exe
+    if ($LASTEXITCODE -ne 0) { throw 'FOC phase gate tests failed' }
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -ILibrary/Common/inc -IApp/motor/core/inc -I.build/host App/motor/core/motor_foc_divider.c Tests/host/test_foc_dispatch.c -o .build/host/test_foc_dispatch.exe
     if ($LASTEXITCODE -ne 0) { throw 'FOC dispatch compilation failed' }
     & .build/host/test_foc_dispatch.exe
     if ($LASTEXITCODE -ne 0) { throw 'FOC dispatch tests failed' }
@@ -179,6 +198,11 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Motor 2804 settings compilation failed' }
     & .build/host/test_motor_settings_2804.exe
     if ($LASTEXITCODE -ne 0) { throw 'Motor 2804 settings tests failed' }
+    # Flash 线格式金标准：字段表改顺序/类型会在这里失败。
+    & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -IApp/motor_param/inc @motorInc App/motor_param/motor_settings.c Tests/host/test_motor_settings_wire.c -o .build/host/test_motor_settings_wire.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Settings wire format compilation failed' }
+    & .build/host/test_motor_settings_wire.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Settings wire format tests failed' }
     & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror -Wno-int-to-void-pointer-cast -ITests/host/stubs -IApp/motor_param/inc @motorInc -IApp/motor_sensor/inc -ILibrary/Hal/inc App/motor/loop/motor_anticogging.c App/motor_param/motor_settings.c App/motor_param/flash_storage.c Tests/host/stubs/hal_flash_host.c Tests/host/test_flash_storage.c -o .build/host/test_flash_storage.exe
     if ($LASTEXITCODE -ne 0) { throw 'Flash host compilation failed' }
     & .build/host/test_flash_storage.exe

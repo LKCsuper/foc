@@ -15,6 +15,10 @@ extern "C" {
 #include "motor_hall.h"
 #include "motor_hall_angle.h"
 #include "motor_protect.h"
+#if defined(__CC_ARM)
+/* 位于 ADC 中断控制路径，与其他实时模块一致局部 O2；不启用快速浮点，公式不变。 */
+#pragma O2
+#endif
 
 static uint8_t s_hall_adc_div;
 static float s_hall_dt_acc_s;

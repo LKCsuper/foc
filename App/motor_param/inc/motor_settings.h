@@ -13,50 +13,19 @@ extern "C" {
 #include "motor_param.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
+/* 字段类型映射，供 motor_config_fields.inc 展开 */
+#define MOTOR_CONFIG_TYPE_FLOAT float
+#define MOTOR_CONFIG_TYPE_BOOL  bool
+#define MOTOR_CONFIG_TYPE_U16   uint16_t
+#define MOTOR_CONFIG_TYPE_INT   int
+
+/**
+ * @description: 可持久化的运行配置；字段、单位与约束见 motor_config_fields.inc。
+ */
 typedef struct {
-    float ol_max_rpm;           /* max target speed RPM */
-    float ol_v_boost;           /* V/F 启动补偿 V */
-    float ol_kv_f;              /* V/F 斜率 V/Hz */
-    float ol_ramp_rpm_s;        /* 软启动速率 RPM/s */
-    float ol_vq_limit;          /* Vq 上限 V */
-    float ol_foc_freq;          /* ADC-DMA 基准频率 Hz */
-    float ol_pole_pairs;        /* 电机极对数 */
-    float ol_min_rpm;           /* 旧启动策略兼容参数；平滑启动不作转速地板 */
-    float ol_current_kp;        /* 开环电流环 Kp */
-    float ol_current_ki;        /* 开环电流环 Ki */
-    float ol_start_phase_boost; /* 兼容旧启动方式的一拍相位补偿 rad */
-    bool ol_align_enable;       /* true=每次 I/F 启动前执行预对齐 */
-    float ol_align_current;     /* 对齐 D 轴电流 Id (A) */
-    float ol_align_time;        /* 固定磁场保持时间 (s) */
-    float ol_align_angle;       /* 固定对齐电角度 (rad) */
-    bool hfi_start_enable;      /* true=I/F 启动前先扫描转子凸极轴 */
-    float hfi_start_voltage;    /* 双极性注入电压幅值 V */
-    uint16_t hfi_start_cycles;
-    float hfi_start_min_confidence;
-    bool speed_enable;
-    bool speed_allow_braking;
-    float speed_kp;
-    float speed_ki;
-    float speed_iq_limit;
-    float speed_loop_hz;
-    bool sensorless_enable;
-    bool sensorless_takeover;
-    float sensorless_motor_r;
-    float sensorless_motor_l;
-    float sensorless_flux_linkage;
-    float sensorless_observer_gain;
-    float sensorless_pll_kp;
-    float sensorless_pll_ki;
-    float sensorless_transition_rpm;
-    float sensorless_fallback_rpm;
-    float sensorless_openloop_max_rpm;
-    float sensorless_lock_time;
-    float sensorless_loss_time;
-    float sensorless_blend_time;
-    float sensorless_phase_tolerance;
-    float sensorless_phase_offset;
-    float sensorless_speed_filter;
-    int hall_extra_samples; /* 霍尔 GPIO 额外滤波次数 */
+#define MOTOR_CONFIG_FIELD(name, kind, nonneg, stop, word_max) MOTOR_CONFIG_TYPE_##kind name;
+#include "motor_config_fields.inc"
+#undef MOTOR_CONFIG_FIELD
 } motor_config_t;
 
 typedef struct {

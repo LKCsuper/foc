@@ -38,7 +38,12 @@ static int ol_trig_bench(void)
 {
     motor_command_t command;
     uint32_t totals[3][8] = {{0U}}, maxima[3][8] = {{0U}};
+#if MOTOR_CFG_REFERENCE_TRIG
     const int terms[5] = {3, 5, 7, 9, 12};
+    const unsigned mode_count = 8U;
+#else
+    const unsigned mode_count = 3U; /* 未编入对照基准时只测 empty/table/Taylor */
+#endif
     volatile float checksum = 0.0f;
     unsigned family, mode, batch, index;
     if (Motor_GetCommand(&motor, &command) != MOTOR_OK || command.enable || motor.ol_enable ||
@@ -48,7 +53,7 @@ static int ol_trig_bench(void)
         return -1;
     }
     for (family = 0U; family < 3U; ++family) {
-        for (mode = 0U; mode < 8U; ++mode) {
+        for (mode = 0U; mode < mode_count; ++mode) {
             for (batch = 0U; batch < 128U; ++batch) {
                 float sine = 0.0f, cosine = 0.0f;
                 float angle = family == 0U ? -3.141592654f + 6.283185307f * (float)batch / 127.0f :
@@ -61,7 +66,9 @@ static int ol_trig_bench(void)
                 for (index = 0U; index < 4U; ++index) {
                     if (mode == 1U) sincos_f32(angle, &sine, &cosine);
                     else if (mode == 2U) sincos_taylor_f32(angle, &sine, &cosine);
+#if MOTOR_CFG_REFERENCE_TRIG
                     else if (mode >= 3U) Motor_ReferenceTrigRaw(angle, terms[mode - 3U], &sine, &cosine);
+#endif
                 }
                 elapsed = Hal_Motor_TimeUs() - begin;
                 Motor_Crit_Exit(key);
@@ -72,7 +79,7 @@ static int ol_trig_bench(void)
         }
     }
     for (family = 0U; family < 3U; ++family) {
-        for (mode = 0U; mode < 8U; ++mode) {
+        for (mode = 0U; mode < mode_count; ++mode) {
             PRINTF("Trig bench family=%u mode=%u n=512 total=%lu avg=%.3f max_batch=%lu us\n",
                    family, mode, (unsigned long)totals[family][mode], (float)totals[family][mode] / 512.0f,
                    (unsigned long)maxima[family][mode]);

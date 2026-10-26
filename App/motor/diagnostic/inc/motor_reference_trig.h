@@ -1,5 +1,10 @@
 #ifndef MOTOR_REFERENCE_TRIG_H
 #define MOTOR_REFERENCE_TRIG_H
+#include "motor_config.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+#if MOTOR_CFG_REFERENCE_TRIG
 
 /**
  * @description: 只供停机对照，调用用户提供的原始正余弦函数，不修改第三方文件。
@@ -12,5 +17,8 @@
  * @return {void} 无
  */
 void Motor_ReferenceTrigRaw(float angle, int terms, float *sine, float *cosine);
-
+#endif /* MOTOR_CFG_REFERENCE_TRIG */
+#ifdef __cplusplus
+}
+#endif
 #endif

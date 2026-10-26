@@ -28,7 +28,6 @@ extern "C" {
 #include "motor_foc.h"
 #include "motor_current.h"
 #include "motor_pid.h"
-#include "motor_reference_trig.h"
 #include "motor_feedback.h"
 #include "motor_mt6701.h"
 #include "hal_motor.h"
@@ -88,6 +87,91 @@ void Cmd_Ol_PrintConfigResult(motor_result_t result)
         PRINTF("Invalid config\n");
     }
 }
+
+/**
+ * @description: ol_max_rpm 变化后同步收紧启动转速与无感开环上限，保持旧 olmax 行为。
+ * @param {motor_config_t *} cfg 待提交配置，不可为空
+ * @return {void} 无
+ */
+static void Cmd_Ol_AdjustMaxSpeed(motor_config_t *cfg)
+{
+    if (cfg->ol_min_rpm > cfg->ol_max_rpm) {
+        cfg->ol_min_rpm = cfg->ol_max_rpm;
+    }
+    if (cfg->sensorless_openloop_max_rpm > cfg->ol_max_rpm) {
+        cfg->sensorless_openloop_max_rpm = cfg->ol_max_rpm;
+    }
+}
+
+/**
+ * @description: 启动转速不得超过已设置的最大转速，保持旧 olmin 行为。
+ * @param {motor_config_t *} cfg 待提交配置，不可为空
+ * @return {void} 无
+ */
+static void Cmd_Ol_AdjustMinSpeed(motor_config_t *cfg)
+{
+    if (cfg->ol_max_rpm > 0.0f && cfg->ol_min_rpm > cfg->ol_max_rpm) {
+        cfg->ol_min_rpm = cfg->ol_max_rpm;
+    }
+}
+
+/* cmd config float: 主机测试按此标记截取 */
+/**
+ * @description: 单个 float 配置项命令的通用实现：无参数时显示，有参数时严格解析、限幅、整体提交。
+ * @detail: 只在 Shell 任务上下文调用；数值经 Motor_SetConfig 校验，显示值取提交后重新捕获的配置。
+ *          非法数字（如 "abc"、"1.5x"、nan）直接拒绝，不再像 atof 那样当成 0 写入。
+ * @param {const cmd_config_float_t *} spec 字段描述，不可为空
+ * @param {int} argc 参数个数
+ * @param {char *} argv[] 参数列表，argv[1] 为新值
+ * @return {int} 0 成功，-1 参数或提交失败
+ */
+int Cmd_ConfigFloat(const cmd_config_float_t *spec, int argc, char *argv[])
+{
+    motor_config_t cfg;
+    motor_result_t result;
+    float value;
+    float *field;
+
+    COMMON_ASSERT(spec != NULL);
+    if (!Cmd_Ol_CaptureConfig(&cfg)) {
+        PRINTF("Invalid config\n");
+        return -1;
+    }
+    field = (float *)(void *)((uint8_t *)&cfg + spec->offset);
+    if (argc < 2) {
+        PRINTF(spec->show_format, *field);
+        return 0;
+    }
+    if (!Cmd_ArgFloat(argv[1], &value)) {
+        PRINTF("Invalid number: %s\n", argv[1]);
+        PRINTF(spec->show_format, *field);
+        return -1;
+    }
+    if (spec->clamp == CMD_CONFIG_CLAMP_ABS) {
+        value = fabsf(value);
+    } else if (spec->clamp == CMD_CONFIG_CLAMP_MIN && value < spec->min) {
+        value = spec->min;
+    }
+    *field = value;
+    if (spec->adjust != NULL) {
+        spec->adjust(&cfg);
+    }
+    result = Motor_SetConfig(&motor, &cfg);
+    if (result != MOTOR_OK) {
+        Cmd_Ol_PrintConfigResult(result);
+        return -1;
+    }
+    if (spec->applied != NULL) {
+        spec->applied();
+    }
+    if (!Cmd_Ol_CaptureConfig(&cfg)) {
+        PRINTF("Invalid config\n");
+        return -1;
+    }
+    PRINTF(spec->set_format, *field);
+    return 0;
+}
+/* end cmd config float */
 
 /**
  * @description: 尝试获取 olstatus 静态缓冲区互斥锁。
@@ -463,28 +547,15 @@ int Cmd_OlSpeed(int argc, char *argv[])
  */
 int Cmd_OlBoost(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, ol_v_boost),
+        .clamp = CMD_CONFIG_CLAMP_MIN,
+        .min = 0.0f,
+        .show_format = "V_boost = %.2f V  (usage: olboost <volts>)\n",
+        .set_format = "V_boost set to %.2f V\n",
+    };
 
-    if (argc < 2) {
-        PRINTF("V_boost = %.2f V  (usage: olboost <volts>)\n", motor.ol_v_boost);
-        return 0;
-    }
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.ol_v_boost = atof(argv[1]);
-    if (cfg.ol_v_boost < 0.0f) {
-        cfg.ol_v_boost = 0.0f;
-    }
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    PRINTF("V_boost set to %.2f V\n", motor.ol_v_boost);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 
 /**
@@ -496,28 +567,15 @@ int Cmd_OlBoost(int argc, char *argv[])
  */
 int Cmd_OlKvf(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, ol_kv_f),
+        .clamp = CMD_CONFIG_CLAMP_MIN,
+        .min = 0.0f,
+        .show_format = "Kv_f = %.4f V/Hz  (usage: olkvf <V/Hz>)\n",
+        .set_format = "Kv_f set to %.4f V/Hz\n",
+    };
 
-    if (argc < 2) {
-        PRINTF("Kv_f = %.4f V/Hz  (usage: olkvf <V/Hz>)\n", motor.ol_kv_f);
-        return 0;
-    }
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.ol_kv_f = atof(argv[1]);
-    if (cfg.ol_kv_f < 0.0f) {
-        cfg.ol_kv_f = 0.0f;
-    }
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    PRINTF("Kv_f set to %.4f V/Hz\n", motor.ol_kv_f);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 
 /**
@@ -529,29 +587,15 @@ int Cmd_OlKvf(int argc, char *argv[])
  */
 int Cmd_OlRamp(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, ol_ramp_rpm_s),
+        .clamp = CMD_CONFIG_CLAMP_MIN,
+        .min = 0.0f,
+        .show_format = "Ramp = %.0f RPM/s (I/F V/F only; speed loop uses 25000 ERPM/s)\nUsage: olramp <rpm/s>\n",
+        .set_format = "Ramp set to %.0f RPM/s (I/F V/F; speed loop ignores this)\n",
+    };
 
-    if (argc < 2) {
-        PRINTF("Ramp = %.0f RPM/s (I/F V/F only; speed loop uses 25000 ERPM/s)\n", motor.ol_ramp_rpm_s);
-        PRINTF("Usage: olramp <rpm/s>\n");
-        return 0;
-    }
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.ol_ramp_rpm_s = atof(argv[1]);
-    if (cfg.ol_ramp_rpm_s < 0.0f) {
-        cfg.ol_ramp_rpm_s = 0.0f;
-    }
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    PRINTF("Ramp set to %.0f RPM/s (I/F V/F; speed loop ignores this)\n", motor.ol_ramp_rpm_s);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 
 /**
@@ -563,28 +607,15 @@ int Cmd_OlRamp(int argc, char *argv[])
  */
 int Cmd_OlVlimit(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, ol_vq_limit),
+        .clamp = CMD_CONFIG_CLAMP_MIN,
+        .min = 0.0f,
+        .show_format = "Vq_limit = %.1f V  (usage: olvlimit <volts>)\n",
+        .set_format = "Vq_limit set to %.1f V\n",
+    };
 
-    if (argc < 2) {
-        PRINTF("Vq_limit = %.1f V  (usage: olvlimit <volts>)\n", motor.ol_vq_limit);
-        return 0;
-    }
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.ol_vq_limit = atof(argv[1]);
-    if (cfg.ol_vq_limit < 0.0f) {
-        cfg.ol_vq_limit = 0.0f;
-    }
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    PRINTF("Vq_limit set to %.1f V\n", motor.ol_vq_limit);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 
 /**
@@ -596,35 +627,16 @@ int Cmd_OlVlimit(int argc, char *argv[])
  */
 int Cmd_OlMaxSpeed(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, ol_max_rpm),
+        .clamp = CMD_CONFIG_CLAMP_MIN,
+        .min = 1.0f,
+        .show_format = "Max RPM = %.0f  (usage: olmax <rpm>)\n",
+        .set_format = "Max RPM set to %.0f\n",
+        .adjust = Cmd_Ol_AdjustMaxSpeed,
+    };
 
-    if (argc < 2) {
-        PRINTF("Max RPM = %.0f  (usage: olmax <rpm>)\n", motor.ol_max_rpm);
-        return 0;
-    }
-
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.ol_max_rpm = atof(argv[1]);
-    if (cfg.ol_max_rpm < 1.0f) {
-        cfg.ol_max_rpm = 1.0f;
-    }
-    if (cfg.ol_min_rpm > cfg.ol_max_rpm) {
-        cfg.ol_min_rpm = cfg.ol_max_rpm;
-    }
-    if (cfg.sensorless_openloop_max_rpm > cfg.ol_max_rpm) {
-        cfg.sensorless_openloop_max_rpm = cfg.ol_max_rpm;
-    }
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    PRINTF("Max RPM set to %.0f\n", motor.ol_max_rpm);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 
 /**
@@ -636,32 +648,16 @@ int Cmd_OlMaxSpeed(int argc, char *argv[])
  */
 int Cmd_OlMinSpeed(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, ol_min_rpm),
+        .clamp = CMD_CONFIG_CLAMP_MIN,
+        .min = 0.0f,
+        .show_format = "Start RPM = %.0f  (usage: olmin <rpm>)\n",
+        .set_format = "Start RPM set to %.0f\n",
+        .adjust = Cmd_Ol_AdjustMinSpeed,
+    };
 
-    if (argc < 2) {
-        PRINTF("Start RPM = %.0f  (usage: olmin <rpm>)\n", motor.ol_min_rpm);
-        return 0;
-    }
-
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.ol_min_rpm = atof(argv[1]);
-    if (cfg.ol_min_rpm < 0.0f) {
-        cfg.ol_min_rpm = 0.0f;
-    }
-    if (cfg.ol_max_rpm > 0.0f && cfg.ol_min_rpm > cfg.ol_max_rpm) {
-        cfg.ol_min_rpm = cfg.ol_max_rpm;
-    }
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    PRINTF("Start RPM set to %.0f\n", motor.ol_min_rpm);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 
 /**
@@ -1121,28 +1117,15 @@ int Cmd_Fw(int argc, char *argv[])
  */
 int Cmd_OlKp(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, ol_current_kp),
+        .clamp = CMD_CONFIG_CLAMP_MIN,
+        .min = 0.0f,
+        .show_format = "Current Kp = %.4f  (usage: olkp <value>)\n",
+        .set_format = "Current Kp set to %.4f\n",
+    };
 
-    if (argc < 2) {
-        PRINTF("Current Kp = %.4f  (usage: olkp <value>)\n", motor.ol_current_kp);
-        return 0;
-    }
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.ol_current_kp = atof(argv[1]);
-    if (cfg.ol_current_kp < 0.0f) {
-        cfg.ol_current_kp = 0.0f;
-    }
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    PRINTF("Current Kp set to %.4f\n", motor.ol_current_kp);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 
 /**
@@ -1154,28 +1137,15 @@ int Cmd_OlKp(int argc, char *argv[])
  */
 int Cmd_OlKi(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, ol_current_ki),
+        .clamp = CMD_CONFIG_CLAMP_MIN,
+        .min = 0.0f,
+        .show_format = "Current Ki = %.2f  (usage: olki <value>)\n",
+        .set_format = "Current Ki set to %.2f\n",
+    };
 
-    if (argc < 2) {
-        PRINTF("Current Ki = %.2f  (usage: olki <value>)\n", motor.ol_current_ki);
-        return 0;
-    }
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.ol_current_ki = atof(argv[1]);
-    if (cfg.ol_current_ki < 0.0f) {
-        cfg.ol_current_ki = 0.0f;
-    }
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    PRINTF("Current Ki set to %.2f\n", motor.ol_current_ki);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 
 /**
@@ -1187,27 +1157,14 @@ int Cmd_OlKi(int argc, char *argv[])
  */
 int Cmd_OlPhase(int argc, char *argv[])
 {
-    motor_config_t cfg;
-    motor_result_t result;
+    static const cmd_config_float_t spec = {
+        .offset = offsetof(motor_config_t, ol_start_phase_boost),
+        .clamp = CMD_CONFIG_CLAMP_NONE,
+        .show_format = "Legacy phase boost = %.2f rad (unused by smooth startup; usage: olphase <radians>)\n",
+        .set_format = "Legacy phase boost stored as %.2f rad; smooth startup does not use it\n",
+    };
 
-    if (argc < 2) {
-        PRINTF("Legacy phase boost = %.2f rad (unused by smooth startup; usage: olphase <radians>)\n",
-               motor.ol_start_phase_boost);
-        return 0;
-    }
-    if (!Cmd_Ol_CaptureConfig(&cfg)) {
-        PRINTF("Invalid config\n");
-        return -1;
-    }
-    cfg.ol_start_phase_boost = atof(argv[1]);
-    result = Motor_SetConfig(&motor, &cfg);
-    if (result != MOTOR_OK) {
-        Cmd_Ol_PrintConfigResult(result);
-        return -1;
-    }
-    PRINTF("Legacy phase boost stored as %.2f rad; smooth startup does not use it\n",
-           motor.ol_start_phase_boost);
-    return 0;
+    return Cmd_ConfigFloat(&spec, argc, argv);
 }
 
 /**
