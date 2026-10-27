@@ -36,10 +36,7 @@ static float Motor_Speed_Clamp(float value, float minimum, float maximum)
  */
 static void Motor_Speed_ClearPi(motor_speed_state_t *state)
 {
-    state->loop_time = 0.0f;
-    state->integral = 0.0f;
-    state->error = 0.0f;
-    state->iq_target = 0.0f;
+    Motor_Speed_ClearPiInline(state);
 }
 
 /**
@@ -65,12 +62,7 @@ void Motor_Speed_InitState(motor_speed_state_t *state)
  */
 void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool valid)
 {
-    COMMON_ASSERT(state != NULL);
-    state->measured_rpm = valid ? rpm : 0.0f;
-    state->feedback_valid = valid;
-    if (!valid) {
-        Motor_SpeedLoop_ResetState(state);
-    }
+    Motor_SpeedFeedback_SetStateInline(state, rpm, valid);
 }
 
 /**
@@ -81,11 +73,7 @@ void Motor_SpeedFeedback_SetState(motor_speed_state_t *state, float rpm, bool va
  */
 void Motor_SpeedLoop_ResetState(motor_speed_state_t *state)
 {
-    COMMON_ASSERT(state != NULL);
-    Motor_Speed_ClearPi(state);
-    state->zero_brake_active = false;
-    state->zero_brake_released = false;
-    state->zero_brake_direction = 0;
+    Motor_SpeedLoop_ResetStateInline(state);
 }
 
 /**

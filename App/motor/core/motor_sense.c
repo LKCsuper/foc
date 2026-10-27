@@ -46,6 +46,9 @@ static float Motor_Sense_CurrentOffsetValid(float offset)
  * @return {void} 无
  * @author: lkc
  */
+#if defined(__CC_ARM)
+__forceinline
+#endif
 void Motor_Sense_ApplyFrame(MOTOR_PARAM_S *m, const hal_motor_sample_t *sample, float i_scale, float v_gain)
 {
     float current_offset0;

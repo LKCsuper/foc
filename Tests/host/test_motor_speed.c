@@ -7,7 +7,7 @@
 #include "motor_speed.h"
 #include "motor_param.h"
 
-/* 默认包装路径会引用保护反馈；本测试只走 State API，提供空桩。 */
+/* 默认包装同步保护反馈；本测试用空桩隔离保护核心。 */
 /* Private functions ---------------------------------------------------------*/
 /**
  * @description: 主机测试替身：更新默认实例的速度反馈。
@@ -23,11 +23,59 @@ void Motor_Protect_SetSpeedFeedback(float rpm, bool valid)
 }
 
 /**
+ * @description: 验证反馈写回只改约定字段，无效反馈完整清 PI，默认复位仍关闭门控。
+ * @detail: 覆盖正负零和 NaN 传递，并验证反馈无效后重新预置 Iq 仍能被 Reset 清除。
+ * @return {void} 无
+ */
+static void check_feedback_reset_contract(void)
+{
+    const float speeds[] = {123.0f, -0.0f, NAN};
+    unsigned valid, i;
+    for (valid = 0U; valid < 2U; ++valid) {
+        for (i = 0U; i < sizeof(speeds) / sizeof(speeds[0]); ++i) {
+            motor_speed_state_t state = {0};
+            state.loop_time = 0.02f; state.integral = 3.0f;
+            state.error = 6.0f; state.iq_target = 2.0f;
+            state.control_target_rpm = 987.0f; state.control_measured_rpm = 321.0f;
+            state.update_count = 57U;
+            state.zero_brake_active = state.zero_brake_released = true;
+            state.zero_brake_direction = -1;
+            Motor_SpeedFeedback_SetState(&state, speeds[i], valid != 0U);
+            assert(state.feedback_valid == (valid != 0U));
+            if (valid != 0U) {
+                assert(isnan(speeds[i]) ? isnan(state.measured_rpm) : state.measured_rpm == speeds[i]);
+                if (speeds[i] == 0.0f) assert(signbit(state.measured_rpm));
+                assert(state.loop_time == 0.02f && state.integral == 3.0f);
+                assert(state.error == 6.0f && state.iq_target == 2.0f);
+                assert(state.zero_brake_active && state.zero_brake_released && state.zero_brake_direction == -1);
+            } else {
+                assert(state.measured_rpm == 0.0f);
+                assert(state.loop_time == 0.0f && state.integral == 0.0f);
+                assert(state.error == 0.0f && state.iq_target == 0.0f);
+                assert(!state.zero_brake_active && !state.zero_brake_released && state.zero_brake_direction == 0);
+            }
+            assert(state.control_target_rpm == 987.0f && state.control_measured_rpm == 321.0f);
+            assert(state.update_count == 57U);
+        }
+    }
+    Motor_Speed_Init();
+    Motor_SpeedLoop_SetRunAllowed(true);
+    Motor_SpeedLoop_PrimeIq(0.75f);
+    Motor_SpeedFeedback_Set(400.0f, false);
+    assert(!Motor_SpeedLoop_IsFeedbackValid() && Motor_SpeedLoop_GetMeasuredRpm() == 0.0f);
+    assert(Motor_SpeedLoop_GetIqTarget() == 0.0f && Motor_SpeedLoop_IsRunAllowed());
+    Motor_SpeedLoop_PrimeIq(0.5f);
+    Motor_SpeedLoop_Reset();
+    assert(Motor_SpeedLoop_GetIqTarget() == 0.0f && !Motor_SpeedLoop_IsRunAllowed());
+}
+
+/**
  * @description: 运行本文件的主机断言测试；失败时终止进程。
  * @return {int} 正常结束返回 0；断言失败会终止进程
  */
 int main(void)
 {
+    check_feedback_reset_contract();
     motor_speed_state_t a;
     motor_speed_state_t b;
     MOTOR_PARAM_S motor_a;

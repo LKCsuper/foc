@@ -5,6 +5,7 @@
 ## 构建入口
 
 - 应用工程：`App/Project/foc.uvprojx`，目标 `Foc`，使用 Keil MDK 的 ARM 工具链。
+- 应用目标默认采用 `-O3 -Otime --fpmode=std`，各文件已有的局部优化指令仍保留；源码单步可能跳行、部分变量可能无法观察。软件周期仿真的夹具固定为 O1。
 - 工作区：`Project/Master_Project.uvmpw`；Boot 是独立工程，不是核心算法依赖。
 - Keil 批编译：仓库根目录 `.\build_keil.ps1`（可选 `-Action rebuild|clean`、`-Project Boot`、`-Uv4 <UV4.exe>`）；实现在 `Scripts/build_keil.ps1`，日志在 `.build/keil/`。旧的 `App/Project/Foc.BAT` 含本机绝对路径，勿当通用脚本。
 - 当前应用输出目录在仓库外 `../build/`（相对应用工程为 `../../../build/`）。

@@ -3,6 +3,8 @@
  */
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
+#include <stddef.h>
+#include "common_assert.h"
 #include "motor_param.h"
 #include "motor_types.h"
 #include "motor_timing.h"
@@ -17,6 +19,9 @@ bool Motor_Timing_ProfileIsActive(void) { return false; }
 bool host_observer_step_active;
 motor_observer_step_sample_t host_observer_step;
 unsigned host_observer_step_count;
+bool host_phase_mode, host_phase_due;
+unsigned host_phase_queries, host_phase_count;
+motor_phase_sample_t host_phase_sample;
 /**
  * @description: 主机测试替身：查询观测步进记录是否仍在采集。
  * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
@@ -43,23 +48,28 @@ void Motor_Timing_ObserverStepPush(const motor_observer_step_sample_t *sample)
 /**
  * @description: 主机测试替身：查询相位记录是否为当前格式。
  * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
- * @return {bool} 本实现固定返回 false
+ * @return {bool} host_phase_mode 指定的格式开关
  */
-bool Motor_Timing_PhaseMode(void) { return false; }
+bool Motor_Timing_PhaseMode(void) { return host_phase_mode; }
 /**
  * @description: 主机测试替身：判断本拍是否写入相位样本。
  * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
  * @param {bool} completed 兼容参数，本实现不使用
- * @return {bool} 本实现固定返回 false
+ * @return {bool} host_phase_due 指定的采集拍
  */
-bool Motor_Timing_PhaseDue(bool completed) { (void)completed; return false; }
+bool Motor_Timing_PhaseDue(bool completed) { (void)completed; host_phase_queries++; return host_phase_due; }
 /**
  * @description: 主机测试替身：写入一条相位样本。
  * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
- * @param {const motor_phase_sample_t *} sample 兼容参数，本实现不使用
+ * @param {const motor_phase_sample_t *} sample 输出记录副本，不可为空
  * @return {void} 无
  */
-void Motor_Timing_PhasePush(const motor_phase_sample_t *sample) { (void)sample; }
+void Motor_Timing_PhasePush(const motor_phase_sample_t *sample)
+{
+    COMMON_ASSERT(sample != NULL);
+    host_phase_sample = *sample;
+    host_phase_count++;
+}
 /**
  * @description: 主机测试替身：读取分段计时用的当前时间戳。
  * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。

@@ -109,7 +109,7 @@ void Motor_Speed_Init(void)
  */
 void Motor_SpeedFeedback_Set(float rpm, bool valid)
 {
-    Motor_SpeedFeedback_SetState(&s_speed, rpm, valid);
+    Motor_SpeedFeedback_SetStateInline(&s_speed, rpm, valid);
     Motor_Protect_SetSpeedFeedback(s_speed.measured_rpm, valid);
 }
 
@@ -121,7 +121,7 @@ void Motor_SpeedFeedback_Set(float rpm, bool valid)
 void Motor_SpeedLoop_Reset(void)
 {
     s_pi_run_allowed = false;
-    Motor_SpeedLoop_ResetState(&s_speed);
+    Motor_SpeedLoop_ResetStateInline(&s_speed);
 }
 
 /**
@@ -134,7 +134,7 @@ void Motor_SpeedLoop_SetRunAllowed(bool allowed)
 {
     s_pi_run_allowed = allowed;
     if (!allowed) {
-        Motor_SpeedLoop_ResetState(&s_speed);
+        Motor_SpeedLoop_ResetStateInline(&s_speed);
     }
 }
 

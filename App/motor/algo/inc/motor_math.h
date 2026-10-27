@@ -150,6 +150,30 @@ uint32_t utils_crc32c(uint8_t *data, uint32_t len);
 #define ONE_BY_SQRT2			(0.7071067811865475f) /* 1/√2 */
 
 /* Private functions ---------------------------------------------------------*/
+/**
+ * @description: 单圈角度差的内联快路径，其余输入交由公共函数完整处理。
+ * @detail: 两角均在 [-π, π] 时差值有限且最多修正一次，保留公共函数的减法和加减顺序。
+ *          大角度及非有限输入回退；不缓存状态、不改变精度。
+ * @param {float} angle1 角度 1 (rad)
+ * @param {float} angle2 角度 2 (rad)
+ * @return {float} 最短角差，范围 [-π, π] (rad)；非法输入为 NaN
+ */
+/* ARMCC O2 未自动内联此短分支；只强制该单圈快路径，回退仍调用原函数。 */
+#if defined(__CC_ARM)
+static __forceinline float utils_angle_difference_rad_inline(float angle1, float angle2)
+#else
+static inline float utils_angle_difference_rad_inline(float angle1, float angle2)
+#endif
+{
+    if (angle1 >= -M_PI && angle1 <= M_PI && angle2 >= -M_PI && angle2 <= M_PI) {
+        float difference = angle1 - angle2;
+        if (difference < -M_PI) difference += 2.0f * M_PI;
+        if (difference > M_PI) difference -= 2.0f * M_PI;
+        return difference;
+    }
+    return utils_angle_difference_rad(angle1, angle2);
+}
+
 /* ========================================================================
  * 内联工具函数
  * ======================================================================== */

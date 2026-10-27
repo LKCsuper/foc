@@ -29,6 +29,8 @@ int main(void)
         for (int j = -256; j <= 256; ++j) {
             float a = (float)i * (2.0f * M_PI / 256.0f);
             float b = (float)j * (2.0f * M_PI / 256.0f);
+            assert(utils_float_same_bits(utils_angle_difference_rad_inline(a, b),
+                                         utils_angle_difference_rad(a, b)));
             assert(fabsf(utils_angle_difference_rad(a, b) - original_difference(a, b)) < 2e-6f);
         }
     }
@@ -37,10 +39,19 @@ int main(void)
     assert(isnan(utils_angle_difference_rad(INFINITY, 0.0f)));
     assert(isnan(utils_angle_difference_rad(0.0f, -INFINITY)));
     assert(isnan(utils_angle_difference_rad(NAN, 0.0f)));
-    const float values[] = {FLT_MAX, -FLT_MAX, 1e10f, -1e10f, 0.0f};
+    assert(isnan(utils_angle_difference_rad_inline(INFINITY, 0.0f)));
+    assert(isnan(utils_angle_difference_rad_inline(0.0f, -INFINITY)));
+    assert(isnan(utils_angle_difference_rad_inline(NAN, 0.0f)));
+    assert(utils_float_same_bits(utils_angle_difference_rad_inline(-0.0f, 0.0f), -0.0f));
+    assert(utils_angle_difference_rad_inline(M_PI, 0.0f) == M_PI);
+    assert(utils_angle_difference_rad_inline(-M_PI, 0.0f) == -M_PI);
+    const float values[] = {FLT_MAX, -FLT_MAX, 1e10f, -1e10f, 0.0f, -0.0f,
+        M_PI, -M_PI, nextafterf(M_PI, 0.0f), nextafterf(M_PI, INFINITY),
+        nextafterf(-M_PI, 0.0f), nextafterf(-M_PI, -INFINITY)};
     for (unsigned i = 0; i < sizeof(values) / sizeof(values[0]); ++i) {
         for (unsigned j = 0; j < sizeof(values) / sizeof(values[0]); ++j) {
             float d = utils_angle_difference_rad(values[i], values[j]);
+            assert(utils_float_same_bits(d, utils_angle_difference_rad_inline(values[i], values[j])));
             assert(isfinite(d));
             assert(d >= -(float)M_PI && d <= (float)M_PI);
         }

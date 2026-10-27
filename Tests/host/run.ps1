@@ -11,12 +11,28 @@ try {
         'App/motor/diagnostic/motor_diag_handoff.c', 'App/motor/diagnostic/motor_diag_schedule.c',
         'App/motor/diagnostic/motor_diag_trace.c')
     & (Join-Path $PSScriptRoot 'test_isr_stack_budget.ps1')
+    # 缓存目录必须覆盖原规整函数全部字段，避免后续新增规则却遗漏变更检测。
+    $controlSource = Get-Content App/motor/core/motor_control.c -Raw -Encoding utf8
+    $normalizeBody = [regex]::Match($controlSource, '(?s)void Motor_Control_NormalizeConfig\(MOTOR_PARAM_S \*motor\)\s*\{.*?\r?\n\}')
+    if (!$normalizeBody.Success) { throw 'Control normalization function missing' }
+    $normalizeFields = Get-Content App/motor/core/inc/motor_control_normalize_fields.inc -Raw -Encoding utf8
+    $usedFields = @([regex]::Matches($normalizeBody.Value, 'motor->(\w+)') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    $cachedFields = @([regex]::Matches($normalizeFields, '(?m)^MOTOR_NORMALIZE_FIELD\((\w+)\)') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    if (Compare-Object $usedFields $cachedFields) { throw 'Control normalization cache field coverage mismatch' }
     $env:ZIG_GLOBAL_CACHE_DIR = Join-Path $root '.build/zig-cache'
     if (!$Compiler) {
         $Compiler = Join-Path $root '.build/tools/ziglang/zig.exe'
         if (!(Test-Path $Compiler)) { throw 'Specify -Compiler path to zig.exe, or install ziglang into .build/tools.' }
     }
     $hallCalSources = @('App/motor_sensor/motor_hall_calibration.c', 'App/motor/algo/motor_math.c', 'App/motor/algo/motor_utils.c')
+    $hallDiagSource = Get-Content App/motor_sensor/motor_hall_diag.c -Raw -Encoding utf8
+    $hallDiagGate = [regex]::Match($hallDiagSource, '(?s)void Motor_Hall_DiagUpdate\(void\)\s*\{.*?\r?\n\}')
+    if (!$hallDiagGate.Success) { throw 'Hall diagnostic gate missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/hall_diag_gate_under_test.inc'), $hallDiagGate.Value, [Text.UTF8Encoding]::new($false))
+    & $Compiler cc -std=c99 -Wall -Wextra -Werror -I.build/host Tests/host/test_hall_diag_gate.c -o .build/host/test_hall_diag_gate.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Hall diagnostic gate compilation failed' }
+    & .build/host/test_hall_diag_gate.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Hall diagnostic gate tests failed' }
     & $Compiler cc -std=c99 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -ILibrary/Common/inc -IApp/motor_sensor/inc @motorInc @hallCalSources Tests/host/test_motor_hall_calibration.c -o .build/host/test_motor_hall_calibration.exe
     if ($LASTEXITCODE -ne 0) { throw 'Hall calibration core compilation failed' }
     & .build/host/test_motor_hall_calibration.exe
@@ -120,6 +136,15 @@ try {
     $focDispatch = [regex]::Match($focSource, '(?s)void Motor_FocIsr_Step\(MOTOR_PARAM_S \*motor_param\)\s*\{.*?\r?\n\}')
     if (!$focDispatch.Success) { throw 'FOC dispatch function missing' }
     [IO.File]::WriteAllText((Join-Path $root '.build/host/foc_dispatch_under_test.inc'), $focDispatch.Value, [Text.UTF8Encoding]::new($false))
+    $focArbitrate = [regex]::Match($focSource, '(?s)static void Motor_FocIsr_ArbitrateAndApply\(MOTOR_PARAM_S \*motor, motor_control_result_t result\)\s*\{.*?\r?\n\}')
+    if (!$focArbitrate.Success) { throw 'FOC final arbitration function missing' }
+    [IO.File]::WriteAllText((Join-Path $root '.build/host/foc_arbitrate_under_test.inc'), $focArbitrate.Value, [Text.UTF8Encoding]::new($false))
+    foreach ($hallSvm in @(0, 1)) {
+        & $Compiler cc -std=c99 -Wall -Wextra -Werror -ILibrary/Common/inc -IApp/motor_param/inc -IApp/motor_sensor/inc -I.build/host @motorInc "-DMOTOR_HALL_USE_VESC_SVM=$hallSvm" App/motor/core/motor_output_core.c Tests/host/test_foc_arbitrate.c -o .build/host/test_foc_arbitrate.exe
+        if ($LASTEXITCODE -ne 0) { throw 'FOC final arbitration compilation failed' }
+        & .build/host/test_foc_arbitrate.exe
+        if ($LASTEXITCODE -ne 0) { throw 'FOC final arbitration tests failed' }
+    }
     # 完整控制拍半周期门控（纯计算）
     & $Compiler cc -ILibrary/Common/inc -std=c99 -Wall -Wextra -Werror @motorInc App/motor/core/motor_foc_divider.c Tests/host/test_motor_foc_gate.c -o .build/host/test_motor_foc_gate.exe
     if ($LASTEXITCODE -ne 0) { throw 'FOC phase gate compilation failed' }

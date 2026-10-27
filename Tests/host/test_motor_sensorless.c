@@ -12,6 +12,9 @@
 extern bool host_observer_step_active;
 extern motor_observer_step_sample_t host_observer_step;
 extern unsigned host_observer_step_count;
+extern bool host_phase_mode, host_phase_due;
+extern unsigned host_phase_queries, host_phase_count;
+extern motor_phase_sample_t host_phase_sample;
 extern float host_speed_feedback_rpm;
 extern bool host_speed_feedback_valid;
 extern unsigned host_speed_feedback_calls;
@@ -220,6 +223,50 @@ static void check_blend_duration(float start, float target, float omega)
 }
 
 /**
+ * @description: 验证 CLOSED 失锁复用本拍方向标志，覆盖正反向、正负零及统计启用路径。
+ * @return {void} 无
+ */
+static void check_direction_loss(void)
+{
+    const float references[] = {-600.0f, -0.0f, 0.0f, 600.0f};
+    const float observed[] = {-600.0f, 600.0f};
+    unsigned i, j;
+    for (i = 0U; i < sizeof(references) / sizeof(references[0]); ++i) {
+        for (j = 0U; j < sizeof(observed) / sizeof(observed[0]); ++j) {
+            MOTOR_PARAM_S motor = {0};
+            motor_sensorless_runtime_t rt;
+            motor_sensorless_effects_t effects;
+            bool direction = references[i] == 0.0f || ((references[i] < 0.0f) == (observed[j] < 0.0f));
+            motor.ol_enable = true;
+            motor.ol_mode = MOTOR_OL_MODE_IF;
+            motor.sensorless_enable = true;
+            motor.sensorless_takeover = true;
+            motor.sensorless_flux_linkage = 0.02f;
+            motor.sensorless_observer_gain = 1.0f;
+            motor.ol_pole_pairs = 7.0f;
+            motor.ol_max_rpm = 6000.0f;
+            motor.ol_current_rpm = motor.ol_target_rpm = references[i];
+            motor.ol_iq_set = 0.6f;
+            motor.sensorless_transition_rpm = 500.0f;
+            motor.sensorless_fallback_rpm = 100.0f;
+            motor.sensorless_loss_time = 0.01f;
+            motor.sensorless_openloop_max_rpm = 800.0f;
+            Motor_Sensorless_InitState(&rt);
+            rt.initialized = true;
+            rt.state = MOTOR_SENSORLESS_CLOSED;
+            rt.x_alpha = 0.02f;
+            rt.filtered_rpm = observed[j];
+            rt.blend = 1.0f;
+            Motor_Sensorless_UpdateState(&rt, &motor, 0.0001f, &effects);
+            assert(rt.flux_ok && rt.direction_ok == direction);
+            assert(fabsf(rt.loss_timer - (direction ? 0.0f : 0.0001f)) < 1.0e-8f);
+            assert(rt.state == MOTOR_SENSORLESS_CLOSED);
+            assert(!effects.request_speed_loss_fault && effects.feedback_valid);
+        }
+    }
+}
+
+/**
  * @description: 运行本文件的主机断言测试；失败时终止进程。
  * @return {int} 正常结束返回 0；断言失败会终止进程
  */
@@ -237,6 +284,7 @@ int main(void)
     check_parameter_lower_bounds();
     check_pll_limit_updates();
     check_observer_step_capture();
+    check_direction_loss();
 
     memset(&motor, 0, sizeof(motor));
     motor.ol_mode = MOTOR_OL_MODE_IF;
@@ -480,6 +528,27 @@ int main(void)
         assert(host_observer_step.previous_dt == 0.0f);
         host_observer_step_active = false;
         Motor_Sensorless_Update(&cold, 0.000067f);
+        /* 未武装不准备相位样本；武装后保留本拍 PLL 前态及更新后态。 */
+        {
+            motor_sensorless_light_snapshot_t before, after;
+            host_phase_queries = host_phase_count = 0U;
+            host_phase_mode = false;
+            host_phase_due = true;
+            Motor_Sensorless_Update(&cold, 0.000067f);
+            assert(host_phase_queries == 0U && host_phase_count == 0U);
+            host_phase_mode = true;
+            host_phase_due = false;
+            Motor_Sensorless_Update(&cold, 0.000067f);
+            assert(host_phase_queries == 1U && host_phase_count == 0U);
+            host_phase_due = true;
+            Motor_Sensorless_GetLightSnapshot(&before);
+            Motor_Sensorless_Update(&cold, 0.000067f);
+            Motor_Sensorless_GetLightSnapshot(&after);
+            assert(host_phase_queries == 2U && host_phase_count == 1U);
+            assert(host_phase_sample.pll_before == before.pll && host_phase_sample.pll_after == after.pll);
+            assert(host_phase_sample.flux == after.flux && host_phase_sample.dt == 0.000067f);
+            host_phase_mode = host_phase_due = false;
+        }
         Motor_Sensorless_Init();
     }
     printf("test_motor_sensorless: pass\n");

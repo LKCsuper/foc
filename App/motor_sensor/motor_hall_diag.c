@@ -249,12 +249,12 @@ static void Motor_Hall_DiagCaptureBeat(float signed_phase_sum, float phase_sum, 
 }
 
 /**
- * @description: 在霍尔 I/F 运行时累计扇区电流和换相边沿统计。
- * @detail: 未使能、反馈不是霍尔或不是 I/F 时停止累计。目标转速变化后清零重新计。
+ * @description: 累计霍尔 I/F 的扇区电流和换相边沿统计。
+ * @detail: 调用者已确认运行条件；独立函数避免其他反馈模式准备整套浮点统计栈帧。
  * @return {void} 无
  * @author: lkc
  */
-void Motor_Hall_DiagUpdate(void)
+static __attribute__((noinline)) void Motor_Hall_DiagAccumulate(void)
 {
     motor_hall_current_diag_sector_t *sector;
     float signed_phase_sum;
@@ -265,11 +265,6 @@ void Motor_Hall_DiagUpdate(void)
     bool first_half;
     int hall_state;
 
-    if (!motor.ol_enable || Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_HALL ||
-        motor.ol_mode != MOTOR_OL_MODE_IF) {
-        s_hall_diag_running = false;
-        return;
-    }
     if (!s_hall_diag_running || s_hall_diag_target_rpm != motor.ol_target_rpm) {
         memset(s_hall_current_diag, 0, sizeof(s_hall_current_diag));
         memset(&s_hall_current_worst, 0, sizeof(s_hall_current_worst));
@@ -331,6 +326,22 @@ void Motor_Hall_DiagUpdate(void)
             sector->second_half_id_over++;
         }
     }
+}
+
+/**
+ * @description: 在霍尔 I/F 运行时累计扇区电流和换相边沿统计。
+ * @detail: 未使能、反馈不是霍尔或不是 I/F 时停止累计；满足条件后才进入统计主体。
+ * @return {void} 无
+ * @author: lkc
+ */
+void Motor_Hall_DiagUpdate(void)
+{
+    if (!motor.ol_enable || Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_HALL ||
+        motor.ol_mode != MOTOR_OL_MODE_IF) {
+        s_hall_diag_running = false;
+        return;
+    }
+    Motor_Hall_DiagAccumulate();
 }
 
 #ifdef __cplusplus

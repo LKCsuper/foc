@@ -42,6 +42,13 @@ typedef struct {
     float drag_current_scale; /* 0..1，Id 到 Iq 的平滑交接 */
 } motor_control_startup_t;
 
+/* 规整后字段的原始字节快照；逐字段比较，不比较结构体填充字节。 */
+typedef struct {
+#define MOTOR_NORMALIZE_FIELD(name) uint32_t name;
+#include "motor_control_normalize_fields.inc"
+#undef MOTOR_NORMALIZE_FIELD
+} motor_control_normalized_config_t;
+
 /**
  * @description: 控制编排实例（不持久化）
  */
@@ -51,6 +58,8 @@ typedef struct {
     int last_mode;           /* 上一控制模式；-1 表示尚未运行 */
     bool speed_loop_latched; /* 速度 PI 已接管；跌回门槛以下才释放给启动 Iq */
     float current_frame_correction; /* 本拍无感渐变附加角，排除正常转速积分(rad) */
+    motor_control_normalized_config_t normalized_config; /* 上次规整后字段；直接修改也在下一拍识别 */
+    bool normalized_config_valid; /* Init 清零，首次运行必须完整规整 */
 } motor_control_t;
 
 /**

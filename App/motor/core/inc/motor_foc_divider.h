@@ -12,6 +12,8 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
+#include "common_assert.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /**
@@ -94,6 +96,75 @@ bool Motor_FocDivider_PhaseGate(motor_foc_phase_gate_t *gate, const motor_foc_ph
 bool Motor_FocDivider_ControlExpired(motor_foc_phase_gate_t *clock, bool running, bool execute,
                                      uint32_t now_us, uint32_t max_gap_us);
 /* Private functions ---------------------------------------------------------*/
+#if defined(__CC_ARM)
+#define MOTOR_FOC_DIVIDER_INLINE static __forceinline
+#else
+#define MOTOR_FOC_DIVIDER_INLINE static inline
+#endif
+
+/**
+ * @description: 按计数方向与半周期内位置判断本回调是否跑完整 FOC。
+ * @detail: 与公共入口共用同一实现；ISR 内联以减少调用和配置搬运。
+ *          纯计算，不读寄存器；调用方先读 CR1.DIR 再读 CNT 传入。
+ *          counting_down=false、count>period、位置在窗口外或距上次放行不足 repeat_us 时返回 false。
+ * @param {motor_foc_phase_gate_t *} gate 门控状态，不可为空
+ * @param {const motor_foc_phase_gate_config_t *} config 门控参数，不可为空
+ * @param {bool} counting_down 定时器是否处于向下计数（TIM_CR1_DIR=1）
+ * @param {uint32_t} count 定时器当前计数 CNT
+ * @param {uint32_t} period 自动重装值 ARR
+ * @param {uint32_t} now_us 当前微秒时间戳，允许回绕
+ * @return {bool} true=本拍执行采样、保护、电流环和 SVPWM
+ */
+MOTOR_FOC_DIVIDER_INLINE bool Motor_FocDivider_PhaseGate_Inline(
+    motor_foc_phase_gate_t *gate, const motor_foc_phase_gate_config_t *config, bool counting_down,
+    uint32_t count, uint32_t period, uint32_t now_us)
+{
+    uint32_t since_top;
+
+    COMMON_ASSERT(gate != NULL);
+    COMMON_ASSERT(config != NULL);
+    if (!counting_down || count > period) return false;
+    /* 中心对齐向下计数：顶部更新时 CNT=ARR，之后递减，ARR-CNT 即顶部更新后经过的计数。 */
+    since_top = period - count;
+    if (since_top < config->min_counts || since_top > config->max_counts) return false;
+    if (gate->seeded && (uint32_t)(now_us - gate->last_us) < config->repeat_us) return false;
+    gate->last_us = now_us;
+    gate->seeded = true;
+    return true;
+}
+
+/**
+ * @description: 判断相邻完整控制拍是否超过最大允许间隔（控制节拍过期检测）。
+ * @detail: 与公共入口共用同一实现；ISR 内联以减少调用和配置搬运。
+ *          未运行时清空时间基准并返回 false；首次运行先记录基准时间。
+ *          距上次执行超过 max_gap_us、或 max_gap_us 为 0 时返回 true。
+ *          仅在本拍真正执行控制（execute=true）时刷新基准，连续拒绝选拍时能累计出过期。
+ * @param {motor_foc_phase_gate_t *} clock 过期检测状态，不可为空
+ * @param {bool} running                   控制是否运行中
+ * @param {bool} execute                   本拍是否执行了完整控制
+ * @param {uint32_t} now_us                当前时间戳 (us)，允许回绕
+ * @param {uint32_t} max_gap_us            相邻控制拍最大允许间隔 (us)
+ * @return {bool} true=控制拍已过期
+ */
+MOTOR_FOC_DIVIDER_INLINE bool Motor_FocDivider_ControlExpired_Inline(
+    motor_foc_phase_gate_t *clock, bool running, bool execute, uint32_t now_us, uint32_t max_gap_us)
+{
+    COMMON_ASSERT(clock != NULL);
+    if (!running) {
+        clock->seeded = false;
+        return false;
+    }
+    if (!clock->seeded) {
+        clock->last_us = now_us;
+        clock->seeded = true;
+    }
+    if (max_gap_us == 0U || (uint32_t)(now_us - clock->last_us) > max_gap_us) return true;
+    if (execute) clock->last_us = now_us;
+    return false;
+}
+
+#undef MOTOR_FOC_DIVIDER_INLINE
+
 #ifdef __cplusplus
 }
 #endif

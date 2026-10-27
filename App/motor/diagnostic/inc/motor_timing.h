@@ -11,6 +11,8 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <math.h>
 
 #include "motor_param.h"
 /* Private define ------------------------------------------------------------*/
@@ -23,6 +25,50 @@ typedef struct {
     uint32_t last_us;
     bool seeded;
 } motor_control_clock_t;
+
+/**
+ * @description: 控制时钟共享内联实现；与公共入口使用相同的校验和更新时间规则。
+ * @detail: 保留非法周期、首次使用、停止、半周期到三倍周期窗口及 uint32_t 回绕行为。
+ * @param {motor_control_clock_t *} clock 时钟状态；空则失败
+ * @param {bool} enabled true=采用实际入口间隔
+ * @param {uint32_t} time_us 当前入口时间 (us)
+ * @param {float} nominal_dt 名义控制周期 (s)，须有限且为正
+ * @param {float *} dt 输出周期 (s)；空则失败
+ * @return {bool} true=输出周期可用
+ */
+#if defined(__CC_ARM)
+static __forceinline bool Motor_Timing_ControlClockStep_Inline(
+#else
+static inline bool Motor_Timing_ControlClockStep_Inline(
+#endif
+    motor_control_clock_t *clock, bool enabled, uint32_t time_us, float nominal_dt, float *dt)
+{
+    float measured_dt;
+    uint32_t elapsed_us;
+    if (clock == NULL || dt == NULL) return false;
+    *dt = 0.0f;
+    if (!isfinite(nominal_dt) || nominal_dt <= 0.0f) {
+        clock->seeded = false;
+        return false;
+    }
+    if (!enabled) {
+        clock->seeded = false;
+        *dt = nominal_dt;
+        return true;
+    }
+    if (!clock->seeded) {
+        clock->last_us = time_us;
+        clock->seeded = true;
+        *dt = nominal_dt;
+        return true;
+    }
+    elapsed_us = time_us - clock->last_us;
+    clock->last_us = time_us;
+    measured_dt = (float)elapsed_us * 1.0e-6f;
+    if (measured_dt < nominal_dt * 0.5f || measured_dt > nominal_dt * 3.0f) return false;
+    *dt = measured_dt;
+    return true;
+}
 
 /**
  * @description: 把完整控制入口间隔换算成秒。

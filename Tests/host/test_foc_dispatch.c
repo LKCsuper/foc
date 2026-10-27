@@ -6,7 +6,6 @@
 #include <stdio.h>
 #include "motor_foc_divider.h"
 
-#define COMMON_ASSERT(value) assert(value)
 #define MOTOR_CFG_DIAG 1
 typedef struct { bool ol_enable; } MOTOR_PARAM_S;
 volatile uint32_t g_motor_phase_active;
@@ -14,7 +13,8 @@ static struct { int skip; int divider; } s_divider;
 static motor_foc_phase_gate_t s_control_deadline;
 static int s_control;
 static uint32_t s_now = 1234U;
-static unsigned s_faults, s_resets, s_safe;
+static unsigned s_faults, s_resets, s_safe, s_period_reads;
+static float s_nominal_dt = 1.0f / 15000.0f;
 #define FAULT_CODE_CONTROL_TIMING 1
 /**
  * @description: 主机测试替身：计算 FOC 控制环周期（已乘分频）。
@@ -22,7 +22,7 @@ static unsigned s_faults, s_resets, s_safe;
  * @param {MOTOR_PARAM_S *} motor 兼容参数，本实现不使用
  * @return {float} 测试记录值 1.0f / 15000.0f
  */
-static float Motor_Timing_GetControlDt(MOTOR_PARAM_S *motor) { (void)motor; return 1.0f / 15000.0f; }
+static float Motor_Timing_GetControlDt(MOTOR_PARAM_S *motor) { (void)motor; s_period_reads++; return s_nominal_dt; }
 /**
  * @description: 主机测试替身：默认实例外部触发故障锁存。
  * @detail: 仅供本文件的主机测试使用；模拟行为由函数体及测试断言限定。
@@ -139,11 +139,13 @@ static bool Motor_FocIsr_ShouldExecuteControl(motor_feedback_source_t source)
  * @param {MOTOR_PARAM_S *} motor 电机实例
  * @param {motor_feedback_source_t} source source 参数
  * @param {uint32_t} start start 参数
+ * @param {float} nominal_dt 本次回调读取的名义控制周期 (s)
  * @return {void} 无
  */
-static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor, motor_feedback_source_t source, uint32_t start)
+static void Motor_FocIsr_Run(MOTOR_PARAM_S *motor, motor_feedback_source_t source, uint32_t start, float nominal_dt)
 {
     assert(motor != NULL && source == s_source && start == s_now);
+    assert(nominal_dt == s_nominal_dt);
     s_runs++;
 }
 /**
@@ -250,6 +252,23 @@ int main(void)
         Motor_FocIsr_PublishStatusUnderTest(&motor);
         assert(s_status_frames == publishes + 1U);
     }
+    /* 停机跳过拍不查频率；完整拍与运行拍只查一次，下一回调立即采用新周期。 */
+    motor.ol_enable = false;
+    s_execute = false;
+    s_period_reads = 0U;
+    Motor_FocIsr_Step(&motor);
+    assert(s_period_reads == 0U);
+    s_execute = true;
+    Motor_FocIsr_Step(&motor);
+    assert(s_period_reads == 1U);
+    motor.ol_enable = true;
+    s_execute = false;
+    Motor_FocIsr_Step(&motor);
+    assert(s_period_reads == 2U);
+    s_execute = true;
+    s_nominal_dt = 1.0f / 20000.0f;
+    Motor_FocIsr_Step(&motor);
+    assert(s_period_reads == 3U);
     puts("test_foc_dispatch: pass");
     return 0;
 }

@@ -587,6 +587,56 @@ void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta)
 }
 
 /**
+ * @description: 对照每拍强制规整，验证缓存对直接字段修改与非有限值的行为。
+ * @detail: V/F 路径隔离观测器测试替身；逐字段覆盖、重复拍与实例复位均比较完整电机状态。
+ * @return {void} 无
+ */
+static void test_normalize_cache(void)
+{
+    motor_control_t cached;
+    MOTOR_PARAM_S motor;
+    const uint32_t values[] = {0U, 0x80000000U, 0xbf800000U, 0x3f800000U, 0x41a00000U, 0x7fc12345U};
+    unsigned i;
+    unsigned repeat;
+
+    memset(&motor, 0, sizeof(motor));
+    Motor_Control_Init(&cached);
+    Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_OPENLOOP);
+    motor.ol_enable = true;
+    motor.ol_target_rpm = 300.0f;
+    motor.ol_max_rpm = 1000.0f;
+    motor.ol_vq_limit = 6.0f;
+    motor.ol_pole_pairs = 7.0f;
+    (void)Motor_Control_Step(&cached, &motor, 24.0f, 1.0f / 15000.0f, false);
+    assert(cached.normalized_config_valid);
+
+#define MOTOR_NORMALIZE_FIELD(name)                                                                                   \
+    for (i = 0U; i < sizeof(values) / sizeof(values[0]); ++i) {                                                         \
+        uint32_t bits = values[i];                                                                                    \
+        if (sizeof(motor.name) == sizeof(bool)) bits = i % 2U;                                                         \
+        if (sizeof(motor.name) == sizeof(uint16_t)) bits = i * 13U;                                                    \
+        memcpy(&motor.name, &bits, sizeof(motor.name));                                                                \
+        for (repeat = 0U; repeat < 2U; ++repeat) {                                                                     \
+            MOTOR_PARAM_S reference_motor = motor;                                                                   \
+            motor_control_t reference = cached;                                                                      \
+            motor_control_result_t expected;                                                                         \
+            motor_control_result_t actual;                                                                           \
+            reference.normalized_config_valid = false;                                                               \
+            expected = Motor_Control_Step(&reference, &reference_motor, 24.0f, 1.0f / 15000.0f, false);               \
+            actual = Motor_Control_Step(&cached, &motor, 24.0f, 1.0f / 15000.0f, false);                               \
+            assert(memcmp(&expected, &actual, sizeof(actual)) == 0);                                                  \
+            assert(memcmp(&reference_motor, &motor, sizeof(motor)) == 0);                                              \
+            assert(memcmp(&reference.startup, &cached.startup, sizeof(cached.startup)) == 0);                          \
+        }                                                                                                            \
+    }
+#include "motor_control_normalize_fields.inc"
+#undef MOTOR_NORMALIZE_FIELD
+
+    Motor_Control_Init(&cached);
+    assert(!cached.normalized_config_valid);
+}
+
+/**
  * @description: 运行本文件的主机断言测试；失败时终止进程。
  * @return {int} 正常结束返回 0；断言失败会终止进程
  */
@@ -1258,6 +1308,7 @@ int main(void)
             }
         }
     }
+    test_normalize_cache();
     printf("test_motor_control: pass\n");
     return 0;
 }

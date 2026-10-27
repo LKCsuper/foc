@@ -25,6 +25,12 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
+#if defined(__CC_ARM)
+/* 输出路径保持独立源码与公共接口，内联同文件的重建和提交编排。 */
+#define MOTOR_OUTPUT_INLINE __forceinline
+#else
+#define MOTOR_OUTPUT_INLINE
+#endif
 /* Private variables ---------------------------------------------------------*/
 /* 仅诊断 RAM 参数：有效死区秒数乘 PWM 频率，不修改硬件死区或 PWM 命令。 */
 static float s_observer_deadtime_fraction;
@@ -104,7 +110,7 @@ float Motor_OutputGetObserverDeadtime(void)
  * @return {bool} 估计成功返回 true
  * @author: lkc
  */
-bool Motor_OutputEstimateVoltage(const MOTOR_PARAM_S *motor, uint32_t period, float v_bus,
+MOTOR_OUTPUT_INLINE bool Motor_OutputEstimateVoltage(const MOTOR_PARAM_S *motor, uint32_t period, float v_bus,
                                  float deadtime_fraction, float *v_alpha, float *v_beta)
 {
     motor_output_sample_t sample;
@@ -222,7 +228,8 @@ void Motor_OutputVoltageSensoredIf(MOTOR_PARAM_S *motor, float vd, float vq, flo
  * @return {void} 无
  * @author: lkc
  */
-void Motor_OutputVoltageSensorlessIf(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad, float v_bus)
+MOTOR_OUTPUT_INLINE void Motor_OutputVoltageSensorlessIf(MOTOR_PARAM_S *motor, float vd, float vq, float theta_rad,
+                                                        float v_bus)
 {
     float v_alpha;
     float v_beta;

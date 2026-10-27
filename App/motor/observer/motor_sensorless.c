@@ -200,7 +200,7 @@ static void Motor_Sensorless_Seed(motor_sensorless_runtime_t *rt, const MOTOR_PA
 static void Motor_Sensorless_RunPll(motor_sensorless_runtime_t *rt, const MOTOR_PARAM_S *motor, float dt,
                                     float pole_pairs)
 {
-    float delta = utils_angle_difference_rad(rt->observer_angle, rt->pll_angle);
+    float delta = utils_angle_difference_rad_inline(rt->observer_angle, rt->pll_angle);
     float max_electrical_speed;
 
     /* 先用“当前速度 + 比例相位校正”推进 PLL 角度。 */
@@ -419,7 +419,7 @@ static inline bool Motor_Sensorless_ObserveFlux(motor_sensorless_runtime_t *rt, 
     if (diagnostic != NULL) {
         diagnostic->x_after_alpha = rt->x_alpha; diagnostic->x_after_beta = rt->x_beta;
         diagnostic->observer = rt->observer_angle;
-        diagnostic->phase_error = utils_angle_difference_rad(rt->observer_angle, diagnostic->pll_before);
+        diagnostic->phase_error = utils_angle_difference_rad_inline(rt->observer_angle, diagnostic->pll_before);
         diagnostic->dt = dt;
     }
     out->flux = flux;
@@ -469,7 +469,7 @@ static inline bool Motor_Sensorless_EvaluateLock(motor_sensorless_runtime_t *rt,
 {
     float open_loop_rpm_abs;
     float observer_rpm_abs;
-    float speed_error_limit;
+    float reference_direction;
 
     /* 四个锁定条件，必须全部为 true 才开始累计 lock_timer。 */
     bool flux_ok;
@@ -482,7 +482,7 @@ static inline bool Motor_Sensorless_EvaluateLock(motor_sensorless_runtime_t *rt,
      * 可以正确处理 +π/-π 交界，避免 179° 与 -179° 被误判为相差 358°。
      */
     rt->reference_angle = motor->ol_theta;
-    rt->phase_error = utils_angle_difference_rad(rt->pll_angle, rt->reference_angle);
+    rt->phase_error = utils_angle_difference_rad_inline(rt->pll_angle, rt->reference_angle);
 
     /* 条件 1：磁链模长应在额定值的 50%~150%，过小或过大都不可信。 */
     flux_ok = rt->flux_magnitude > flux * 0.5f && rt->flux_magnitude < flux * 1.5f;
@@ -495,24 +495,25 @@ static inline bool Motor_Sensorless_EvaluateLock(motor_sensorless_runtime_t *rt,
      */
     open_loop_rpm_abs = fabsf(motor->ol_current_rpm);
     observer_rpm_abs = fabsf(rt->filtered_rpm);
-    speed_error_limit = Motor_Sensorless_AtLeast(open_loop_rpm_abs * 0.25f, 100.0f);
     speed_ok = open_loop_rpm_abs >= motor->sensorless_transition_rpm &&
                observer_rpm_abs >= motor->sensorless_transition_rpm &&
-               fabsf(observer_rpm_abs - open_loop_rpm_abs) <= speed_error_limit;
+               fabsf(observer_rpm_abs - open_loop_rpm_abs) <=
+                   Motor_Sensorless_AtLeast(open_loop_rpm_abs * 0.25f, 100.0f);
 
     /* 条件 3：观测转速方向必须和 I/F 当前方向一致。零速时暂不检查方向。 */
-    direction_ok = motor->ol_current_rpm == 0.0f || SIGN(rt->filtered_rpm) == SIGN(motor->ol_current_rpm);
+    reference_direction = SIGN(motor->ol_current_rpm);
+    direction_ok = motor->ol_current_rpm == 0.0f || SIGN(rt->filtered_rpm) == reference_direction;
 
     /* I/F的theta是Park坐标角，并非真实转子角。Id=0、Iq正转时，
      * 电流矢量位于theta+pi/2；轻载转子可接近该矢量。直接限制PLL-theta
      * 会拒绝准确的约90度转子角。以命令电流矢量判断磁链方向，切角差仍
      * 单独保留，CLOSED下沿已有blend_time渐变，不修改观测角或PWM。 */
     {
-        float iq = SIGN(motor->ol_current_rpm) * fabsf(motor->ol_iq_set);
+        float iq = reference_direction * fabsf(motor->ol_iq_set);
         float current_angle = motor->ol_id_set == 0.0f ?
                                   (iq > 0.0f ? 1.570796327f : (iq < 0.0f ? -1.570796327f : 0.0f)) :
                                   utils_fast_atan2(iq, motor->ol_id_set);
-        rt->lock_phase_error = utils_angle_difference_rad(rt->phase_error, current_angle);
+        rt->lock_phase_error = utils_angle_difference_rad_inline(rt->phase_error, current_angle);
     }
     phase_ok = fabsf(rt->lock_phase_error) <= motor->sensorless_phase_tolerance;
 
@@ -656,7 +657,8 @@ static inline void Motor_Sensorless_AdvanceState(motor_sensorless_runtime_t *rt,
          * 相位误差不再单独作为失锁条件，因为 CLOSED 状态会持续把 ol_theta
          * 同步到控制角；此时它不再代表一条独立的开环参考轨迹。
          */
-        bool wrong_direction = motor->ol_current_rpm != 0.0f && SIGN(rt->filtered_rpm) != SIGN(motor->ol_current_rpm);
+        /* EvaluateLock 已用本拍同一转速计算方向，统计过程不改变它。 */
+        bool wrong_direction = !rt->direction_ok;
         bool lost = !flux_ok || wrong_direction || fabsf(rt->filtered_rpm) < motor->sensorless_fallback_rpm;
 
         /* 短暂噪声不会立刻回退，只有失锁条件连续超过 loss_time 才处理。 */
@@ -735,7 +737,7 @@ static inline void Motor_Sensorless_UpdateControlAngle(motor_sensorless_runtime_
             correction_fraction = previous_blend < 1.0f ?
                                       (rt->blend - previous_blend) / (1.0f - previous_blend) : 1.0f;
             /* 始终沿最短方向靠近 PLL 角度，避免跨 ±π 时绕远路。 */
-            angle_difference = utils_angle_difference_rad(rt->pll_angle, motor->ol_theta);
+            angle_difference = utils_angle_difference_rad_inline(rt->pll_angle, motor->ol_theta);
             rt->control_angle = motor->ol_theta + angle_difference * correction_fraction;
             utils_norm_angle_rad(&rt->control_angle);
         }
@@ -775,9 +777,14 @@ static inline void Motor_Sensorless_UpdateControlAngle(motor_sensorless_runtime_
  * @return {void} 无
  * @author: lkc
  */
-static void Motor_Sensorless_UpdateStateInternal(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
-                                                 motor_sensorless_effects_t *effects,
-                                                 motor_observer_step_sample_t *diagnostic)
+#if defined(__CC_ARM)
+/* 与本文件入口一起优化临时状态与副作用结果，观测/接管公式不变。 */
+static __forceinline void Motor_Sensorless_UpdateStateInternal(
+#else
+static void Motor_Sensorless_UpdateStateInternal(
+#endif
+    motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt, motor_sensorless_effects_t *effects,
+    motor_observer_step_sample_t *diagnostic)
 {
     motor_sensorless_flux_step_t step;
     float pole_pairs;
@@ -1035,12 +1042,17 @@ void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
     bool step_active = Motor_Timing_ObserverStepActive();
     bool step_due = step_active && Motor_Timing_ObserverStepDue();
     motor_sensorless_effects_t effects;
-    float pll_before = s_sensorless.pll_angle;
-    float speed_before = s_sensorless.pll_speed_electrical;
+    /* 相位模式由任务在临界区武装；普通控制拍不准备该诊断的前态。 */
+    bool phase_mode = false;
+#if MOTOR_CFG_DIAG
+    phase_mode = Motor_Timing_PhaseMode();
+#endif
+    float pll_before = phase_mode ? s_sensorless.pll_angle : 0.0f;
+    float speed_before = phase_mode ? s_sensorless.pll_speed_electrical : 0.0f;
     bool profile = Motor_Timing_ProfileIsActive();
     uint32_t start = profile ? Motor_Timing_ProfileTimeUs() : 0U;
-    bool blending = s_sensorless.state == MOTOR_SENSORLESS_CLOSED && s_sensorless.blend < 1.0f;
-    bool closed = s_sensorless.state == MOTOR_SENSORLESS_CLOSED;
+    bool closed = (profile || phase_mode) && s_sensorless.state == MOTOR_SENSORLESS_CLOSED;
+    bool blending = closed && s_sensorless.blend < 1.0f;
 
     step.dt = 0.0f;
     Motor_Sensorless_UpdateStateInternal(&s_sensorless, motor, dt, &effects, step_due ? &step : NULL);
@@ -1055,12 +1067,13 @@ void Motor_Sensorless_Update(MOTOR_PARAM_S *motor, float dt)
         previous_ia = motor->ia; previous_ib = motor->ib; previous_ic = motor->ic;
         previous_dt = dt;
     } else previous_dt = 0.0f;
-    if (Motor_Timing_PhaseDue(!(closed && !blending) && Motor_Sensorless_IsTakeoverCompleteState(&s_sensorless))) {
+    if (phase_mode &&
+        Motor_Timing_PhaseDue(!(closed && !blending) && Motor_Sensorless_IsTakeoverCompleteState(&s_sensorless))) {
         motor_phase_sample_t sample;
         memset(&sample, 0, sizeof(sample));
         sample.observer = s_sensorless.observer_angle;
         sample.pll_before = pll_before; sample.pll_after = s_sensorless.pll_angle;
-        sample.phase_error = utils_angle_difference_rad(sample.observer, pll_before);
+        sample.phase_error = utils_angle_difference_rad_inline(sample.observer, pll_before);
         sample.speed_before = speed_before; sample.speed_after = s_sensorless.pll_speed_electrical;
         sample.rpm = s_sensorless.filtered_rpm; sample.flux = s_sensorless.flux_magnitude;
         sample.x_alpha = s_sensorless.x_alpha; sample.x_beta = s_sensorless.x_beta;

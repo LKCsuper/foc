@@ -36,7 +36,8 @@ extern "C" {
 static motor_control_result_t Motor_Control_ResultSafe(void);
 static motor_control_result_t Motor_Control_ResultDq(float vd, float vq, float theta);
 static motor_control_result_t Motor_Control_PublishTheta(MOTOR_PARAM_S *motor, motor_control_result_t result);
-static float Motor_Control_EncoderCoggingAssist(const MOTOR_PARAM_S *motor, float pi_iq);
+static float Motor_Control_EncoderCoggingAssist(const MOTOR_PARAM_S *motor, float pi_iq,
+                                                    motor_feedback_source_t source);
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -92,9 +93,11 @@ static motor_control_result_t Motor_Control_PublishTheta(MOTOR_PARAM_S *motor, m
  * @detail: 只提高本拍 Iq 下限，不写 PI 积分；超过释放转速后完全退出。
  * @param {const MOTOR_PARAM_S *} motor 电机命令与限流
  * @param {float} pi_iq 速度 PI 输出 (A)
+ * @param {motor_feedback_source_t} source 本拍请求的反馈源
  * @return {float} 助推后 Iq (A)
  */
-static float Motor_Control_EncoderCoggingAssist(const MOTOR_PARAM_S *motor, float pi_iq)
+static float Motor_Control_EncoderCoggingAssist(const MOTOR_PARAM_S *motor, float pi_iq,
+                                                    motor_feedback_source_t source)
 {
     float direction;
     float measured_rpm;
@@ -105,7 +108,7 @@ static float Motor_Control_EncoderCoggingAssist(const MOTOR_PARAM_S *motor, floa
 
     if (motor == NULL || MOTOR_ENCODER_START_IQ_A <= 0.0f ||
         MOTOR_ENCODER_COGGING_ASSIST_RELEASE_RPM <= 0.0f || motor->ol_target_rpm == 0.0f ||
-        Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER) {
+        source != MOTOR_FEEDBACK_SRC_ENCODER) {
         return pi_iq;
     }
 
@@ -362,6 +365,37 @@ void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor)
 }
 
 /**
+ * @description: 字段未变时复用规整结果，变化时立即执行完整原规则。
+ * @detail: 逐字段比较原始字节，不用哈希、不跳拍；不缓存电流、角度反馈等运行量。
+ * @param {motor_control_t *} ctrl 控制实例，不可为空
+ * @param {MOTOR_PARAM_S *} motor 本拍配置与命令，不可为空
+ * @return {void} 无
+ */
+static void Motor_Control_NormalizeIfChanged(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
+{
+    COMMON_ASSERT(ctrl != NULL && motor != NULL);
+    if (!ctrl->normalized_config_valid) goto normalize;
+#define MOTOR_NORMALIZE_FIELD(name)                                      \
+    {                                                                   \
+        uint32_t bits = 0U;                                             \
+        memcpy(&bits, &motor->name, sizeof(motor->name));                 \
+        if (bits != ctrl->normalized_config.name) goto normalize;        \
+    }
+#include "motor_control_normalize_fields.inc"
+#undef MOTOR_NORMALIZE_FIELD
+    return;
+
+normalize:
+    Motor_Control_NormalizeConfig(motor);
+#define MOTOR_NORMALIZE_FIELD(name)                                      \
+    ctrl->normalized_config.name = 0U;                                   \
+    memcpy(&ctrl->normalized_config.name, &motor->name, sizeof(motor->name));
+#include "motor_control_normalize_fields.inc"
+#undef MOTOR_NORMALIZE_FIELD
+    ctrl->normalized_config_valid = true;
+}
+
+/**
  * @description: 转速斜坡。速度环按 VESC s_pid_ramp_erpms_s；I/F、V/F 仍用 olramp。
  * @param {MOTOR_PARAM_S} *motor  斜坡
  * @param {float} dt  周期 (s)
@@ -505,11 +539,12 @@ static void Motor_Control_StartupIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   电机对象
  * @param {const motor_feedback_sample_t *} sample 本拍样本
+ * @param {motor_feedback_source_t} source 本拍请求的反馈源
  * @return {float} 电角度 (rad)
  * @author: lkc
  */
 static float Motor_Control_GetCurrentTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor,
-                                           const motor_feedback_sample_t *sample)
+                                           const motor_feedback_sample_t *sample, motor_feedback_source_t source)
 {
     float theta = motor->ol_theta + ctrl->startup.if_start.phase_boost;
     motor_feedback_sample_t feedback;
@@ -517,7 +552,7 @@ static float Motor_Control_GetCurrentTheta(motor_control_t *ctrl, MOTOR_PARAM_S 
     if (sample != NULL) return sample->elec_angle_rad;
 
     utils_norm_angle_rad(&theta);
-    if (Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_SENSORLESS) {
+    if (source == MOTOR_FEEDBACK_SRC_SENSORLESS) {
         return motor->sensorless_enable ? Motor_Sensorless_GetControlAngle(theta) : theta;
     }
     /*
@@ -554,9 +589,11 @@ static void Motor_Control_PublishSensoredSpeed(const motor_feedback_sample_t *fe
  *          霍尔与无感仍用转速门槛：至少为启动转速的一半，跌到约 30% 才退回启动 Iq。
  * @param {motor_control_t *} ctrl ctrl 参数；空指针按实现返回或拒绝
  * @param {const MOTOR_PARAM_S *} motor 电机实例；空指针按实现返回或拒绝
+ * @param {motor_feedback_source_t} source 本拍请求的反馈源
  * @return {bool} true=满足速度环运行的模式、反馈和启动条件；false=尚不满足
  */
-static bool Motor_Control_SpeedLoopReady(motor_control_t *ctrl, const MOTOR_PARAM_S *motor)
+static bool Motor_Control_SpeedLoopReady(motor_control_t *ctrl, const MOTOR_PARAM_S *motor,
+                                          motor_feedback_source_t source)
 {
     float release_rpm;
     float drop_rpm;
@@ -572,7 +609,7 @@ static bool Motor_Control_SpeedLoopReady(motor_control_t *ctrl, const MOTOR_PARA
      * 编码器角和速度从第一拍起就有效。退回固定启动 Iq 会在电流环已经跟上时把轴来回猛推。
      * 零速命令同样必须留在速度 PI 里。
      */
-    if (motor->ol_target_rpm == 0.0f || Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER) {
+    if (motor->ol_target_rpm == 0.0f || source == MOTOR_FEEDBACK_SRC_ENCODER) {
         ctrl->speed_loop_latched = true;
         return true;
     }
@@ -604,13 +641,21 @@ static bool Motor_Control_EncoderSpeedUsesVoltage(float command_rpm)
 
 /**
  * @description: 填充电流环目标上下文（对齐、I/F 缩放、速度环 Iq）。
+ * @detail: ARMCC 内联本拍准备过程，减少上下文搬运；不缓存跨拍数据。
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   电机对象
  * @param {motor_current_target_ctx_t} *ctx  输出上下文
+ * @param {motor_feedback_source_t} source 本拍请求的反馈源
  * @return {void} 无
  * @author: lkc
  */
-static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *motor, motor_current_target_ctx_t *ctx)
+#if defined(__CC_ARM)
+static __forceinline void Motor_Control_FillCurrentCtx(
+    motor_control_t *ctrl, MOTOR_PARAM_S *motor, motor_current_target_ctx_t *ctx, motor_feedback_source_t source)
+#else
+static void Motor_Control_FillCurrentCtx(
+    motor_control_t *ctrl, MOTOR_PARAM_S *motor, motor_current_target_ctx_t *ctx, motor_feedback_source_t source)
+#endif
 {
     bool dragging;
 
@@ -626,9 +671,9 @@ static void Motor_Control_FillCurrentCtx(motor_control_t *ctrl, MOTOR_PARAM_S *m
      */
     /* 拖转路径已在RunIfDrag更新并预置PI，同一控制拍复用判定。
      * 对齐路径仍独立判断，避免复用上一拍的启动状态。 */
-    ctx->speed_loop_active = dragging ? ctrl->speed_loop_latched : Motor_Control_SpeedLoopReady(ctrl, motor);
+    ctx->speed_loop_active = dragging ? ctrl->speed_loop_latched : Motor_Control_SpeedLoopReady(ctrl, motor, source);
     ctx->speed_iq_target = ctx->speed_loop_active
-                               ? Motor_Control_EncoderCoggingAssist(motor, Motor_SpeedLoop_GetIqTarget())
+                               ? Motor_Control_EncoderCoggingAssist(motor, Motor_SpeedLoop_GetIqTarget(), source)
                                : 0.0f;
     /*
      * 电流模式没有前馈可抵消，Iq 就是最终转矩。禁止制动时在这里挡住反向电流。
@@ -704,18 +749,27 @@ static void Motor_Control_UpdateDragCurrent(motor_control_t *ctrl, float dt)
 
 /**
  * @description: I/F 路径：选角、填目标上下文并跑电流环，返回 DQ 输出。
+ * @detail: ARMCC 在控制入口内联本拍编排，避免独立调用的上下文和结果搬运。
  * @param {motor_control_t} *ctrl  控制实例
  * @param {MOTOR_PARAM_S} *motor   电机对象
  * @param {float} v_bus  母线 (V)
  * @param {float} dt  控制周期 (s)
  * @param {const motor_feedback_sample_t *} feedback feedback 参数；空指针按实现返回或拒绝
+ * @param {motor_feedback_source_t} source 本拍请求的反馈源
  * @return {motor_control_result_t} DQ 电压请求
  * @author: lkc
  */
+#if defined(__CC_ARM)
+static __forceinline motor_control_result_t Motor_Control_RunIf(
+    motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus, float dt, const motor_feedback_sample_t *feedback,
+    motor_feedback_source_t source)
+#else
 static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus, float dt,
-                                                  const motor_feedback_sample_t *feedback)
+                                                  const motor_feedback_sample_t *feedback,
+                                                  motor_feedback_source_t source)
+#endif
 {
-    float theta = Motor_Control_GetCurrentTheta(ctrl, motor, feedback);
+    float theta = Motor_Control_GetCurrentTheta(ctrl, motor, feedback, source);
     float v_limit = Motor_Control_GetVoltageLimit(motor, v_bus);
     motor_current_target_ctx_t ctx;
     motor_dq_voltage_t voltage = {0.0f, 0.0f};
@@ -723,7 +777,7 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
     bool encoder_direct_voltage_hold;
     bool encoder_voltage_output;
 
-    encoder_feedback = Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_ENCODER;
+    encoder_feedback = source == MOTOR_FEEDBACK_SRC_ENCODER;
     encoder_direct_voltage_hold = motor->joint_voltage_hold || motor->position_voltage_hold;
     if ((motor->joint_current_hold || encoder_direct_voltage_hold) &&
         (feedback == NULL || !feedback->angle_valid || !encoder_feedback)) {
@@ -735,7 +789,7 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
         return Motor_Control_ResultSafe();
     }
 
-    Motor_Control_FillCurrentCtx(ctrl, motor, &ctx);
+    Motor_Control_FillCurrentCtx(ctrl, motor, &ctx, source);
     if (motor->joint_current_hold) {
         /* 关节扭矩后端绕过速度PI，直接把受限的关节命令交给现有Iq电流环。 */
         ctx.speed_loop_active = true;
@@ -753,7 +807,8 @@ static motor_control_result_t Motor_Control_RunIf(motor_control_t *ctrl, MOTOR_P
         Motor_Fw_Reset(&ctrl->fw);
         Motor_Current_FeedbackUpdateDq(motor, theta);
     } else {
-        if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
+        /* 本拍上下文已确定启动阶段，复用结果准备弱磁。 */
+        if (!ctx.alignment_running) {
             float fw_max;
 
             fw_max = motor->fw_current_max;
@@ -867,11 +922,13 @@ motor_control_result_t Motor_Control_IfDiagnosticStep(motor_control_t *ctrl, MOT
     feedback.angle_valid = true;
     switch (mode) {
     case 1U:
-        return Motor_Control_ResultDq(Motor_Control_GetCurrentTheta(ctrl, motor, NULL), 0.0f, 0.0f);
+        return Motor_Control_ResultDq(
+            Motor_Control_GetCurrentTheta(ctrl, motor, NULL, Motor_Feedback_GetSourceDefault()), 0.0f, 0.0f);
     case 2U:
-        return Motor_Control_ResultDq(Motor_Control_GetCurrentTheta(ctrl, motor, &feedback), 0.0f, 0.0f);
+        return Motor_Control_ResultDq(
+            Motor_Control_GetCurrentTheta(ctrl, motor, &feedback, Motor_Feedback_GetSourceDefault()), 0.0f, 0.0f);
     case 3U:
-        Motor_Control_FillCurrentCtx(ctrl, motor, ctx);
+        Motor_Control_FillCurrentCtx(ctrl, motor, ctx, Motor_Feedback_GetSourceDefault());
         return Motor_Control_ResultDq(ctx->soft_current_scale, ctx->if_iq_scale, ctx->frame_correction);
     case 4U:
         return Motor_Control_ResultDq(Motor_Fw_Step(&ctrl->fw, 0.0f, motor->fw_duty_start,
@@ -880,9 +937,9 @@ motor_control_result_t Motor_Control_IfDiagnosticStep(motor_control_t *ctrl, MOT
     case 5U:
         return Motor_Control_ResultDq(Motor_Control_GetVoltageLimit(motor, 24.0f), 0.0f, 0.0f);
     case 6U:
-        return Motor_Control_RunIf(ctrl, motor, 24.0f, 1.0f / 15000.0f, NULL);
+        return Motor_Control_RunIf(ctrl, motor, 24.0f, 1.0f / 15000.0f, NULL, Motor_Feedback_GetSourceDefault());
     case 7U:
-        return Motor_Control_RunIf(ctrl, motor, 24.0f, 1.0f / 15000.0f, &feedback);
+        return Motor_Control_RunIf(ctrl, motor, 24.0f, 1.0f / 15000.0f, &feedback, Motor_Feedback_GetSourceDefault());
     case 8U:
         voltage = Motor_Current_Step(motor, motor->ol_theta, ctx, 1.0f / 15000.0f, 4.0f,
                                      &motor->id_target, &motor->iq_target);
@@ -1058,16 +1115,18 @@ static void Motor_Control_AdvanceIfStartup(motor_control_t *ctrl, MOTOR_PARAM_S 
 /**
  * @description: 速度 PI 首次接管时，按反馈源计算无突跳的 Iq 积分初值。
  * @param {const MOTOR_PARAM_S *} motor 电机命令、限流及速度参数
+ * @param {motor_feedback_source_t} source 本拍请求的反馈源
  * @return {float} 应预置的 Iq (A)
  */
-static float Motor_Control_GetSpeedPrimeIq(const MOTOR_PARAM_S *motor)
+static float Motor_Control_GetSpeedPrimeIq(const MOTOR_PARAM_S *motor, motor_feedback_source_t source)
 {
     float ref_rpm = motor->ol_current_rpm;
 
     if (fabsf(ref_rpm) < 1.0f) {
         ref_rpm = motor->ol_target_rpm;
     }
-    if (Motor_Feedback_GetSourceDefault() != MOTOR_FEEDBACK_SRC_ENCODER) return SIGN(ref_rpm) * fminf(fabsf(motor->ol_iq_set), fabsf(motor->speed_iq_limit));
+    if (source != MOTOR_FEEDBACK_SRC_ENCODER)
+        return SIGN(ref_rpm) * fminf(fabsf(motor->ol_iq_set), fabsf(motor->speed_iq_limit));
 
     {
         float command_rpm = motor->ol_target_rpm;
@@ -1103,19 +1162,24 @@ static float Motor_Control_GetSpeedPrimeIq(const MOTOR_PARAM_S *motor)
  * @param {MOTOR_PARAM_S *} motor 电机运行时
  * @param {float} dt 控制周期 (s)
  * @param {motor_feedback_sample_t *} feedback_out 有感反馈快照输出
+ * @param {motor_feedback_source_t} source 本拍请求的反馈源
+ * @param {bool} profile 本拍细分计时是否有效
  * @return {const motor_feedback_sample_t *} 有感时返回 feedback_out；无感时返回 NULL
  */
-static const motor_feedback_sample_t *Motor_Control_RunIfDrag(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float dt,
-                                                               motor_feedback_sample_t *feedback_out)
+static const motor_feedback_sample_t *Motor_Control_RunIfDrag(
+    motor_control_t *ctrl, MOTOR_PARAM_S *motor, float dt, motor_feedback_sample_t *feedback_out,
+    motor_feedback_source_t source, bool profile)
 {
-    bool sensored = Motor_Feedback_IsSensoredSource(Motor_Feedback_GetSourceDefault());
+    /* 复用本拍请求源；观测更新后的接管状态仍重新查询。 */
+    bool sensored = Motor_Feedback_IsSensoredSource(source);
+    bool takeover_before;
     bool was_latched;
-    bool profile = Motor_Timing_ProfileDetailedIsActive();
     uint32_t stage_start;
     MOTOR_PROFILE_BEGIN(profile, stage_start);
 
     Motor_Control_UpdateDragCurrent(ctrl, dt);
-    Motor_Control_UpdateSpeed(motor, dt, sensored || Motor_Sensorless_IsTakeoverComplete());
+    takeover_before = !sensored && Motor_Sensorless_IsTakeoverComplete();
+    Motor_Control_UpdateSpeed(motor, dt, sensored || takeover_before);
     Motor_Control_StartupIf(ctrl, motor);
     Motor_Control_UpdateTheta(ctrl, motor, dt);
     ctrl->current_frame_correction = 0.0f;
@@ -1130,21 +1194,20 @@ static const motor_feedback_sample_t *Motor_Control_RunIfDrag(motor_control_t *c
         Motor_Control_PublishSensoredSpeed(feedback_out);
     } else {
         float before_theta = motor->ol_theta;
-        bool transitioning = motor->sensorless_enable &&
-                             Motor_Feedback_GetSourceDefault() == MOTOR_FEEDBACK_SRC_SENSORLESS &&
-                             !Motor_Sensorless_IsTakeoverComplete();
+        bool transitioning = motor->sensorless_enable && source == MOTOR_FEEDBACK_SRC_SENSORLESS &&
+                             !takeover_before;
         Motor_Sensorless_Update(motor, dt);
         if (transitioning && Motor_Sensorless_IsTakeoverComplete()) Motor_Timing_HandoffMark();
         if (transitioning && motor->ol_theta != before_theta) {
-            ctrl->current_frame_correction = utils_angle_difference_rad(motor->ol_theta, before_theta);
+            ctrl->current_frame_correction = utils_angle_difference_rad_inline(motor->ol_theta, before_theta);
         }
     }
 
     MOTOR_PROFILE_BEGIN(profile, stage_start);
     was_latched = ctrl->speed_loop_latched;
-    if (Motor_Control_SpeedLoopReady(ctrl, motor)) {
+    if (Motor_Control_SpeedLoopReady(ctrl, motor, source)) {
         if (!was_latched) {
-            Motor_SpeedLoop_PrimeIq(Motor_Control_GetSpeedPrimeIq(motor));
+            Motor_SpeedLoop_PrimeIq(Motor_Control_GetSpeedPrimeIq(motor, source));
         }
         /* 速度 PI 在 foc pid 任务中积分；本拍电流环读取预置值或上一拍结果。 */
         Motor_SpeedLoop_SetRunAllowed(true);
@@ -1202,19 +1265,21 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
     }
 
     MOTOR_PROFILE_BEGIN(profile, stage_start);
-    Motor_Control_NormalizeConfig(motor);
+    Motor_Control_NormalizeIfChanged(ctrl, motor);
     MOTOR_PROFILE_END(profile, MOTOR_TIMING_CONFIG, stage_start);
 
     if (motor->ol_mode == MOTOR_OL_MODE_IF) {
+        /* 同拍编排共用请求源，下一控制拍重新读取。 */
+        motor_feedback_source_t source = Motor_Feedback_GetSourceDefault();
         MOTOR_PROFILE_BEGIN(profile, stage_start);
         if (Motor_Control_RunHfi(ctrl, motor, v_bus, &hfi_result)) return Motor_Control_PublishTheta(motor, hfi_result);
         Motor_Control_AdvanceIfStartup(ctrl, motor, dt);
         MOTOR_PROFILE_END(profile, MOTOR_TIMING_STARTUP, stage_start);
         if (ctrl->startup.phase == MOTOR_STARTUP_DRAG_RAMP) {
-            current_feedback = Motor_Control_RunIfDrag(ctrl, motor, dt, &sensored_feedback);
+            current_feedback = Motor_Control_RunIfDrag(ctrl, motor, dt, &sensored_feedback, source, profile);
         }
         MOTOR_PROFILE_BEGIN(profile, stage_start);
-        result = Motor_Control_RunIf(ctrl, motor, v_bus, dt, current_feedback);
+        result = Motor_Control_RunIf(ctrl, motor, v_bus, dt, current_feedback, source);
         MOTOR_PROFILE_END(profile, MOTOR_TIMING_IF_CURRENT, stage_start);
         return Motor_Control_PublishTheta(motor, result);
     }

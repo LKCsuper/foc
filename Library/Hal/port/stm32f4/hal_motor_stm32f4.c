@@ -401,6 +401,17 @@ float Hal_Motor_TimeElapsedSec(uint32_t start_us)
 }
 
 /**
+ * @description: 按固定板级 ADC 下标换算采样点电压，供单相与整帧入口共用。
+ * @detail: 保留 ADC_VOLTS 的运算顺序；内联后整帧无需逐相调用 switch。
+ * @param {uint8_t} channel 板级相电压 ADC 下标
+ * @return {float} 采样点电压 (V)
+ */
+static inline float Hal_Motor_SenseChannelVolts(uint8_t channel)
+{
+    return ADC_VOLTS(channel);
+}
+
+/**
  * @description: 捕获本周期一致的采样帧
  * @param {hal_motor_sample_t *} out 输出采样帧，不可为空
  * @return {bool} true=成功
@@ -413,9 +424,9 @@ bool Hal_Motor_SampleCapture(hal_motor_sample_t *out)
     out->current_adc[0] = Hal_Motor_CurrentAdc(0U);
     out->current_adc[1] = Hal_Motor_CurrentAdc(1U);
     out->current_adc[2] = Hal_Motor_CurrentAdc(2U);
-    out->sense_volts[0] = Hal_Motor_SenseVolts(0U);
-    out->sense_volts[1] = Hal_Motor_SenseVolts(1U);
-    out->sense_volts[2] = Hal_Motor_SenseVolts(2U);
+    out->sense_volts[0] = Hal_Motor_SenseChannelVolts(ADC_IND_SENS1);
+    out->sense_volts[1] = Hal_Motor_SenseChannelVolts(ADC_IND_SENS2);
+    out->sense_volts[2] = Hal_Motor_SenseChannelVolts(ADC_IND_SENS3);
     out->v_bus = Hal_Motor_BusVoltage();
     out->time_us = Hal_Motor_TimeUs();
     out->three_shunts = Hal_Motor_HasThreeShunts();
@@ -461,6 +472,9 @@ void Hal_Motor_AdcGetRaw(uint16_t *dst, uint32_t len)
  * @return {uint16_t} ADC 计数
  * @author: lkc
  */
+#if defined(__CC_ARM)
+__forceinline
+#endif
 uint16_t Hal_Motor_CurrentAdc(uint8_t phase)
 {
     switch (phase) {
@@ -485,11 +499,11 @@ float Hal_Motor_SenseVolts(uint8_t phase)
 {
     switch (phase) {
     case 0U:
-        return ADC_VOLTS(ADC_IND_SENS1);
+        return Hal_Motor_SenseChannelVolts(ADC_IND_SENS1);
     case 1U:
-        return ADC_VOLTS(ADC_IND_SENS2);
+        return Hal_Motor_SenseChannelVolts(ADC_IND_SENS2);
     case 2U:
-        return ADC_VOLTS(ADC_IND_SENS3);
+        return Hal_Motor_SenseChannelVolts(ADC_IND_SENS3);
     default:
         return 0.0f;
     }
@@ -500,6 +514,9 @@ float Hal_Motor_SenseVolts(uint8_t phase)
  * @return {float} V
  * @author: lkc
  */
+#if defined(__CC_ARM)
+__forceinline
+#endif
 float Hal_Motor_BusVoltage(void)
 {
     /* 保留GET_INPUT_VOLTAGE的4095分母和板级分压参数。
@@ -533,6 +550,9 @@ float Hal_Motor_PhaseVoltageGain(void)
  * @return {bool}
  * @author: lkc
  */
+#if defined(__CC_ARM)
+__forceinline
+#endif
 bool Hal_Motor_HasThreeShunts(void)
 {
 #ifdef HW_HAS_3_SHUNTS

@@ -27,6 +27,12 @@ extern "C" {
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
+#if defined(__CC_ARM)
+/* 同文件电流链路内联，减少中间结果搬运；保留公共入口及浮点规则。 */
+#define MOTOR_CURRENT_INLINE __forceinline
+#else
+#define MOTOR_CURRENT_INLINE
+#endif
 /* Private variables ---------------------------------------------------------*/
 static uint8_t s_recon_last;     /* 0=未重构，1=A，2=B，3=C */
 static uint32_t s_recon_samples; /* 本档调用次数 */
@@ -197,7 +203,7 @@ void Motor_Current_GetReconstructDiag(int *last_phase, uint32_t *samples, uint32
  * @return {void} 无
  * @author: lkc
  */
-void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
+MOTOR_CURRENT_INLINE void Motor_Current_FeedbackUpdateDq(MOTOR_PARAM_S *motor, float theta)
 {
     COMMON_ASSERT(motor != NULL);
     clarke_transform(motor->ia, motor->ib, motor->ic, &motor->Ialpha, &motor->Ibeta);
@@ -268,7 +274,7 @@ bool Motor_Current_ReconstructLongestZero(float *ia, float *ib, float *ic, uint3
  * @return {void} 无
  * @author: lkc
  */
-void Motor_Current_LimitTargets(float *id_target, float *iq_target, float current_limit)
+MOTOR_CURRENT_INLINE void Motor_Current_LimitTargets(float *id_target, float *iq_target, float current_limit)
 {
     float iq_room_squared;
     COMMON_ASSERT(id_target != NULL && iq_target != NULL);
@@ -299,8 +305,8 @@ void Motor_Current_LimitTargets(float *id_target, float *iq_target, float curren
  * @return {void} 无
  * @author: lkc
  */
-void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_target_ctx_t *ctx, float *id_target,
-                              float *iq_target)
+MOTOR_CURRENT_INLINE void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_target_ctx_t *ctx,
+                                                  float *id_target, float *iq_target)
 {
     motor_current_target_ctx_t local;
 
@@ -352,7 +358,8 @@ void Motor_Current_GetTargets(const MOTOR_PARAM_S *motor, const motor_current_ta
  * @return {void} 无
  * @author: lkc
  */
-void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, float id_err, float iq_err, float v_limit)
+MOTOR_CURRENT_INLINE void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, float id_err,
+                                                    float iq_err, float v_limit)
 {
     COMMON_ASSERT(motor != NULL && v != NULL);
 
@@ -378,7 +385,8 @@ void Motor_Current_LimitVoltage(MOTOR_PARAM_S *motor, motor_dq_voltage_t *v, flo
  * @return {motor_dq_voltage_t} 限幅后的 vd/vq (V)；motor 为空时为 0
  * @author: lkc
  */
-motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, float iq_target, float dt, float v_limit)
+MOTOR_CURRENT_INLINE motor_dq_voltage_t Motor_Current_RunPi(MOTOR_PARAM_S *motor, float id_target, float iq_target,
+                                                           float dt, float v_limit)
 {
     motor_dq_voltage_t v = {0.0f, 0.0f};
 

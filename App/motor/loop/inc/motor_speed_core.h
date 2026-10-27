@@ -4,6 +4,8 @@
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
+#include "common_assert.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -25,6 +27,53 @@ typedef struct {
     bool zero_brake_released;  /* 已越过零点，在新的非零指令前保持释放 */
     int8_t zero_brake_direction;
 } motor_speed_state_t;
+
+#if defined(__CC_ARM)
+#define MOTOR_SPEED_STATE_INLINE static __forceinline
+#else
+#define MOTOR_SPEED_STATE_INLINE static inline
+#endif
+/**
+ * @description: 共享清 PI 实现，保留机械反馈、控制快照与更新计数。
+ * @param {motor_speed_state_t *} state 速度状态，不可为空
+ * @return {void} 无
+ */
+MOTOR_SPEED_STATE_INLINE void Motor_Speed_ClearPiInline(motor_speed_state_t *state)
+{
+    COMMON_ASSERT(state != NULL);
+    state->loop_time = 0.0f;
+    state->integral = 0.0f;
+    state->error = 0.0f;
+    state->iq_target = 0.0f;
+}
+/**
+ * @description: 共享复位实现，清 PI 和零速制动状态，不改变反馈。
+ * @param {motor_speed_state_t *} state 速度状态，不可为空
+ * @return {void} 无
+ */
+MOTOR_SPEED_STATE_INLINE void Motor_SpeedLoop_ResetStateInline(motor_speed_state_t *state)
+{
+    COMMON_ASSERT(state != NULL);
+    Motor_Speed_ClearPiInline(state);
+    state->zero_brake_active = false;
+    state->zero_brake_released = false;
+    state->zero_brake_direction = 0;
+}
+/**
+ * @description: 共享反馈写回实现，无效反馈仍清转速并完整复位 PI。
+ * @param {motor_speed_state_t *} state 速度状态，不可为空
+ * @param {float} rpm 机械转速 (RPM)
+ * @param {bool} valid true=反馈可信
+ * @return {void} 无
+ */
+MOTOR_SPEED_STATE_INLINE void Motor_SpeedFeedback_SetStateInline(motor_speed_state_t *state, float rpm, bool valid)
+{
+    COMMON_ASSERT(state != NULL);
+    state->measured_rpm = valid ? rpm : 0.0f;
+    state->feedback_valid = valid;
+    if (!valid) Motor_SpeedLoop_ResetStateInline(state);
+}
+#undef MOTOR_SPEED_STATE_INLINE
 
 /** 最近一次速度 PI 计算帧，附实际计算序号（复位PI不清零）。 */
 typedef struct {

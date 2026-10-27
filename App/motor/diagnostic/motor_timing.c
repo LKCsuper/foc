@@ -34,31 +34,7 @@
 bool Motor_Timing_ControlClockStep(motor_control_clock_t *clock, bool enabled, uint32_t time_us,
                                    float nominal_dt, float *dt)
 {
-    float measured_dt;
-    uint32_t elapsed_us;
-    if (clock == NULL || dt == NULL) return false;
-    *dt = 0.0f;
-    if (!isfinite(nominal_dt) || nominal_dt <= 0.0f) {
-        clock->seeded = false;
-        return false;
-    }
-    if (!enabled) {
-        clock->seeded = false;
-        *dt = nominal_dt;
-        return true;
-    }
-    if (!clock->seeded) {
-        clock->last_us = time_us;
-        clock->seeded = true;
-        *dt = nominal_dt;
-        return true;
-    }
-    elapsed_us = time_us - clock->last_us;
-    clock->last_us = time_us;
-    measured_dt = (float)elapsed_us * 1.0e-6f;
-    if (measured_dt < nominal_dt * 0.5f || measured_dt > nominal_dt * 3.0f) return false;
-    *dt = measured_dt;
-    return true;
+    return Motor_Timing_ControlClockStep_Inline(clock, enabled, time_us, nominal_dt, dt);
 }
 
 /* Private variables ---------------------------------------------------------*/

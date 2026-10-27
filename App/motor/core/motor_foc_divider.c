@@ -81,18 +81,7 @@ bool Motor_FocDivider_ShouldRun(motor_foc_divider_t *state)
 bool Motor_FocDivider_PhaseGate(motor_foc_phase_gate_t *gate, const motor_foc_phase_gate_config_t *config,
                                 bool counting_down, uint32_t count, uint32_t period, uint32_t now_us)
 {
-    uint32_t since_top;
-
-    COMMON_ASSERT(gate != NULL);
-    COMMON_ASSERT(config != NULL);
-    if (!counting_down || count > period) return false;
-    /* 中心对齐向下计数：顶部更新时 CNT=ARR，之后递减，ARR-CNT 即顶部更新后经过的计数。 */
-    since_top = period - count;
-    if (since_top < config->min_counts || since_top > config->max_counts) return false;
-    if (gate->seeded && (uint32_t)(now_us - gate->last_us) < config->repeat_us) return false;
-    gate->last_us = now_us;
-    gate->seeded = true;
-    return true;
+    return Motor_FocDivider_PhaseGate_Inline(gate, config, counting_down, count, period, now_us);
 }
 
 /**
@@ -110,18 +99,7 @@ bool Motor_FocDivider_PhaseGate(motor_foc_phase_gate_t *gate, const motor_foc_ph
 bool Motor_FocDivider_ControlExpired(motor_foc_phase_gate_t *clock, bool running, bool execute,
                                      uint32_t now_us, uint32_t max_gap_us)
 {
-    COMMON_ASSERT(clock != NULL);
-    if (!running) {
-        clock->seeded = false;
-        return false;
-    }
-    if (!clock->seeded) {
-        clock->last_us = now_us;
-        clock->seeded = true;
-    }
-    if (max_gap_us == 0U || (uint32_t)(now_us - clock->last_us) > max_gap_us) return true;
-    if (execute) clock->last_us = now_us;
-    return false;
+    return Motor_FocDivider_ControlExpired_Inline(clock, running, execute, now_us, max_gap_us);
 }
 
 #ifdef __cplusplus

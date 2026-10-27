@@ -14,6 +14,10 @@ extern "C" {
 #include "includes.h"
 #include "motor_timing.h"
 #include "hal_motor.h"
+#if defined(__CC_ARM)
+/* 中断包装与分派仅提高编译优化等级，不改标志处理或外设配置。 */
+#pragma O2
+#endif
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
