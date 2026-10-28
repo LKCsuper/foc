@@ -5,7 +5,7 @@
  * @Date: 2022-11-19 09:57:21
  * @LastEditors: lkc
  * @LastEditTime: 2023-03-25 23:34:57
- * @detail: 逻辑分析仪 死区时间350ns左右 一个周期66.6us
+ * @detail: 逻辑分析仪测到的 66.6us 是 PWM 周期（中央对齐下约为 f_zv 的一半），不是 FOC 中断执行时间。死区约 350ns。
  */
 #ifdef __cplusplus
 extern "C" {

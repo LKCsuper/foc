@@ -38,46 +38,6 @@ inline void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float 
 }
 
 /**
- * @description: park变换
- * @detail: 
- * @param {float} Ialpha
- * @param {float} Ibeta
- * @param {float} Theta 相位,例如编码器角度
- * @param {float} *Id
- * @param {float} *Iq
- * @return {*}
- * @author: lkc
- */
-inline void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq)
-{
-	float s = sin_f32(Theta);
-	float c = cos_f32(Theta);
-	*Id =   Ialpha * c + Ibeta * s;
-	*Iq = - Ialpha * s + Ibeta * c;
-}
-
-/**
- * @description: 
- * @detail: 
- * [uα]   [cos角度 -sin角度] [ud]
- * [uβ]	  [sin角度 cos角度]  [uq]
- * @param {float} mod_d
- * @param {float} mod_q
- * @param {float} Theta
- * @param {float} *mod_alpha
- * @param {float} *mod_beta
- * @return {*}
- * @author: lkc
- */
-inline void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float *mod_beta)
-{
-	float s = sin_f32(Theta);
-	float c = cos_f32(Theta);
-	*mod_alpha = mod_d * c - mod_q * s;
-	*mod_beta  = mod_d * s + mod_q * c;
-}
-
-/**
  * @description: svpwm
  * @detail: 
  * @param {float} alpha

@@ -128,7 +128,10 @@
 #endif
 
 // Input voltage
-#define GET_INPUT_VOLTAGE()		((V_REG / 4095.0) * (float)ADC_Value[ADC_IND_VIN_SENS] * ((VIN_R1 + VIN_R2) / VIN_R2))
+/* 4095.0f, not 4095.0. Unsiffixed decimals are double; VESC only gets away with
+ * that because its Makefile passes -fsingle-precision-constant. Keil armclang
+ * does not, and Cortex-M4F runs double in software. */
+#define GET_INPUT_VOLTAGE()		((V_REG / 4095.0f) * (float)ADC_Value[ADC_IND_VIN_SENS] * ((VIN_R1 + VIN_R2) / VIN_R2))
 
 // NTC Termistors
 #define NTC_RES(adc_val)		((4095.0 * 10000.0) / adc_val - 10000.0)
