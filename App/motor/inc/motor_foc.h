@@ -42,9 +42,47 @@ extern "C" {
 //#define UTILS_LP_MOVING_AVG_APPROX(value, sample, N)    UTILS_LP_FAST(value, sample, 2.0f / ((N) + 1.0f))
 
 extern inline void clarke_transform(float Ia, float Ib, float Ic, float *Ialpha, float *Ibeta);
-extern inline void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq);
-extern inline void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float *mod_beta);
 extern inline int svm(float alpha, float beta, float* tA, float* tB, float* tC);
+
+/* VESC utils_fast_sincos_better: one polynomial for sin and cos, no flash table. */
+void utils_fast_sincos_better(float angle, float *s, float *c);
+
+/*
+ * O(1) wrap into [-pi, pi), then the VESC polynomial.
+ * The polynomial's own while-loop is only safe for angles already near that range;
+ * an open-loop theta that keeps growing would otherwise walk the loop every sample.
+ */
+static inline void foc_sincos(float angle, float *s, float *c)
+{
+	const float two_pi = 6.28318530716f;
+	float turns = angle * 0.159154943092f;
+	int n = (int)turns;
+	if (angle < 0.0f) {
+		n--;
+	}
+	angle -= (float)n * two_pi;
+	if (angle >= 3.14159265358f) {
+		angle -= two_pi;
+	}
+	utils_fast_sincos_better(angle, s, c);
+}
+
+/* Theta is radians. Bodies live here so the DMA ISR can inline them (Keil LTO is off). */
+static inline void park_transform(float Ialpha, float Ibeta, float Theta, float *Id, float *Iq)
+{
+	float s, c;
+	foc_sincos(Theta, &s, &c);
+	*Id =  Ialpha * c + Ibeta * s;
+	*Iq = -Ialpha * s + Ibeta * c;
+}
+
+static inline void inverse_park(float mod_d, float mod_q, float Theta, float *mod_alpha, float *mod_beta)
+{
+	float s, c;
+	foc_sincos(Theta, &s, &c);
+	*mod_alpha = mod_d * c - mod_q * s;
+	*mod_beta  = mod_d * s + mod_q * c;
+}
 void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 				uint32_t* tAout, uint32_t* tBout, uint32_t* tCout, uint32_t *svm_sector);
 

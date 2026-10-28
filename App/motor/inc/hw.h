@@ -375,10 +375,12 @@
 
 // Adc voltage scaling on phases and input
 #ifndef ADC_VOLTS_PH_FACTOR
-#define ADC_VOLTS_PH_FACTOR		1.0
+/* Keep this float. A bare 1.0 is double and promotes the whole phase-voltage
+ * product in the FOC ISR onto the software double library (no double FPU). */
+#define ADC_VOLTS_PH_FACTOR		1.0f
 #endif
 #ifndef ADC_VOLTS_INPUT_FACTOR
-#define ADC_VOLTS_INPUT_FACTOR	1.0
+#define ADC_VOLTS_INPUT_FACTOR	1.0f
 #endif
 
 // NRF SW SPI (default to spi header pins)
