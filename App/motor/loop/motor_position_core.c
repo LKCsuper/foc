@@ -32,7 +32,7 @@ static float PositionDeg(const motor_position_runtime_t *runtime, const motor_po
 {
     uint32_t delta = count - (uint32_t)runtime->state.origin_count;
     /* 明确uint32回绕的有符号差值，避免超范围转换依赖编译器。 */
-    int64_t signed_delta = delta <= INT32_MAX ? (int64_t)delta : (int64_t)delta - 4294967296LL;
+    int32_t signed_delta = SignedCount(delta);
     return (float)signed_delta * 360.0f / (float)config->counts_per_rev;
 }
 

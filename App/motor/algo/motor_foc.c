@@ -154,6 +154,36 @@ void inverse_park_sincos(float mod_d, float mod_q, float sine, float cosine, flo
 }
 
 /**
+ * @description: 按原比较顺序选择 SVM 扇区，供浮点占空比与计数输出共用。
+ * @detail: 仅共用扇区判断，两种输出的极性与时间合成公式保持各自原实现。
+ * @param {float} alpha 归一化 α 轴分量
+ * @param {float} beta 归一化 β 轴分量
+ * @return {uint32_t} 扇区号 1～6，边界沿用原有严格比较
+ */
+#if defined(__CC_ARM)
+static __forceinline
+#else
+static inline
+#endif
+uint32_t Motor_Foc_SvmSector(float alpha, float beta)
+{
+    if (beta >= 0.0f) {
+        if (alpha >= 0.0f) {
+            if (ONE_BY_SQRT3 * beta > alpha) return 2U;
+            return 1U;
+        }
+        if (-ONE_BY_SQRT3 * beta > alpha) return 3U;
+        return 2U;
+    }
+    if (alpha >= 0.0f) {
+        if (-ONE_BY_SQRT3 * beta > alpha) return 5U;
+        return 6U;
+    }
+    if (ONE_BY_SQRT3 * beta > alpha) return 4U;
+    return 5U;
+}
+
+/**
  * @description: 空间矢量 PWM 调制，将 αβ 电压归一化为三相占空比。
  * @detail: 输出 tA/tB/tC 为 [0, 1] 归一化占空比；任一相越界时返回 -1。
  * @param {float} alpha  α 轴电压（归一化）
@@ -166,38 +196,7 @@ void inverse_park_sincos(float mod_d, float mod_q, float sine, float cosine, flo
  */
 int svm(float alpha, float beta, float* tA, float* tB, float* tC)
 {
-	int Sextant;
-
-	if (beta >= 0.0f) {
-		if (alpha >= 0.0f) {
-			//quadrant I
-			if (ONE_BY_SQRT3 * beta > alpha)
-				Sextant = 2; //sextant v2-v3
-			else
-				Sextant = 1; //sextant v1-v2
-
-		} else {
-			//quadrant II
-			if (-ONE_BY_SQRT3 * beta > alpha)
-				Sextant = 3; //sextant v3-v4
-			else
-				Sextant = 2; //sextant v2-v3
-		}
-	} else {
-		if (alpha >= 0.0f) {
-			//quadrant IV
-			if (-ONE_BY_SQRT3 * beta > alpha)
-				Sextant = 5; //sextant v5-v6
-			else
-				Sextant = 6; //sextant v6-v1
-		} else {
-			//quadrant III
-			if (ONE_BY_SQRT3 * beta > alpha)
-				Sextant = 4; //sextant v4-v5
-			else
-				Sextant = 5; //sextant v5-v6
-		}
-	}
+	int Sextant = (int)Motor_Foc_SvmSector(alpha, beta);
 
 	switch (Sextant) {
 		// sextant v1-v2
@@ -295,45 +294,14 @@ int svm(float alpha, float beta, float* tA, float* tB, float* tC)
  * @return {void} 无
  * @author: lkc
  */
+#if defined(__CC_ARM)
+/* 在电压调制入口内展开扇区计算，减少多参数传递；保留原运算顺序。 */
+__forceinline
+#endif
 void foc_svm(float alpha, float beta, uint32_t PWMFullDutyCycle,
 				uint32_t* tAout, uint32_t* tBout, uint32_t* tCout, uint32_t *svm_sector) 
 {
-	uint32_t sector;
-
-	/* 扇区判断 */
-	if (beta >= 0.0f) {
-		if (alpha >= 0.0f) {
-			//quadrant I
-			if (ONE_BY_SQRT3 * beta > alpha) {
-				sector = 2;
-			} else {
-				sector = 1;
-			}
-		} else {
-			//quadrant II
-			if (-ONE_BY_SQRT3 * beta > alpha) {
-				sector = 3;
-			} else {
-				sector = 2;
-			}
-		}
-	} else {
-		if (alpha >= 0.0f) {
-			//quadrant IV5
-			if (-ONE_BY_SQRT3 * beta > alpha) {
-				sector = 5;
-			} else {
-				sector = 6;
-			}
-		} else {
-			//quadrant III
-			if (ONE_BY_SQRT3 * beta > alpha) {
-				sector = 4;
-			} else {
-				sector = 5;
-			}
-		}
-	}
+	uint32_t sector = Motor_Foc_SvmSector(alpha, beta);
 
 	// PWM timings
 	uint32_t tA, tB, tC;

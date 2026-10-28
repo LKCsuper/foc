@@ -87,12 +87,24 @@ bool Motor_Settings_ConfigRequiresStop(const motor_config_t *from, const motor_c
  * @description: 应用配置（不改校准、不改命令目标电流/转速 enable）。
  * @detail: 先与当前校准拼成完整 settings 校验；仅停机字段变化且电机在跑时失败。
  *          成功时只写配置相关字段。非 ISR 接口。
+ *          成功后原子发布配置及非零版本，供默认 ISR 复用规整结果；静态配置不得绕过提交直接写。
  * @param {MOTOR_PARAM_S *} motor 电机对象，不可为空
  * @param {const motor_config_t *} config 目标配置，不可为空
  * @return {bool} 成功返回 true
  * @author: lkc
  */
 bool Motor_Settings_ApplyConfig(MOTOR_PARAM_S *motor, const motor_config_t *config);
+
+/**
+ * @description: 原子提交不持久化的弱磁参数，并更新控制配置版本。
+ * @param {MOTOR_PARAM_S *} motor 电机对象，空指针返回 false
+ * @param {float} maximum 最大弱磁电流 (A)，有限且非负
+ * @param {float} duty_start 开始弱磁的占空比，有限且在 [0.5, 0.99]
+ * @param {float} ramp 电流变化率 (A/s)，有限且非负
+ * @return {bool} 成功返回 true；非法输入不修改任何字段
+ */
+bool Motor_Settings_ApplyWeakening(MOTOR_PARAM_S *motor, float maximum, float duty_start, float ramp);
+
 
 /**
  * @description: 编码为固定小端格式；size 必须匹配，非法输入返回 false 且不写输出。

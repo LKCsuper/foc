@@ -35,6 +35,7 @@ static MOTOR_PARAM_S *gpstMotorDefault = &motorDefault;
 void MOTOR_Param_Init(void)
 {
     bool flash_ok;
+    uint32_t next_revision = gpstMotor->control_config_revision + 1U;
     motor_settings_t defaults;
     motor_settings_t loaded;
 
@@ -174,6 +175,8 @@ void MOTOR_Param_Init(void)
         *gpstMotor = *gpstMotorDefault;
         PRINTF("Motor settings: invalid defaults or calibration\r\n");
     }
+
+    gpstMotor->control_config_revision = next_revision != 0U ? next_revision : 1U;
 
     Motor_Speed_Init();
     Motor_Sensorless_Init();

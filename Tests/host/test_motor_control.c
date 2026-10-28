@@ -598,23 +598,31 @@ static void test_normalize_cache(void)
     const uint32_t values[] = {0U, 0x80000000U, 0xbf800000U, 0x3f800000U, 0x41a00000U, 0x7fc12345U};
     unsigned i;
     unsigned repeat;
+    unsigned submitted;
 
-    memset(&motor, 0, sizeof(motor));
-    Motor_Control_Init(&cached);
-    Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_OPENLOOP);
-    motor.ol_enable = true;
-    motor.ol_target_rpm = 300.0f;
-    motor.ol_max_rpm = 1000.0f;
-    motor.ol_vq_limit = 6.0f;
-    motor.ol_pole_pairs = 7.0f;
-    (void)Motor_Control_Step(&cached, &motor, 24.0f, 1.0f / 15000.0f, false);
-    assert(cached.normalized_config_valid);
+    for (submitted = 0U; submitted < 2U; ++submitted) {
+
+        memset(&motor, 0, sizeof(motor));
+        Motor_Control_Init(&cached);
+        Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_OPENLOOP);
+        motor.control_config_revision = 11U;
+        motor.ol_enable = true;
+        motor.ol_target_rpm = 300.0f;
+        motor.ol_max_rpm = 1000.0f;
+        motor.ol_vq_limit = 6.0f;
+        motor.ol_pole_pairs = 7.0f;
+        if (submitted)
+            (void)Motor_Control_StepSubmitted(&cached, &motor, 24.0f, 1.0f / 15000.0f, false);
+        else
+            (void)Motor_Control_Step(&cached, &motor, 24.0f, 1.0f / 15000.0f, false);
+        assert(cached.normalized_config_valid);
 
 #define MOTOR_NORMALIZE_FIELD(name)                                                                                   \
     for (i = 0U; i < sizeof(values) / sizeof(values[0]); ++i) {                                                         \
         uint32_t bits = values[i];                                                                                    \
         if (sizeof(motor.name) == sizeof(bool)) bits = i % 2U;                                                         \
         if (sizeof(motor.name) == sizeof(uint16_t)) bits = i * 13U;                                                    \
+        if (submitted) motor.control_config_revision++;                                                              \
         memcpy(&motor.name, &bits, sizeof(motor.name));                                                                \
         for (repeat = 0U; repeat < 2U; ++repeat) {                                                                     \
             MOTOR_PARAM_S reference_motor = motor;                                                                   \
@@ -623,7 +631,8 @@ static void test_normalize_cache(void)
             motor_control_result_t actual;                                                                           \
             reference.normalized_config_valid = false;                                                               \
             expected = Motor_Control_Step(&reference, &reference_motor, 24.0f, 1.0f / 15000.0f, false);               \
-            actual = Motor_Control_Step(&cached, &motor, 24.0f, 1.0f / 15000.0f, false);                               \
+            actual = submitted ? Motor_Control_StepSubmitted(&cached, &motor, 24.0f, 1.0f / 15000.0f, false)             \
+                               : Motor_Control_Step(&cached, &motor, 24.0f, 1.0f / 15000.0f, false);                               \
             assert(memcmp(&expected, &actual, sizeof(actual)) == 0);                                                  \
             assert(memcmp(&reference_motor, &motor, sizeof(motor)) == 0);                                              \
             assert(memcmp(&reference.startup, &cached.startup, sizeof(cached.startup)) == 0);                          \
@@ -632,8 +641,60 @@ static void test_normalize_cache(void)
 #include "motor_control_normalize_fields.inc"
 #undef MOTOR_NORMALIZE_FIELD
 
-    Motor_Control_Init(&cached);
-    assert(!cached.normalized_config_valid);
+        Motor_Control_Init(&cached);
+        assert(!cached.normalized_config_valid);
+    }
+}
+
+/**
+ * @description: 已提交快路径仍检查动态目标，并在实例变化、未提交或复位时回退。
+ * @return {void} 无；断言失败终止测试
+ */
+static void test_submitted_boundaries(void)
+{
+    motor_control_t control;
+    MOTOR_PARAM_S motor;
+    MOTOR_PARAM_S other;
+    const float targets[] = {2000.0f, -2000.0f, NAN, -0.0f, 123.0f};
+    unsigned i;
+    memset(&motor, 0, sizeof(motor));
+    Motor_Control_Init(&control);
+    Motor_Feedback_SetSourceDefault(MOTOR_FEEDBACK_SRC_OPENLOOP);
+    motor.ol_enable = true;
+    motor.ol_target_rpm = 300.0f;
+    motor.ol_max_rpm = 1000.0f;
+    motor.ol_pole_pairs = 7.0f;
+    motor.ol_vq_limit = 6.0f;
+    motor.control_config_revision = UINT32_MAX;
+    (void)Motor_Control_StepSubmitted(&control, &motor, 24.0f, 1.0f / 15000.0f, false);
+    for (i = 0U; i < sizeof(targets) / sizeof(targets[0]); ++i) {
+        motor_control_t reference = control;
+        MOTOR_PARAM_S expected = motor;
+        motor_control_result_t a, b;
+        motor.ol_target_rpm = expected.ol_target_rpm = targets[i];
+        a = Motor_Control_Step(&reference, &expected, 24.0f, 1.0f / 15000.0f, false);
+        b = Motor_Control_StepSubmitted(&control, &motor, 24.0f, 1.0f / 15000.0f, false);
+        assert(memcmp(&a, &b, sizeof(a)) == 0);
+        assert(memcmp(&expected, &motor, sizeof(motor)) == 0);
+    }
+    /* 回绕后的非零版本必须重新规整；原始接口在非零版本下也识别直接写入。 */
+    motor.control_config_revision = 1U;
+    motor.ol_align_current = -2.0f;
+    (void)Motor_Control_StepSubmitted(&control, &motor, 24.0f, 1.0f / 15000.0f, false);
+    assert(motor.ol_align_current == 0.0f && control.normalized_revision == 1U);
+    other = motor;
+    other.ol_align_current = -3.0f;
+    (void)Motor_Control_StepSubmitted(&control, &other, 24.0f, 1.0f / 15000.0f, false);
+    assert(other.ol_align_current == 0.0f && control.normalized_owner == &other);
+    other.control_config_revision = 0U;
+    other.ol_align_current = -4.0f;
+    (void)Motor_Control_StepSubmitted(&control, &other, 24.0f, 1.0f / 15000.0f, false);
+    assert(other.ol_align_current == 0.0f);
+    other.ol_align_current = -5.0f;
+    (void)Motor_Control_StepSubmitted(&control, &other, 24.0f, 1.0f / 15000.0f, false);
+    assert(other.ol_align_current == 0.0f);
+    assert(Motor_Control_StepSubmitted(NULL, &other, 24.0f, 0.001f, false).action == MOTOR_CONTROL_ACTION_SAFE);
+    assert(Motor_Control_StepSubmitted(&control, NULL, 24.0f, 0.001f, false).action == MOTOR_CONTROL_ACTION_SAFE);
 }
 
 /**
@@ -1309,6 +1370,7 @@ int main(void)
         }
     }
     test_normalize_cache();
+    test_submitted_boundaries();
     printf("test_motor_control: pass\n");
     return 0;
 }

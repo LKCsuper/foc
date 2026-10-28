@@ -1083,30 +1083,33 @@ int Cmd_Fw(int argc, char *argv[])
                MOTOR_FW_I_BUDGET);
         return 0;
     }
-    max_a = (float)atof(argv[1]);
+    duty = motor.fw_duty_start;
+    ramp = motor.fw_ramp_a_s;
+    if (!Cmd_ArgFloat(argv[1], &max_a)) return -1;
     if (max_a < 0.0f) {
         max_a = 0.0f;
     }
     if (max_a > MOTOR_FW_I_BUDGET) {
         max_a = MOTOR_FW_I_BUDGET;
     }
-    motor.fw_current_max = max_a;
     if (argc >= 3) {
-        duty = (float)atof(argv[2]);
+        if (!Cmd_ArgFloat(argv[2], &duty)) return -1;
         if (duty < 0.50f) {
             duty = 0.50f;
         }
         if (duty > 0.99f) {
             duty = 0.99f;
         }
-        motor.fw_duty_start = duty;
     }
     if (argc >= 4) {
-        ramp = (float)atof(argv[3]);
+        if (!Cmd_ArgFloat(argv[3], &ramp)) return -1;
         if (ramp < 0.0f) {
             ramp = 0.0f;
         }
-        motor.fw_ramp_a_s = ramp;
+    }
+    if (!Motor_Settings_ApplyWeakening(&motor, max_a, duty, ramp)) {
+        PRINTF("Invalid weakening config\n");
+        return -1;
     }
     PRINTF("FW set: max=%.2f A  duty_start=%.2f  ramp=%.1f A/s\n", motor.fw_current_max, motor.fw_duty_start,
            motor.fw_ramp_a_s);

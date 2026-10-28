@@ -246,6 +246,13 @@ int main(void)
     assert(fabsf(Motor_Speed_LimitNoBrakeOutput(-30.0f, -0.37f + 1.0f, false)) < 1e-6f);
     assert(Motor_Speed_LimitNoBrakeOutput(30.0f, 0.37f - 1.0f, true) < 0.0f);
 
+    /* 旧接口修复非法频率时，已提交配置退回兼容模式，不能保留过期版本。 */
+    motor_a.speed_loop_hz = 0.0f;
+    motor_a.control_config_revision = 9U;
+    Motor_SpeedLoop_RunState(&a, &motor_a, dt);
+    assert(motor_a.speed_loop_hz == 1.0f);
+    assert(motor_a.control_config_revision == 0U);
+
     printf("test_motor_speed: pass\n");
     return 0;
 }

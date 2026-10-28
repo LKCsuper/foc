@@ -37,7 +37,7 @@ typedef struct {
 /* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 复位 I/F 启动状态机并恢复默认运行值。
- * @param {motor_if_start_t} *state  I/F 启动状态机实例，可为 NULL
+ * @param {motor_if_start_t} *state  I/F 启动状态机实例，不可为空，空指针触发断言
  * @return {void} 无
  * @author: lkc
  */
@@ -53,7 +53,7 @@ void MotorIfStart_NormalizeConfig(motor_if_start_config_t *config);
 
 /**
  * @description: 置为“转子已对齐/位置已知”的中性状态。
- * @param {motor_if_start_t} *state  I/F 启动状态机实例，可为 NULL
+ * @param {motor_if_start_t} *state  I/F 启动状态机实例，不可为空，空指针触发断言
  * @return {void} 无
  * @author: lkc
  */
@@ -61,7 +61,7 @@ void MotorIfStart_SetNeutral(motor_if_start_t *state);
 
 /**
  * @description: V/F 起步，直接设定角度积分转速。
- * @param {motor_if_start_t} *state  I/F 启动状态机实例，可为 NULL
+ * @param {motor_if_start_t} *state  I/F 启动状态机实例，不可为空，空指针触发断言
  * @param {float} rpm                角度积分转速 (RPM)
  * @return {void} 无
  * @author: lkc

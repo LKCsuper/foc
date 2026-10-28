@@ -24,7 +24,7 @@ extern "C" {
 /**
  * @description: 复位对齐状态机，恢复到“已停止”的初始状态
  * @detail: 清零全部状态字段，并将 stopped 置位
- * @param {motor_alignment_t} *state   对齐状态机；为 NULL 时直接返回
+ * @param {motor_alignment_t} *state   对齐状态机；不可为空，空指针触发断言
  * @return {void} 无
  * @author: lkc
  */
@@ -38,7 +38,7 @@ void MotorAlignment_Reset(motor_alignment_t *state)
 /**
  * @description: 归一化对齐配置，将非法负值钳位为 0
  * @detail: 电流与持续时间为负时置 0；为 0 时调用侧视为关闭预对齐
- * @param {motor_alignment_config_t} *config   对齐配置；为 NULL 时直接返回
+ * @param {motor_alignment_config_t} *config   对齐配置；不可为空，空指针触发断言
  * @return {void} 无
  * @author: lkc
  */
@@ -50,7 +50,7 @@ void MotorAlignment_NormalizeConfig(motor_alignment_config_t *config)
 /**
  * @description: 将状态机标记为“对齐完成”
  * @detail: 供其他定位流程（如 HFI 识别成功）代替预对齐完成后调用
- * @param {motor_alignment_t} *state   对齐状态机；为 NULL 时直接返回
+ * @param {motor_alignment_t} *state   对齐状态机；不可为空，空指针触发断言
  * @return {void} 无
  * @author: lkc
  */
@@ -66,7 +66,7 @@ void MotorAlignment_MarkComplete(motor_alignment_t *state)
  * @description: 将状态机标记为“跳过对齐”
  * @detail: 供独立对齐状态机的调用者记录本次未执行保持阶段；主控制启动状态机
  *          会先完成定角电流爬升，再决定是否进入保持阶段。
- * @param {motor_alignment_t} *state   对齐状态机；为 NULL 时直接返回
+ * @param {motor_alignment_t} *state   对齐状态机；不可为空，空指针触发断言
  * @return {void} 无
  * @author: lkc
  */

@@ -27,7 +27,7 @@ extern "C" {
 #if MOTOR_CFG_SENSORLESS
 #if defined(__CC_ARM)
 /* 减少观测与接管路径调用开销，保持原浮点模式。 */
-#pragma O2
+#pragma O3
 #endif
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
@@ -706,6 +706,16 @@ static inline void Motor_Sensorless_AdvanceState(motor_sensorless_runtime_t *rt,
 static inline void Motor_Sensorless_UpdateControlAngle(motor_sensorless_runtime_t *rt, MOTOR_PARAM_S *motor, float dt,
                                                        motor_sensorless_effects_t *effects)
 {
+    if (rt->state != MOTOR_SENSORLESS_CLOSED) {
+        /* OPEN_LOOP/LOCKING 仍使用 I/F 角度，并明确禁止速度闭环使用估算 RPM。 */
+        rt->control_angle = motor->ol_theta;
+        if (effects != NULL) {
+            effects->feedback_valid = false;
+            effects->feedback_rpm = 0.0f;
+        }
+        return;
+    }
+
     /*
      * CLOSED 状态下把控制角从 I/F 平滑过渡到 PLL：
      *
@@ -716,51 +726,42 @@ static inline void Motor_Sensorless_UpdateControlAngle(motor_sensorless_runtime_
      * 在两条轨迹等速、角差固定时，按blend_time线性消除初始角差；
      * 轨迹变化时仍逐拍沿当前最短角差修正，blend=1后完全使用PLL角。
      */
-    if (rt->state == MOTOR_SENSORLESS_CLOSED) {
-        /* 接管完成后PLL角已归一化，直接使用，省去重复除法和角度折返。 */
-        if (rt->blend >= 1.0f) {
-            rt->control_angle = rt->pll_angle;
-        } else {
-            float blend_step;
-            float previous_blend = rt->blend;
-            float correction_fraction;
-            float angle_difference;
-
-            /* blend_time<=0 表示用户要求一拍完成切换，否则按设定时间线性增加。 */
-            blend_step = motor->sensorless_blend_time > 0.0f ? dt / motor->sensorless_blend_time : 1.0f;
-            rt->blend = Motor_Sensorless_Clamp(rt->blend + blend_step, 0.0f, 1.0f);
-            /*
-             * ol_theta 已在上一拍同步到控制角，当前角差只剩未接管的部分。
-             * 用本拍新增比例/上一拍剩余比例修正，才与累计blend的时间定义一致。
-             * 若直接乘累计blend，每拍重复消除角差，实际切换会远快于blend_time。
-             */
-            correction_fraction = previous_blend < 1.0f ?
-                                      (rt->blend - previous_blend) / (1.0f - previous_blend) : 1.0f;
-            /* 始终沿最短方向靠近 PLL 角度，避免跨 ±π 时绕远路。 */
-            angle_difference = utils_angle_difference_rad_inline(rt->pll_angle, motor->ol_theta);
-            rt->control_angle = motor->ol_theta + angle_difference * correction_fraction;
-            utils_norm_angle_rad(&rt->control_angle);
-        }
-
-        /*
-         * 同步 I/F 角度有两个作用：
-         *   1. 下一周期的渐变从当前实际控制角继续，不会重复从旧角度开始；
-         *   2. 若发生失锁回退，I/F 会从当前角度接着积分，不产生角度阶跃。
-         */
-        motor->ol_theta = rt->control_angle;
-
-        /* 只有 CLOSED 才发布有效速度，速度 PI、堵转和失速保护才会使用它。 */
-        if (effects != NULL) {
-            effects->feedback_valid = true;
-            effects->feedback_rpm = rt->filtered_rpm;
-        }
+    /* 接管完成后PLL角已归一化，直接使用，省去重复除法和角度折返。 */
+    if (rt->blend >= 1.0f) {
+        rt->control_angle = rt->pll_angle;
     } else {
-        /* OPEN_LOOP/LOCKING 仍使用 I/F 角度，并明确禁止速度闭环使用估算 RPM。 */
-        rt->control_angle = motor->ol_theta;
-        if (effects != NULL) {
-            effects->feedback_valid = false;
-            effects->feedback_rpm = 0.0f;
-        }
+        float blend_step;
+        float previous_blend = rt->blend;
+        float correction_fraction;
+        float angle_difference;
+
+        /* blend_time<=0 表示用户要求一拍完成切换，否则按设定时间线性增加。 */
+        blend_step = motor->sensorless_blend_time > 0.0f ? dt / motor->sensorless_blend_time : 1.0f;
+        rt->blend = Motor_Sensorless_Clamp(rt->blend + blend_step, 0.0f, 1.0f);
+        /*
+         * ol_theta 已在上一拍同步到控制角，当前角差只剩未接管的部分。
+         * 用本拍新增比例/上一拍剩余比例修正，才与累计blend的时间定义一致。
+         * 若直接乘累计blend，每拍重复消除角差，实际切换会远快于blend_time。
+         */
+        correction_fraction = previous_blend < 1.0f ?
+                                  (rt->blend - previous_blend) / (1.0f - previous_blend) : 1.0f;
+        /* 始终沿最短方向靠近 PLL 角度，避免跨 ±π 时绕远路。 */
+        angle_difference = utils_angle_difference_rad_inline(rt->pll_angle, motor->ol_theta);
+        rt->control_angle = motor->ol_theta + angle_difference * correction_fraction;
+        utils_norm_angle_rad(&rt->control_angle);
+    }
+
+    /*
+     * 同步 I/F 角度有两个作用：
+     *   1. 下一周期的渐变从当前实际控制角继续，不会重复从旧角度开始；
+     *   2. 若发生失锁回退，I/F 会从当前角度接着积分，不产生角度阶跃。
+     */
+    motor->ol_theta = rt->control_angle;
+
+    /* 只有 CLOSED 才发布有效速度，速度 PI、堵转和失速保护才会使用它。 */
+    if (effects != NULL) {
+        effects->feedback_valid = true;
+        effects->feedback_rpm = rt->filtered_rpm;
     }
 }
 

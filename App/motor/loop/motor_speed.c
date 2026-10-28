@@ -14,6 +14,7 @@ extern "C" {
 #include "motor_speed.h"
 #include "motor_protect.h"
 #include "motor_config.h"
+#include "motor_crit.h"
 #if defined(__CC_ARM)
 /* 位于 ADC 中断控制路径，与其他实时模块一致局部 O2；不启用快速浮点，公式不变。 */
 #pragma O2
@@ -59,7 +60,11 @@ static void Motor_SpeedLoop_RunInternal(motor_speed_state_t *state, MOTOR_PARAM_
     input.iq_limit = motor->speed_iq_limit;
     if ((scheduled ? Motor_SpeedLoop_StepScheduledState(state, &input, dt) :
                      Motor_SpeedLoop_StepState(state, &input, dt)) && motor->speed_loop_hz < 1.0f) {
+        uint32_t primask = Motor_Crit_Enter();
         motor->speed_loop_hz = 1.0f; /* 保留旧入口仅进入分频后归一化的行为。 */
+        /* 旧接口修复了直接写入的非法参数，回退完整字段检查直到下一次正式提交。 */
+        motor->control_config_revision = 0U;
+        Motor_Crit_Exit(primask);
     }
 }
 

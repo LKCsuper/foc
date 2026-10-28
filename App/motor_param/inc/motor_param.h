@@ -197,6 +197,8 @@ typedef struct motor_param {
     float joint_hold_v;                       /* 运行时：关节阻抗合成电压 (V)，不含齿槽补偿 */
     bool joint_current_hold;                  /* 运行时：关节扭矩模式直接给 Iq，速度环不参与 */
     float joint_hold_iq;                      /* 运行时：关节扭矩模式 Iq 目标 (A) */
+    /* 配置提交版本，不持久化；0 表示传统直接写入，ISR 仍逐字段检查。 */
+    uint32_t control_config_revision;
 } MOTOR_PARAM_S;
 
 typedef struct tagFlashParam {

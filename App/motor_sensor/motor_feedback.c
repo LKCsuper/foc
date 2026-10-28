@@ -93,23 +93,13 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
     src = (fb != NULL) ? fb->source : MOTOR_FEEDBACK_SRC_OPENLOOP;
 
     switch (src) {
-    case MOTOR_FEEDBACK_SRC_OPENLOOP:
-        out->elec_angle_rad = open_loop_theta;
-        out->angle_valid = true;
-        out->speed_valid = false;
-        out->used_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
-        break;
-
     case MOTOR_FEEDBACK_SRC_SENSORLESS:
         /*
          * 无感关闭时仍回退开环角，避免无角可用；速度有效仅在接管完成。
          * 速度环发布仍由 sensorless effects 负责，此处不伪造零速。
          */
         if (motor != NULL && !motor->sensorless_enable) {
-            out->elec_angle_rad = open_loop_theta;
             out->angle_valid = true;
-            out->speed_valid = false;
-            out->used_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
         } else {
             out->elec_angle_rad = Motor_Sensorless_GetControlAngle(open_loop_theta);
             out->angle_valid = true;
@@ -130,10 +120,6 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
             out->elec_angle_rad = Motor_Encoder_GetElecAngle();
             out->angle_valid = true;
             out->used_source = MOTOR_FEEDBACK_SRC_ENCODER;
-        } else {
-            out->elec_angle_rad = open_loop_theta;
-            out->angle_valid = false;
-            out->used_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
         }
         out->mech_rpm = Motor_Encoder_GetMechRpm();
         out->mech_rpm_raw = Motor_Encoder_GetRawMechRpm();
@@ -152,10 +138,6 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
             out->elec_angle_rad = Motor_Hall_AngleGetTheta();
             out->angle_valid = true;
             out->used_source = MOTOR_FEEDBACK_SRC_HALL;
-        } else {
-            out->elec_angle_rad = open_loop_theta;
-            out->angle_valid = false;
-            out->used_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
         }
         out->mech_rpm = Motor_Hall_AngleGetMechRpm();
         out->mech_rpm_raw = Motor_Hall_AngleGetRawMechRpm();
@@ -165,10 +147,9 @@ void Motor_Feedback_Sample(motor_feedback_t *fb, const MOTOR_PARAM_S *motor, flo
         out->speed_valid = Motor_Hall_AngleIsSpeedValid();
         break;
 
+    case MOTOR_FEEDBACK_SRC_OPENLOOP:
     default:
-        out->elec_angle_rad = open_loop_theta;
         out->angle_valid = true;
-        out->used_source = MOTOR_FEEDBACK_SRC_OPENLOOP;
         break;
     }
 }

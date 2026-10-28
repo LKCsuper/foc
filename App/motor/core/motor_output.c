@@ -20,7 +20,7 @@ extern "C" {
 #include "motor_timing.h"
 #include "hal_motor.h"
 #if defined(__CC_ARM)
-#pragma O2
+#pragma O3
 #endif
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
@@ -350,21 +350,23 @@ void Motor_OutputApplyControlResultForPath(MOTOR_PARAM_S *motor, float v_bus,
     COMMON_ASSERT(motor != NULL && result != NULL);
     if (result->action == MOTOR_CONTROL_ACTION_SAFE) {
         Motor_OutputSafe(motor);
-    } else if (result->action == MOTOR_CONTROL_ACTION_OUTPUT_DQ) {
-        switch (path) {
-        case MOTOR_OUTPUT_PATH_VF:
-            Motor_OutputVoltageVf(motor, result->vd, result->vq, result->theta, v_bus);
-            break;
-        case MOTOR_OUTPUT_PATH_SENSORED_IF:
-            Motor_OutputVoltageSensoredIf(motor, result->vd, result->vq, result->theta, v_bus);
-            break;
-        case MOTOR_OUTPUT_PATH_SENSORLESS_IF:
-            Motor_OutputVoltageSensorlessIf(motor, result->vd, result->vq, result->theta, v_bus);
-            break;
-        default:
-            Motor_OutputSafe(motor);
-            break;
-        }
+        return;
+    }
+    if (result->action != MOTOR_CONTROL_ACTION_OUTPUT_DQ) return;
+
+    switch (path) {
+    case MOTOR_OUTPUT_PATH_VF:
+        Motor_OutputVoltageVf(motor, result->vd, result->vq, result->theta, v_bus);
+        break;
+    case MOTOR_OUTPUT_PATH_SENSORED_IF:
+        Motor_OutputVoltageSensoredIf(motor, result->vd, result->vq, result->theta, v_bus);
+        break;
+    case MOTOR_OUTPUT_PATH_SENSORLESS_IF:
+        Motor_OutputVoltageSensorlessIf(motor, result->vd, result->vq, result->theta, v_bus);
+        break;
+    default:
+        Motor_OutputSafe(motor);
+        break;
     }
 }
 

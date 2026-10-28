@@ -12,6 +12,12 @@
 - 主机测试入口：`Tests/host/run.ps1`，用 Zig 的 C 编译器编译生产代码，不需要 MCU SDK/RTOS；详情见 `Tests/host/README.md`。
 - 最小学习示例：`Examples/`（变换 → 校准 → 开环 → 有感电流 → 有感速度）；**主机通过与上板通过分开陈述**。
 
+## 配置更新边界
+
+- 默认 FOC 中断通过 `Motor_Control_StepSubmitted` 消费配置版本。静态参数使用 `Motor_SetConfig` 或 `Motor_Settings_ApplyConfig` 提交；非持久化弱磁参数使用 `Motor_Settings_ApplyWeakening`。提交在短临界区内同时写入配置和版本，不改变 Flash 线格式。
+- 目标转速是动态命令，仍逐控制拍按最大转速限幅，位置、关节与标定目标不依赖静态配置版本。
+- 独立算法或需要任意直接改字段的调用者继续使用 `Motor_Control_Step`，它保留逐字段检测。版本为 0 的未提交实例在 `StepSubmitted` 中也走兼容检查；已经初始化并提交的默认电机不得绕过提交接口直接写静态参数。
+
 ## 主控制链与阅读顺序
 
 ```text

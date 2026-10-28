@@ -365,16 +365,25 @@ void Motor_Control_NormalizeConfig(MOTOR_PARAM_S *motor)
 }
 
 /**
- * @description: 字段未变时复用规整结果，变化时立即执行完整原规则。
+ * @description: 已提交配置复用版本；兼容入口仍逐字段检测直接写入。
  * @detail: 逐字段比较原始字节，不用哈希、不跳拍；不缓存电流、角度反馈等运行量。
  * @param {motor_control_t *} ctrl 控制实例，不可为空
  * @param {MOTOR_PARAM_S *} motor 本拍配置与命令，不可为空
+ * @param {uint32_t} revision 提交版本；0 表示逐字段兼容检查
  * @return {void} 无
  */
-static void Motor_Control_NormalizeIfChanged(motor_control_t *ctrl, MOTOR_PARAM_S *motor)
+static void Motor_Control_NormalizeIfChanged(motor_control_t *ctrl, MOTOR_PARAM_S *motor, uint32_t revision)
 {
     COMMON_ASSERT(ctrl != NULL && motor != NULL);
-    if (!ctrl->normalized_config_valid) goto normalize;
+    if (revision != 0U && ctrl->normalized_config_valid && ctrl->normalized_owner == motor &&
+        ctrl->normalized_revision == revision) {
+        /* 目标属于动态命令，位置/关节/标定直接更新后也必须在本拍限幅。 */
+        if (motor->ol_target_rpm > motor->ol_max_rpm) motor->ol_target_rpm = motor->ol_max_rpm;
+        if (motor->ol_target_rpm < -motor->ol_max_rpm) motor->ol_target_rpm = -motor->ol_max_rpm;
+        return;
+    }
+    /* 新提交或尚无缓存时直接规整，其余才需要逐字段检测。 */
+    if (revision != 0U || !ctrl->normalized_config_valid) goto normalize;
 #define MOTOR_NORMALIZE_FIELD(name)                                      \
     {                                                                   \
         uint32_t bits = 0U;                                             \
@@ -383,7 +392,7 @@ static void Motor_Control_NormalizeIfChanged(motor_control_t *ctrl, MOTOR_PARAM_
     }
 #include "motor_control_normalize_fields.inc"
 #undef MOTOR_NORMALIZE_FIELD
-    return;
+    goto remember;
 
 normalize:
     Motor_Control_NormalizeConfig(motor);
@@ -393,6 +402,9 @@ normalize:
 #include "motor_control_normalize_fields.inc"
 #undef MOTOR_NORMALIZE_FIELD
     ctrl->normalized_config_valid = true;
+remember:
+    ctrl->normalized_owner = motor;
+    ctrl->normalized_revision = revision;
 }
 
 /**
@@ -1227,11 +1239,17 @@ static const motor_feedback_sample_t *Motor_Control_RunIfDrag(
  * @param {float} v_bus  母线 (V)
  * @param {float} dt  FOC 周期 (s)
  * @param {bool} hall_detect_active  霍尔标定
+ * @param {uint32_t} revision 已提交版本；0 采用逐字段兼容检查
  * @return {motor_control_result_t} 输出请求
  * @author: lkc
  */
-motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus, float dt,
-                                          bool hall_detect_active)
+#if defined(__CC_ARM)
+static __forceinline
+#else
+static inline
+#endif
+motor_control_result_t Motor_Control_StepInternal(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus,
+                                                 float dt, bool hall_detect_active, uint32_t revision)
 {
     motor_control_result_t result;
     motor_control_result_t hfi_result;
@@ -1265,7 +1283,7 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
     }
 
     MOTOR_PROFILE_BEGIN(profile, stage_start);
-    Motor_Control_NormalizeIfChanged(ctrl, motor);
+    Motor_Control_NormalizeIfChanged(ctrl, motor, revision);
     MOTOR_PROFILE_END(profile, MOTOR_TIMING_CONFIG, stage_start);
 
     if (motor->ol_mode == MOTOR_OL_MODE_IF) {
@@ -1292,6 +1310,37 @@ motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *
     Motor_Control_StartupVf(ctrl, motor);
     Motor_Control_UpdateTheta(ctrl, motor, dt);
     return Motor_Control_PublishTheta(motor, Motor_Control_RunVf(ctrl, motor, v_bus));
+}
+
+/**
+ * @description: 兼容直接字段写入的控制入口，每拍核对字段快照。
+ * @param {motor_control_t *} ctrl 控制实例
+ * @param {MOTOR_PARAM_S *} motor 电机对象
+ * @param {float} v_bus 母线电压 (V)
+ * @param {float} dt 控制周期 (s)
+ * @param {bool} hall_detect_active 标定或学习接管标志
+ * @return {motor_control_result_t} 本拍输出请求；空对象返回 SAFE
+ */
+motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus, float dt,
+                                          bool hall_detect_active)
+{
+    return Motor_Control_StepInternal(ctrl, motor, v_bus, dt, hall_detect_active, 0U);
+}
+
+/**
+ * @description: 使用提交版本推进控制；接口契约见 motor_control.h。
+ * @param {motor_control_t *} ctrl 控制实例
+ * @param {MOTOR_PARAM_S *} motor 已提交或版本为 0 的电机对象
+ * @param {float} v_bus 母线电压 (V)
+ * @param {float} dt 控制周期 (s)
+ * @param {bool} hall_detect_active 标定或学习接管标志
+ * @return {motor_control_result_t} 本拍输出请求；空对象返回 SAFE
+ */
+motor_control_result_t Motor_Control_StepSubmitted(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus,
+                                                   float dt, bool hall_detect_active)
+{
+    return Motor_Control_StepInternal(ctrl, motor, v_bus, dt, hall_detect_active,
+                                      motor != NULL ? motor->control_config_revision : 0U);
 }
 
 /**

@@ -22,7 +22,7 @@ extern "C" {
 #include "motor_timing.h"
 #if defined(__CC_ARM)
 /* 仅提高电流控制计算优化等级；保留浮点规则、PI公式和采样基线。 */
-#pragma O2
+#pragma O3
 #endif
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/

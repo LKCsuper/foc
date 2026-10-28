@@ -9,6 +9,7 @@ extern "C" {
 #include <math.h>
 #include <stddef.h>
 #include "motor_trajectory.h"
+#include "common_assert.h"
 /* Private define ------------------------------------------------------------*/
 /* Private typedef -----------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -44,6 +45,20 @@ static bool trajectory_config_valid(const motor_trajectory_config_t *config)
            config->velocity_limit > 0.0f && config->acceleration_limit > 0.0f &&
            config->deceleration_limit > 0.0f && config->position_tolerance >= 0.0f &&
            config->velocity_tolerance >= 0.0f && config->maximum_dt_s > 0.0f;
+}
+
+/**
+ * @description: 到达轨迹目标后统一结束运动，保留目标并清除速度和加速度。
+ * @param {motor_trajectory_t *} trajectory 已校验的轨迹状态，不可为空
+ * @return {void} 无
+ */
+static inline void trajectory_finish(motor_trajectory_t *trajectory)
+{
+    COMMON_ASSERT(trajectory != NULL);
+    trajectory->position = trajectory->goal;
+    trajectory->velocity = 0.0f;
+    trajectory->acceleration = 0.0f;
+    trajectory->active = false;
 }
 
 /**
@@ -117,10 +132,7 @@ bool Motor_Trajectory_Step(motor_trajectory_t *trajectory, const motor_trajector
     error = trajectory->goal - trajectory->position;
     if (fabsf(error) <= config->position_tolerance &&
         fabsf(trajectory->velocity) <= config->velocity_tolerance) {
-        trajectory->position = trajectory->goal;
-        trajectory->velocity = 0.0f;
-        trajectory->acceleration = 0.0f;
-        trajectory->active = false;
+        trajectory_finish(trajectory);
         return true;
     }
 
@@ -136,10 +148,7 @@ bool Motor_Trajectory_Step(motor_trajectory_t *trajectory, const motor_trajector
     trajectory->acceleration = velocity_step / dt_s;
     next_position = trajectory->position + 0.5f * (old_velocity + trajectory->velocity) * dt_s;
     if ((trajectory->goal - trajectory->position) * (trajectory->goal - next_position) <= 0.0f) {
-        trajectory->position = trajectory->goal;
-        trajectory->velocity = 0.0f;
-        trajectory->acceleration = 0.0f;
-        trajectory->active = false;
+        trajectory_finish(trajectory);
     } else {
         trajectory->position = next_position;
     }

@@ -364,6 +364,11 @@ int main(void)
         result.action = MOTOR_CONTROL_ACTION_NONE;
         Motor_OutputApplyControlResultForPath(&motor, 24.0f, &result, MOTOR_OUTPUT_PATH_SENSORLESS_IF);
         assert(s_commit_calls == commits + 3U);
+        /* 非输出动作必须忽略非法路径，不能误落到默认安全输出分支。 */
+        Motor_OutputApplyControlResultForPath(&motor, 24.0f, &result, (motor_output_path_t)99);
+        result.action = (motor_control_action_t)99;
+        Motor_OutputApplyControlResultForPath(&motor, 24.0f, &result, (motor_output_path_t)99);
+        assert(s_commit_calls == commits + 3U);
         result.action = MOTOR_CONTROL_ACTION_SAFE;
         Motor_OutputApplyControlResultForPath(&motor, 24.0f, &result, MOTOR_OUTPUT_PATH_SENSORLESS_IF);
         assert(s_pwm_a == 500U && s_pwm_b == 500U && s_pwm_c == 500U);

@@ -409,7 +409,7 @@ static motor_control_result_t Motor_FocIsr_RunControl(MOTOR_PARAM_S *motor, floa
 {
     motor_control_result_t result;
 
-    result = Motor_Control_Step(&s_control, motor, motor->v_bus, control_dt,
+    result = Motor_Control_StepSubmitted(&s_control, motor, motor->v_bus, control_dt,
                                 Motor_Hall_DetectIsActive() || Motor_Encoder_DetectIsActive() ||
                                     Motor_Anticogging_IsLearning());
     Motor_Hall_DiagUpdate();

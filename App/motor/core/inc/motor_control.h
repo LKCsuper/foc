@@ -58,8 +58,10 @@ typedef struct {
     int last_mode;           /* 上一控制模式；-1 表示尚未运行 */
     bool speed_loop_latched; /* 速度 PI 已接管；跌回门槛以下才释放给启动 Iq */
     float current_frame_correction; /* 本拍无感渐变附加角，排除正常转速积分(rad) */
-    motor_control_normalized_config_t normalized_config; /* 上次规整后字段；直接修改也在下一拍识别 */
+    motor_control_normalized_config_t normalized_config; /* 兼容入口按字段核对；提交入口按版本复用 */
     bool normalized_config_valid; /* Init 清零，首次运行必须完整规整 */
+    const MOTOR_PARAM_S *normalized_owner; /* 已规整配置所属实例 */
+    uint32_t normalized_revision;          /* 已消费的提交版本；0 不走版本快路径 */
 } motor_control_t;
 
 /**
@@ -157,6 +159,21 @@ void Motor_Control_UpdateTheta(motor_control_t *ctrl, MOTOR_PARAM_S *motor, floa
  */
 motor_control_result_t Motor_Control_Step(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus, float dt,
                                           bool hall_detect_active);
+
+/**
+ * @description: 消费通过 Settings 原子提交的配置，推进默认 ISR 控制拍。
+ * @detail: 版本不变时复用规整结果，动态目标转速仍逐拍限幅；版本为 0 时回退逐字段检查。
+ *          静态配置须通过 Settings 提交；需要任意直接改字段的调用者使用 Motor_Control_Step。
+ * @param {motor_control_t *} ctrl 控制实例，空则返回 SAFE
+ * @param {MOTOR_PARAM_S *} motor 电机对象，空则返回 SAFE
+ * @param {float} v_bus 母线电压 (V)
+ * @param {float} dt 控制周期 (s)
+ * @param {bool} hall_detect_active 标定或学习是否接管控制
+ * @return {motor_control_result_t} 本拍输出请求
+ */
+motor_control_result_t Motor_Control_StepSubmitted(motor_control_t *ctrl, MOTOR_PARAM_S *motor, float v_bus,
+                                                   float dt, bool hall_detect_active);
+
 
 /**
  * @description: 查询是否处于预对齐

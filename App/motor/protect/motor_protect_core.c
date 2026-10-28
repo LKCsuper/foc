@@ -324,13 +324,9 @@ bool Motor_Protect_CheckSpeedLossInputState(motor_protect_state_t *state, const 
 
     target_abs = fabsf(motor->ol_target_rpm);
     speed_abs = fabsf(state->speed_rpm);
-    if (target_abs < state->config.stall_target_rpm) {
-        state->speed_was_reached = false;
-        state->speed_loss_timer = 0.0f;
-        return false;
-    }
-    /* 斜坡还没贴上目标：给定仍在爬。清掉旧的“曾经跟上”，避免 150 直接被当成已经到了 3000。 */
-    if (fabsf(motor->ol_current_rpm - motor->ol_target_rpm) > 1.0f) {
+    /* 低目标或斜坡尚未到位时，清掉旧的“曾经跟上”，避免把加速过程当作失速。 */
+    if (target_abs < state->config.stall_target_rpm ||
+        fabsf(motor->ol_current_rpm - motor->ol_target_rpm) > 1.0f) {
         state->speed_was_reached = false;
         state->speed_loss_timer = 0.0f;
         return false;

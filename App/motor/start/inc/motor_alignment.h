@@ -49,7 +49,7 @@ typedef enum {
 /* Private function prototypes -----------------------------------------------*/
 /**
  * @description: 复位对齐状态机，恢复到“已停止”的初始状态。
- * @param {motor_alignment_t} *state  对齐状态机；为 NULL 时直接返回
+ * @param {motor_alignment_t} *state  对齐状态机；不可为空，空指针触发断言
  * @return {void} 无
  * @author: lkc
  */
@@ -57,7 +57,7 @@ void MotorAlignment_Reset(motor_alignment_t *state);
 
 /**
  * @description: 归一化对齐配置，将非法负值钳位为 0。
- * @param {motor_alignment_config_t} *config  对齐配置；为 NULL 时直接返回
+ * @param {motor_alignment_config_t} *config  对齐配置；不可为空，空指针触发断言
  * @return {void} 无
  * @author: lkc
  */
@@ -77,7 +77,7 @@ static inline void MotorAlignment_NormalizeConfigInline(motor_alignment_config_t
 
 /**
  * @description: 将状态机标记为“跳过对齐”。
- * @param {motor_alignment_t} *state  对齐状态机；为 NULL 时直接返回
+ * @param {motor_alignment_t} *state  对齐状态机；不可为空，空指针触发断言
  * @return {void} 无
  * @author: lkc
  */
@@ -85,7 +85,7 @@ void MotorAlignment_MarkSkipped(motor_alignment_t *state);
 
 /**
  * @description: 将状态机标记为“对齐完成”。
- * @param {motor_alignment_t} *state  对齐状态机；为 NULL 时直接返回
+ * @param {motor_alignment_t} *state  对齐状态机；不可为空，空指针触发断言
  * @return {void} 无
  * @author: lkc
  */

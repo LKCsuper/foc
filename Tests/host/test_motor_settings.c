@@ -64,12 +64,15 @@ int main(void)
     MOTOR_PARAM_S target;
     uint8_t data[MOTOR_SETTINGS_WIRE_SIZE], other[MOTOR_SETTINGS_WIRE_SIZE];
     unsigned i;
+    uint32_t revision;
 
     /* Real production defaults must pass validation, including repeated initialization. */
     motor.ol_enable = true;
     motor.ol_vd_int = 90.0f;
     motor.ia = 123.0f;
+    motor.control_config_revision = 200U;
     MOTOR_Param_Init();
+    assert(motor.control_config_revision == 201U);
     assert(!motor.ol_enable && motor.ol_vd_int == 0.0f && motor.ia == 0.0f);
     assert(save_calls == 0);
     assert(Motor_Settings_Capture(&motor, &settings));
@@ -77,6 +80,11 @@ int main(void)
     /* First schema word is the selected motor's max RPM in little-endian IEEE754. */
     assert(memcmp(data, &motor.ol_max_rpm, sizeof(float)) == 0);
     assert(Motor_Settings_Decode(data, sizeof(data), &decoded));
+    assert(Motor_Settings_Encode(&decoded, other, sizeof(other)));
+    assert(memcmp(data, other, sizeof(data)) == 0);
+
+    motor.control_config_revision ^= 0x12345678U;
+    assert(Motor_Settings_Capture(&motor, &decoded));
     assert(Motor_Settings_Encode(&decoded, other, sizeof(other)));
     assert(memcmp(data, other, sizeof(data)) == 0);
 
@@ -164,6 +172,23 @@ int main(void)
     settings.config.ol_pole_pairs = MOTOR_FIXED_POLE_PAIRS;
     assert(Motor_Settings_Apply(&motor, &settings));
 
+    revision = motor.control_config_revision;
+    assert(Motor_Settings_ApplyConfig(&motor, &settings.config));
+    assert(motor.control_config_revision != revision);
+    revision = motor.control_config_revision;
+    settings.config.sensorless_motor_r = NAN;
+    assert(!Motor_Settings_ApplyConfig(&motor, &settings.config));
+    assert(motor.control_config_revision == revision);
+    motor.control_config_revision = UINT32_MAX;
+    assert(Motor_Settings_ApplyWeakening(&motor, 1.0f, 0.8f, 3.0f));
+    assert(motor.control_config_revision == 1U && motor.fw_current_max == 1.0f);
+    assert(!Motor_Settings_ApplyWeakening(&motor, NAN, 0.8f, 3.0f));
+    assert(!Motor_Settings_ApplyWeakening(&motor, 1.0f, 0.1f, 3.0f));
+    assert(!Motor_Settings_ApplyWeakening(&motor, 1.0f, 0.8f, -1.0f));
+    assert(motor.control_config_revision == 1U && motor.fw_current_max == 1.0f);
+    revision = motor.control_config_revision;
+    MOTOR_Param_Init();
+    assert(motor.control_config_revision != revision);
     puts("PASS: settings codec, validation, state isolation and initialization");
     return 0;
 }

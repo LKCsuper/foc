@@ -7,6 +7,7 @@ extern "C" {
 #endif
 /* Includes ------------------------------------------------------------------*/
 #include "motor_settings.h"
+#include "motor_crit.h"
 #include <stddef.h>
 #include <string.h>
 #include <math.h>
@@ -148,9 +149,14 @@ bool Motor_Settings_Capture(const MOTOR_PARAM_S *motor, motor_settings_t *settin
  */
 static void settings_write_config(MOTOR_PARAM_S *motor, const motor_config_t *config)
 {
+    uint32_t primask = Motor_Crit_Enter();
 #define MOTOR_CONFIG_FIELD(name, kind, nonneg, stop, word_max) motor->name = config->name;
 #include "motor_config_fields.inc"
 #undef MOTOR_CONFIG_FIELD
+    /* 0 保留给传统直接写入；回绕后仍发布一个非零新版本。 */
+    motor->control_config_revision++;
+    if (motor->control_config_revision == 0U) motor->control_config_revision = 1U;
+    Motor_Crit_Exit(primask);
 }
 
 /**
@@ -211,6 +217,29 @@ bool Motor_Settings_ApplyConfig(MOTOR_PARAM_S *motor, const motor_config_t *conf
     candidate.config = *config;
     if (!settings_valid(&candidate)) return false;
     settings_write_config(motor, config);
+    return true;
+}
+
+/**
+ * @description: 提交运行时弱磁参数，保持 Flash 线格式不变。
+ * @param {MOTOR_PARAM_S *} motor 电机对象
+ * @param {float} maximum 最大弱磁电流 (A)
+ * @param {float} duty_start 起始占空比，无量纲
+ * @param {float} ramp 弱磁变化率 (A/s)
+ * @return {bool} 参数合法并已原子提交时返回 true
+ */
+bool Motor_Settings_ApplyWeakening(MOTOR_PARAM_S *motor, float maximum, float duty_start, float ramp)
+{
+    uint32_t primask;
+    if (motor == NULL || !isfinite(maximum) || maximum < 0.0f || !isfinite(duty_start) ||
+        duty_start < 0.5f || duty_start > 0.99f || !isfinite(ramp) || ramp < 0.0f) return false;
+    primask = Motor_Crit_Enter();
+    motor->fw_current_max = maximum;
+    motor->fw_duty_start = duty_start;
+    motor->fw_ramp_a_s = ramp;
+    motor->control_config_revision++;
+    if (motor->control_config_revision == 0U) motor->control_config_revision = 1U;
+    Motor_Crit_Exit(primask);
     return true;
 }
 
